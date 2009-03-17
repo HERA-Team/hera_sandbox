@@ -1,9 +1,9 @@
 '''This is a calibration file for data collected at PAPER in Green Bank
 on JD 2454864.'''
 
-import aipy as a, numpy as n,glob,CAPOdB
+import aipy as a, numpy as n,glob,capodb
 
-class AntennaArray(CAPOdB.AntennaArray):
+class AntennaArray(capodb.AntennaArray):
     def __init__(self, *args, **kwargs):
         self.rx_poly = [-155449126422333.19, 256293525638826.72, -189524803210046.41, 82771279346848.969, -23640471627039.688, 4613565363350.415, -622997603995.79053, 57475902027.739426, -3466894761.8145747, 123458994.13390201, -1970963.6385044381]
         self.ddc_poly = [65123029498.345612, -97672196551.106552, 64042861492.03476, -24111913057.711517, 5761340839.0835114, -912373536.43163371, 97137219.224425375, -6896379.6290631033, 314561.96293171198, -8363.013373925829, 98.57747247358202]
@@ -290,11 +290,11 @@ def get_aa(freqs):
         bp_i = prms['bp_i'][i]
         off = prms['offsets'][i]
         antennas.append(
-            CAPOdB.Antenna(pos[0],pos[1],pos[2], beam, phsoff=[dly,off],
+            capodb.Antenna(pos[0],pos[1],pos[2], beam, phsoff=[dly,off],
                 amp=amp, bp_r=bp_r, bp_i=bp_i,id=i)
         )
     #aa = a.fit.AntennaArray(prms['loc'], antennas)
-    aa = CAPOdB.AntennaArray(prms['loc'], antennas)
+    aa = capodb.AntennaArray(prms['loc'], antennas)
     return aa
 
 src_prms = {

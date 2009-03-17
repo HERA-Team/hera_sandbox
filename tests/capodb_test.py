@@ -6,7 +6,7 @@
 #  Created by Danny Jacobs on 3/12/09.
 #  Copyright (c) 2009 __MyCompanyName__. All rights reserved.
 #
-import CAPOdB as cdb, sys, aipy as a,numpy as n
+import capodb as cdb, sys, aipy as a,numpy as n
 
 lat, lon = '45:00', '90:00'
 freqs = a.loc.get_freqs(0.1,0.1/256,256)
