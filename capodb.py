@@ -18,7 +18,8 @@ class CAPO_dB():
         self.conn.row_factory = sql.Row
         self.c = self.conn.cursor()
         try: self.c.execute('''create table aa (ant int, bp_r blob, amp  real, 
-                             phsoff text, x real, y real, z real, bp_i text)''')
+                             phsoff text, x real, y real, z real, bp_i text,
+                             dly real,off real)''')
         except: pass #the db already exists or something I don't know what is wrong.
         self.c.close()
         self.aa_db_params = ['ant','bp_r','bp_i','amp','phsoff','x','y','z']
