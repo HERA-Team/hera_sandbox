@@ -20,6 +20,7 @@ import sys, optparse
 import capodb
 
 o = optparse.OptionParser()
+o.set_usage('init_ant_db.py [options] *.csv')
 a.scripting.add_standard_options(o, cal=True)
 o.add_option('-o','--dbfile', dest='filename', default='True',
     help='Filename of new database to be created.')
