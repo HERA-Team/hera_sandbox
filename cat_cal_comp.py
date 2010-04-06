@@ -4,15 +4,13 @@ import sys, optparse
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True)
-o.add_option('--cat',dest='cat', default='helm,misc')
 opts, args = o.parse_args(sys.argv[1:])
 
 exec('import %s as cal' % opts.cal)
 afreqs = n.arange(.130, .190, .01)
 srclist = cal.src_prms.keys() + ['cyg']
 
-catnames = opts.cat.split(',')
-cat = a.src.get_catalog(srclist, catalogs=catnames)
+cat = a.src.get_catalog(srclist)
 try: del(cat['Sun'])
 except(KeyError): pass
 #del(cat['hyd'])

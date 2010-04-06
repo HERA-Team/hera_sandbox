@@ -38,11 +38,7 @@ m.map.map *= gain
 print 'Selecting pixels'
 px = n.where(m.map.map > opts.thresh)
 jys = m.map.map[px]
-order = list(n.argsort(jys))
-order.reverse()
-order = n.array(order)
-px = px[0].take(order)
-jys = jys.take(order)
+px = px[0].take(n.argsort(jys))
 print px
 print len(px)
 ras,decs = a.coord.eq2radec(m.px2crd(px, ncrd=3))
@@ -67,6 +63,6 @@ for p in px:
         print p, srcs[0]._ra, srcs[0]._dec, [src._jys for src in srcs]
     except(KeyError): pass
 
-print ','.join(['%s_%s' % (prev_srcs[p][0]._ra, prev_srcs[p][0]._dec) for p in prev_srcs])
+print ','.join(['%s_%s' % (prev_srcs[p][0]._ra, prev_srcs[p][0]._dec) for p in px])
 
 

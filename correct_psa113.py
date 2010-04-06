@@ -18,7 +18,8 @@ conj_bls = [
 def is_run1(jd): return (jd > 2455113.08 and jd < 2455113.98)
 def is_run2(jd): return (jd > 2455114.02 and jd < 2455115.16)
 def is_run3(jd): return (jd > 2455115.17 and jd < 2455115.73)
-def is_run4(jd): return (jd > 2455116.15 and jd < 2455116.70)
+def is_run4(jd): return (jd > 2455116.15 and jd < 2455116.70) or \
+                        (jd > 2455116.938 and jd < 2455117.05)
 def is_run5(jd): return (jd > 2455117.13 and jd < 2455117.62)
 #def is_run5(jd): return (jd > 2455117.13 and jd < 2455117.87)
 def is_run6(jd): return (jd > 2455118.16)
@@ -27,8 +28,8 @@ rewire_run1 = {0:22, 1:21, 2: 7, 3:12, 4: 5, 5:20, 6:19, 7: 1}
 rewire_run2 = {0:22, 1:21, 2: 7, 3:12, 4:17, 5:18, 6: 9, 7:27}
 rewire_run3 = {0:22, 1:21, 2: 7, 3:12, 4: 0, 5:28, 6:29, 7: 3}
 rewire_run4 = {0: 5, 1:20, 2:19, 3: 1, 4: 0, 5:28, 6:29, 7: 3}
-rewire_run5 = {0:17, 1:18, 2: 9, 3:27, 4: 0, 5:28, 6:29, 7: 3} # 2 = GoM
-rewire_run6 = {0:17, 1:18, 2: 9, 3:27, 4: 5, 5:20, 6:19, 7: 1} # 2 = GoM
+rewire_run5 = {0:17, 1:18, 2: 9, 3:27, 4: 0, 5:28, 6:29, 7: 3} # 2=GoM, 0=xpol
+rewire_run6 = {0:17, 1:18, 2: 9, 3:27, 4: 5, 5:20, 6:19, 7: 1} # 2=GoM, 0=xpol
 
 o = optparse.OptionParser()
 opts,args = o.parse_args(sys.argv[1:])
@@ -44,6 +45,8 @@ for filename in args:
     def mfunc(uv, p, d, f):
         global curtime
         crd,t,(i,j) = p
+        bl = a.miriad.ij2bl(i,j)
+        if bl in conj_bls: d = n.conj(d)
         if is_run1(t):
             if i == 2 or j == 2: return p, None, None
             d = n.conj(d)
@@ -51,6 +54,7 @@ for filename in args:
             uvo['pol'] = a.miriad.str2pol['xx']
         elif is_run2(t):
             if i in [2,4,5,6,7] or j in [2,4,5,6,7]: return p, None, None
+            d = n.conj(d)
             i,j = rewire_run2[i], rewire_run2[j]
             uvo['pol'] = a.miriad.str2pol['xx']
         elif is_run3(t):
@@ -62,17 +66,19 @@ for filename in args:
         elif is_run5(t):
             # Get rid of GoM baselines other than autos
             if (i == 2 and j != 2) or (i != 2 and j == 2): return p,None,None
+            # I think ant 17 (input 0) is cross-polarized
+            if (i == 0 or j == 0): return p, None, None
             i,j = rewire_run5[i], rewire_run5[j]
             uvo['pol'] = a.miriad.str2pol['yy']
         elif is_run6(t):
             # Get rid of GoM baselines other than autos
             if (i == 2 and j != 2) or (i != 2 and j == 2): return p,None,None
+            # I think ant 17 (input 0) is cross-polarized
+            if (i == 0 or j == 0): return p, None, None
             i,j = rewire_run6[i], rewire_run6[j]
             uvo['pol'] = a.miriad.str2pol['yy']
         else: return p, None, None
         if i > j: i,j,d = j,i,n.conj(d)
-        bl = a.miriad.ij2bl(i,j)
-        if bl in conj_bls: d = n.conj(d)
         if curtime != t:
             #if is_run1(t): print 'Processing as run 1'
             #elif is_run2(t): print 'Processing as run 2'

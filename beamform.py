@@ -15,8 +15,8 @@ opts,args = o.parse_args(sys.argv[1:])
 uv = a.miriad.UV(args[0])
 ants = a.scripting.parse_ants(opts.ant, uv['nants'])
 aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
-srclist,cutoff = a.scripting.parse_srcs(opts.src)
-cat = a.cal.get_catalog(opts.cal, srclist, cutoff)
+srclist,cutoff,catalogs = a.scripting.parse_srcs(opts.src, opts.cat)
+cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs)
 src = cat.values()[0]
 del(uv)
 

@@ -32,5 +32,5 @@ for filename in args:
     uvi = a.miriad.UV(filename)
     uvo = a.miriad.UV(filename+'t', status='new')
     uvo.init_from_uv(uvi)
-    uvo.pipe(uvi, mfunc=mfunc, raw=True, append2hist='TEMPGAIN: Removed temperature-dependent gain: H_balun=%f H_cable=%f T0=%f' % (opts.H_balun, opts.H_cable, opts.T0))
+    uvo.pipe(uvi, mfunc=mfunc, raw=True, append2hist=' '.join(sys.argv)+'\n')
     del(uvo)

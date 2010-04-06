@@ -22,8 +22,8 @@ aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
 if opts.chan is None: opts.chan = 'all'
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 aa.select_chans(chans)
-srclist,cutoff = a.scripting.parse_srcs(opts.src)
-cat = a.cal.get_catalog(opts.cal, srclist, cutoff)
+srclist,cutoff,catalogs, = a.scripting.parse_srcs(opts.src, opts.cat)
+cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs=catalogs)
 src = cat.values()[0]
 del(uv)
 
