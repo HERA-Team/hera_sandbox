@@ -25,15 +25,13 @@ aa.select_chans(chans)
 afreqs = aa.get_afreqs()
 
 srclist1, cutoff1, catalogs = a.scripting.parse_srcs(opts.src, opts.cat)
-try: srclist2, cutoff2, catalogs = a.scripting.parse_srcs(opts.SRC, opts.cat)
-except(AttributeError): srclist2, cutoff2 = [], None
+srclist2, cutoff2, catalogs = a.scripting.parse_srcs(opts.SRC, opts.cat)
 cat1 = a.cal.get_catalog(opts.cal, srclist1, cutoff1, catalogs)
 cat2 = a.cal.get_catalog(opts.cal, srclist2, cutoff2, catalogs)
 cat = a.cal.get_catalog(opts.cal, srclist1+srclist2, cutoff1, catalogs)
 
 NANT = len(aa)
 CLEAN_GAIN = .2
-FINAL_MODE = 1
 
 for filename in args:
     # Gather data
@@ -253,8 +251,8 @@ for filename in args:
             if mode == 0: srcest_bm = _srcest_bm
             elif mode == 1: srcest_ant = _srcest_ant
             else: srcest_bl = _srcest_bl
-        if (mode == FINAL_MODE and tol < 10*opts.clean) or (mode != FINAL_MODE and tol < opts.clean):
-            if mode < FINAL_MODE:
+        if (mode == 2 and tol < 10*opts.clean) or (mode != 2 and tol < opts.clean):
+            if mode < 2:
                 mode += 1
             else:
                 if dw == opts.dw and drw == opts.drw:
@@ -272,16 +270,14 @@ for filename in args:
     n.savez('%s__times.npz' % (filename), times=n.array(times))
     n.savez('%s__afreqs.npz' % (filename), freqs=afreqs)
     n.savez( '%s__srcest_bm.npz' % (filename), **srcest_bm)
-    if FINAL_MODE >= 1:
-        for k in srcest_ant:
-            d = {}
-            for i in srcest_ant[k]:
-                d[str(i)] = srcest_ant[k][i]
-            n.savez( '%s__srcest_ant__%s.npz' % (filename,k), **d)
-    if FINAL_MODE >= 2:
-        for k in srcest_bl:
-            d = {}
-            for bl in srcest_bl[k]:
-                d[str(bl)] = srcest_bl[k][bl]
-            n.savez( '%s__srcest_bl__%s.npz' % (filename,k), **d)
+    for k in srcest_ant:
+        d = {}
+        for i in srcest_ant[k]:
+            d[str(i)] = srcest_ant[k][i]
+        n.savez( '%s__srcest_ant__%s.npz' % (filename,k), **d)
+    for k in srcest_bl:
+        d = {}
+        for bl in srcest_bl[k]:
+            d[str(bl)] = srcest_bl[k][bl]
+        n.savez( '%s__srcest_bl__%s.npz' % (filename,k), **d)
 

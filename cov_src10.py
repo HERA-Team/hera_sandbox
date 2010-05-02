@@ -7,6 +7,8 @@ a.scripting.add_standard_options(o, cal=True, chan=True, src=True,
     dec=True, ant=True, pol=True)
 o.add_option('-S', '--SRC', dest='SRC', 
     help='Tier 2 sources.')
+o.add_option('-b', '--blsrcs', dest='blsrcs', default='',
+    help='Sources (from any tier) that need per-baseline solutions')
 o.add_option('-d', '--dw', dest='dw', type=int, default=5,
     help='The number of delay bins to null. If -1, uses baseline lengths to generate a sky-pass filter.')
 o.add_option('-r', '--drw', dest='drw', type=int, default=5,
@@ -30,10 +32,12 @@ except(AttributeError): srclist2, cutoff2 = [], None
 cat1 = a.cal.get_catalog(opts.cal, srclist1, cutoff1, catalogs)
 cat2 = a.cal.get_catalog(opts.cal, srclist2, cutoff2, catalogs)
 cat = a.cal.get_catalog(opts.cal, srclist1+srclist2, cutoff1, catalogs)
+blsrcs = opts.blsrcs.split(',')
 
 NANT = len(aa)
 CLEAN_GAIN = .2
-FINAL_MODE = 1
+XTALK_GAIN = 1
+FINAL_MODE = 2
 
 for filename in args:
     # Gather data
@@ -82,6 +86,7 @@ for filename in args:
     dw,drw = 0,0
     mode,tier = 0,0
     srcest_bm, srcest_ant, srcest_bl = {}, {}, {}
+    xtalk = {}
     # Create residuals
     resdat = {}
     for bl in msrdat: resdat[bl] = msrdat[bl].copy()
@@ -155,7 +160,8 @@ for filename in args:
         else: # POLISH UP PER BASELINE
             _srcest_bl = {}
             for k in simdat:
-                if tier == 0 and k in cat2: continue
+                if not k in blsrcs: continue
+                elif tier == 0 and k in cat2: continue
                 for bl in msrdat:
                     sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
                     d = resdat[bl] * n.conj(simdat[k][bl]) / sd
@@ -176,8 +182,16 @@ for filename in args:
                     if not srcest_bl.has_key(k): srcest_bl[k] = {}
                     if not _srcest_bl.has_key(k): _srcest_bl[k] = {}
                     _srcest_bl[k][bl] = srcest_bl[k].get(bl,0.) + CLEAN_GAIN * d
-        if True:
+        # Estimate XTALK too
+        _xtalk = {}
+        for bl in msrdat:
+            xsum = n.sum(resdat[bl], axis=0)
+            xwgt = n.sum(msrval[bl], axis=0)
+            _xtalk[bl] = xtalk.get(bl,0.) + XTALK_GAIN * xsum/xwgt.clip(1,n.Inf)
+            #print a.miriad.bl2ij(bl), n.sqrt(n.average(n.abs(_xtalk[bl])**2)), _xtalk[bl].shape
+        if True:    # Figure out which changes to model improve the residuals
             for _k in simdat:
+                if mode == 2 and not _k in blsrcs: continue
                 if tier == 0 and _k in cat2: continue
                 __resdat = {}
                 for bl in msrdat:
@@ -200,12 +214,13 @@ for filename in args:
                             if srcest_ant[k].has_key(j): gj += srcest_ant[k][j]
                         __resdat[bl] -= gi * n.conj(gj) * simdat[k][bl]
                         sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
-                        if mode == 2 and k == _k: __resdat[bl] -= _srcest_bl[k][bl] * simdat[k][bl] / sd
+                        if mode == 2 and k == _k and _srcest_bl.has_key(k): __resdat[bl] -= _srcest_bl[k][bl] * simdat[k][bl] / sd
                         elif srcest_bl.has_key(k): __resdat[bl] -= srcest_bl.get(k,{}).get(bl,0.) * simdat[k][bl] /sd
+                    __resdat[bl] -= _xtalk[bl]
                     __resdat[bl] *= msrval[bl] # Mask out invalid data
                 __score = n.sqrt(sum([n.sum(n.abs(__resdat[bl]**2)) for bl in msrdat]) / sum([n.sum(msrval[bl]) for bl in msrdat]))
                 if __score >= score: 
-                    print '        Deleting', _k, __score
+                    print '      * %16s %f' % (_k, __score-score)
                     if mode == 0:
                         if srcest_bm.has_key(_k): _srcest_bm[_k] = srcest_bm[_k].copy()
                         elif _srcest_bm.has_key(_k): del(_srcest_bm[_k])
@@ -215,7 +230,7 @@ for filename in args:
                     else:
                         for bl in _srcest_bl[_k]: _srcest_bl[_k][bl] = srcest_bl.get(_k,{}).get(bl,0.)
                 else:
-                    print '   ', _k, __score
+                    print '    %20s %f' % (_k, __score-score)
         _resdat = {}
         for bl in msrdat:
             i,j = a.miriad.bl2ij(bl)
@@ -238,8 +253,9 @@ for filename in args:
                     if srcest_ant[k].has_key(j): gj += srcest_ant[k][j]
                 _resdat[bl] -= gi * n.conj(gj) * simdat[k][bl]
                 sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
-                if mode == 2: _resdat[bl] -= _srcest_bl[k][bl] * simdat[k][bl] / sd
+                if mode == 2 and _srcest_bl.has_key(k): _resdat[bl] -= _srcest_bl[k][bl] * simdat[k][bl] / sd
                 elif srcest_bl.has_key(k): _resdat[bl] -= srcest_bl[k][bl] * simdat[k][bl] /sd
+            _resdat[bl] -= _xtalk[bl]
             _resdat[bl] *= msrval[bl] # Mask out invalid data
         _score = n.sqrt(sum([n.sum(n.abs(_resdat[bl]**2)) for bl in msrdat]) / sum([n.sum(msrval[bl]) for bl in msrdat]))
 
@@ -249,16 +265,19 @@ for filename in args:
             print '    Divergence'
             print '    Failed Score: %f (%5.2f%%)' % (_score, n.round(100*_score/iscore,2))
         else: 
-            resdat, score = _resdat, _score
+            resdat, score, xtalk = _resdat, _score, _xtalk
             if mode == 0: srcest_bm = _srcest_bm
             elif mode == 1: srcest_ant = _srcest_ant
             else: srcest_bl = _srcest_bl
-        if (mode == FINAL_MODE and tol < 10*opts.clean) or (mode != FINAL_MODE and tol < opts.clean):
+        #if (mode == FINAL_MODE and tol < 10*opts.clean) or (mode != FINAL_MODE and tol < opts.clean):
+        #if tol < opts.clean:
+        # On first pass, clean to 10x tolerance, then go back and polish up
+        if (tier == 0 and tol < 10*opts.clean) or (tier == 1 and tol < opts.clean):
             if mode < FINAL_MODE:
                 mode += 1
             else:
                 if dw == opts.dw and drw == opts.drw:
-                    if tier == 0:
+                    if tier == 0:# and len(cat2.keys()) > 0:
                         tier += 1
                         mode = 0
                         dw,drw = 0,0
@@ -269,9 +288,13 @@ for filename in args:
                     mode = 0
                     dw += 1; drw += 1
         print '    New Score: %f (%5.2f%%, tol=%f)' % (score, n.round(100*score/iscore,2), tol)
+    print '    Final Score: %f (%5.2f%%, tol=%f)' % (score, n.round(100*score/iscore,2), tol)
     n.savez('%s__times.npz' % (filename), times=n.array(times))
     n.savez('%s__afreqs.npz' % (filename), freqs=afreqs)
     n.savez( '%s__srcest_bm.npz' % (filename), **srcest_bm)
+    __xtalk = {}
+    for bl in xtalk: __xtalk[str(bl)] = xtalk[bl]
+    n.savez( '%s__xtalk.npz' % (filename), **__xtalk)
     if FINAL_MODE >= 1:
         for k in srcest_ant:
             d = {}
