@@ -37,7 +37,6 @@ blsrcs = opts.blsrcs.split(',')
 CLEAN_GAIN = .9
 #CLEAN_GAIN = .5
 XTALK_GAIN = 1
-#FINAL_MODE = 2
 FINAL_MODE = 1
 #FINAL_MODE = 0
 
@@ -61,35 +60,23 @@ def gen_ddr_mask(shape, dw, drw, ratio=.25):
     r2 = (x/(ratio*drw+.5))**2 + (y/(ratio*dw+.5))**2
     r2 = a.img.recenter(r2, (shape[0]/2, shape[1]/2))
     filter += n.where(r2 <= 1, 1, 0)
-    #if PLOT:
-    #    LINE1.set_data(a.img.recenter(n.log10(n.abs(filter)), n.array(filter.shape)/2))
-    #    P.draw()
     return filter.clip(0,1)
 
-def ddr_filter(d, dw, drw):
-    padlen = math.ceil(d.shape[1] * .2)
-    #d = n.concatenate([n.fliplr(d[:,:padlen]),d,n.fliplr(d[:,-padlen:])], axis=1)
-    #d = n.fft.ifft(d, axis=1) # Delay Transform
-    #d = n.fft.ifft(d, axis=0) # Delay-Rate Transform
-    d = n.fft.ifft2(d) # DDR Transform
-    # Apply DDR Filter
-    x1,x2 = drw, -drw
-    if x2 == 0: x2 = d.shape[0]
-    y1,y2 = dw, -dw
-    if y2 == 0: y2 = d.shape[1]
-    d[x1+1:x2] = 0
-    d[:,y1+1:y2] = 0
-    d = n.fft.fft2(d) # undo DDR Transform
-    #d = n.fft.fft(d, axis=0) # undo Delay-Rate Transform
-    #d = n.fft.fft(d, axis=1) # undo Delay Transform
-    return d#[:,padlen:-padlen]
+def set_plot(data):
+    global LINE1
+    if not PLOT: return
+    if LINE1 is None:
+        LINE1 = P.imshow(a.img.recenter(n.log10(n.abs(data)), n.array(data.shape)/2), vmax=7, vmin=0)
+    else:
+        LINE1.set_data(a.img.recenter(n.log10(n.abs(data)), n.array(data.shape)/2))
+    P.draw()
 
+filter, filter_cache = None, None
+LINE1 = None
 try:
     import fftw3
-    print 'Using FFTW'
+    print 'Using FFTW FFT'
     fft_ddr_dat, fft_ddr_fwd, fft_ddr_rev = None, None, None
-    LINE1 = None
-    filter, filter_cache = None, None
     def ddr_filter(d, dw, drw):
         global LINE1, filter_cache, filter
         global fft_ddr_dat, fft_ddr_fwd, fft_ddr_rev
@@ -102,30 +89,29 @@ try:
             fft_ddr_rev = fftw3.Plan(fft_ddr_dat, None, direction='backward', flags=['measure'])
         fft_ddr_dat[:] = d
         fft_ddr_rev() # DDR Transform
-        if PLOT:
-            if LINE1 is None:
-                LINE1 = P.imshow(a.img.recenter(n.log10(n.abs(fft_ddr_dat)), n.array(fft_ddr_dat.shape)/2), vmax=6, vmin=0)
-            else:
-                LINE1.set_data(a.img.recenter(n.log10(n.abs(fft_ddr_dat)), n.array(fft_ddr_dat.shape)/2))
-            P.draw()
+        set_plot(fft_ddr_dat)
         # Apply DDR Filter
         if (dw,drw) != filter_cache:
             filter_cache = (dw, drw)
             filter = gen_ddr_mask(fft_ddr_dat.shape, dw, drw)
         fft_ddr_dat[:] = fft_ddr_dat * filter
-        #x1,x2 = drw, -drw
-        #if x2 == 0: x2 = d.shape[0]
-        #y1,y2 = dw, -dw
-        #if y2 == 0: y2 = d.shape[1]
-        #fft_ddr_dat[x1+1:x2] = 0
-        #fft_ddr_dat[:,y1+1:y2] = 0
-        #v = n.concatenate([fft_ddr_dat[x2:], fft_ddr_dat[:x1+1]], axis=0)
-        #v = n.concatenate([v[:,y2:], v[:,:y1+1]], axis=1)
-        #print n.round(n.log10(v), 0)
         fft_ddr_fwd() # undo DDR Transform
         #return fft_ddr_dat[:,padlen:-padlen] / (d.shape[0] * d.shape[1])
         return fft_ddr_dat / fft_ddr_dat.size #(d.shape[0] * d.shape[1])
-except(ImportError): pass
+except(ImportError):
+    print 'Using numpy FFT'
+    def ddr_filter(d, dw, drw):
+        global LINE1, filter_cache, filter
+        padlen = math.ceil(d.shape[1] * .2)
+        d = n.fft.ifft2(d) # DDR Transform
+        # Apply DDR Filter
+        if (dw,drw) != filter_cache:
+            filter_cache = (dw, drw)
+            filter = gen_ddr_mask(fft_ddr_dat.shape, dw, drw)
+        d *= filter
+        d = n.fft.fft2(d) # undo DDR Transform
+        return d#[:,padlen:-padlen]
+
 
 file_glob = '.'.join(map(globize, args[0].split('.')))
 filelist = glob.glob(file_glob)
@@ -138,9 +124,11 @@ for arg in args:
     files = filelist[findex:findex+1]
     #files = filelist[findex:findex+2]
     #files = filelist[findex-1:findex+2]
-    msrdat, msrval, simdat = {}, {}, {}
+    msrdat, msrval, simdat, rsvdat = {}, {}, {}, {}
     blwgt = {}
+    ants = {}
     for k in cat:
+        if k in blsrcs: rsvdat[k] = {}
         simdat[k] = {}
         blwgt[k] = {}
     times = []
@@ -160,31 +148,38 @@ for arg in args:
             d = d.take(chans) * f / aa.passband(i,j)
             msrdat[bl] = msrdat.get(bl,[]) + [d]
             msrval[bl] = msrval.get(bl,[]) + [f]
+            ants[i] = ants[j] = None
             for k in simdat.keys():
                 try:
-                    simd = n.conj(aa.gen_phs(cat[k],i,j, 
-                        srcshape=cat[k].srcshape, resolve_src=True))
+                    #simd = n.conj(aa.gen_phs(cat[k],i,j, srcshape=cat[k].srcshape, resolve_src=True))
+                    simd = n.conj(aa.gen_phs(cat[k],i,j))
                     u,v,w = aa.gen_uvw(i,j,cat[k]).squeeze()
+                    if k in blsrcs: rsvd = aa.resolve_src(u, v, srcshape=cat[k].srcshape)
                 except(a.phs.PointingError):
                     simd = n.zeros_like(d)
                     u = v = w = n.zeros_like(d)
+                    if k in blsrcs: rsvd = simd
                 simdat[k][bl] = simdat[k].get(bl,[]) + [simd]
+                if k in blsrcs: rsvdat[k][bl] = rsvdat[k].get(bl,[]) + [rsvd]
                 blwgt[k][bl] = f * n.sqrt(u**2 + v**2)
+    ants = ants.keys(); ants.sort()
     # Simulate visibilities for each source for the data we collected
     for bl in msrdat:
         msrdat[bl] = n.array(msrdat[bl])
         msrval[bl] = n.array(msrval[bl])
         for k in simdat.keys():
             simdat[k][bl] = n.array(simdat[k][bl])
+            if k in blsrcs: rsvdat[k][bl] = n.array(rsvdat[k][bl])
             blwgt[k][bl] = n.array(blwgt[k][bl])
             if n.all(simdat[k][bl] == 0):
                 del(simdat[k])
                 del(blwgt[k])
+                if k in blsrcs: del(rsvdat[k])
     iscore = score = n.sqrt(sum([n.sum(n.abs(msrdat[bl]**2)) for bl in msrdat]) / sum([n.sum(msrval[bl]) for bl in msrdat]))
     print 'Initial Score: %f' % (score)
     dw,drw = 0,0
-    mode,tier = 0,0
-    srcest_bm, srcest_ant, srcest_bl = {}, {}, {}
+    mode,tier = -1,0
+    srcest_ant, srcest_bl = {}, {}
     xtalk = {}
     # Create residuals
     resdat = {}
@@ -193,23 +188,32 @@ for arg in args:
     for iter in xrange(opts.maxiter):
         print 'Iteration %d:    DW=%d, DRW=%d, MODE=%d, TIER=%d' % (iter, dw, drw, mode, tier)
         # Derive source estimators
-        _srcest_bm, _srcest_ant, _srcest_bl = {}, {}, {}
-        if mode == 0: # BEAMFORM
+        _srcest_ant, _srcest_bl = {}, {}
+        if mode == -1: # BEAMFORM
             for k in simdat:
                 if not k in srctier[tier]:
-                    try: _srcest_bm[k] = srcest_bm[k]
+                    try: _srcest_ant[k] = srcest_ant[k]
                     except(KeyError): pass
                     continue
-                d, w = 0., 0.
+                d, w = 0, 0
                 for bl in simdat[k]:
-                    d += (resdat[bl] * n.conj(simdat[k][bl])).real * blwgt[k][bl]
-                    w += n.abs(simdat[k][bl])**2 * blwgt[k][bl]
+                    if k in blsrcs: wgt = blwgt[k][bl] * rsvdat[k][bl]
+                    else: wgt = blwgt[k][bl]
+                    d += (resdat[bl] * n.conj(simdat[k][bl])).real * wgt
+                    if k in blsrcs: wgt *= rsvdat[k][bl]
+                    w += wgt
                 d /= n.where(w > 0, w, 1)
                 d = ddr_filter(d, dw, drw)
-                _srcest_bm[k] = srcest_bm.get(k, 0.) + CLEAN_GAIN * d
-        elif mode == 1: # VARY PER ANT
+                d = n.sqrt(d)
+                if not _srcest_ant.has_key(k): _srcest_ant[k] = {}
+                for ant in ants:
+                    if not srcest_ant.get(k,{}).has_key(ant): _srcest_ant[k][ant] = CLEAN_GAIN * d
+                    else: _srcest_ant[k][ant] = srcest_ant[k][ant]
+                    #_srcest_ant[k][ant] = srcest_ant.get(k,{}).get(ant,0) + CLEAN_GAIN * d / srcest_ant.get(k,{}).get(ant,n.sqrt(d))
+            mode = 0
+        elif mode == 0: # VARY PER ANT
             for k in simdat:
-                if not srcest_bm.has_key(k): continue
+                if not srcest_ant.has_key(k): continue
                 if not k in srctier[tier]:
                     try: _srcest_ant[k] = srcest_ant[k]
                     except(KeyError): pass
@@ -217,20 +221,21 @@ for arg in args:
                 d,w = {}, {}
                 for bl in simdat[k]:
                     i,j = a.miriad.bl2ij(bl)
-                    _d = resdat[bl] * n.conj(simdat[k][bl]) * blwgt[k][bl]
-                    _w = n.abs(simdat[k][bl])**2 * blwgt[k][bl]
-                    est_gi = n.sqrt(srcest_bm[k]) + srcest_ant.get(k,{}).get(i,0.)
-                    est_gj = n.sqrt(srcest_bm[k]) + srcest_ant.get(k,{}).get(j,0.)
-                    #d[i], w[i] = d.get(i,0.) + _d, w.get(i,0.) + _w*(est_gi+n.conj(est_gj))
-                    #d[j], w[j] = d.get(j,0.) + n.conj(_d), w.get(j,0.) + _w*(n.conj(est_gi)+est_gj)
-                    d[i], w[i] = d.get(i,0.) + .5*_d, w.get(i,0.) + _w * n.conj(est_gj)
-                    d[j], w[j] = d.get(j,0.) + n.conj(.5*_d), w.get(j,0.) + _w * n.conj(est_gi)
+                    if k in blsrcs: wgt = blwgt[k][bl] * rsvdat[k][bl]
+                    else: wgt = blwgt[k][bl]
+                    _d = resdat[bl] * n.conj(simdat[k][bl]) * wgt
+                    if k in blsrcs: wgt *= rsvdat[k][bl]
+                    _w = wgt
+                    #d[i], w[i] = d.get(i,0) + _d, w.get(i,0) + _w*(est_gi+n.conj(est_gj))
+                    #d[j], w[j] = d.get(j,0) + n.conj(_d), w.get(j,0) + _w*(n.conj(est_gi)+est_gj)
+                    d[i], w[i] = d.get(i,0) + .5*_d, w.get(i,0) + _w * n.conj(srcest_ant.get(k,{}).get(j,0))
+                    d[j], w[j] = d.get(j,0) + n.conj(.5*_d), w.get(j,0) + _w * n.conj(srcest_ant.get(k,{}).get(i,0))
                 for i in d:
-                    d[i] /= n.where(w[i] > 0, w[i], 1)
+                    d[i] /= n.where(w[i] == 0, 1, w[i])
                     d[i] = ddr_filter(d[i], dw, drw)
                     if not srcest_ant.has_key(k): srcest_ant[k] = {}
                     if not _srcest_ant.has_key(k): _srcest_ant[k] = {}
-                    _srcest_ant[k][i] = srcest_ant[k].get(i,0.) + CLEAN_GAIN * d[i]
+                    _srcest_ant[k][i] = srcest_ant[k].get(i,0) + CLEAN_GAIN * d[i]
         else: # Polish up per baseline for select sources
             for k in simdat:
                 if not k in blsrcs: continue
@@ -239,91 +244,43 @@ for arg in args:
                     except(KeyError): pass
                     continue
                 for bl in msrdat:
-                    sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
-                    d = resdat[bl] * n.conj(simdat[k][bl]) / sd
+                    #sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
+                    #d = resdat[bl] * n.conj(simdat[k][bl]) / sd
+                    d = resdat[bl] * n.conj(simdat[k][bl])
+                    #if bl == a.miriad.ij2bl(0,8): PLOT = True
+                    #else: PLOT = False
                     d = ddr_filter(d, dw, drw)
-                    if not srcest_bl.has_key(k): srcest_bl[k] = {}
+                    #if not srcest_bl.has_key(k): srcest_bl[k] = {}
                     if not _srcest_bl.has_key(k): _srcest_bl[k] = {}
-                    _srcest_bl[k][bl] = srcest_bl[k].get(bl,0.) + CLEAN_GAIN * d
+                    _srcest_bl[k][bl] = srcest_bl.get(k,{}).get(bl,0) + CLEAN_GAIN * d
+                    #print k, a.miriad.bl2ij(bl), n.sqrt(n.average(n.abs(_srcest_bl[k][bl])**2))
         # Estimate XTALK too
         _xtalk = {}
         for bl in msrdat:
             xsum = n.sum(resdat[bl], axis=0)
             xwgt = n.sum(msrval[bl], axis=0)
-            _xtalk[bl] = xtalk.get(bl,0.) + XTALK_GAIN * xsum/xwgt.clip(1,n.Inf)
+            _xtalk[bl] = xtalk.get(bl,0) + XTALK_GAIN * xsum/xwgt.clip(1,n.Inf)
 
-        ## Figure out which changes to model improve the residuals
-        #for k in simdat:
-        #    if k not in srctier[tier]: continue
-        #    if mode == 2 and not k in blsrcs: continue
-        #    __resdat = {}
-        #    for bl in msrdat:
-        #        i,j = a.miriad.bl2ij(bl)
-        #        __resdat[bl] = resdat[bl].copy()
-        #        gi,gj = 0,0
-        #        _gi,_gj = 0,0
-        #        if srcest_bm.has_key(k):
-        #            gi = n.sqrt(srcest_bm[k])
-        #            gj = gi.copy()
-        #            _gi,_gj = gi.copy(),gj.copy()
-        #        if _srcest_bm.has_key(k):
-        #            _gi = n.sqrt(_srcest_bm[k])
-        #            _gj = _gi.copy()
-        #        if srcest_ant.get(k,{}).has_key(i): gi += srcest_ant[k][i]
-        #        if srcest_ant.get(k,{}).has_key(j): gj += srcest_ant[k][j]
-        #        if _srcest_ant.get(k,{}).has_key(i): _gi += _srcest_ant[k][i]
-        #        elif srcest_ant.get(k,{}).has_key(i): _gi += srcest_ant[k][i]
-        #        if _srcest_ant.get(k,{}).has_key(j): _gj += _srcest_ant[k][j]
-        #        elif srcest_ant.get(k,{}).has_key(j): _gj += srcest_ant[k][j]
-        #        # Subtract only the difference between the proposed model
-        #        # and the model that's been subtracted already
-        #        __resdat[bl] -= (_gi*n.conj(_gj)-gi*n.conj(gj)) * simdat[k][bl]
-        #        sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
-        #        if _srcest_bl.has_key(k):
-        #            __resdat[bl] -= (_srcest_bl[k][bl] - srcest_bl.get(k,{}).get(bl,0.)) * simdat[k][bl] / sd
-        #        __resdat[bl] -= (_xtalk[bl] - xtalk.get(bl,0.))
-        #        __resdat[bl] *= msrval[bl] # Mask out invalid data
-        #    __score = n.sqrt(sum([n.sum(n.abs(__resdat[bl]**2)) for bl in msrdat]) / sum([n.sum(msrval[bl]) for bl in msrdat]))
-        #    if __score >= score: 
-        #        print '      * %16s %f' % (k, __score-score)
-        #        if mode == 0:
-        #            if srcest_bm.has_key(k): _srcest_bm[k] = srcest_bm[k].copy()
-        #            elif _srcest_bm.has_key(k): del(_srcest_bm[k])
-        #        elif mode == 1:
-        #            if srcest_ant.has_key(k): _srcest_ant[k] = srcest_ant[k].copy()
-        #            elif _srcest_ant.has_key(k): del(_srcest_ant[k])
-        #        else:
-        #            for bl in _srcest_bl[k]: _srcest_bl[k][bl] = srcest_bl.get(k,{}).get(bl,0.)
-        #    else:
-        #        print '    %20s %f' % (k, __score-score)
-
-        # Compute residual for sources that succeeded individually
+        # Compute residual for all sources
         _resdat = {}
         for bl in msrdat:
             i,j = a.miriad.bl2ij(bl)
             _resdat[bl] = msrdat[bl].copy()
             for k in simdat:
-                gi,gj = 0,0
-                if mode == 0:
-                    if _srcest_bm.has_key(k):
-                        gi = n.sqrt(_srcest_bm[k])
-                        gj = gi.copy()
-                elif srcest_bm.has_key(k):
-                    gi = n.sqrt(srcest_bm[k])
-                    gj = gi.copy()
-                if mode == 1:
-                    if _srcest_ant.get(k,{}).has_key(i): gi += _srcest_ant[k][i]
-                    if _srcest_ant.get(k,{}).has_key(j): gj += _srcest_ant[k][j]
-                elif srcest_ant.has_key(k):
-                    if srcest_ant[k].has_key(i): gi += srcest_ant[k][i]
-                    if srcest_ant[k].has_key(j): gj += srcest_ant[k][j]
-                _resdat[bl] -= gi * n.conj(gj) * simdat[k][bl]
-                if mode == 2 and _srcest_bl.has_key(k):
-                    sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
-                    _resdat[bl] -= _srcest_bl[k][bl] * simdat[k][bl] / sd
+                if k in blsrcs: mdl = simdat[k][bl] * rsvdat[k][bl]
+                else: mdl = simdat[k][bl]
+                if mode == 0: _resdat[bl] -= _srcest_ant.get(k,{}).get(i,0) * n.conj(_srcest_ant.get(k,{}).get(j,0)) * mdl
+                else: _resdat[bl] -= srcest_ant.get(k,{}).get(i,0) * n.conj(srcest_ant.get(k,{}).get(j,0)) * mdl
+                if mode == 1 and _srcest_bl.has_key(k):
+                    #phsdat = simdat[k][bl] / n.abs(simdat[k][bl])
+                    #sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
+                    #_resdat[bl] -= _srcest_bl[k][bl] * simdat[k][bl] / sd
+                    _resdat[bl] -= _srcest_bl[k][bl] * simdat[k][bl]
                 elif srcest_bl.has_key(k):
-                    sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
-                    _resdat[bl] -= srcest_bl[k][bl] * simdat[k][bl] /sd
+                    #phsdat = simdat[k][bl] / n.abs(simdat[k][bl])
+                    #sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
+                    #_resdat[bl] -= srcest_bl[k][bl] * simdat[k][bl] /sd
+                    _resdat[bl] -= srcest_bl[k][bl] * simdat[k][bl]
             _resdat[bl] -= _xtalk[bl]
             _resdat[bl] *= msrval[bl] # Mask out invalid data
         _score = n.sqrt(sum([n.sum(n.abs(_resdat[bl]**2)) for bl in msrdat]) / sum([n.sum(msrval[bl]) for bl in msrdat]))
@@ -333,47 +290,31 @@ for arg in args:
             # Figure out which changes to model improve the residuals
             for k in simdat:
                 if k not in srctier[tier]: continue
-                if mode == 2 and not k in blsrcs: continue
+                if mode == 1 and not k in blsrcs: continue
                 __resdat = {}
                 for bl in msrdat:
                     i,j = a.miriad.bl2ij(bl)
                     __resdat[bl] = resdat[bl].copy()
-                    gi,gj = 0,0
-                    _gi,_gj = 0,0
-                    if srcest_bm.has_key(k):
-                        gi = n.sqrt(srcest_bm[k])
-                        gj = gi.copy()
-                        _gi,_gj = gi.copy(),gj.copy()
-                    if _srcest_bm.has_key(k):
-                        _gi = n.sqrt(_srcest_bm[k])
-                        _gj = _gi.copy()
-                    if srcest_ant.get(k,{}).has_key(i): gi += srcest_ant[k][i]
-                    if srcest_ant.get(k,{}).has_key(j): gj += srcest_ant[k][j]
-                    if _srcest_ant.get(k,{}).has_key(i): _gi += _srcest_ant[k][i]
-                    elif srcest_ant.get(k,{}).has_key(i): _gi += srcest_ant[k][i]
-                    if _srcest_ant.get(k,{}).has_key(j): _gj += _srcest_ant[k][j]
-                    elif srcest_ant.get(k,{}).has_key(j): _gj += srcest_ant[k][j]
-                    # Subtract only the difference between the proposed model
-                    # and the model that's been subtracted already
-                    __resdat[bl] -= (_gi*n.conj(_gj)-gi*n.conj(gj)) * simdat[k][bl]
-                    sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
+                    if k in blsrcs: mdl = simdat[k][bl] * rsvdat[k][bl]
+                    else: mdl = simdat[k][bl]
+                    __resdat[bl] -= (_srcest_ant[k][i]*n.conj(_srcest_ant[k][j])-srcest_ant[k][i]*n.conj(srcest_ant[k][j])) * mdl
                     if _srcest_bl.has_key(k):
-                        __resdat[bl] -= (_srcest_bl[k][bl] - srcest_bl.get(k,{}).get(bl,0.)) * simdat[k][bl] / sd
-                    __resdat[bl] -= (_xtalk[bl] - xtalk.get(bl,0.))
+                        #phsdat = simdat[k][bl] / n.abs(simdat[k][bl])
+                        #sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
+                        #__resdat[bl] -= (_srcest_bl[k][bl] - srcest_bl.get(k,{}).get(bl,0)) * simdat[k][bl] / sd
+                        __resdat[bl] -= (_srcest_bl[k][bl] - srcest_bl.get(k,{}).get(bl,0)) * simdat[k][bl]
+                    __resdat[bl] -= (_xtalk[bl] - xtalk.get(bl,0))
                     __resdat[bl] *= msrval[bl] # Mask out invalid data
                 __score = n.sqrt(sum([n.sum(n.abs(__resdat[bl]**2)) for bl in msrdat]) / sum([n.sum(msrval[bl]) for bl in msrdat]))
                 if __score >= score: 
                     print '      * %16s %f' % (k, __score-score)
-                    if mode == 0:
-                        if srcest_bm.has_key(k): _srcest_bm[k] = srcest_bm[k].copy()
-                        elif _srcest_bm.has_key(k): del(_srcest_bm[k])
-                    elif mode == 1:
-                        if srcest_ant.has_key(k): _srcest_ant[k] = srcest_ant[k].copy()
+                    if mode <= 0:
+                        #if srcest_ant.has_key(k): _srcest_ant[k] = srcest_ant[k].copy()
+                        if srcest_ant.has_key(k): _srcest_ant[k] = srcest_ant[k]
                         elif _srcest_ant.has_key(k): del(_srcest_ant[k])
                     else:
-                        for bl in _srcest_bl[k]: _srcest_bl[k][bl] = srcest_bl.get(k,{}).get(bl,0.)
-                else:
-                    print '    %20s %f' % (k, __score-score)
+                        for bl in _srcest_bl[k]: _srcest_bl[k][bl] = srcest_bl.get(k,{}).get(bl,0)
+                else: print '    %20s %f' % (k, __score-score)
 
             # Compute residual for sources that succeeded individually
             _resdat = {}
@@ -381,27 +322,19 @@ for arg in args:
                 i,j = a.miriad.bl2ij(bl)
                 _resdat[bl] = msrdat[bl].copy()
                 for k in simdat:
-                    gi,gj = 0,0
-                    if mode == 0:
-                        if _srcest_bm.has_key(k):
-                            gi = n.sqrt(_srcest_bm[k])
-                            gj = gi.copy()
-                    elif srcest_bm.has_key(k):
-                        gi = n.sqrt(srcest_bm[k])
-                        gj = gi.copy()
-                    if mode == 1:
-                        if _srcest_ant.get(k,{}).has_key(i): gi += _srcest_ant[k][i]
-                        if _srcest_ant.get(k,{}).has_key(j): gj += _srcest_ant[k][j]
-                    elif srcest_ant.has_key(k):
-                        if srcest_ant[k].has_key(i): gi += srcest_ant[k][i]
-                        if srcest_ant[k].has_key(j): gj += srcest_ant[k][j]
-                    _resdat[bl] -= gi * n.conj(gj) * simdat[k][bl]
-                    if mode == 2 and _srcest_bl.has_key(k):
-                        sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
-                        _resdat[bl] -= _srcest_bl[k][bl] * simdat[k][bl] / sd
+                    if k in blsrcs: mdl = simdat[k][bl] * rsvdat[k][bl]
+                    else: mdl = simdat[k][bl]
+                    _resdat[bl] -= _srcest_ant.get(k,{}).get(i,0) * n.conj(_srcest_ant.get(k,{}).get(j,0)) * mdl
+                    if mode == 1 and _srcest_bl.has_key(k):
+                        #phsdat = simdat[k][bl] / n.abs(simdat[k][bl])
+                        #sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
+                        #_resdat[bl] -= _srcest_bl[k][bl] * simdat[k][bl] / sd
+                        _resdat[bl] -= _srcest_bl[k][bl] * simdat[k][bl]
                     elif srcest_bl.has_key(k):
-                        sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
-                        _resdat[bl] -= srcest_bl[k][bl] * simdat[k][bl] /sd
+                        #phsdat = simdat[k][bl] / n.abs(simdat[k][bl])
+                        #sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
+                        #_resdat[bl] -= srcest_bl[k][bl] * simdat[k][bl] /sd
+                        _resdat[bl] -= srcest_bl[k][bl] * simdat[k][bl]
                 _resdat[bl] -= _xtalk[bl]
                 _resdat[bl] *= msrval[bl] # Mask out invalid data
             _score = n.sqrt(sum([n.sum(n.abs(_resdat[bl]**2)) for bl in msrdat]) / sum([n.sum(msrval[bl]) for bl in msrdat]))
@@ -414,8 +347,7 @@ for arg in args:
             print '    Failed Score: %f (%5.2f%%)' % (_score, n.round(100*_score/iscore,2))
         else: 
             resdat, score, xtalk = _resdat, _score, _xtalk
-            if mode == 0: srcest_bm = _srcest_bm
-            elif mode == 1: srcest_ant = _srcest_ant
+            if mode <= 0: srcest_ant = _srcest_ant
             else: srcest_bl = _srcest_bl
 
         # If we are at tolerance, add degrees of freedom and repeat
@@ -426,7 +358,8 @@ for arg in args:
                 if dw == opts.dw and drw == opts.drw:
                     if tier+1 < len(srctier):
                         tier += 1
-                        mode = 0
+                        #mode = 0
+                        mode = -1
                         dw,drw = 0,0
                     else:
                         print '    Tolerance'
@@ -442,19 +375,17 @@ for arg in args:
     #times = times[i0:-i0]
     n.savez('%s__times.npz' % (arg), times=n.array(times))
     n.savez('%s__afreqs.npz' % (arg), freqs=afreqs)
-    #for k in srcest_bm: srcest_bm[k] = srcest_bm[k][i0:-i0]
-    n.savez( '%s__srcest_bm.npz' % (arg), **srcest_bm)
     __xtalk = {}
     for bl in xtalk: __xtalk[str(bl)] = xtalk[bl]
     n.savez( '%s__xtalk.npz' % (arg), **__xtalk)
-    if FINAL_MODE >= 1:
+    if FINAL_MODE >= 0:
         for k in srcest_ant:
             d = {}
             for i in srcest_ant[k]:
                 #d[str(i)] = srcest_ant[k][i][i0:-i0]
                 d[str(i)] = srcest_ant[k][i]
             n.savez( '%s__srcest_ant__%s.npz' % (arg,k), **d)
-    if FINAL_MODE >= 2:
+    if FINAL_MODE >= 1:
         for k in srcest_bl:
             d = {}
             for bl in srcest_bl[k]:
