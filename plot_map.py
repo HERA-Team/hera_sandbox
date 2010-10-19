@@ -109,6 +109,8 @@ o.add_option('--interp', dest='interp', type='str',default=None,
           'bicubic', 'spline16', 'spline36', 'hanning', 'hamming',
           'hermite', 'kaiser', 'quadric', 'catrom', 'gaussian',
           'bessel', 'mitchell', 'sinc', 'lanczos'""")
+o.add_option('--blank',type='float',
+    help="A flux threshold, below which will be blanked.")
 
 opts,args = o.parse_args(sys.argv[1:])
 
@@ -235,6 +237,7 @@ for i,file in enumerate(args):
     map.drawmeridians(n.arange(-180, 180, 30))
     #if not opts.proj.startswith('ortho'): map.drawparallels(n.arange(-90,90,30)[1:], labels=[0,1,0,0], labelstyle='+/-')
     # Set up data to plot
+    if not opts.blank is None: data[n.argwhere(data<opts.blank)] = 0
     if opts.mode.startswith('log'): data = n.log10(n.abs(data))
     elif opts.mode.startswith('atan'): data = n.arctan(data)
     if opts.max is None: max = data.max()
