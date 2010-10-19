@@ -8,5 +8,5 @@
 ARGS=`pull_args.py $*`
 
 for ARG in $ARGS ; do
-    /data1/paper/arp/scripts/rm_npz26.py -C psa331_v009_gc $ARG -d 45 -r 45
+    /data1/paper/arp/scripts/rm_npz26.py -C psa455_v003_gc $ARG -d 15 -r 15
 done
