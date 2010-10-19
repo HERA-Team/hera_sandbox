@@ -3,6 +3,7 @@
 #$ -j y
 #$ -cwd
 #$ -o grid_output/
+#$ -l h_vmem=100M
 
 FILES=`pull_args.py $*`
 for FILE in $FILES
