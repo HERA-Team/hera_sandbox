@@ -110,7 +110,7 @@ o.add_option('--interp', dest='interp', type='str',default=None,
           'hermite', 'kaiser', 'quadric', 'catrom', 'gaussian',
           'bessel', 'mitchell', 'sinc', 'lanczos'""")
 o.add_option('--blank',type='float',
-    help="A flux threshold, below which will be blanked.")
+    help="A flux threshold, below which will be blanked. default=None. [Jys]")
 
 opts,args = o.parse_args(sys.argv[1:])
 
