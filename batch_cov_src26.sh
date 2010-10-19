@@ -1,5 +1,4 @@
 #$ -S /bin/bash
-# -hold_jid 7250
 #$ -V
 #$ -cwd
 #$ -j y
