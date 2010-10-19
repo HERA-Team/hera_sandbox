@@ -4,6 +4,7 @@
 #$ -j y
 #$ -N sum_facets
 #$ -o grid_output/
+#$ -l h_vmem=0.5G
 
 FACETS=`pull_facets.py $* --match="z.*_(.\d+)_0000.dim.fits"`
 FACETS=`pull_args.py ${FACETS}`
