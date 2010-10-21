@@ -8,8 +8,8 @@
 FILES=`pull_args.py $*`
 for FILE in $FILES
 do
-echo "cl_img.py -d cln -r radial ${FILE} --maxiter=2000 --tol=1e-4"
-cl_img.py -d cln -r radial ${FILE} --maxiter=2000 --tol=1e-4
+echo "cl_img.py -d cln -r uniform ${FILE} --maxiter=2000 --tol=1e-4"
+cl_img.py -d cln -r uniform ${FILE} --maxiter=2000 --tol=1e-4
 done
 #C1=15
 #C2=185
