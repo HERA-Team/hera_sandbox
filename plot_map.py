@@ -1,4 +1,4 @@
-#!/usr/global/paper/bin/python
+#!/usr/bin/env python
 """
 Script for displaying a projection of a spherical (Healpix) data set stored
 in a *.fits file.
@@ -102,8 +102,10 @@ o.add_option('--nside', dest='nside', type='int',
     help="Manually set NSIDE (possibly degrading map) to a power of 2.")
 o.add_option('--mask', dest='mask', type='float',
     help="Optional dB of weight below which data will be masked. Recommended=3")
-o.add_option('--contour', type='int',
+o.add_option('--wcontour', type='int',
     help="Plot weight contours, averaged by this factor. recommended=10")
+o.add_option('--contour',type='str',
+    help="Plot the data as contours averaged by this factor. Recommended=2")
 o.add_option('--interp', dest='interp', type='str',default=None,
     help="""Interpolation scheme for plotting.  Options are *None*, 'nearest', 'bilinear',
           'bicubic', 'spline16', 'spline36', 'hanning', 'hamming',
@@ -140,21 +142,29 @@ for c,(i,j) in enumerate(zip(x1,x2)): x[c] = n.ma.masked_outside(x[c], i, j)
 mask = x.mask
 if opts.osys == 'eq': lons = 360 - lons
 lats *= a.img.deg2rad; lons *= a.img.deg2rad
-#if opts.osys=='ga': lons *= -1
+if opts.osys=='ga' and opts.projection!='moll': lons *= -1
 if opts.osys=='eq':lons *=-1
 def xy2radec(x,y):
     lon,lat = map(x, y,inverse=True)
-    if opts.osys == 'eq': lon = lon % 360 #lon = (360 - lon) % 360
+    lon = lon % 360 #lon = (360 - lon) % 360
     lon *= a.img.deg2rad; lat *= a.img.deg2rad
     ra,dec = ephem.hours(lon), ephem.degrees(lat)
     return ra,dec
+def lb2radec(l,b):
+    lon,lat = l,b
+    ra,dec = ephem.Equatorial(ephem.Galactic(ephem.hours(lon),ephem.degrees(lat))).ra,\
+    ephem.Equatorial(ephem.Galactic(ephem.hours(lon),ephem.degrees(lat))).dec
+    return ra,dec
 
 def format_coord(x,y):
-    lon,lat = map(x, y,inverse=True)
-    if opts.osys == 'eq': lon = lon % 360 #lon = (360 - lon) % 360
-    lon *= a.img.deg2rad; lat *= a.img.deg2rad
-    ra,dec = ephem.hours(lon), ephem.degrees(lat)
-    return '(RA = %s, DEC=%s' % (ra, dec)
+    if opts.osys=='ga': 
+        l,b = xy2radec(x,y)
+        ra,dec = lb2radec(l,b)
+    else:
+        ra,dec = xy2radec(x,y)
+    if opts.osys=='ga':
+        return '#(l,b): (%s,%s), (RA,DEC): (%s, %s)' % (l,b,ra, dec)
+    else:return '#(RA,DEC): (%s, %s)' % (ra, dec)
 
 m2 = n.int(n.sqrt(len(args)))
 m1 = n.int(n.floor(len(args)/m2))
@@ -230,7 +240,7 @@ for i,file in enumerate(args):
 #        if opts.osys == 'eq': slons = 360 - slons
         slons = n.where(slons < -180, slons + 360, slons)
         slons = n.where(slons >= 180, slons - 360, slons)
-        #if opts.osys=='ga':slons *= -1
+#        if opts.osys=='ga':slons *= -1
 
     # Generate map grid/outline
     map.drawmapboundary()
@@ -250,7 +260,35 @@ for i,file in enumerate(args):
     if not opts.projection in ['ortho','geos','spaeqd']: data = n.ma.array(data, mask=mask)
 
     ax = p.subplot(m1,m2,i+1)
-    map.imshow(data, vmax=max, vmin=min, cmap=cmap,interpolation=opts.interp)
+    if not opts.contour is None:
+        scale = int(opts.contour.split(',')[0])
+        try: 
+            levels = opts.contour.split(',')[1]
+            if len(levels.split('/'))>1:
+                 levels = n.log10(n.array(levels.split('/')).astype(n.float))
+            else: levels = int(levels)
+            print "using levels",levels
+        except(IndexError): print "no levels provided";levels = 3
+        lons,lats,x,y = map.makegrid(360/opts.res/scale,
+                                    180/opts.res/scale, returnxy=True)
+        D= n.ma.array(n.zeros_like(lons),mask=n.zeros_like(lons))
+#        print M.shape,mask.shape
+        mpl.rcParams['contour.negative_linestyle'] = 'solid'
+        if scale==1:
+            D = data
+        else:
+            print "smoothing image"
+            for i in range(data.shape[0]):
+                for j in range(data.shape[1]):
+                    D[i/scale,j/scale] += data[i,j]
+                    if len(data.mask.shape)==2:
+                        D.mask[i/scale,j/scale] |= data.mask[i,j]
+            D /= scale
+        print "computing and plotting contours"
+        DC = map.contour(x,y,D,levels,colors='k',lw=6)
+        p.clabel(DC, fontsize=10, inline=1)    
+        print "flux levels = ",10**n.array(DC.levels)
+    else: map.imshow(data, vmax=max, vmin=min, cmap=cmap,interpolation=opts.interp)
     ax.format_coord = format_coord
     # Plot src labels and markers on top of map image
     if not opts.src is None:
@@ -265,8 +303,8 @@ for i,file in enumerate(args):
                     color=opts.src_color)
     if not opts.nobar: p.colorbar(shrink=.5, format='%.2f')
     else: p.subplots_adjust(.05,.05,.95,.95)
-    if not opts.contour is None:
-        scale = opts.contour
+    if not opts.wcontour is None:
+        scale = opts.wcontour
         lons,lats,x,y = map.makegrid(360/opts.res/scale,180/opts.res/scale, returnxy=True)
         #average down the wgts
 
@@ -304,23 +342,30 @@ else:
 #            if opts.osys == 'eq': lon = (360 - lon) % 360
 #            lon *= a.img.deg2rad; lat *= a.img.deg2rad
 #            ra,dec = ephem.hours(lon), ephem.degrees(lat)
-            ra,dec = xy2radec(event.xdata,event.ydata)
-            x,y,z = a.coord.radec2eq((ra,dec))
+            if opts.osys=='ga': 
+                l,b = xy2radec(event.xdata,event.ydata)
+                ra,dec = lb2radec(l,b)
+            else:
+                ra,dec = xy2radec(event.xdata,event.ydata)
+            if opts.isys=='eq': x,y,z = a.coord.radec2eq((ra,dec))
+            else: x,y,z = a.coord.radec2eq((ra,dec))
             flx = h[(x,y,z)]
-            print '#%d (RA,DEC): (%s, %s), Jy: %f' % (cnt, ra, dec, flx)
+            if opts.osys=='ga':
+                print '#%d (l,b): (%s,%s), (RA,DEC): (%s, %s), Jy: %f' % (cnt, l,b,ra, dec, flx)
+            else:print '#%d (RA,DEC): (%s, %s), Jy: %f' % (cnt, ra, dec, flx)
             cnt += 1
-        elif event.button==2:
-            lon,lat = map(event.xdata, event.ydata, inverse=True)
-            if opts.osys == 'eq': lon = (360 - lon) % 360
-            lon *= a.img.deg2rad; lat *= a.img.deg2rad
-            ra,dec = ephem.hours(lon), ephem.degrees(lat)
-            x,y,z = a.coord.radec2eq((ra,dec))
-            #flx = h[(x,y,z)]
-            crd = [mk_arr(c, dtype=n.double) for c in (x,y,z)]
-            px,wgts = h.crd2px(*crd, **{'interpolate':1})
-            flx = n.sum(h[px],axis=-1)
-            print '#%d (RA,DEC): (%s, %s), Jy: %f (4px sum)' % (cnt, ra, dec, flx)
-            cnt += 1
+#        elif event.button==2:
+#            lon,lat = map(event.xdata, event.ydata, inverse=True)
+#            if opts.osys == 'eq': lon = (360 - lon) % 360
+#            lon *= a.img.deg2rad; lat *= a.img.deg2rad
+#            ra,dec = ephem.hours(lon), ephem.degrees(lat)
+#            x,y,z = a.coord.radec2eq((ra,dec))
+#            #flx = h[(x,y,z)]
+#            crd = [mk_arr(c, dtype=n.double) for c in (x,y,z)]
+#            px,wgts = h.crd2px(*crd, **{'interpolate':1})
+#            flx = n.sum(h[px],axis=-1)
+#            print '#%d (RA,DEC): (%s, %s), Jy: %f (4px sum)' % (cnt, ra, dec, flx)
+#            cnt += 1
         else: return
             
 
