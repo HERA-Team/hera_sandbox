@@ -11,9 +11,7 @@ import aipy as a, numpy as n, pylab as p,math as m
 import sys, optparse,pyfits as pf
 
 o = optparse.OptionParser()
-a.scripting.add_standard_options(o, cal=True)
-o.add_option('--snap', dest='snap', action='store_true',
-    help='Snapshot mode.  Fits parameters separately for each integration.')
+#a.scripting.add_standard_options(o, cal=True)
 opts, args = o.parse_args(sys.argv[1:])
 
 
@@ -22,7 +20,7 @@ for file in args:
     print file + " > " + outfile
     hdulist = pf.open(file)
     hdu = hdulist[0]
-    hdu.header.update('RESOLUTN', '9','Resolution index')
-    hdu.header.update('TFORM1  ', '1E      ','4 bytes')
+    hdu.header.update('TTYPE1', 'TEMPERATURE','Not really temp, actually Janskys.')
+    hdu.header.update('TTYPE2  ', 'N_OBS','Not really number of obs. Actually weights.')
     hdulist[0] = hdu
     hdulist.writeto(outfile,clobber=True)
