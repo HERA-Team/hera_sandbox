@@ -20,7 +20,7 @@ for file in args:
     print file + " > " + outfile
     hdulist = pf.open(file)
     hdu = hdulist[0]
-    hdu.header['TTYPE1']='TEMPERATURE'
-    hdu.header['TTYPE2']='N_OBS'
+    hdu.header['TTYPE1  ']='TEMPERATURE'
+    hdu.header['TTYPE2  ']='N_OBS'
     hdulist[0] = hdu
     hdulist.writeto(outfile,clobber=True)
