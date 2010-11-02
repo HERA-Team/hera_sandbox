@@ -22,5 +22,5 @@ for file in args:
     hdu = hdulist[1]
     hdu.header['TTYPE1']='TEMPERATURE'
     hdu.header['TTYPE2']='N_OBS'
-    hdulist[0] = hdu
+    hdulist[1] = hdu
     hdulist.writeto(outfile,clobber=True)
