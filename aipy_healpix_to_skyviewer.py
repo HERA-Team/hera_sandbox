@@ -20,7 +20,7 @@ for file in args:
     print file + " > " + outfile
     hdulist = pf.open(file)
     hdu = hdulist[1]
-    hdu.data.field('signal') = hdu.data.field('signal')/hdu.data.field('weights').clip(1,1000000)
+    hdu.data.field('signal')[:] = hdu.data.field('signal')[:]/hdu.data.field('weights')[:].clip(1,1000000)
     hdu.header['TTYPE1']='TEMPERATURE'
     hdu.header['TTYPE2']='N_OBS'
     hdulist[1] = hdu
