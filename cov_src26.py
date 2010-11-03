@@ -31,12 +31,13 @@ for i, s in enumerate(srctier):
     srctier[i] = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs)
 NTIERS = len(srctier)
 cat = a.fit.SrcCatalog()
-for c in srctier: cat.add_srcs(c.values()); 
+for c in srctier: cat.add_srcs(c.values())
 blsrcs = opts.blsrcs.split(',')
 
-MAX_CASCADE_LEN = 100
+MAX_CASCADE_LEN = 200
 MIN_CASCADE_LEN = 20
-CASCADE_PROBABILITY = .02
+CASCADE_PROBABILITY = .002
+#CASCADE_PROBABILITY = .0
 CLEAN_GAIN = 0.5
 #NOISE_CLIP = 1e-2
 NOISE_CLIP = 10**0.5
@@ -340,6 +341,7 @@ for arg in args:
                     if G == 0 or not k in srctier[tier]: continue
                     #print '        GAIN: %s %f' % (k, G)
                     d,w = {}, {}
+                    phs,amp = {}, {}
                     for bl in simdat[k]:
                         i,j = a.miriad.bl2ij(bl)
                         if k in blsrcs: wgt = blwgt[k][bl] * rsvdat[k][bl]
@@ -347,10 +349,20 @@ for arg in args:
                         _d = resdat[bl] * n.conj(simdat[k][bl]) * wgt
                         if k in blsrcs: wgt *= rsvdat[k][bl]
                         _w = wgt
-                        d[i] = d.get(i,0) + _d
-                        w[i] = w.get(i,0) + _w * n.conj(step['ant'][k][j])
-                        d[j] = d.get(j,0) + n.conj(_d)
-                        w[j] = w.get(j,0) + _w * n.conj(step['ant'][k][i])
+                        if not phs.has_key(i):
+                            amp[i] = n.abs(step['ant'][k][i])
+                            phs[i] = step['ant'][k][i] / amp[i]
+                        if not phs.has_key(j):
+                            amp[j] = n.abs(step['ant'][k][j])
+                            phs[j] = step['ant'][k][j] / amp[j]
+                        #d[i] = d.get(i,0) + _d
+                        d[i] = d.get(i,0) + _d * phs[j]
+                        #w[i] = w.get(i,0) + _w * n.conj(step['ant'][k][j])
+                        w[i] = w.get(i,0) + _w * amp[j]
+                        #d[j] = d.get(j,0) + n.conj(_d)
+                        d[j] = d.get(j,0) + n.conj(_d) * phs[i]
+                        #w[j] = w.get(j,0) + _w * n.conj(step['ant'][k][i])
+                        w[j] = w.get(j,0) + _w * amp[i]
                     for i in d:
                         # This divide can cause an explosion if w[i] is close to
                         # 0, which can happen early on when summing weights that
