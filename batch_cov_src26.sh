@@ -15,5 +15,6 @@ ARGS=`pull_args.py $*`
 #SRCS1="vir,crab,pic,hyd,for"
 SRCS0="1308-220"
 SRCS1="1932-464"
+CAT="southern_sky"
 echo cov_src26.py -C psa455_v003_gc -s ${SRCS0}/${SRCS1} --cat=${CAT} -c 110_400_4 -x 4 -a cross,-24 -p xx -r 15 -d 15 --maxiter=1000 $ARGS
 cov_src26.py -C psa455_v003_gc -s ${SRCS0}/${SRCS1} --cat=${CAT} -c 110_400_4 -x 4 -a cross,-24 -p xx -r 15 -d 15 --maxiter=1000 $ARGS
