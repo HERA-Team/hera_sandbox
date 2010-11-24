@@ -4,7 +4,7 @@
 #$ -j y
 #$ -N cov26
 #$ -o grid_output/
-#$ -l h_vmem=.75G
+#$ -l h_vmem=2G
 
 ARGS=`pull_args.py $*`
 #SRCS0=Sun,vir,crab,cyg,cas
