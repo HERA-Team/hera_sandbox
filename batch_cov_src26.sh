@@ -17,5 +17,6 @@ ARGS=`pull_args.py $*`
 #SRCS1="1932-464"
 SRCS0=`cat peelsrcsII.txt`
 CAT="southern_sky_v3"
-echo cov_src26.py -C psa455_v003_gc -s ${SRCS0} --cat=${CAT} -c 110_400_4 -x 4 -a cross,-24 -p xx -r 15 -d 15 --maxiter=1000 $ARGS
-cov_src26.py -C psa455_v003_gc -s ${SRCS0} --cat=${CAT} -c 110_400_4 -x 4 -a cross,-24 -p xx -r 15 -d 15 --maxiter=1000 $ARGS
+CAL="psa331_v009_gc"
+echo cov_src26.py -C ${CAL} -s ${SRCS0} --cat=${CAT} -c 110_400_4 -x 4 -a cross,-24 -p xx -r 15 -d 15 --maxiter=1000 $ARGS
+cov_src26.py -C ${CAL} -s ${SRCS0} --cat=${CAT} -c 110_400_4 -x 4 -a cross,-24 -p xx -r 15 -d 15 --maxiter=1000 $ARGS
