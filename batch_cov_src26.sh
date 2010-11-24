@@ -13,8 +13,9 @@ ARGS=`pull_args.py $*`
 #SRCS3=13:52:19.65_31:26:44.1,15:05:27.56_26:04:59.8,14:23:20.72_19:36:10.5,11:14:11.09_40:35:01.1,12:44:20.49_16:21:42.4,12:54:14.17_27:41:40.5,14:07:08.33_34:14:36.8,14:20:54.12_41:44:18.5
 #SRCS0=Sun,cen
 #SRCS1="vir,crab,pic,hyd,for"
-SRCS0="1308-220"
-SRCS1="1932-464"
-CAT="southern_sky"
-echo cov_src26.py -C psa455_v003_gc -s ${SRCS0}/${SRCS1} --cat=${CAT} -c 110_400_4 -x 4 -a cross,-24 -p xx -r 15 -d 15 --maxiter=1000 $ARGS
-cov_src26.py -C psa455_v003_gc -s ${SRCS0}/${SRCS1} --cat=${CAT} -c 110_400_4 -x 4 -a cross,-24 -p xx -r 15 -d 15 --maxiter=1000 $ARGS
+#SRCS0="1308-220"
+#SRCS1="1932-464"
+SRCS0=`cat peelsrcsII.txt`
+CAT="southern_sky_v3"
+echo cov_src26.py -C psa455_v003_gc -s ${SRCS0} --cat=${CAT} -c 110_400_4 -x 4 -a cross,-24 -p xx -r 15 -d 15 --maxiter=1000 $ARGS
+cov_src26.py -C psa455_v003_gc -s ${SRCS0} --cat=${CAT} -c 110_400_4 -x 4 -a cross,-24 -p xx -r 15 -d 15 --maxiter=1000 $ARGS
