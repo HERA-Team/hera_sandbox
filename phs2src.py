@@ -28,7 +28,7 @@ if not opts.src is None:
     else: src = 'z'
 else: src = None
 del(uv)
-
+if not src is None and not type(src) == str: src.compute(aa)
 # A pipe to use for phasing to a source
 curtime = None
 def phs(uv, p, d, f):
@@ -38,6 +38,9 @@ def phs(uv, p, d, f):
         curtime = t
         aa.set_jultime(t)
         if not src is None and not type(src) == str: src.compute(aa)
+        if src=='z': 
+            uv['ra']=aa.sidereal_time()
+            uv['obsra']=aa.sidereal_time()
     if i == j: return p, d, f
     try:
         if opts.setphs: d = aa.unphs2src(n.abs(d), src, i, j)
@@ -63,11 +66,14 @@ for filename in args:
     uvi = a.miriad.UV(filename)
     uvo = a.miriad.UV(uvofile, status='new')
     uvo.init_from_uv(uvi)
-    uvo['ra']=src.ra
-    uvo['dec']=src.dec
-    uvo['obsra']=src.ra
-    uvo['obsdec']=src.dec
-    uvo['source']=src.src_name
+    if not src is None and not type(src) == str: 
+        uvo['ra']=src.ra
+        uvo['dec']=src.dec
+        uvo['obsra']=src.ra
+        uvo['obsdec']=src.dec
+        uvo['source']=src.src_name
+    else:
+        uvo['source']='zenith'
     
     uvo.pipe(uvi, mfunc=phs, raw=True)
 
