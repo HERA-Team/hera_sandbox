@@ -13,7 +13,9 @@ a.scripting.add_standard_options(o, cal=True, src=True)
 o.add_option('--setphs', dest='setphs', action='store_true',
     help='Instead of rotating phase, assign a phase corresponding to the specified source.')
 o.add_option('--rot_uvw',action='store_true',
-    help='Rotate the uvw coordinates to the source. Useful for exporting beyond AIPY')
+    help='Rotate the uvw coordinates to the source. Useful for exporting beyond AIPY (also translates from nanoseconds to IAU [meters])')
+o.add_option('--apply_amp',action='store_true',
+    help='Apply the amplitude correction.')
 opts,args = o.parse_args(sys.argv[1:])
 
 # Parse command-line options
@@ -43,8 +45,10 @@ def phs(uv, p, d, f):
         else: 
             d = aa.phs2src(d, src, i, j)
             if opts.rot_uvw: 
-                uvw = aa.gen_uvw(i,j,src=src)
+                uvw = aa.get_baseline(i,j,src=src)/3.33564 #change from ns to meters
                 p = (uvw,t,(i,j))
+        if opts.apply_amp:
+            d /= aa.passband(i,j)
     except(a.phs.PointingError): d *= 0
     return p, d, f
 
