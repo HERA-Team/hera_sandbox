@@ -63,5 +63,11 @@ for filename in args:
     uvi = a.miriad.UV(filename)
     uvo = a.miriad.UV(uvofile, status='new')
     uvo.init_from_uv(uvi)
+    uvo['ra']=src.ra
+    uvo['dec']=src.dec
+    uvo['obsra']=src.ra
+    uvo['obsdec']=src.dec
+    uvo['source']=src.src_name
+    
     uvo.pipe(uvi, mfunc=phs, raw=True)
 
