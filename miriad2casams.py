@@ -9,7 +9,7 @@ import sys, os, optparse
 sys.path.append('/usr/lib64/casapy/test/lib/python2.6')
 sys.path.append('/usr/lib64/casapy/test/lib/python2.6/site-packages')
 #setup miriad environment (AOC)
-sys.path.append('/usr/local/miriad/linux64/bin/')
+MIRBIN='/usr/local/miriad/linux64/bin/'
 os.environ['MIRCAT']='/usr/local/miriad/cat/'
 import casa
 
@@ -25,6 +25,6 @@ for file in args:
     fitsfile = file+'.fits'
     visfile = file+'.ms'
     print(file+' > '+fitsfile)
-    os.system('fits in='+file+' op=uvout out='+fitsfile+' stokes=xx')
+    os.system(MIRBIN+'fits in='+file+' op=uvout out='+fitsfile+' stokes=xx')
     print(fitsfile+' > ' + visfile)
     casa.importuvfits(fitsfile=fitsfile,vis=visfile)
