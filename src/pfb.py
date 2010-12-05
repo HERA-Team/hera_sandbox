@@ -46,9 +46,9 @@ def __set_pm__(L, window, taps, fwidth):
         pm['sinx_x'] = n.fromfunction(sinx_x, (L,))
     if type(window) == str: 
         wf = {}
-        wf['blackman'] = lambda x: .42+.5*n.cos(2*n.pi*x/L-n.pi)+.08*n.cos(4*n.pi*x/L-n.pi)
-        wf['hamming'] = lambda x: .54 + .46 * n.cos(2*n.pi*x/L - n.pi)
-        wf['hanning'] = lambda x: .5 + .5 * n.cos(2*n.pi*x/(L+1) - n.pi)
+        wf['blackman'] = lambda x: .42+.5*n.cos(2*n.pi*x/(L-1)-n.pi)+.08*n.cos(4*n.pi*x/(L-1)-n.pi)
+        wf['hamming'] = lambda x: .54 + .46 * n.cos(2*n.pi*x/(L-1) - n.pi)
+        wf['hanning'] = lambda x: .5 + .5 * n.cos(2*n.pi*x/(L-1) - n.pi)
         wf['parzen'] = lambda x: 1 - n.abs(L/2. - x) / (L/2.)
         wf['blackman-harris'] = lambda x: .35875 + .48829*n.cos(2*n.pi*x/(L-1)) + .14128*n.cos(4*n.pi*x/(L-1)) - .01168*n.cos(6*n.pi*x/(L-1))
         wf['none'] = lambda x: 1
