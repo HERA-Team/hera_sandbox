@@ -18,7 +18,7 @@ pfb.WINDOWS is a list of built-in windowing functions."""
 
 import numpy as n
 
-WINDOWS = ['blackman', 'hamming', 'hanning', 'parzen', 'none']
+WINDOWS = ['blackman','blackman-harris', 'hamming', 'hanning', 'parzen', 'none']
 
 pm = {}
 pm['L'] = None
@@ -50,6 +50,7 @@ def __set_pm__(L, window, taps, fwidth):
         wf['hamming'] = lambda x: .54 + .46 * n.cos(2*n.pi*x/L - n.pi)
         wf['hanning'] = lambda x: .5 + .5 * n.cos(2*n.pi*x/(L+1) - n.pi)
         wf['parzen'] = lambda x: 1 - n.abs(L/2. - x) / (L/2.)
+        wf['blackman-harris'] = lambda x: .35875 + .48829*n.cos(2*n.pi*x/(L-1)) + .14128*n.cos(4*n.pi*x/(L-1)) - .01168*n.cos(6*n.pi*x/(L-1))
         wf['none'] = lambda x: 1
         pm['window'] = n.fromfunction(wf[window], (L,))
         pm['window_name'] = window
