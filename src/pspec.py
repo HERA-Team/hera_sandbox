@@ -6,6 +6,9 @@ F21 = 1.42040575177 # GHz
 def f2z(fq):
     '''Convert frequency (GHz) to redshift for 21cm line.'''
     return (F21 / fq - 1)
+def z2f(z):
+    '''Convert redshift to frequency (GHz) for 21cm line.'''
+    return F21 / (z+1)
 def dL_df(z):
     '''[h^-1 Mpc]/GHz, from Furlanetto et al. (2006)'''
     return (1.7 / 0.1) * ((1+z) / 10.)**.5 * 1e3
@@ -17,7 +20,7 @@ def dk_deta(z):
     return 2*n.pi / dL_df(z) 
 def dk_du(z):
     '''2pi * [h Mpc^-1] / [wavelengths]'''
-    return 2*n.pi / (dL_dtheta(z) * (n.pi / 2))
+    return 2*n.pi / (dL_dth(z) * (n.pi / 2))
 def X2Y(z):
     '''[h^-3 Mpc^3] / [str * GHz] scalar conversion between observing and cosmological coordinates'''
     return dL_dth(z)**2 * dL_df(z)
