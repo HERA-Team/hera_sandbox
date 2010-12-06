@@ -17,8 +17,20 @@ pfb.WINDOWS is a list of built-in windowing functions."""
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 import numpy as n
+from aipy._cephes import i0
 
-WINDOWS = ['blackman','blackman-harris', 'hamming', 'hanning', 'parzen', 'none']
+NOISE_EQUIV_BW = {
+    'blackman': 1.73,
+    'blackman-harris': 2.01,
+    'gaussian0.4': 1.45,
+    'hamming': 1.37,
+    'hanning': 1.50,
+    'kaiser2': 1.50,
+    'kaiser3': 1.80,
+    'parzen': 1.33,
+    'none': 1,
+}
+WINDOWS = NOISE_EQUIV_BW.keys()
 
 pm = {}
 pm['L'] = None
@@ -47,10 +59,13 @@ def __set_pm__(L, window, taps, fwidth):
     if type(window) == str: 
         wf = {}
         wf['blackman'] = lambda x: .42-.5*n.cos(2*n.pi*x/(L-1))+.08*n.cos(4*n.pi*x/(L-1))
+        wf['blackman-harris'] = lambda x: .35875 - .48829*n.cos(2*n.pi*x/(L-1)) + .14128*n.cos(4*n.pi*x/(L-1)) - .01168*n.cos(6*n.pi*x/(L-1))
+        wf['gaussian0.4'] = lambda x: n.exp(-0.5 * ((x - (L-1)/2)/(0.4 * (L-1)/2))**2)
+        wf['kaiser2'] = lambda x: i0(n.pi * 2 * n.sqrt(1-(2*x/(L-1) - 1)**2)) / i0(n.pi * 2)
+        wf['kaiser3'] = lambda x: i0(n.pi * 3 * n.sqrt(1-(2*x/(L-1) - 1)**2)) / i0(n.pi * 3)
         wf['hamming'] = lambda x: .54 - .46 * n.cos(2*n.pi*x/(L-1))
         wf['hanning'] = lambda x: .5 - .5 * n.cos(2*n.pi*x/(L-1))
         wf['parzen'] = lambda x: 1 - n.abs(L/2. - x) / (L/2.)
-        wf['blackman-harris'] = lambda x: .35875 - .48829*n.cos(2*n.pi*x/(L-1)) + .14128*n.cos(4*n.pi*x/(L-1)) - .01168*n.cos(6*n.pi*x/(L-1))
         wf['none'] = lambda x: 1
         pm['window'] = n.fromfunction(wf[window], (L,))
         pm['window_name'] = window
