@@ -117,10 +117,13 @@ dat,wgt = {},{}
 for cnt1,bl in enumerate(blorder):
     dbuf,wbuf = {}, {}
     for cnt2,bin in enumerate(bins):
-        dbuf[bin] = dbuf.get(bin,0) + dcube[cnt1][cnt2]
-        wbuf[bin] = wbuf.get(bin,0) + wcube[cnt1][cnt2]
+        if not dat.has_key(bin): dat[bin],wgt[bin] = {},{}
+        dat[bin][bl] = dat[bin].get(bl,0) + dcube[cnt1][cnt2]
+        wgt[bin][bl] = wgt[bin].get(bl,0) + wcube[cnt1][cnt2]
+        #dbuf[bin] = dbuf.get(bin,0) + dcube[cnt1][cnt2]
+        #wbuf[bin] = wbuf.get(bin,0) + wcube[cnt1][cnt2]
     # Just examine a single bin for now
-    dat[bl],wgt[bl] = dbuf[4],wbuf[4]
+    #dat[bl],wgt[bl] = dbuf[4],wbuf[4]
 
 ## Plot data
 #nplts = 3
@@ -171,28 +174,33 @@ if PLOT2:
 
 # Perform line-of-sight transform on each subband and cross-multiply between antennas
 data,gain = {},{}
-__dat,__wgt,__dec,__cln = {},{},{},{}
+__dat,__wgt = {},{}
 for b in range((MAX_CH-MIN_CH) / (SUBBAND/2)):
     ch0 = b*SUBBAND/2
     ch1 = ch0 + NTAPS*SUBBAND
     if ch1 > MAX_CH-MIN_CH: continue
-    for i in dat:
-        _d = C.pfb.pfb(dat[i][ch0:ch1], taps=NTAPS, window='kaiser3', fft=n.fft.ifft)
-        _w = C.pfb.pfb(wgt[i][ch0:ch1], taps=NTAPS, window='kaiser3', fft=n.fft.ifft)
-        g1 = n.abs(_w[0])
-        __d, info = a.deconv.clean(_d, _w, tol=opts.clean)
-        __d[1:] = 0
-        _d -= n.fft.ifft(n.fft.fft(__d) * n.fft.fft(_w))
-        _d1 = _d[:_d.size/2]
-        # Cross correlate with other PS measurements
-        for _d2,g2 in zip(data.get(b,[]), gain.get(b,[])):
-            __dat[b] = __dat.get(b,0) + _d1 * n.conj(_d2)
-            __wgt[b] = __wgt.get(b,0) + g1 * g2
-        data[b] = data.get(b,[]) + [_d1]
-        gain[b] = gain.get(b,[]) + [g1]
+    for lstbin in dat:
+        if not __dat.has_key(lstbin): __dat[lstbin],__wgt[lstbin] = {},{}
+        if not data.has_key(lstbin): data[lstbin],gain[lstbin] = {},{}
+        for i in dat[lstbin]:
+            _d = C.pfb.pfb(dat[lstbin][i][ch0:ch1], taps=NTAPS, window='kaiser3', fft=n.fft.ifft)
+            _w = C.pfb.pfb(wgt[lstbin][i][ch0:ch1], taps=NTAPS, window='kaiser3', fft=n.fft.ifft)
+            g1 = n.abs(_w[0])
+            __d, info = a.deconv.clean(_d, _w, tol=opts.clean)
+            __d[1:] = 0
+            _d -= n.fft.ifft(n.fft.fft(__d) * n.fft.fft(_w))
+            _d1 = _d[:_d.size/2]
+            # Cross correlate with other PS measurements
+            for _d2,g2 in zip(data[lstbin].get(b,[]), gain[lstbin].get(b,[])):
+                __dat[lstbin][b] = __dat[lstbin].get(b,0) + _d1 * n.conj(_d2)
+                # Note that as of here wgt is just a number, not a vector
+                __wgt[lstbin][b] = __wgt[lstbin].get(b,0) + g1 * g2
+            data[lstbin][b] = data[lstbin].get(b,[]) + [_d1]
+            gain[lstbin][b] = gain[lstbin].get(b,[]) + [g1]
 
 # Convert into cosmological units (Mpc, mK^2, etc)
-dat = []
+dat = {}
+dtot,wtot = 0,0
 for b in range((MAX_CH-MIN_CH) / (SUBBAND/2)):
     ch0 = b*SUBBAND/2
     ch1 = ch0 + NTAPS*SUBBAND
@@ -201,23 +209,35 @@ for b in range((MAX_CH-MIN_CH) / (SUBBAND/2)):
     B = (_freqs[-1] - _freqs[0])
     z = C.pspec.f2z(_freqs)
     eta = C.pspec.f2eta(_freqs)
-    k_pl = (eta * C.pspec.dk_deta(z))[:__dat[b].size]
+    k_pl = (eta * C.pspec.dk_deta(z))[:int(n.ceil(float(eta.size)/2))]
+    k_pl = k_pl.clip(k_pl[1]/2,n.Inf) # Having k=0 messes up log binning
     if DO_K3PK: scalar = C.pspec.k3pk_from_Trms(1, k_pl, n.average(_freqs), B=B)
     else: scalar = 1
-    dat.append((__dat[b] / __wgt[b]) * scalar)
-dat = n.array(dat).real
-#avg = n.average(dat,axis=0); avg.shape = (1,avg.size); dat -= avg
+    for lstbin in __dat:
+        if not dat.has_key(lstbin): dat[lstbin] = []
+        ks, d = C.pspec.rebin_log(k_pl, __dat[lstbin][b] * scalar, nbins=8)
+        dtot += d
+        wtot += __wgt[lstbin][b]
+        dat[lstbin].append(d / __wgt[lstbin][b])
 
-#p.subplot(221)
-dat1 = n.log10(n.abs(dat))
-#mx,drng = 10,7
-#mx,drng = 7,5
-#mx,drng = 3,4
-if DO_K3PK: mx,drng = 12,6
+# Plot the data
+if DO_K3PK: mx,drng = 11,6
 else: mx,drng = 4,4
 #mx,drng = dat1.max(), dat1.max()-max(dat1.min(),2)
-p.imshow(dat1, vmax=mx, vmin=mx-drng, aspect='auto', interpolation='nearest')
-p.colorbar(shrink=.5)
+nplts = len(dat) + 1
+m1 = int(n.ceil(n.sqrt(nplts)))
+m2 = int(n.ceil(float(nplts)/m1))
+for cnt, lstbin in enumerate(dat):
+    dat[lstbin] = n.array(dat[lstbin]).real
+    p.subplot(m2, m1, cnt+1)
+    d = n.log10(n.abs(dat[lstbin]))
+    p.imshow(d, vmax=mx, vmin=mx-drng, aspect='auto', interpolation='nearest')
+p.subplot(m2,m1, cnt+2)
+dtot = n.abs(dtot.real)
+print ks
+print dtot/wtot
+p.loglog(ks, n.abs(dtot/wtot).clip(1,n.Inf))
+p.grid()
 p.show()
 
 
