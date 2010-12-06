@@ -14,73 +14,148 @@ NTAPS = 3
 
 #SCALE = 30e3
 SCALE = 6*30e3
-DO_K3PK = False
+DO_K3PK = True
 
-#DECONV1WIDTH = 5
 DECONV1WIDTH = 10
-#NSIG = 2
 NSIG = 1.5
-#NSIG = 1
 PLOT2 = False
+NDAY = 17
 
 # Read data from npz files (which are already averaged over an hour)
 dat,wgt = {},{}
 for filename in args:
     print 'Reading', filename
+    # Fudge factor to avoid recalibrating
+    factor = 1.
+    if float('.'.join(filename.split('.')[1:3])) > 2455022.6: factor = 1.5**2
     buf = n.load(filename)
     freqs = buf['freqs']
     for dbl in buf.files:
         if not dbl.startswith('d_'): continue
+        #if not a.miriad.bl2ij(int(dbl[2:]))[0] in [0,4,10,12]: continue
         wbl = 'w'+dbl[1:]
+        bl = int(dbl[2:])
+        if not dat.has_key(bl): dat[bl],wgt[bl] = [],[]
+        dat[bl].append(buf[dbl]/factor)
+        wgt[bl].append(buf[wbl])
+
+# Put data in temp units and remove smooth models
+for bl in dat:
+    dat[bl],wgt[bl] = SCALE*n.array(dat[bl]), n.array(wgt[bl])
+    buf = []
+    for d,w in zip(dat[bl],wgt[bl]):
         # Fudge calibration by using an approximate scaling
-        d = buf[dbl] * SCALE
-        w = buf[wbl]
         val = n.where(d == 0, 0, 1)
         gain = n.sqrt(n.average(w**2))
+        if gain != 0:
+            # 1st pass: deconv by power law model across entire band
+            poly = n.polyfit(n.log10(freqs.compress(val)), n.log10(n.abs(d.compress(val))), deg=3)
+            mdl = 10**(n.polyval(poly, n.log10(freqs)))
+            ker = n.fft.ifft(w*mdl)
+            _d = n.fft.ifft(d)
+            __d, info = a.deconv.clean(_d, ker, tol=opts.clean)
+            if DECONV1WIDTH == 0: __d[1:] = 0
+            else: __d[DECONV1WIDTH+1:-DECONV1WIDTH] = 0
+            d -= n.fft.fft(__d) * n.fft.fft(ker)
+            # 2nd pass: deconv across entire band (no power law)
+            _d = n.fft.ifft(d)
+            ker = n.fft.ifft(w)
+            __d, info = a.deconv.clean(_d, ker, tol=opts.clean)
+            if DECONV1WIDTH == 0: __d[1:] = 0
+            else: __d[DECONV1WIDTH+1:-DECONV1WIDTH] = 0
+            d -= n.fft.fft(__d) * n.fft.fft(ker)
+            # 3rd pass: deconv only in band of interest
+            _d = n.fft.ifft(d[MIN_CH:MAX_CH])
+            ker = n.fft.ifft(w[MIN_CH:MAX_CH])
+            __d, info = a.deconv.clean(_d, ker, tol=opts.clean)
+            if DECONV1WIDTH == 0: __d[1:] = 0
+            else: __d[DECONV1WIDTH+1:-DECONV1WIDTH] = 0
+            d[MIN_CH:MAX_CH] -= n.fft.fft(__d) * n.fft.fft(ker)
+        buf.append(d*val)
+    dat[bl] = n.array(buf)[:,MIN_CH:MAX_CH] #* 2*(n.random.randint(2)-.5)
+    wgt[bl] = wgt[bl][:,MIN_CH:MAX_CH]
+    # Remove smooth-in-time components
+    #avg = n.sum(dat[bl], axis=0) / n.sum(wgt[bl], axis=0).clip(1,n.Inf)
+    #dat[bl] -= avg * wgt[bl]
+    for ch in range(dat[bl].shape[1]):
+        d,w = dat[bl][:,ch], wgt[bl][:,ch]
+        gain = n.sqrt(n.average(w**2))
         if gain == 0: continue
-        # 1st pass: deconv by power law model across entire band
-        poly = n.polyfit(n.log10(freqs.compress(val)), n.log10(n.abs(d.compress(val))), deg=3)
-        mdl = 10**(n.polyval(poly, n.log10(freqs)))
-        ker = n.fft.ifft(w*mdl)
-        _d = n.fft.ifft(d)
-        __d, info = a.deconv.clean(_d, ker, tol=opts.clean)
-        if DECONV1WIDTH == 0: __d[1:] = 0
-        else: __d[DECONV1WIDTH+1:-DECONV1WIDTH] = 0
-        d -= n.fft.fft(__d) * n.fft.fft(ker)
-        # 2nd pass: deconv across entire band (no power law)
         _d = n.fft.ifft(d)
         ker = n.fft.ifft(w)
         __d, info = a.deconv.clean(_d, ker, tol=opts.clean)
-        if DECONV1WIDTH == 0: __d[1:] = 0
-        else: __d[DECONV1WIDTH+1:-DECONV1WIDTH] = 0
-        d -= n.fft.fft(__d) * n.fft.fft(ker)
-        # 3rd pass: deconv only in band of interest
-        _d = n.fft.ifft(d[MIN_CH:MAX_CH])
-        ker = n.fft.ifft(w[MIN_CH:MAX_CH])
-        __d, info = a.deconv.clean(_d, ker, tol=opts.clean)
-        if DECONV1WIDTH == 0: __d[1:] = 0
-        else: __d[DECONV1WIDTH+1:-DECONV1WIDTH] = 0
-        d[MIN_CH:MAX_CH] -= n.fft.fft(__d) * n.fft.fft(ker)
-        i = a.miriad.bl2ij(int(dbl[2:]))[0]
-        #dat[i] = dat.get(i,0) + d[MIN_CH:MAX_CH]
-        dat[i] = dat.get(i,0) + d[MIN_CH:MAX_CH] * 2*(n.random.randint(2)-.5)
-        wgt[i] = wgt.get(i,0) + w[MIN_CH:MAX_CH]
+        __d[1+NDAY:-NDAY] = 0 # This must match # of days of files provided
+        dat[bl][:,ch] -= n.fft.fft(__d) * n.fft.fft(ker)
+    if False: # Decorrelate the data for noise estimates
+        dat[bl] *= 2*(n.random.randint(2,size=dat[bl].shape)-.5)
+
+# Create data cubes (bl,time,fq) for flagging data statistically along any axis
 freqs = freqs[MIN_CH:MAX_CH]
+dcube, wcube = [], []
+blorder = []
+for bl in dat:
+    blorder.append(bl)
+    dcube.append(dat[bl])
+    wcube.append(wgt[bl])
+dcube, wcube = n.array(dcube), n.array(wcube)
+del(dat); del(wgt)
+print dcube.shape
+valid = n.ones_like(dcube)
+for ax in [0,1,2]:
+    _avg = dcube.sum(axis=ax) / wcube.sum(axis=ax).clip(1,n.Inf)
+    sh = n.array(dcube.shape); sh[ax] = 1
+    dif = dcube - _avg.reshape(sh) * wcube
+    sig = n.sqrt((dif**2).sum(axis=ax) / (wcube**2).sum(axis=ax).clip(1,n.Inf))
+    sig = sig.reshape(sh)
+    valid *= n.where(n.abs(dif) < NSIG*sig*wcube.clip(1,n.Inf), 1, 0)
+dcube *= valid
+wcube *= valid
+
+# Sum times into different bins
+bins = [int(f.split('.')[2][0]) for f in args]
+dat,wgt = {},{}
+for cnt1,bl in enumerate(blorder):
+    dbuf,wbuf = {}, {}
+    for cnt2,bin in enumerate(bins):
+        dbuf[bin] = dbuf.get(bin,0) + dcube[cnt1][cnt2]
+        wbuf[bin] = wbuf.get(bin,0) + wcube[cnt1][cnt2]
+    # Just examine a single bin for now
+    dat[bl],wgt[bl] = dbuf[4],wbuf[4]
+
+## Plot data
+#nplts = 3
+#m1 = n.ceil(n.sqrt(nplts))
+#m2 = n.ceil(nplts / m1)
+#if True:
+#    nplts += len(blorder)
+#    m1 = n.ceil(n.sqrt(nplts))
+#    m2 = n.ceil(nplts / m1)
+#    for i, bl in enumerate(blorder):
+#        d,w = dcube[i], wcube[i]
+#        if True:
+#            p.subplot(m2, m1, i+1)
+#            i,j = a.miriad.bl2ij(bl)
+#            #_d,_w = n.fft.rfft(d,axis=0), n.fft.rfft(w,axis=0)
+#            #p.imshow(n.log10(n.abs(_d) / n.abs(_w[0:1,:]).clip(1,n.Inf)), vmax=3, vmin=1, aspect='auto')
+#            p.imshow(n.log10(n.abs(d / w.clip(1,n.Inf))), vmax=4, vmin=2, aspect='auto')
+#            p.title(str(i))
+#    p.show()
 
 # Compute the median per-antenna score and flag off antennas above it
-scores = {}
-for i in dat:
-    avg = dat[i] / wgt[i].clip(1,n.Inf)
-    scores[i] = n.std(avg[100:-100])
-mscore = n.median(scores.values())
-for i in scores:
-    print i, scores[i],
-    if scores[i] > mscore:
-        print '*'
-        del(dat[i])
-        del(wgt[i])
-        continue
-    print ''
+if False:
+    scores = {}
+    for i in dat:
+        avg = dat[i] / wgt[i].clip(1,n.Inf)
+        scores[i] = n.std(avg[100:-100])
+    mscore = n.median(scores.values())
+    for i in scores:
+        print i, scores[i],
+        if scores[i] > mscore:
+            print '*'
+            del(dat[i])
+            del(wgt[i])
+            continue
+        print ''
 
 if PLOT2:
     totavg = sum([dat[i] for i in dat]) / sum([wgt[i] for i in wgt]).clip(1,n.Inf)
@@ -138,8 +213,8 @@ dat1 = n.log10(n.abs(dat))
 #mx,drng = 10,7
 #mx,drng = 7,5
 #mx,drng = 3,4
-if DO_K3PK: mx,drng = 10,4
-else: mx,drng = 6,6
+if DO_K3PK: mx,drng = 12,6
+else: mx,drng = 4,4
 #mx,drng = dat1.max(), dat1.max()-max(dat1.min(),2)
 p.imshow(dat1, vmax=mx, vmin=mx-drng, aspect='auto', interpolation='nearest')
 p.colorbar(shrink=.5)
