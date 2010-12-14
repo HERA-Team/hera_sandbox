@@ -2,6 +2,8 @@
 import numpy as n, aipy as a
 
 F21 = 1.42040575177 # GHz
+LST_RES = 2*n.pi/24
+UV_RES = 1.5
 # Cosmological conversions
 def f2z(fq):
     '''Convert frequency (GHz) to redshift for 21cm line.'''
@@ -51,12 +53,12 @@ def k3pk_sense_vs_t(t, k=.3, fq=.150, B=.001, bm_poly=DEFAULT_BEAM_POLY, Tsys=50
     return k3pk_from_Trms(Trms, k=k, fq=fq, B=B, bm_poly=bm_poly)
 
 # Misc helper functions
-def uv2bin(u,v,lst,uv_res=1.5, lst_res=.2):
+def uv2bin(u,v,lst,uv_res=UV_RES, lst_res=LST_RES):
     return (int(n.around(u / uv_res) + 4096) * 8192 + int(n.around(v / uv_res) + 4096)) * 8192 + lst/lst_res
-def bin2uv(bin, uv_res=1.5, lst_res=.2):
+def bin2uv(bin, uv_res=UV_RES, lst_res=LST_RES):
     v = ((bin/8192) % 8192 - 4096) * float(uv_res)
     u = (bin / 8192**2 - 4096) * float(uv_res)
-    lst = (bin % 8192) * float(LST_RES)
+    lst = (bin % 8192) * float(lst_res)
     return u,v, lst
 def rebin_log(x, y, nbins=10):
     '''For y=f(x), bin x into log_10 bins, and average y over
