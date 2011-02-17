@@ -34,6 +34,8 @@ o.add_option('--ignore_weights',action='store_true',
     help='Dont use the weights column in the healpix fits table')
 o.add_option('-j', '--juldate', dest='juldate', type='float', 
     help='Julian date used for locating moving sources.')
+o.add_option('--output_weights',action='store_true',
+    help='outputs a seperate weight map.')
 
 opts, args = o.parse_args(sys.argv[1:])
 
@@ -184,6 +186,11 @@ for infile in args:
         ex,ey,ez = n.dot(m, crd)
         ex = ex.compress(valid); ey = ey.compress(valid); ez = ez.compress(valid)
         img = skymap[ex,ey,ez]
+        if opts.output_weights: 
+            wgt_img = skymap.wgt[ex,ey,ez]
+            wgt_img.shape = im.shape
+            wgt_filename = infile[:-len('.fits')] +'_'+ name+'.wgt.fits'
+            to_fits(wgt_filename,wgt_img,s,name,history='hpm_extract_facet:  Wgts for the tacet at %s extracted from healpix map %s [%s]'%(name,infile,time.asctime()))
         img.shape = im.shape
         filename = infile[:-len('.fits')] +'_'+ name+'.fits'
         to_fits(filename,img,s,name,history='hpm_extract_facet:  Facet at %s extracted from healpix map %s [%s]'%(name,infile,time.asctime()))
