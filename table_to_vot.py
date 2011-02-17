@@ -36,6 +36,7 @@ for file in args:
         try: 
             float(col[0])
             tipe = '<f8'
+            if name.endswith('px'): type='i'
         except(ValueError):tipe = n.str
         if name in ucds.keys():
             ucd = ucds[name]
