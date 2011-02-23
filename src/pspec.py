@@ -47,7 +47,7 @@ def jy2T(f, bm_poly=DEFAULT_BEAM_POLY):
 def k3pk_from_Trms(Trms, k=.3, fq=.150, B=.001, bm_poly=DEFAULT_BEAM_POLY):
     z = f2z(fq)
     bm = n.polyval(bm_poly, fq)
-    return X2Y(z) * bm * B * k**3 / (2*n.pi)**2 * Trms**2
+    return X2Y(z) * bm * B * k**3 / (2*n.pi**2) * Trms**2
 def k3pk_sense_vs_t(t, k=.3, fq=.150, B=.001, bm_poly=DEFAULT_BEAM_POLY, Tsys=500e3):
     Trms = Tsys / n.sqrt(2*(B*1e9)*t)
     return k3pk_from_Trms(Trms, k=k, fq=fq, B=B, bm_poly=bm_poly)
@@ -56,6 +56,7 @@ def k3pk_sense_vs_t(t, k=.3, fq=.150, B=.001, bm_poly=DEFAULT_BEAM_POLY, Tsys=50
 def uv2bin(u,v,lst,uv_res=UV_RES, lst_res=LST_RES):
     return (int(n.around(u / uv_res) + 4096) * 8192 + int(n.around(v / uv_res) + 4096)) * 8192 + lst/lst_res
 def bin2uv(bin, uv_res=UV_RES, lst_res=LST_RES):
+    bin = int(bin)
     v = ((bin/8192) % 8192 - 4096) * float(uv_res)
     u = (bin / 8192**2 - 4096) * float(uv_res)
     lst = (bin % 8192) * float(lst_res)
