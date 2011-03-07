@@ -11,9 +11,9 @@ def f2z(fq):
 def z2f(z):
     '''Convert redshift to frequency (GHz) for 21cm line.'''
     return F21 / (z+1)
-def dL_df(z):
+def dL_df(z, omega_m=0.266):
     '''[h^-1 Mpc]/GHz, from Furlanetto et al. (2006)'''
-    return (1.7 / 0.1) * ((1+z) / 10.)**.5 * 1e3
+    return (1.7 / 0.1) * ((1+z) / 10.)**.5 * (omega_m/0.15)**-0.5 * 1e3
 def dL_dth(z):
     '''[h^-1 Mpc]/radian, from Furlanetto et al. (2006)'''
     return 1.9 * (1./a.const.arcmin) * ((1+z) / 10.)**.2
