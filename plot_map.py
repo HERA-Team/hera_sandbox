@@ -128,6 +128,13 @@ ephem.FixedBody.compute(cen,ephem.J2000)
 if opts.projection.startswith('sp'):
     map = Basemap(projection=opts.projection,boundinglat=cen.dec*a.img.rad2deg+90,
     lon_0=cen.ra*a.img.rad2deg, rsphere=1.)
+elif opts.projection.startswith('bigstere'):
+    map = Basemap(projection='spstere',lat_0=cen.dec*a.img.rad2deg,boundinglat=10,
+    lon_0=cen.ra*a.img.rad2deg, rsphere=1.)
+elif opts.projection.startswith('moll') and opts.osys!='ga':
+    map = Basemap(projection=opts.projection,lat_0=cen.dec*a.img.rad2deg,
+    lon_0=cen.ra*a.img.rad2deg, rsphere=1.,anchor='N')
+    gal = Basemap(projection='moll',lat_0=27.12,lon_0=192.9,rsphere=1,anchor='N')
 else:
     map = Basemap(projection=opts.projection,lat_0=cen.dec*a.img.rad2deg,
     lon_0=cen.ra*a.img.rad2deg, rsphere=1.,anchor='N')
@@ -323,7 +330,12 @@ for i,file in enumerate(args):
 #        C = map.contour(X,Y,n.log10(W))
         print "Weight levels [dB]:",C.levels
     p.title(file)
-
+    map.drawmapboundary()
+    map.drawmeridians(n.arange(-180, 180, 30))
+    map.drawparallels([-30,-10,10,30])
+#    if opts.osys!='ga':
+#        gal.drawmeridians(n.arange(-180,180,30))
+#        gal.drawparallels(n.arange(-90,90,20))
 
 def mk_arr(val, dtype=n.double):
     if type(val) is n.ndarray: return val.astype(dtype)
@@ -331,7 +343,7 @@ def mk_arr(val, dtype=n.double):
 
 if opts.outfile != '':
     print 'Saving to', opts.outfile
-    p.savefig(opts.outfile)
+    p.savefig(opts.outfile,facecolor='k')
 else:
     # Add right-click functionality for finding locations/strengths in map.
     cnt = 1
