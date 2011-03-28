@@ -92,9 +92,14 @@ for i, filename in enumerate(args):
         img /= gain
     # Put the data into the skymap
     skymap.add((ex,ey,ez), map_wgts, img) # down-weight by beam resp squared
+hdulist = pf.open(filename)
+history = hdulist[0].header.get_history()    
+history =  '\n'.join(history)+ '\n' +\
+        ' '.join(sys.argv) +'\n'
+
 if len(history)==0: history = ['Warning: No facet history.']
 history =  '\n'.join([h.strip() for h in history])+ '\n' +\
             ' '.join(sys.argv) +'\n'
 print history
-skymap.to_fits(opts.map, clobber=True)
+skymap.to_fits(opts.map, clobber=True,histor=history)
 
