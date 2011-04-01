@@ -15,7 +15,6 @@ logfile = monfile+'.log'
 interval = 2 #seconds
 range = 5 #minutes
 length = int(5*60/interval)
-ion()
 
 kb_buffer = n.zeros(length)
 i = 0
