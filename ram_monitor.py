@@ -8,7 +8,7 @@ Display: RAM usage animation
 Output: RAM usage log
 """
 import sys,time,numpy as n
-from pylab import *
+#from pylab import *
 
 monfile = sys.argv[1]
 logfile = monfile+'.log'
@@ -17,7 +17,6 @@ range = 5 #minutes
 length = int(5*60/interval)
 ion()
 
-figure(1)
 kb_buffer = n.zeros(length)
 i = 0
 print "This is ram_monitor.py. CTRL-C to Exit"
