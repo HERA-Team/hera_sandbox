@@ -25,6 +25,7 @@ while(True):
     pid = open(monfile).read()[:-1]
     try:
         status = open('/proc/%s/status'%pid)
+        if waiting: print "new pid found. Now monitoring: %s"%(pid)
         waiting=False
     except(IOError):
         if not waiting:
