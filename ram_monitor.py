@@ -28,7 +28,7 @@ while(True):
         waiting=False
     except(IOError):
         if not waiting:
-            print "stale pid. Waiting for update"%
+            print "stale pid. Waiting for update"
             waiting = True
     if not waiting:
         kb = int(status.read().split('VmSize:')[1].split()[0])
