@@ -20,6 +20,8 @@ kb_buffer = n.zeros(length)
 i = 0
 print "This is ram_monitor.py. CTRL-C to Exit"
 print "Monitoring %s > %s"%(monfile,logfile)
+open(logfile,'a').close()
+
 waiting = False
 while(True):
     pid = open(monfile).read()[:-1]
