@@ -24,10 +24,10 @@ open(logfile,'a').close()
 
 waiting = False
 while(True):
-    pid = open(monfile).read()[:-1]
+    pid = open(monfile).read().strip()
     try:
         status = open('/proc/%s/status'%pid)
-        if waiting: print "new pid found. Now monitoring: %s"%(pid)
+        if waiting: print "valid pid found. Now monitoring: %s"%(pid)
         waiting=False
     except(IOError):
         if not waiting:
