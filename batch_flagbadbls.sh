@@ -4,7 +4,7 @@
 #$ -o grid_output/
 #$ -V
 #$ -cwd
-#$ -l h_vmem=8000M
+#$ -l h_vmem=8G
 ARGS=`pull_args.py $*`
 unset DISPLAY
 echo casapy --logfile grid_output/casalog_bash_flagbadbls_${JOB_ID}_${SGE_TASK_ID}.log --nologger -c ${CASASCRIPTS}/bash_flagbadbls.py\
