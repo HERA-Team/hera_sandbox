@@ -3,7 +3,7 @@
 # DCJ 2011
 #sick socorro suck
 import numpy as n
-uvsise=200
+uvsize=200
 uvres =0.4 
 ulim = [1.,2000.]
 highchan = 400
