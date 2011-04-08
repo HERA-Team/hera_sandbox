@@ -2,7 +2,7 @@
 #uvw
 # DCJ 2011
 #sick socorro suck
-
+import numpy as n
 uvsise=200
 uvres =0.4 
 ulim = [1.,2000.]
@@ -34,7 +34,7 @@ f = n.median(rec['axis_info']['freq_axis']['chan_freq'].squeeze())
 #while(moredata):
 rec = ms.getdata(['u','v','w','data','flag'])
 D = n.ma.array(rec['data'],mask=rec['flag'])
-f = f* n.one_like(D)
+f = f* n.ones_like(D)
 U,V,W = rec['u']*f/c,rec['v']*f/c,rec['w']*f/c
 
 
