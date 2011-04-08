@@ -5,7 +5,7 @@
 
 uvsise=200
 uvres =0.4 
-ulim = [1,2000]
+ulim = [1.,2000.]
 highchan = 400
 lowchan = 300
 
