@@ -38,7 +38,7 @@ f = f* n.ones_like(D)
 U,V,W = rec['u']*f/c,rec['v']*f/c,rec['w']*f/c
 
 
-im = Img(uvsize, uvres, mf_order=0)
+im = a.img.Img(uvsize, uvres, mf_order=0)
 grid_it(im,U,V,W,D,n.ones_like(D))
 uvs = a.img.recenter(n.abs(im.uv).astype(n.float), (DIM/2,DIM/2))
 
