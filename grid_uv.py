@@ -28,7 +28,7 @@ ms.select({'uvdist':ulim})
 #ms.iterinit(columns=['TIME'])
 ms.selectchannel(highchan-lowchan,lowchan,1,1)
 rec = ms.getdata(['axis_info'])
-f = n.median(rec['axis_info']['freq_axis'].squeeze())
+f = n.median(rec['axis_info']['freq_axis']['chan_freq'].squeeze())
 
 #moredata=True
 #while(moredata):
