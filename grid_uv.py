@@ -34,7 +34,7 @@ f = n.median(rec['axis_info']['freq_axis']['chan_freq'].squeeze())
 #while(moredata):
 rec = ms.getdata(['u','v','w','data','flag'])
 D = n.ma.array(rec['data'],mask=rec['flag'])
-f = f* n.onee_like(D)
+f = f* n.one_like(D)
 U,V,W = rec['u']*f/c,rec['v']*f/c,rec['w']*f/c
 
 
