@@ -37,6 +37,7 @@ D = n.ma.array(rec['data'],mask=rec['flag'])
 f = f* n.ones_like(D)
 U,V,W = rec['u']*f/c,rec['v']*f/c,rec['w']*f/c
 U,V,W = U.ravel(),V.ravel(),W.ravel()
+print U.min(),U.max()
 
 im = a.img.Img(uvsize, uvres, mf_order=0)
 grid_it(im,U,V,W,D,n.ones_like(D))
