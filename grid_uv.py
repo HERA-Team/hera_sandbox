@@ -22,7 +22,7 @@ def grid_it(im,us,vs,ws,ds,wgts):
     im.put((us,vs,ws), ds, wgts)
     #im.put((us,vs,ws), ds, wgts, invker2=bm_im)
 
-
+ms.open(vis)
 ms.selectinit()
 ms.select({'uvdist':ulim})
 #ms.iterinit(columns=['TIME'])
