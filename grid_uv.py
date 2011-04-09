@@ -40,7 +40,9 @@ U,V,W = rec['u']*f/c,rec['v']*f/c,rec['w']*f/c
 del(rec)
 ms.close()
 print " done"
-
+U.shape += (1,)
+V.shape += (1,)
+W.shape += (1,)
 
 
 
