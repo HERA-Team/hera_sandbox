@@ -36,6 +36,9 @@ rec = ms.getdata(['u','v','w','data','flag'])
 D = n.ma.array(rec['data'],mask=rec['flag'])
 f = f* n.ones_like(D)
 U,V,W = rec['u']*f/c,rec['v']*f/c,rec['w']*f/c
+del(rec)
+ms.close()
+
 U,V,W = U.ravel(),V.ravel(),W.ravel()
 print U.min(),U.max()
 
