@@ -21,7 +21,7 @@ def grid_it(im,us,vs,ws,ds,wgts):
     (us,vs,ws),ds,wgts = im.append_hermitian((us,vs,ws),ds,wgts)
     im.put((us,vs,ws), ds, wgts)
     #im.put((us,vs,ws), ds, wgts, invker2=bm_im)
-
+print "loading data...",
 ms.open(vis)
 ms.selectinit()
 ms.select({'uvdist':ulim})
@@ -34,18 +34,26 @@ f = n.median(rec['axis_info']['freq_axis']['chan_freq'].squeeze())
 #while(moredata):
 rec = ms.getdata(['u','v','w','data','flag'])
 D = n.ma.array(rec['data'],mask=rec['flag'])
-f = f* n.ones_like(D)
+D = D.squeeze()
+
 U,V,W = rec['u']*f/c,rec['v']*f/c,rec['w']*f/c
 del(rec)
 ms.close()
+print " done"
 
-U,V,W = U.ravel(),V.ravel(),W.ravel()
-print U.min(),U.max()
 
-im = a.img.Img(uvsize, uvres, mf_order=0)
-grid_it(im,U,V,W,D,n.ones_like(D))
-uvs = a.img.recenter(n.abs(im.uv).astype(n.float), (DIM/2,DIM/2))
 
+
+print "gridding.... ",
+uvs = []
+for d in D:
+    im = a.img.Img(uvsize, uvres, mf_order=0)
+    grid_it(im,U,V,W,D,n.ones_like(D))
+    print "."
+    UV = a.img.recenter(n.abs(im.uv).astype(n.float), (DIM/2,DIM/2))
+    uvs.append(UV)
+    del(im)
+print "done"
 #output the result in a casa image
 matshow(uvs[:,:,0,0])
 
