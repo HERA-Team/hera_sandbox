@@ -52,12 +52,13 @@ uvs = []
 for d in D:
     im = a.img.Img(uvsize, uvres, mf_order=0)
     grid_it(im,U,V,W,D,n.ones_like(D))
-    print "."
+    print ".",
     UV = a.img.recenter(n.abs(im.uv).astype(n.float), (DIM/2,DIM/2))
     uvs.append(UV)
     del(im)
 print "done"
 #output the result in a casa image
-matshow(uvs[:,:,0,0])
-
+#matshow(uvs[:,:,0,0])
+uvs = n.array(uvs)
+#output correctly to a casa image file.
 
