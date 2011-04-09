@@ -5,6 +5,7 @@
 import numpy as n
 uvsize=200
 uvres =0.4 
+DIM = int(uvsize/uvres)
 ulim = [1.,2000.]
 highchan = 400
 lowchan = 300
