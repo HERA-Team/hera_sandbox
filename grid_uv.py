@@ -53,7 +53,7 @@ for d in D:
     im = a.img.Img(uvsize, uvres, mf_order=0)
     grid_it(im,U,V,W,D,n.ones_like(D))
     print ".",
-    UV = a.img.recenter(n.abs(im.uv).astype(n.float), (DIM/2,DIM/2))
+    UV = a.img.recenter(im.uv, (DIM/2,DIM/2))
     uvs.append(UV)
     del(im)
 print "done"
