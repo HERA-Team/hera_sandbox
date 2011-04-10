@@ -41,9 +41,9 @@ U,V,W = rec['u']*f/c,rec['v']*f/c,rec['w']*f/c
 del(rec)
 ms.close()
 print " done"
-#U.shape += (1,)
-#V.shape += (1,)
-#W.shape += (1,)
+U.shape += (1,)
+V.shape += (1,)
+W.shape += (1,)
 
 
 
@@ -51,6 +51,7 @@ print "gridding.... ",
 uvs = []
 for d in D:
     im = a.img.Img(uvsize, uvres, mf_order=0)
+    d.shape += (1,)
     grid_it(im,U,V,W,d,n.ones_like(d))
     print ".",
     UV = a.img.recenter(im.uv, (DIM/2,DIM/2))
