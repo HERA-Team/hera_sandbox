@@ -186,7 +186,7 @@ for vis in args:
 #        else:
 #            ci.append(Im.get_indices(u,v))
 #            ici.append(plop(Ps,length(uv)))
-    ci.append(Im.get_indices(u,v))
+        ci.append(Im.get_indices(u,v))
     uvs = n.zeros(Im.uv.shape+(D.shape[0],))    #uvf cube
     uvi = n.zeros(Im.uv.shape)-1                  #map to radial bins
     uvin = n.zeros_like(uvs).astype(n.int)
