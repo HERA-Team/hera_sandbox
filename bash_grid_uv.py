@@ -29,9 +29,9 @@ o = optparse.OptionParser()
 o.set_usage('bash_selfcal_test.py [options] *.ms')
 o.set_description(__doc__)
 a.scripting.add_standard_options(o,chan=True)
-o.add_option('--uvsize',default=200,
+o.add_option('--uvsize',default=200,type='float',
     help='size of the uv grid in wavelengths [200]')
-o.add_option('--uvres',default=4,
+o.add_option('--uvres',default=4,type='float',
     help='size of the uv cells in wavelengths [4]')
 #o.add_option('--ubins_range',default='45_200',
 #    help="""Power spectrum will be integrated in logarithmic radial bins. 
@@ -174,31 +174,31 @@ for vis in args:
     ici = [] #incoherent indices (into Ps, a list of radial us)
     
     Im = a.img.Img(uvsize, uvres, mf_order=0)
-    Ps = n.logspace(n.log10(umin),n.log10(umax),num=(nu+2))  #we'll eventually throw out 0 & -1
+#    Ps = n.logspace(n.log10(umin),n.log10(umax),num=(nu+2))  #we'll eventually throw out 0 & -1
     print "badly written, but exact, gridding",;flush()
     for i,j in zip(I,J):
         bl = '%d&&%d'%(i,j)
         u,v = bls[bl][0],bls[bl][1]
         uv = n.array([u,v])
-        if length(uv)<Ps.min() or length(uv)>Ps.max(): 
-            ci.append((-1,-1))
-            ici.append(-1)
-        else:
-            ci.append(Im.get_indices(u,v)
-    )
-            ici.append(plop(Ps,length(uv)))
+#        if length(uv)<Ps.min() or length(uv)>Ps.max(): 
+#            ci.append((-1,-1))
+#            ici.append(-1)
+#        else:
+#            ci.append(Im.get_indices(u,v))
+#            ici.append(plop(Ps,length(uv)))
+    ci.append(Im.get_indices(u,v))
     uvs = n.zeros(Im.uv.shape+(D.shape[0],))    #uvf cube
     uvi = n.zeros(Im.uv.shape)-1                  #map to radial bins
     uvin = n.zeros_like(uvs).astype(n.int)
     for l,(ui,vi) in enumerate(ci):
         if ui<0:continue
         uvs[ui,vi,:] += D[:,l]
-        uvi[ui,vi] = ici[l]
+#        uvi[ui,vi] = ici[l]
         uvin[ui,vi,:] += 1
     print ".. done";flush()
     uvs[uvin>1] /= uvin[uvin>1]
     #STOP! Save the uvgrid and exit.
-    print "FFT",flush()
+    print "FFT",;flush()
     nchan = uvs.shape[2]
     uveta = n.abs(n.fft.fft(uvs,axis=2))[:,:,:nchan/2]
     uveta = a.img.recenter(uveta,(uvs.shape[0]/2,uvs.shape[1]/2,0))
