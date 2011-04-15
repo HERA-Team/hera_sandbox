@@ -33,6 +33,10 @@ o.add_option('--uvsize',default=200,type='float',
     help='size of the uv grid in wavelengths [200]')
 o.add_option('--uvres',default=4,type='float',
     help='size of the uv cells in wavelengths [4]')
+o.add_option('--fconfig',default='120_180_6',
+    help='Start_stop_step for output uveta in MHz.[120_180_6]')
+o.add_option('--fspace',default=1,type='float',
+    help='spacing between band centers = bw/fspace. [1]')
 #o.add_option('--ubins_range',default='45_200',
 #    help="""Power spectrum will be integrated in logarithmic radial bins. 
 #    Specify radial limits in wavelengths. [45_200]""")
@@ -52,9 +56,12 @@ uvres =opts.uvres
 #nu = 6
 DIM = int(uvsize/uvres)
 ulim = [1.,2000.]
-highchan = 450
-lowchan = 300
-
+#highchan =int(opts.chan.split('_')[1])
+#lowchan = int(opts.chan.split('_')[0])
+fstart = int(opts.fconfig.split('_')[0])*1e6
+fstop = int(opts.fconfig.split('_')[1])*1e6
+bw = int(opts.fconfig.split('_')[2])*1e6
+print opts.fconfig,fstart,fstop,bw
 c = 3e8 #m/s
 from numpy import array,int32
 csystemplate = {'linear0': {'axes': array(['UU', 'VV'], 
@@ -125,83 +132,108 @@ def JD2MJDs(t):
 
 flush = sys.stdout.flush
 for vis in args:
-    print vis,'->',vis+'.uveta'
+#    outfile = vis+'_%d_%d.uveta'%(lowchan,highchan)
+    outfile = vis +'.uveta'
+    print vis,'->',outfile
+    print "Analyzing %s "%(vis)
     flush()
     ms.open(vis)
-    ms.selectinit()
-    ms.select({'uvdist':ulim})
-    #ms.iterinit(columns=['TIME'])
-    ms.selectchannel(highchan-lowchan,lowchan,1,1)
     rec = ms.getdata(['axis_info'])
-    f = n.median(rec['axis_info']['freq_axis']['chan_freq'].squeeze())
+    F = rec['axis_info']['freq_axis']['chan_freq'].squeeze()
     df = rec['axis_info']['freq_axis']['resolution'].squeeze()[0]
-    #moredata=True
-    #while(moredata):
-    rec = ms.getdata(['u','v','w','data','flag','antenna1','antenna2','time'])
-    t = n.median(rec['time'])
-    I,J = rec['antenna1'],rec['antenna2']
-    D = n.ma.array(rec['data'],mask=rec['flag'])
-    D = D.squeeze()
-    
-    U,V,W = rec['u']*f/c,rec['v']*f/c,rec['w']*f/c
-    del(rec)
     ms.close()
-    tb.open(vis+'/FIELD')
-    direction = tb.getcol('PHASE_DIR').squeeze()
-    tb.close()
-    
-    
-    
-    print " done"
-    flush()
-    
-    print "match uvw with ijs",;flush()
-    Nant = n.max(n.vstack((I,J)))
-    UVWs = n.zeros((Nant,Nant,3))
-    bls = {}
-    #for i,j in n.indices(UVWs.shape):
-    for (i,j,u,v,w) in zip(I,J,U,V,W):
-        bl = '%d&&%d'%(i,j)
-        if not bls.has_key(bl): bls[bl] = []
-        bls[bl].append((u,v,w))
-    for bl in bls:
-        BL = n.array(bls[bl])
-        bls[bl] = (n.median(BL[:,0]),n.median(BL[:,1]),n.median(BL[:,2]))
-    print ". done";flush()
-    #TODO grid the single set of uvws, use get_indices()
-    #TODO Then grid by the incoherent uvs radially.  
-    ci = [] #coherent indices (into Im a uv grid)
-    ici = [] #incoherent indices (into Ps, a list of radial us)
-    
-    Im = a.img.Img(uvsize, uvres, mf_order=0)
-#    Ps = n.logspace(n.log10(umin),n.log10(umax),num=(nu+2))  #we'll eventually throw out 0 & -1
-    print "badly written, but exact, gridding",;flush()
-    for i,j in zip(I,J):
-        bl = '%d&&%d'%(i,j)
-        u,v = bls[bl][0],bls[bl][1]
-        uv = n.array([u,v])
-#        if length(uv)<Ps.min() or length(uv)>Ps.max(): 
-#            ci.append((-1,-1))
-#            ici.append(-1)
-#        else:
-#            ci.append(Im.get_indices(u,v))
-#            ici.append(plop(Ps,length(uv)))
-        ci.append(Im.get_indices(u,v))
-    uvs = n.zeros(Im.uv.shape+(D.shape[0],))    #uvf cube
-    uvi = n.zeros(Im.uv.shape)-1                  #map to radial bins
-    uvin = n.zeros_like(uvs).astype(n.int)
-    for l,(ui,vi) in enumerate(ci):
-        if ui<0:continue
-        uvs[ui,vi,:] += D[:,l]
-#        uvi[ui,vi] = ici[l]
-        uvin[ui,vi,:] += 1
-    print ".. done";flush()
-    uvs[uvin>1] /= uvin[uvin>1]
-    #STOP! Save the uvgrid and exit.
-    print "FFT",;flush()
-    nchan = uvs.shape[2]
-    uveta = n.abs(n.fft.fft(uvs,axis=2))[:,:,:nchan/2]
-    uveta = a.img.recenter(uveta,(uvs.shape[0]/2,uvs.shape[1]/2,0))
+    fs = n.arange(fstart,fstop,bw/opts.fspace)
+    nchan = int(bw/df)
+    print fstart,fstop,bw
+    uvetastack = []
+    #start channel loop
+    for fmin in fs:
+        lowchan = plop(F,fmin)
+        highchan = lowchan + nchan
+        if highchan>(len(F)-1):continue
+        ms.open(vis)
+        ms.selectinit()
+        ms.select({'uvdist':ulim})
+        #ms.iterinit(columns=['TIME'])
+        print lowchan,highchan,nchan
+        ms.selectchannel(highchan-lowchan,lowchan,1,1)
+        rec = ms.getdata(['axis_info'])
+        f = n.median(rec['axis_info']['freq_axis']['chan_freq'].squeeze())
+        z = f212z(f)
+                #moredata=True
+        #while(moredata):
+        rec = ms.getdata(['u','v','w','data','flag','antenna1','antenna2','time'])
+        t = n.median(rec['time'])
+        I,J = rec['antenna1'],rec['antenna2']
+        D = n.ma.array(rec['data'],mask=rec['flag'])
+        D = D.squeeze()
+        
+        U,V,W = rec['u']*f/c,rec['v']*f/c,rec['w']*f/c
+        del(rec)
+        ms.close()
+        tb.open(vis+'/FIELD')
+        direction = tb.getcol('PHASE_DIR').squeeze()
+        tb.close()
+        
+        
+        
+        print " done"
+        flush()
+        
+        print "match uvw with ijs",;flush()
+        Nant = n.max(n.vstack((I,J)))
+        UVWs = n.zeros((Nant,Nant,3))
+        bls = {}
+        #for i,j in n.indices(UVWs.shape):
+        for (i,j,u,v,w) in zip(I,J,U,V,W):
+            bl = '%d&&%d'%(i,j)
+            if not bls.has_key(bl): bls[bl] = []
+            bls[bl].append((u,v,w))
+        for bl in bls:
+            BL = n.array(bls[bl])
+            bls[bl] = (n.median(BL[:,0]),n.median(BL[:,1]),n.median(BL[:,2]))
+        print ". done";flush()
+        #TODO grid the single set of uvws, use get_indices()
+        #TODO Then grid by the incoherent uvs radially.  
+        ci = [] #coherent indices (into Im a uv grid)
+        ici = [] #incoherent indices (into Ps, a list of radial us)
+        
+        Im = a.img.Img(uvsize, uvres, mf_order=0)
+    #    Ps = n.logspace(n.log10(umin),n.log10(umax),num=(nu+2))  #we'll eventually throw out 0 & -1
+        print "badly written, but exact, gridding",;flush()
+        for i,j in zip(I,J):
+            bl = '%d&&%d'%(i,j)
+            u,v = bls[bl][0],bls[bl][1]
+            uv = n.array([u,v])
+    #        if length(uv)<Ps.min() or length(uv)>Ps.max(): 
+    #            ci.append((-1,-1))
+    #            ici.append(-1)
+    #        else:
+    #            ci.append(Im.get_indices(u,v))
+    #            ici.append(plop(Ps,length(uv)))
+            ci.append(Im.get_indices(u,v))
+        uvs = n.zeros(Im.uv.shape+(D.shape[0],))    #uvf cube
+        uvi = n.zeros(Im.uv.shape)-1                  #map to radial bins
+        uvin = n.zeros_like(uvs).astype(n.int)
+        for l,(ui,vi) in enumerate(ci):
+            if ui<0:continue
+            uvs[ui,vi,:] += D[:,l]
+    #        uvi[ui,vi] = ici[l]
+            uvin[ui,vi,:] += 1
+        print ".. done";flush()
+        uvs[uvin>1] /= uvin[uvin>1]
+        #STOP! Save the uvgrid and exit.
+        print "FFT";flush()
+        nchan = uvs.shape[2]
+        uveta = n.abs(n.fft.fft(uvs,axis=2))[:,:,:nchan/2]
+        uveta = a.img.recenter(uveta,(uvs.shape[0]/2,uvs.shape[1]/2,0))
+        uvetastack.append(uveta)
+        print uveta.shape
+    #end spectral loop
+    uvetastack = n.array(uvetastack)
+    print uvetastack.shape
+    uvetastack = n.transpose(uvetastack,axes=[1,2,0,3])
+    print uvetastack.shape
     dly = n.fft.fftfreq(uveta.shape[2],df)[:nchan/2]
     csupdate = {'linear0':{'cdelt':n.array([-uvres, uvres]).astype(n.float),
                             'crpix':n.array((uveta.shape[0]/2,uveta.shape[1]/2)).astype(n.float)},
@@ -212,13 +244,26 @@ for vis in args:
                            },
                 'linear2':{'cdelt':array([n.diff(dly)[0]]),
                             'crpix':array([0.]),
-                            'crval':array([dly[0]])}    
-                    }
+                            'crval':array([dly[0]])},    
+                  }
     csysrecord = csystemplate
     for k in csupdate:
         csysrecord[k].update(csupdate[k])
-    
-    #csys = cs.fromrecord(csysrecord)
+    csysrecord['observer']=str(z)
+#    csys = cs
+#    csys.fromrecord(csysrecord)
+#    print csys.coordinatetype()
+    newspec = cs.newcoordsys(spectral=T)
+    newspec.setreferencelocation(pixel=0,world=n.round(n.median(fs.min()),decimals=1))
+    newspec.setincrement(value=bw/opts.fspace,type='spectral')
+    csys = cs
+    csys.fromrecord(csysrecord)
+    csys.replace(newspec.torecord(),0,1)
     print "writing ",vis+'.uveta';flush()
     uveta.shape = (uveta.shape[0],uveta.shape[1],1,uveta.shape[2])
-    ia.fromarray(outfile=vis+'.uveta',pixels=uveta,csys=csysrecord,overwrite=True)
+    ia.fromarray(outfile=outfile,pixels=uvetastack,csys=csys.torecord(),overwrite=True)
+#    ia.open(outfile)
+#    csys = ia.coordsys()
+#    csys.replace(newspec.torecord(),0,1)
+#    ia.setcoordsys(csys.torecord())
+#    ia.close()
