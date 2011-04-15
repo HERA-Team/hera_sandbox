@@ -115,7 +115,7 @@ for file in files:
     Urspec = n.ma.masked_where(Urspec==0,Urspec)
     cax = pl.axes([0.925,0.025,0.025,0.9])
     for i,Urs in enumerate(Urspec):
-        pl.subplot(rows,cols,i+1)
+        ax = pl.subplot(rows,cols,i+1)
         if dologk:
             pl.pcolor(n.log10(UrspecK[i,:,:]),Urspecz[i,:,:],Urs,vmin=psmin,vmax=psmax)
         else:
@@ -127,6 +127,11 @@ for file in files:
                 Urspecz.min(),Urspecz.max())
             print 0.125*1.5**(n.log2(Ur[i])-4)
         isleft,isbottom = issubplotedge(rows,cols,i+1)
+        at = AnchoredText(str(int(Ur[i]))+'$\lambda$',
+                  prop=dict(size=12), frameon=False,
+                  loc=1,
+                  )
+        ax.add_artist(at)
         if not isleft: pl.yticks([])
         if not isbottom: pl.xticks([])
     pl.colorbar(cax = cax,orientation='vertical')
