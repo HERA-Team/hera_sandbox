@@ -1,5 +1,6 @@
 #casapy script to fool with gridded uveta power spectra
 from cosmo_units import *
+from shutil import move as mv
 def length(X):
     return n.sqrt(n.dot(X,X))
 def plop(X,x):
@@ -109,7 +110,7 @@ for file in files:
     rows = ceil(n.sqrt(len(Ur)))
     cols = ceil(len(Ur)/rows)
     nplots = rows*cols
-    pl.suptitle(', '.join(files))
+#    pl.suptitle(', '.join(files))
     pl.figtext(0.05,0.95,'LST:'+lst + '\n'+str(aa.epoch),family='sans-serif')
     Urspec = n.ma.masked_where(Urspec==0,Urspec)
     cax = pl.axes([0.925,0.025,0.025,0.9])
