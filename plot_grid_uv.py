@@ -1,6 +1,7 @@
 #casapy script to fool with gridded uveta power spectra
 from cosmo_units import *
 from shutil import move as mv
+from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
 def length(X):
     return n.sqrt(n.dot(X,X))
 def plop(X,x):
@@ -94,7 +95,7 @@ for file in files:
             UVs.append(UVworld)
             if Ur.min()>length(UVworld) or Ur.max()<length(UVworld):
                 continue
-#            print UVpx,UVworld,length(UVworld),plop(Ur,length(UVworld))
+            print UVpx,UVworld,length(UVworld),plop(Ur,length(UVworld))
             if dologk:
                 ps = rebin(logk,kparr,uveta[UVpx[0],UVpx[1],band,:])
             else:
@@ -105,6 +106,8 @@ for file in files:
         if uveta.max()>psmax:psmax=uveta.max()
         if uveta.min()<psmin:psmin=uveta.min()
     Urspec[Urspecn>0] /= Urspecn[Urspecn>0]
+#    Urspec = Urspec.filled(0)
+#    print type(Urspec)
     pl.figure(23)
     pl.clf()
     rows = ceil(n.sqrt(len(Ur)))
@@ -112,7 +115,7 @@ for file in files:
     nplots = rows*cols
 #    pl.suptitle(', '.join(files))
     pl.figtext(0.05,0.95,'LST:'+lst + '\n'+str(aa.epoch),family='sans-serif')
-    Urspec = n.ma.masked_where(Urspec==0,Urspec)
+#    Urspec = n.ma.masked_where(Urspec==0,Urspec)
     cax = pl.axes([0.925,0.025,0.025,0.9])
     for i,Urs in enumerate(Urspec):
         ax = pl.subplot(rows,cols,i+1)
@@ -122,7 +125,7 @@ for file in files:
     #        pl.pcolor(n.log10(UrspecK[i,:,:].clip(1e-2,1e9)),Urspecz[i,:,:],Ur)
             pl.pcolor(n.log10(UrspecK[i,:,:].clip(1e-2,1e9)),
                 Urspecz[i,:,:],n.log10(Urs),
-                vmin=n.log10(Urspec.min()),vmax=n.log10(Urspec.max()))
+                vmin=n.log10(Urspec[Urspec>0].min()),vmax=n.log10(Urspec.max()))
             pl.vlines(n.log10(0.125*1.5**(n.log2(Ur[i])-4)),
                 Urspecz.min(),Urspecz.max())
             print 0.125*1.5**(n.log2(Ur[i])-4)

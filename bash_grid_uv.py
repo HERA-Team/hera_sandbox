@@ -21,7 +21,7 @@ ip = IPython.ipapi.get()
 ip.magic('%colors linux')
 import numpy as n
 from cosmo_units import *
-
+import time
 ################################################################
 ##     Parse inputs
 ####################################
@@ -37,6 +37,10 @@ o.add_option('--fconfig',default='120_180_6',
     help='Start_stop_step for output uveta in MHz.[120_180_6]')
 o.add_option('--fspace',default=1,type='float',
     help='spacing between band centers = bw/fspace. [1]')
+o.add_option('--dodiff',action='store_true',
+    help='Also output power spectra of time diffed data.')
+o.add_option('--clean', dest='clean', type='float', default=1e-3,
+    help='Deconvolve delay-domain data by the response that results from flagged data.  Specify a tolerance for termination (usually 1e-2 or 1e-3).')
 #o.add_option('--ubins_range',default='45_200',
 #    help="""Power spectrum will be integrated in logarithmic radial bins. 
 #    Specify radial limits in wavelengths. [45_200]""")
@@ -56,6 +60,53 @@ uvres =opts.uvres
 #nu = 6
 DIM = int(uvsize/uvres)
 ulim = [1.,2000.]
+
+pm = {'L': None, 'taps':None, 'fwidth':None, 'window':None, 'window_name':None, 'sinx_x':None, 'window_sinx_x':None}
+
+def __set_pm__(L, window, taps, fwidth):
+    global pm
+    if pm['L'] == L and pm['taps'] == taps and pm['fwidth'] == fwidth:
+        if type(window) == str and pm['window_name'] == window: return
+        elif window is pm['window']: return
+    else:
+        pm['L'] = L
+        pm['taps'] = taps
+        pm['fwidth'] = fwidth
+        def sinx_x(x):
+            t = n.pi * taps * fwidth * (x/float(L) - .5)
+            v = n.where(t != 0, t, 1)
+            return n.where(t != 0, n.sin(v) / v, 1)
+        pm['sinx_x'] = n.fromfunction(sinx_x, (L,))
+    if type(window) == str:
+        wf = {}
+        wf['hamming'] = lambda x: .54 + .46 * cos(2*n.pi*x/L - n.pi)
+        wf['hanning'] = lambda x: .5 + .5 * n.cos(2*n.pi*x/(L+1) - n.pi)
+        wf['none'] = lambda x: 1
+        pm['window'] = n.fromfunction(wf[window], (L,))
+        pm['window_name'] = window
+    else:
+        pm['window'] = window
+        pm['window_name'] = None
+    pm['window_sinx_x'] = pm['window'] * pm['sinx_x']
+
+def __pfb_fir__(data, window='hamming', taps=8, fwidth=1):
+    L = data.shape[-1]
+    __set_pm__(L, window, taps, fwidth)
+    d = data * pm['window_sinx_x']
+    print d.shape,taps,L/taps
+    try: d.shape = d.shape[:-1] + (taps, L/taps)
+    except: raise ValueError("More taps than samples")
+    return n.sum(d, axis=len(d.shape) - 2)
+
+def pfb(data, window='hamming', taps=8, fwidth=1, fft=n.fft.fft,axis=-1):
+    """Perform PFB on last dimension of 'data' for multi-dimensional arrays.
+    'window' may be a name (e.g. 'hamming') or an array with length of the
+    last dimension of 'data'.  'taps' is the number of PFB taps to use.  The
+    number of channels out of the PFB will be length out of the last 
+    dimension divided by the number of taps. 'fwidth' scales the width of 
+    each channel bandpass (to create overlapping filters, for example)."""
+    return fft(__pfb_fir__(data, window, taps, fwidth))
+NTAPS = 2
 #highchan =int(opts.chan.split('_')[1])
 #lowchan = int(opts.chan.split('_')[0])
 fstart = int(opts.fconfig.split('_')[0])*1e6
@@ -129,11 +180,47 @@ def MJDs2JD(t):
     return t/86400 + 2400000.5
 def JD2MJDs(t):
     return (t-2400000.5)*86400
+def difftime(D,times):
+    times = list(set(times))
+    inshape = D.shape
+    D.shape = D.shape[:-1] + (D.shape[-1]/len(times),len(times))
+    dD = n.diff(D,axis=(D.ndim-1))
+    dD = n.concatenate((dD,n.zeros(dD.shape[:-1]+(1,))),axis=(dD.ndim-1))
+    return n.reshape(dD,inshape)
+def diffchan(D):
+    dD = n.diff(D,axis=1)
+    return n.concatenate((dD,n.zeros((D.shape[0],1,D.shape[2]))),axis=1)
+def difftc(D,times):
+    dD = n.diff(D,axis=1)
+    dD = difftime(dD,times)
+    return n.concatenate((dD,n.zeros((D.shape[0],1,D.shape[2]))),axis=1)
+def CLEAN_uvs(uvs):
+    inshape = uvs.shape
+    uvs.shape = (uvs.shape[0]*uvs.shape[1],uvs.shape[2])
+    M = n.logical_not(uvs.mask).astype(n.float)
+    uvs_c = n.zeros_like(uvs)
+    for i in range(M.shape[0]): #iterate over uv
+        val = M[i]
+        if not val.sum()>0:continue
+        d = uvs[i]
+        ker = n.fft.ifft(val)
+        _d = n.fft.ifft(d)
+        _d, info = a.deconv.clean(_d, ker, tol=opts.clean)
+        # Not sure if dividing by gain here is the right thing... once clean components are removed, want
+        # residuals to be in original data units.
+        #if True: _d = info['res'] / gain
+        if True: _d = info['res']
+        else: _d += info['res'] / gain
+        d = n.fft.fft(_d) * val
+        uvs_c[i] = d
+    uvs_c = n.reshape(n.ma.array(uvs_c,mask=uvs.mask),inshape)
+    return uvs_c
 
 flush = sys.stdout.flush
 for vis in args:
 #    outfile = vis+'_%d_%d.uveta'%(lowchan,highchan)
     outfile = vis +'.uveta'
+    if opts.dodiff: outfile +='.diff'
     print vis,'->',outfile
     print "Analyzing %s "%(vis)
     flush()
@@ -143,11 +230,12 @@ for vis in args:
     df = rec['axis_info']['freq_axis']['resolution'].squeeze()[0]
     ms.close()
     fs = n.arange(fstart,fstop,bw/opts.fspace)
-    nchan = int(bw/df)
+    nchan = int(bw/df) + int(bw/df)%2
     print fstart,fstop,bw
     uvetastack = []
     #start channel loop
     for fmin in fs:
+        tstart = time.time()
         lowchan = plop(F,fmin)
         highchan = lowchan + nchan
         if highchan>(len(F)-1):continue
@@ -166,8 +254,9 @@ for vis in args:
         t = n.median(rec['time'])
         I,J = rec['antenna1'],rec['antenna2']
         D = n.ma.array(rec['data'],mask=rec['flag'])
+        if opts.dodiff: D = difftc(D,rec['time'])
         D = D.squeeze()
-        
+#        print type(D),D.mask.sum(),D.size
         U,V,W = rec['u']*f/c,rec['v']*f/c,rec['w']*f/c
         del(rec)
         ms.close()
@@ -205,30 +294,32 @@ for vis in args:
             bl = '%d&&%d'%(i,j)
             u,v = bls[bl][0],bls[bl][1]
             uv = n.array([u,v])
-    #        if length(uv)<Ps.min() or length(uv)>Ps.max(): 
-    #            ci.append((-1,-1))
-    #            ici.append(-1)
-    #        else:
-    #            ci.append(Im.get_indices(u,v))
-    #            ici.append(plop(Ps,length(uv)))
             ci.append(Im.get_indices(u,v))
-        uvs = n.zeros(Im.uv.shape+(D.shape[0],))    #uvf cube
-        uvi = n.zeros(Im.uv.shape)-1                  #map to radial bins
+        uvs = n.ma.zeros(Im.uv.shape+(D.shape[0],))    #uvf cube
         uvin = n.zeros_like(uvs).astype(n.int)
         for l,(ui,vi) in enumerate(ci):
             if ui<0:continue
             uvs[ui,vi,:] += D[:,l]
-    #        uvi[ui,vi] = ici[l]
-            uvin[ui,vi,:] += 1
+#            print uvs.sum(),D[:,l].sum(),':',
+            uvin[ui,vi,:] += n.logical_not(D[:,l].mask)
         print ".. done";flush()
-        uvs[uvin>1] /= uvin[uvin>1]
+        uvs[uvin>0] /= uvin[uvin>0]
+#        print uvs.sum()
+#        uvs = n.ma.array(uvs,mask=n.logical_not(uvin).astype(n.bool))
         #STOP! Save the uvgrid and exit.
-        print "FFT";flush()
+
         nchan = uvs.shape[2]
-        uveta = n.abs(n.fft.fft(uvs,axis=2))[:,:,:nchan/2]
+        print "CLEANing before max=%f"%(uvs.max());flush()
+        if opts.clean<1: uvs = CLEAN_uvs(uvs)
+        print "after max=%f"%(uvs.max());flush()
+        print "FFT";flush()
+        print uvs.shape
+#        uveta = n.abs(n.fft.ifft(uvs,axis=2))[:,:,:nchan/2]
+        uveta = n.abs(pfb(uvs,taps=NTAPS,window='hanning', fft=n.fft.ifft))
         uveta = a.img.recenter(uveta,(uvs.shape[0]/2,uvs.shape[1]/2,0))
         uvetastack.append(uveta)
         print uveta.shape
+        print "t = %6.1fs"%(time.time()-tstart,)
     #end spectral loop
     uvetastack = n.array(uvetastack)
     print uvetastack.shape
@@ -259,7 +350,7 @@ for vis in args:
     csys = cs
     csys.fromrecord(csysrecord)
     csys.replace(newspec.torecord(),0,1)
-    print "writing ",vis+'.uveta';flush()
+    print "writing ",outfile;flush()
     uveta.shape = (uveta.shape[0],uveta.shape[1],1,uveta.shape[2])
     ia.fromarray(outfile=outfile,pixels=uvetastack,csys=csys.torecord(),overwrite=True)
 #    ia.open(outfile)
