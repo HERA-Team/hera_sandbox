@@ -1,6 +1,7 @@
 #casapy script to fool with gridded uveta power spectra
 from cosmo_units import *
 from shutil import move as mv
+from matplotlib.patches import Rectangle
 from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
 def length(X):
     return n.sqrt(n.dot(X,X))
@@ -29,6 +30,7 @@ def MJDs2JD(t):
     return t/86400 + 2400000.5
 def MJD2JD(t):
     return t + 2400000.5
+flush = sys.stdout.flush
 urmin = 20
 urmax = 150
 nur   = 6
@@ -71,21 +73,20 @@ for file in files:
     for band,f in enumerate(fs):
     #    f = csys.toworld([0,0,band,0])['numeric'][2]
         z = f212z(f)
-        print f,z
+        print f,z;flush()
         #find the delay axis
-        dly = [csys.toworld([0,0,band,i])['numeric'][3] for i in\
-            range(uveta.shape[3])]
-
+        dly = n.array([csys.toworld([0,0,band,i])['numeric'][3] for i in\
+            range(uveta.shape[3])])
         #build kparr,z coordinate arrays for display purposes
         kparr = n.array([eta2kparr(d,z) for d in dly])
         logk  = n.logspace(n.log10(kparr[kparr>0].min()),
                             n.log10(kparr.max()),
                             num=nkparr)
-        for UK in UrspecK:
+        for i,UK in enumerate(UrspecK):
             if dologk:
                 UK[band,:] = logk
             else:
-                UK[band,:] = kparr
+                UK[band,:] = n.sqrt(kparr**2 + u2kperp(Ur[i],z)**2)
         Urspecz[:,band,:] = z
         #grid by radial U and redshift
         UVpxs = n.argwhere(uveta[:,:,band,0]).astype(float)
@@ -95,11 +96,15 @@ for file in files:
             UVs.append(UVworld)
             if Ur.min()>length(UVworld) or Ur.max()<length(UVworld):
                 continue
-            print UVpx,UVworld,length(UVworld),plop(Ur,length(UVworld))
+#            print UVpx,UVworld,length(UVworld),plop(Ur,length(UVworld))
+            nchan = uveta.shape[3]
+#            PS = (uveta[UVpx[0],UVpx[1],band,-nchan/2:] + \
+#                   uveta[UVpx[0],UVpx[1],band,:nchan/2][::-1])/2
+            PS = uveta[UVpx[0],UVpx[1],band,:]
             if dologk:
-                ps = rebin(logk,kparr,uveta[UVpx[0],UVpx[1],band,:])
+                ps = rebin(logk,kparr,PS)
             else:
-                ps = uveta[UVpx[0],UVpx[1],band,:]
+                ps = PS
             Urspec[plop(Ur,length(UVworld)),band,:] += ps
             Urspecn[plop(Ur,length(UVworld)),band,:] += 1
 
@@ -108,7 +113,7 @@ for file in files:
     Urspec[Urspecn>0] /= Urspecn[Urspecn>0]
 #    Urspec = Urspec.filled(0)
 #    print type(Urspec)
-    pl.figure(23)
+    pl.figure(24)
     pl.clf()
     rows = ceil(n.sqrt(len(Ur)))
     cols = ceil(len(Ur)/rows)
@@ -135,6 +140,12 @@ for file in files:
                   loc=1,
                   )
         ax.add_artist(at)
+        detect_area = Rectangle(
+            (n.log10(0.1),Urspecz.min()),
+            n.log10(0.25)-n.log10(0.1),
+            Urspecz.max()-Urspecz.min(),fill=False,lw=2,ec='0.5')
+        pl.xlim([-2,1])
+        ax.add_patch(detect_area)
         if not isleft: pl.yticks([])
         if not isbottom: pl.xticks([])
     pl.colorbar(cax = cax,orientation='vertical')
