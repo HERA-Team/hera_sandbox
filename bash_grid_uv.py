@@ -93,7 +93,7 @@ def __pfb_fir__(data, window='hamming', taps=8, fwidth=1):
     L = data.shape[-1]
     __set_pm__(L, window, taps, fwidth)
     d = data * pm['window_sinx_x']
-    print d.shape,taps,L/taps
+#    print d.shape,taps,L/taps
     try: d.shape = d.shape[:-1] + (taps, L/taps)
     except: raise ValueError("More taps than samples")
     return n.sum(d, axis=len(d.shape) - 2)
@@ -113,6 +113,8 @@ fstart = int(opts.fconfig.split('_')[0])*1e6
 fstop = int(opts.fconfig.split('_')[1])*1e6
 bw = int(opts.fconfig.split('_')[2])*1e6
 print opts.fconfig,fstart,fstop,bw
+nbins = 2
+favg = 4
 c = 3e8 #m/s
 from numpy import array,int32
 csystemplate = {'linear0': {'axes': array(['UU', 'VV'], 
@@ -215,7 +217,13 @@ def CLEAN_uvs(uvs):
         uvs_c[i] = d
     uvs_c = n.reshape(n.ma.array(uvs_c,mask=uvs.mask),inshape)
     return uvs_c
-
+def squish(A,factor):
+    out = n.zeros(A.size/factor)
+    for l in range(len(out)-1):
+        out[l] = n.median(A[l*factor:l*factor+factor])
+    out[-1] = n.median(A[-factor:])
+    return out
+        
 flush = sys.stdout.flush
 for vis in args:
 #    outfile = vis+'_%d_%d.uveta'%(lowchan,highchan)
@@ -230,20 +238,25 @@ for vis in args:
     df = rec['axis_info']['freq_axis']['resolution'].squeeze()[0]
     ms.close()
     fs = n.arange(fstart,fstop,bw/opts.fspace)
-    nchan = int(bw/df) + int(bw/df)%2
+    nchan = int(bw/df) + int(bw/df)%NTAPS
     print fstart,fstop,bw
     uvetastack = []
     #start channel loop
-    for fmin in fs:
+    for fmed in fs:
+        #calculate channels, start the timer clock
         tstart = time.time()
-        lowchan = plop(F,fmin)
-        highchan = lowchan + nchan
+        medchan = plop(F,fmed)
+        lowchan = medchan - nchan - nchan*NTAPS/2
+        highchan = medchan + nchan + nchan*NTAPS/2
         if highchan>(len(F)-1):continue
+
+        #get data
+        print "loading data",;flush()
         ms.open(vis)
         ms.selectinit()
         ms.select({'uvdist':ulim})
         #ms.iterinit(columns=['TIME'])
-        print lowchan,highchan,nchan
+        print lowchan,highchan,highchan-lowchan,
         ms.selectchannel(highchan-lowchan,lowchan,1,1)
         rec = ms.getdata(['axis_info'])
         f = n.median(rec['axis_info']['freq_axis']['chan_freq'].squeeze())
@@ -254,78 +267,162 @@ for vis in args:
         t = n.median(rec['time'])
         I,J = rec['antenna1'],rec['antenna2']
         D = n.ma.array(rec['data'],mask=rec['flag'])
-        if opts.dodiff: D = difftc(D,rec['time'])
+        if opts.dodiff: D = difftime(D,rec['time'])
         D = D.squeeze()
 #        print type(D),D.mask.sum(),D.size
         U,V,W = rec['u']*f/c,rec['v']*f/c,rec['w']*f/c
         del(rec)
         ms.close()
+
+        #get the field center
         tb.open(vis+'/FIELD')
         direction = tb.getcol('PHASE_DIR').squeeze()
-        tb.close()
-        
-        
-        
+        tb.close()       
         print " done"
         flush()
         
-        print "match uvw with ijs",;flush()
-        Nant = n.max(n.vstack((I,J)))
-        UVWs = n.zeros((Nant,Nant,3))
-        bls = {}
-        #for i,j in n.indices(UVWs.shape):
-        for (i,j,u,v,w) in zip(I,J,U,V,W):
-            bl = '%d&&%d'%(i,j)
-            if not bls.has_key(bl): bls[bl] = []
-            bls[bl].append((u,v,w))
-        for bl in bls:
-            BL = n.array(bls[bl])
-            bls[bl] = (n.median(BL[:,0]),n.median(BL[:,1]),n.median(BL[:,2]))
-        print ". done";flush()
-        #TODO grid the single set of uvws, use get_indices()
-        #TODO Then grid by the incoherent uvs radially.  
-        ci = [] #coherent indices (into Im a uv grid)
-        ici = [] #incoherent indices (into Ps, a list of radial us)
-        
-        Im = a.img.Img(uvsize, uvres, mf_order=0)
-    #    Ps = n.logspace(n.log10(umin),n.log10(umax),num=(nu+2))  #we'll eventually throw out 0 & -1
-        print "badly written, but exact, gridding",;flush()
-        for i,j in zip(I,J):
-            bl = '%d&&%d'%(i,j)
-            u,v = bls[bl][0],bls[bl][1]
-            uv = n.array([u,v])
-            ci.append(Im.get_indices(u,v))
-        uvs = n.ma.zeros(Im.uv.shape+(D.shape[0],))    #uvf cube
-        uvin = n.zeros_like(uvs).astype(n.int)
-        for l,(ui,vi) in enumerate(ci):
-            if ui<0:continue
-            uvs[ui,vi,:] += D[:,l]
-#            print uvs.sum(),D[:,l].sum(),':',
-            uvin[ui,vi,:] += n.logical_not(D[:,l].mask)
-        print ".. done";flush()
-        uvs[uvin>0] /= uvin[uvin>0]
-#        print uvs.sum()
-#        uvs = n.ma.array(uvs,mask=n.logical_not(uvin).astype(n.bool))
-        #STOP! Save the uvgrid and exit.
+#        print "match uvw with ijs",;flush()
+#        Nant = n.max(n.vstack((I,J)))
+#        UVWs = n.zeros((Nant,Nant,3))
+#        bls = {}
+#        #for i,j in n.indices(UVWs.shape):
+#        #find the median uvws over freq and time
+#        for (i,j,u,v,w) in zip(I,J,U,V,W):
+#            bl = '%d&&%d'%(i,j)
+#            if not bls.has_key(bl): bls[bl] = []
+#            bls[bl].append((u,v,w))
+#        for bl in bls:
+#            BL = n.array(bls[bl])
+#            bls[bl] = (n.median(BL[:,0]),n.median(BL[:,1]),n.median(BL[:,2]))
+#        print ". done";flush()
+#
+#
+#        ci = [] #coherent indices (into Im a uv grid)
+#        Im = a.img.Img(uvsize, uvres, mf_order=0)
+#        print "badly written, but exact, grid association",;flush()
+#        for i,j in zip(I,J):
+#            bl = '%d&&%d'%(i,j)
+#            u,v = bls[bl][0],bls[bl][1]
+#            uv = n.array([u,v])
+#            ci.append(Im.get_indices(u,v))
+#        print "done"
 
-        nchan = uvs.shape[2]
-        print "CLEANing before max=%f"%(uvs.max());flush()
-        if opts.clean<1: uvs = CLEAN_uvs(uvs)
-        print "after max=%f"%(uvs.max());flush()
-        print "FFT";flush()
-        print uvs.shape
-#        uveta = n.abs(n.fft.ifft(uvs,axis=2))[:,:,:nchan/2]
-        uveta = n.abs(pfb(uvs,taps=NTAPS,window='hanning', fft=n.fft.ifft))
-        uveta = a.img.recenter(uveta,(uvs.shape[0]/2,uvs.shape[1]/2,0))
-        uvetastack.append(uveta)
-        print uveta.shape
+        print "PFB. ",;flush()
+        FD = n.zeros((D.shape[0]/NTAPS,D.shape[1])).astype(n.complex64)
+        for l in range(D.shape[1]):
+            FD[:,l] = pfb(D[:,l],taps=NTAPS,window='hanning', 
+                        fft=n.fft.ifft)
+        print "done"
+        Im = a.img.Img(uvsize, uvres, mf_order=0)
+        uveta = n.ma.zeros(Im.uv.shape+(D.shape[0]/NTAPS,)).astype(n.complex64)    #uvf cube
+        uvetas = [uveta.copy() for i in range(nbins)]
+        uvetan = n.zeros_like(uveta)
+        uvs = n.ma.zeros(Im.uv.shape+(D.shape[0],)).astype(n.complex64)
+        uveta_all = n.zeros_like(uveta).astype(n.complex64)
+        uveta_buff = n.zeros_like(uveta).astype(n.complex64)
+        uvin = n.zeros_like(uvs).astype(n.int)
+        #grid by cross multiplying FTd samples
+        print 'Gridding.',;flush()
+#        print "gridding into %d bins"%(nbins,)
+#        for l,(ui,vi) in enumerate(ci):
+        for l,(u,v) in enumerate(zip(U,V)):
+            ui,vi = Im.get_indices(u,v)
+#            if ui<0:continue
+            uveta[ui,vi,:]  +=  FD[:,l]
+            uvetan[ui,vi,:] +=  1
+#            uvetas[l%nbins][ui,vi,:] += FD[:,l]
+#            uvetan[ui,vi,:] += 1
+            
+#            if n.sum(uveta_buff[ui,vi,:])==0:
+#                uveta_buff[ui,vi,:] = FD[:,l]
+#            else:
+#                uveta[ui,vi,:]      +=  FD[:,l]*n.conj(uveta_buff[ui,vi,:])
+#                uveta_buff[ui,vi,:] =   0
+#                uvetan[ui,vi,:]     +=  1
+#            uveta_all[ui,vi,:]    += FD[:,l]
+#            uvs[ui,vi,:]    += D[:,l]
+#            uveta[ui,vi,:]  -= FD[:,l]*n.conj(FD[:,l])
+#            uvin[ui,vi,:]   += n.logical_not(D[:,l].mask)
+#            uvetan[ui,vi,:] += 1
+#            if (ui,vi)==(0,13):
+#                print uveta_all[0,5,4]*n.conj(uveta_all[0,5,4]) + \
+#                uveta[0,5,4],
+#                print FD[4,l],',',
+#            if l%(len(ci)/4):
+#                uv
+#            for m in range(l,len(ci)):
+#                if l==m:continue
+#                if ui==ci[m][0] and vi==ci[m][1]:
+#                    print l,m,ui,vi,':',
+#                    uveta[ui,vi,:] += FD[:,l] * FD[:,m]
+##                    uvin[ui,vi,:] += n.logical_not(D[:,l].mask)
+#                    uvin[ui,vi,:] += n.ones_like(FD[:,l])
+        print ".. done";flush()
+
+#        print "testing old way"
+#        uveta += uveta_all*n.conj(uveta_all)
+#        print uveta.min()
+#        print "\a",sys.exit()
+#
+#        uvetan /= nbins
+#        for i in range(nbins):
+#            print i,uvetas[i].min(),uvetas[i].max(),n.sum(n.isnan(uvetas[i]))
+#            print '  ',uvetas[i][0,12,4]
+#        print "cross-multiplying"
+#        for i in range(nbins):
+#            for j in range(i,nbins):
+#                if i==j:continue
+#                print i,j,len(n.where(uvetas[i])[0]),
+#                print len(n.where(uvetas[j])[0]),
+#                print len(n.where(uvetas[i]*n.conj(uvetas[j]))[0])
+#                uveta += uvetas[i]*n.conj(uvetas[j])
+#        print n.sum(n.isnan(uveta)),len(n.where(uveta)[0])
+        uveta = uveta*n.conj(uveta)
+        uveta[uvetan>0] /= uvetan[uvetan>0]
+#        uvs[uvin>0] /= uvin[uvin>0]
+#        print ui,vi,uveta.min(),
+#        FTuvs = pfb(uvs,taps=NTAPS,window='hanning', fft=n.fft.ifft)
+ #       uveta += FTuvs * n.conj(FTuvs)
+#        print uveta_all[0,13,4]*n.conj(uveta_all[0,13,4]),'+',uveta[0,13,4]
+#        print uveta.dtype
+#        uveta += uveta_all *  n.conj(uveta_all)
+#        print n.where(uveta[:,:,4]<0)
+#        uveta[uvetan>0] /= (uvetan[uvetan>0]**2 - uvetan[uvetan>0])
+#        print uveta.min();flush()
+ 
+        uveta = a.img.recenter(uveta,
+            (uveta.shape[0]/2,uveta.shape[1]/2,0)).astype(n.float)
+        #average +k and -k parts
+#        uveta_power = n.zeros((uveta.shape[:2]+(uveta.shape[2]/2,))
+#        print uveta[:,:,:uveta.shape[2]/2].shape,uveta[:,:,:-uveta.shape[2]/2-1:-1].shape
+        uveta_power = (uveta[:,:,:uveta.shape[2]/2] + \
+            uveta[:,:,:-uveta.shape[2]/2-1:-1])/2
+        if uveta_power.min()<0: print "WARNING: ",uveta_power.min()
+        uvetastack.append(uveta_power)
+        dly = n.fft.fftfreq(nchan,df)[:uveta.shape[2]/2]
+        print nchan,df,dly[:3]
+#        dly = n.concatenate([dly[-len(dly)/2:],dly[:len(dly)/2]])
+        #reset nchan to be what the pfb tells us it is
+#        nchan = uvs.shape[2]
+#        print "CLEANing before max=%f"%(uvs.max());flush()
+#        if opts.clean<1: uvs = CLEAN_uvs(uvs)
+#        print "after max=%f"%(uvs.max());flush()
+#        print "FFT";flush()
+#        print uvs.shape
+##        uveta = n.abs(n.fft.ifft(uvs,axis=2))[:,:,:nchan/2]
+#        uveta = n.abs(pfb(uvs,taps=NTAPS,window='hanning', fft=n.fft.ifft))
+#        print uveta.shape
         print "t = %6.1fs"%(time.time()-tstart,)
+
+
     #end spectral loop
     uvetastack = n.array(uvetastack)
     print uvetastack.shape
     uvetastack = n.transpose(uvetastack,axes=[1,2,0,3])
     print uvetastack.shape
-    dly = n.fft.fftfreq(uveta.shape[2],df)[:nchan/2]
+
+
+
     csupdate = {'linear0':{'cdelt':n.array([-uvres, uvres]).astype(n.float),
                             'crpix':n.array((uveta.shape[0]/2,uveta.shape[1]/2)).astype(n.float)},
                 'obsdate':{'m0':{'unit':'d','value':t/86400},
@@ -341,9 +438,7 @@ for vis in args:
     for k in csupdate:
         csysrecord[k].update(csupdate[k])
     csysrecord['observer']=str(z)
-#    csys = cs
-#    csys.fromrecord(csysrecord)
-#    print csys.coordinatetype()
+
     newspec = cs.newcoordsys(spectral=T)
     newspec.setreferencelocation(pixel=0,world=n.round(n.median(fs.min()),decimals=1))
     newspec.setincrement(value=bw/opts.fspace,type='spectral')
@@ -353,6 +448,7 @@ for vis in args:
     print "writing ",outfile;flush()
     uveta.shape = (uveta.shape[0],uveta.shape[1],1,uveta.shape[2])
     ia.fromarray(outfile=outfile,pixels=uvetastack,csys=csys.torecord(),overwrite=True)
+print "\a"
 #    ia.open(outfile)
 #    csys = ia.coordsys()
 #    csys.replace(newspec.torecord(),0,1)
