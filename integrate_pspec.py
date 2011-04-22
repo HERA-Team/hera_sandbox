@@ -137,10 +137,12 @@ for file in files:
                 Urspec_snapshot = Urspec.copy()
                 Urspec_snapshot[Urspecn>0] /= Urspecn[Urspecn>0]
                 ps = Urspec_snapshot[plop(Ur,length(UVworld)),intband,:] 
+                N = Urspecn[plop(Ur,length(UVworld)),intband,0] 
+                del(Urspec_snapshot)
                 if plop(Ur,length(UVworld))==ui and band==intband:
                     kpi_min = plop(k,k_min)
                     kpi_max = plop(k,k_max)
-                    intlog[bini] = intlog.get(bini,[]) + [[t,n.median(ps[kpi_min:kpi_max+1])]]
+                    intlog[bini] = intlog.get(bini,[]) + [[t,n.median(ps[kpi_min:kpi_max+1]),N]]
 
             
         if uveta.max()>psmax:psmax=uveta.max()
@@ -154,11 +156,13 @@ pl.clf()
 for bini,bin in enumerate(intbins):
     if not intlog.has_key(bini):continue
     S = n.array(intlog[bini])
-    pl.subplot(211)
+    pl.subplot(311)
     pl.semilogy(S[:,1],'.',label='_'.join(map(str,bin)))
-    pl.subplot(212)
+    pl.subplot(312)
     pl.loglog(n.arange(1,S.shape[0]+1),S[:,1],'.',label='_'.join(map(str,bin)))
     pl.loglog(n.arange(1,S.shape[0]+1),S[0,1]/n.arange(1,S.shape[0]+1),'--k')
+    pl.loglog(n.arange(1,S.shape[0]+1),S[:,2],label='_'.join(map(str,bin)))
+
 pl.subplot(211)
 pl.legend()
 print "\a"
