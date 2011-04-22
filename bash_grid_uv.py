@@ -11,6 +11,7 @@ import aipy as a
 #
 # [1] http://www.in-ulm.de/~mascheck/various/shebang/#interpreter-script
 import sys,os,optparse,inspect
+from capo.pfb import *
 from glob import glob
 ####
 #PAPER imports
@@ -41,6 +42,12 @@ o.add_option('--dodiff',action='store_true',
     help='Also output power spectra of time diffed data.')
 o.add_option('--clean', dest='clean', type='float', default=1e-3,
     help='Deconvolve delay-domain data by the response that results from flagged data.  Specify a tolerance for termination (usually 1e-2 or 1e-3).')
+o.add_option('--data_type',default='corrected',type='str',
+    help="Can be: raw,corrected,model, or residual")
+o.add_option('--name',default=None,type='str',
+    help="optional name to insert in filename")
+o.add_option('--window',default='hamming',
+    help="can be any of: "+','.join(WINDOWS))
 #o.add_option('--ubins_range',default='45_200',
 #    help="""Power spectrum will be integrated in logarithmic radial bins. 
 #    Specify radial limits in wavelengths. [45_200]""")
@@ -63,49 +70,49 @@ ulim = [1.,2000.]
 
 pm = {'L': None, 'taps':None, 'fwidth':None, 'window':None, 'window_name':None, 'sinx_x':None, 'window_sinx_x':None}
 
-def __set_pm__(L, window, taps, fwidth):
-    global pm
-    if pm['L'] == L and pm['taps'] == taps and pm['fwidth'] == fwidth:
-        if type(window) == str and pm['window_name'] == window: return
-        elif window is pm['window']: return
-    else:
-        pm['L'] = L
-        pm['taps'] = taps
-        pm['fwidth'] = fwidth
-        def sinx_x(x):
-            t = n.pi * taps * fwidth * (x/float(L) - .5)
-            v = n.where(t != 0, t, 1)
-            return n.where(t != 0, n.sin(v) / v, 1)
-        pm['sinx_x'] = n.fromfunction(sinx_x, (L,))
-    if type(window) == str:
-        wf = {}
-        wf['hamming'] = lambda x: .54 + .46 * cos(2*n.pi*x/L - n.pi)
-        wf['hanning'] = lambda x: .5 + .5 * n.cos(2*n.pi*x/(L+1) - n.pi)
-        wf['none'] = lambda x: 1
-        pm['window'] = n.fromfunction(wf[window], (L,))
-        pm['window_name'] = window
-    else:
-        pm['window'] = window
-        pm['window_name'] = None
-    pm['window_sinx_x'] = pm['window'] * pm['sinx_x']
-
-def __pfb_fir__(data, window='hamming', taps=8, fwidth=1):
-    L = data.shape[-1]
-    __set_pm__(L, window, taps, fwidth)
-    d = data * pm['window_sinx_x']
-#    print d.shape,taps,L/taps
-    try: d.shape = d.shape[:-1] + (taps, L/taps)
-    except: raise ValueError("More taps than samples")
-    return n.sum(d, axis=len(d.shape) - 2)
-
-def pfb(data, window='hamming', taps=8, fwidth=1, fft=n.fft.fft,axis=-1):
-    """Perform PFB on last dimension of 'data' for multi-dimensional arrays.
-    'window' may be a name (e.g. 'hamming') or an array with length of the
-    last dimension of 'data'.  'taps' is the number of PFB taps to use.  The
-    number of channels out of the PFB will be length out of the last 
-    dimension divided by the number of taps. 'fwidth' scales the width of 
-    each channel bandpass (to create overlapping filters, for example)."""
-    return fft(__pfb_fir__(data, window, taps, fwidth))
+#def __set_pm__(L, window, taps, fwidth):
+#    global pm
+#    if pm['L'] == L and pm['taps'] == taps and pm['fwidth'] == fwidth:
+#        if type(window) == str and pm['window_name'] == window: return
+#        elif window is pm['window']: return
+#    else:
+#        pm['L'] = L
+#        pm['taps'] = taps
+#        pm['fwidth'] = fwidth
+#        def sinx_x(x):
+#            t = n.pi * taps * fwidth * (x/float(L) - .5)
+#            v = n.where(t != 0, t, 1)
+#            return n.where(t != 0, n.sin(v) / v, 1)
+#        pm['sinx_x'] = n.fromfunction(sinx_x, (L,))
+#    if type(window) == str:
+#        wf = {}
+#        wf['hamming'] = lambda x: .54 + .46 * cos(2*n.pi*x/L - n.pi)
+#        wf['hanning'] = lambda x: .5 + .5 * n.cos(2*n.pi*x/(L+1) - n.pi)
+#        wf['none'] = lambda x: 1
+#        pm['window'] = n.fromfunction(wf[window], (L,))
+#        pm['window_name'] = window
+#    else:
+#        pm['window'] = window
+#        pm['window_name'] = None
+#    pm['window_sinx_x'] = pm['window'] * pm['sinx_x']
+#
+#def __pfb_fir__(data, window='hamming', taps=8, fwidth=1):
+#    L = data.shape[-1]
+#    __set_pm__(L, window, taps, fwidth)
+#    d = data * pm['window_sinx_x']
+##    print d.shape,taps,L/taps
+#    try: d.shape = d.shape[:-1] + (taps, L/taps)
+#    except: raise ValueError("More taps than samples")
+#    return n.sum(d, axis=len(d.shape) - 2)
+#
+#def pfb(data, window='hamming', taps=8, fwidth=1, fft=n.fft.fft,axis=-1):
+#    """Perform PFB on last dimension of 'data' for multi-dimensional arrays.
+#    'window' may be a name (e.g. 'hamming') or an array with length of the
+#    last dimension of 'data'.  'taps' is the number of PFB taps to use.  The
+#    number of channels out of the PFB will be length out of the last 
+#    dimension divided by the number of taps. 'fwidth' scales the width of 
+#    each channel bandpass (to create overlapping filters, for example)."""
+#    return fft(__pfb_fir__(data, window, taps, fwidth))
 NTAPS = 2
 #highchan =int(opts.chan.split('_')[1])
 #lowchan = int(opts.chan.split('_')[0])
@@ -113,6 +120,13 @@ fstart = int(opts.fconfig.split('_')[0])*1e6
 fstop = int(opts.fconfig.split('_')[1])*1e6
 bw = int(opts.fconfig.split('_')[2])*1e6
 print opts.fconfig,fstart,fstop,bw
+#form up the data request word
+if opts.data_type=='raw':
+    datastr = 'data'
+else:
+    datastr = opts.data_type+'_'+'data'
+print "Getting column: %s"%(datastr,)
+
 nbins = 2
 favg = 4
 c = 3e8 #m/s
@@ -227,7 +241,10 @@ def squish(A,factor):
 flush = sys.stdout.flush
 for vis in args:
 #    outfile = vis+'_%d_%d.uveta'%(lowchan,highchan)
-    outfile = vis +'.uveta'
+    if not opts.name is None:
+        outfile = vis +'.'+opts.name+'.uveta'
+    else:
+        outfile = vis+'.uveta'
     if opts.dodiff: outfile +='.diff'
     print vis,'->',outfile
     print "Analyzing %s "%(vis)
@@ -263,10 +280,10 @@ for vis in args:
         z = f212z(f)
                 #moredata=True
         #while(moredata):
-        rec = ms.getdata(['u','v','w','data','flag','antenna1','antenna2','time'])
+        rec = ms.getdata(['u','v','w',datastr,'flag','antenna1','antenna2','time'])
         t = n.median(rec['time'])
         I,J = rec['antenna1'],rec['antenna2']
-        D = n.ma.array(rec['data'],mask=rec['flag'])
+        D = n.ma.array(rec[datastr],mask=rec['flag'])
         if opts.dodiff: D = difftime(D,rec['time'])
         D = D.squeeze()
 #        print type(D),D.mask.sum(),D.size
@@ -307,7 +324,7 @@ for vis in args:
 #            ci.append(Im.get_indices(u,v))
 #        print "done"
 
-        print "PFB. ",;flush()
+        print "PFB [%s]. "%(opts.window,),;flush()
         FD = n.zeros((D.shape[0]/NTAPS,D.shape[1])).astype(n.complex64)
         for l in range(D.shape[1]):
             FD[:,l] = pfb(D[:,l],taps=NTAPS,window='hanning', 
@@ -321,6 +338,7 @@ for vis in args:
         uveta_all = n.zeros_like(uveta).astype(n.complex64)
         uveta_buff = n.zeros_like(uveta).astype(n.complex64)
         uvin = n.zeros_like(uvs).astype(n.int)
+        del(D)
         #grid by cross multiplying FTd samples
         print 'Gridding.',;flush()
 #        print "gridding into %d bins"%(nbins,)
@@ -330,66 +348,9 @@ for vis in args:
 #            if ui<0:continue
             uveta[ui,vi,:]  +=  FD[:,l]
             uvetan[ui,vi,:] +=  1
-#            uvetas[l%nbins][ui,vi,:] += FD[:,l]
-#            uvetan[ui,vi,:] += 1
-            
-#            if n.sum(uveta_buff[ui,vi,:])==0:
-#                uveta_buff[ui,vi,:] = FD[:,l]
-#            else:
-#                uveta[ui,vi,:]      +=  FD[:,l]*n.conj(uveta_buff[ui,vi,:])
-#                uveta_buff[ui,vi,:] =   0
-#                uvetan[ui,vi,:]     +=  1
-#            uveta_all[ui,vi,:]    += FD[:,l]
-#            uvs[ui,vi,:]    += D[:,l]
-#            uveta[ui,vi,:]  -= FD[:,l]*n.conj(FD[:,l])
-#            uvin[ui,vi,:]   += n.logical_not(D[:,l].mask)
-#            uvetan[ui,vi,:] += 1
-#            if (ui,vi)==(0,13):
-#                print uveta_all[0,5,4]*n.conj(uveta_all[0,5,4]) + \
-#                uveta[0,5,4],
-#                print FD[4,l],',',
-#            if l%(len(ci)/4):
-#                uv
-#            for m in range(l,len(ci)):
-#                if l==m:continue
-#                if ui==ci[m][0] and vi==ci[m][1]:
-#                    print l,m,ui,vi,':',
-#                    uveta[ui,vi,:] += FD[:,l] * FD[:,m]
-##                    uvin[ui,vi,:] += n.logical_not(D[:,l].mask)
-#                    uvin[ui,vi,:] += n.ones_like(FD[:,l])
         print ".. done";flush()
-
-#        print "testing old way"
-#        uveta += uveta_all*n.conj(uveta_all)
-#        print uveta.min()
-#        print "\a",sys.exit()
-#
-#        uvetan /= nbins
-#        for i in range(nbins):
-#            print i,uvetas[i].min(),uvetas[i].max(),n.sum(n.isnan(uvetas[i]))
-#            print '  ',uvetas[i][0,12,4]
-#        print "cross-multiplying"
-#        for i in range(nbins):
-#            for j in range(i,nbins):
-#                if i==j:continue
-#                print i,j,len(n.where(uvetas[i])[0]),
-#                print len(n.where(uvetas[j])[0]),
-#                print len(n.where(uvetas[i]*n.conj(uvetas[j]))[0])
-#                uveta += uvetas[i]*n.conj(uvetas[j])
-#        print n.sum(n.isnan(uveta)),len(n.where(uveta)[0])
         uveta = uveta*n.conj(uveta)
         uveta[uvetan>0] /= uvetan[uvetan>0]
-#        uvs[uvin>0] /= uvin[uvin>0]
-#        print ui,vi,uveta.min(),
-#        FTuvs = pfb(uvs,taps=NTAPS,window='hanning', fft=n.fft.ifft)
- #       uveta += FTuvs * n.conj(FTuvs)
-#        print uveta_all[0,13,4]*n.conj(uveta_all[0,13,4]),'+',uveta[0,13,4]
-#        print uveta.dtype
-#        uveta += uveta_all *  n.conj(uveta_all)
-#        print n.where(uveta[:,:,4]<0)
-#        uveta[uvetan>0] /= (uvetan[uvetan>0]**2 - uvetan[uvetan>0])
-#        print uveta.min();flush()
- 
         uveta = a.img.recenter(uveta,
             (uveta.shape[0]/2,uveta.shape[1]/2,0)).astype(n.float)
         #average +k and -k parts
