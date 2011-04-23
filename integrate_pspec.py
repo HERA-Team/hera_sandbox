@@ -159,9 +159,10 @@ for bini,bin in enumerate(intbins):
     pl.subplot(311)
     pl.semilogy(S[:,1],'.',label='_'.join(map(str,bin)))
     pl.subplot(312)
-    pl.loglog(n.arange(1,S.shape[0]+1),S[:,1],'.',label='_'.join(map(str,bin)))
+#    pl.loglog(n.arange(1,S.shape[0]+1),S[:,1],'.',label='_'.join(map(str,bin)))
+    pl.loglog(n.arange(1,S.shape[0]+1),n.cumsum(S[:,3])/n.cumsum(n.arange(1,S.shape[0]+1)))
     pl.loglog(n.arange(1,S.shape[0]+1),S[0,1]/n.arange(1,S.shape[0]+1),'--k')
-    pl.loglog(n.arange(1,S.shape[0]+1),S[:,2],label='_'.join(map(str,bin)))
+#    pl.loglog(n.arange(1,S.shape[0]+1),S[:,2],label='_'.join(map(str,bin)))
 
 pl.subplot(211)
 pl.legend()
