@@ -147,7 +147,7 @@ for file in files:
             
         if uveta.max()>psmax:psmax=uveta.max()
         if uveta.min()<psmin:psmin=uveta.min()
-    Urspec[Urspecn>0] /= Urspecn[Urspecn>0]
+Urspec[Urspecn>0] /= Urspecn[Urspecn>0]
 
 
 #    Urspec = Urspec.filled(0)
@@ -156,15 +156,15 @@ pl.clf()
 for bini,bin in enumerate(intbins):
     if not intlog.has_key(bini):continue
     S = n.array(intlog[bini])
-    pl.subplot(311)
+    pl.subplot(211)
     pl.semilogy(S[:,1],'.',label='_'.join(map(str,bin)))
-    pl.subplot(312)
+    pl.subplot(212)
 #    pl.loglog(n.arange(1,S.shape[0]+1),S[:,1],'.',label='_'.join(map(str,bin)))
     pl.loglog(n.arange(1,S.shape[0]+1),n.cumsum(S[:,3])/n.cumsum(n.arange(1,S.shape[0]+1)))
     pl.loglog(n.arange(1,S.shape[0]+1),S[0,1]/n.arange(1,S.shape[0]+1),'--k')
 #    pl.loglog(n.arange(1,S.shape[0]+1),S[:,2],label='_'.join(map(str,bin)))
 
-pl.subplot(311)
+pl.subplot(211)
 pl.legend()
 print "\a"
 
