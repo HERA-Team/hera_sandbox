@@ -142,7 +142,7 @@ for file in files:
                 if plop(Ur,length(UVworld))==ui and band==intband:
                     kpi_min = plop(k,k_min)
                     kpi_max = plop(k,k_max)
-                    intlog[bini] = intlog.get(bini,[]) + [[t,n.median(PS[kpi_min:kpi_max+1]),N,ps]]
+                    intlog[bini] = intlog.get(bini,[]) + [[t,n.mean(PS[kpi_min:kpi_max+1]),N,n.mean(ps[kpi_min:kpi_max+1])]]
 
             
         if uveta.max()>psmax:psmax=uveta.max()
