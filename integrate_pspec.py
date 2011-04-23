@@ -164,7 +164,7 @@ for bini,bin in enumerate(intbins):
     pl.loglog(n.arange(1,S.shape[0]+1),S[0,1]/n.arange(1,S.shape[0]+1),'--k')
 #    pl.loglog(n.arange(1,S.shape[0]+1),S[:,2],label='_'.join(map(str,bin)))
 
-pl.subplot(211)
+pl.subplot(311)
 pl.legend()
 print "\a"
 
