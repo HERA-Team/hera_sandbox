@@ -136,13 +136,13 @@ for file in files:
                 k = UrspecK[ui,band,:]
                 Urspec_snapshot = Urspec.copy()
                 Urspec_snapshot[Urspecn>0] /= Urspecn[Urspecn>0]
-                ps = Urspec_snapshot[plop(Ur,length(UVworld)),intband,:] 
+                PS = Urspec_snapshot[plop(Ur,length(UVworld)),intband,:] 
                 N = Urspecn[plop(Ur,length(UVworld)),intband,0] 
                 del(Urspec_snapshot)
                 if plop(Ur,length(UVworld))==ui and band==intband:
                     kpi_min = plop(k,k_min)
                     kpi_max = plop(k,k_max)
-                    intlog[bini] = intlog.get(bini,[]) + [[t,n.median(ps[kpi_min:kpi_max+1]),N]]
+                    intlog[bini] = intlog.get(bini,[]) + [[t,n.median(PS[kpi_min:kpi_max+1]),N,ps]]
 
             
         if uveta.max()>psmax:psmax=uveta.max()
