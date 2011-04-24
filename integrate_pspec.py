@@ -58,7 +58,7 @@ Urspecn = None
 psmax = psmin = 0
 aa = a.cal.get_aa(calfile,n.array([0.15]))
 intlog = {}
-intbins = [[0.1,0.25,40,9],[0.1,0.25,20,9],[0.1,0.25,40,8],[0.4,0.7,40,9],[1,1.5,20,9],[1,1.5,40,8]]
+intbins = [[0.1,0.25,40,9],[0.1,0.25,20,9],[0.1,0.25,40,8],[0.4,0.7,40,9],[1,1.5,20,9],[1,1.5,40,8],[10**0.4,10**0.8,30,8]]
 
 for file in files:
     #load file
@@ -89,8 +89,6 @@ for file in files:
         z = f212z(f)
         binzis = [plop(b[3],Zs) for b in intbins]
 #        if n.sum(n.abs(z-binzs)>0.25)>0: continue
-        if not (band in binzis): continue
-        print f,z;flush()
         #find the delay axis
         dly = n.array([csys.toworld([0,0,band,i])['numeric'][3] for i in\
             range(uveta.shape[3])])
@@ -108,6 +106,9 @@ for file in files:
             else:
                 UK[band,:] = k
         Urspecz[:,band,:] = z
+
+#        if not (band in binzis): continue
+        print f,z;flush()
         #grid by radial U and redshift
         UVpxs = n.argwhere(uveta[:,:,band,0]).astype(float)
         UVs = []
@@ -134,15 +135,15 @@ for file in files:
                 ui = plop(Ur,ur)
                 intband = plop(Zs,intz)
                 k = UrspecK[ui,band,:]
-                Urspec_snapshot = Urspec.copy()
-                Urspec_snapshot[Urspecn>0] /= Urspecn[Urspecn>0]
-                PS = Urspec_snapshot[plop(Ur,length(UVworld)),intband,:] 
-                N = Urspecn[plop(Ur,length(UVworld)),intband,0] 
-                del(Urspec_snapshot)
+#                Urspec_snapshot = Urspec.copy()
+#                Urspec_snapshot[Urspecn>0] /= Urspecn[Urspecn>0]
+#                PS = Urspec_snapshot[plop(Ur,length(UVworld)),intband,:] 
+               # del(Urspec_snapshot)
                 if plop(Ur,length(UVworld))==ui and band==intband:
                     kpi_min = plop(k,k_min)
                     kpi_max = plop(k,k_max)
-                    intlog[bini] = intlog.get(bini,[]) + [[t,n.mean(PS[kpi_min:kpi_max+1]),N,n.mean(ps[kpi_min:kpi_max+1])]]
+                    N = Urspecn[plop(Ur,length(UVworld)),intband,0]
+                    intlog[bini] = intlog.get(bini,[]) + [[t,n.mean(Urspec[plop(Ur,length(UVworld)),intband,kpi_min:kpi_max+1])/N,N,n.mean(ps[kpi_min:kpi_max+1])]]
 
             
         if uveta.max()>psmax:psmax=uveta.max()
@@ -151,26 +152,39 @@ Urspec[Urspecn>0] /= Urspecn[Urspecn>0]
 
 
 #    Urspec = Urspec.filled(0)
-pl.figure(11)
+pl.figure(16)
 pl.clf()
+ax = pl.subplot(111)
+bincolors = []
 for bini,bin in enumerate(intbins):
     if not intlog.has_key(bini):continue
+    bin = n.round(n.array(bin),2)
     S = n.array(intlog[bini])
-    pl.subplot(211)
-    pl.semilogy(S[:,1],'.',label='_'.join(map(str,bin)))
-    pl.subplot(212)
+#    pl.subplot(211)
+    ax.loglog(n.arange(1,S.shape[0]+1),S[:,1],'.',label='_'.join(map(str,bin)))
+    lastcolor=ax.lines[-1].get_color()
+    bincolors.append(lastcolor)
+#    pl.subplot(212)
 #    pl.loglog(n.arange(1,S.shape[0]+1),S[:,1],'.',label='_'.join(map(str,bin)))
-    pl.loglog(n.arange(1,S.shape[0]+1),n.cumsum(S[:,3])/n.cumsum(n.arange(1,S.shape[0]+1)))
-    pl.loglog(n.arange(1,S.shape[0]+1),S[0,1]/n.arange(1,S.shape[0]+1),'--k')
+#    pl.loglog(n.arange(1,S.shape[0]+1),n.cumsum(S[:,3])/n.cumsum(n.arange(1,S.shape[0]+1)))
+    pl.loglog(n.arange(1,S.shape[0]+1),n.cumsum(S[:,3])/n.arange(1,S.shape[0]+1),'-'+lastcolor)
+#    pl.loglog(n.arange(1,S.shape[0]+1),S[0,1]/n.arange(1,S.shape[0]+1),'--'+lastcolor)
 #    pl.loglog(n.arange(1,S.shape[0]+1),S[:,2],label='_'.join(map(str,bin)))
-
-pl.subplot(211)
+pl.grid()
+#pl.subplot(211)
 pl.legend()
 print "\a"
-
-if False:
+rects = {}
+dz = n.diff(Zs)[0]
+if True:
 #    print type(Urspec)
-    pl.figure(24)
+    for bini,bin in enumerate(intbins):
+        k_min,k_max,ur,intz = bin 
+        rects[bini] = Rectangle(
+        (n.log10(k_min),intz-dz/2),n.log10(k_max)-n.log10(k_min),dz,
+        fill=False,lw=2,ec=bincolors[bini]
+        )
+    pl.figure(42)
     pl.clf()
     rows = ceil(n.sqrt(len(Ur)))
     cols = ceil(len(Ur)/rows)
@@ -203,6 +217,10 @@ if False:
             Urspecz.max()-Urspecz.min(),fill=False,lw=2,ec='0.5')
         pl.xlim([-2,1])
         ax.add_patch(detect_area)
+        for bini,bin in enumerate(intbins):
+            k_min,k_max,ur,intz = bin 
+            if plop(Ur,ur)==i:
+                ax.add_patch(rects[bini])
         if not isleft: pl.yticks([])
         if not isbottom: pl.xticks([])
     pl.colorbar(cax = cax,orientation='vertical')
