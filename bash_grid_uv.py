@@ -258,6 +258,7 @@ for vis in args:
     nchan = int(bw/df) + int(bw/df)%NTAPS
     print fstart,fstop,bw
     uvetastack = []
+    uveta_powerstack = []
     #start channel loop
     for fmed in fs:
         #calculate channels, start the timer clock
@@ -331,13 +332,13 @@ for vis in args:
                         fft=n.fft.ifft)
         print "done"
         Im = a.img.Img(uvsize, uvres, mf_order=0)
-        uveta = n.ma.zeros(Im.uv.shape+(D.shape[0]/NTAPS,)).astype(n.complex64)    #uvf cube
-        uvetas = [uveta.copy() for i in range(nbins)]
+        uveta = n.zeros(Im.uv.shape+(D.shape[0]/NTAPS,)).astype(n.complex64)    #uvf cube
+#        uvetas = [uveta.copy() for i in range(nbins)]
         uvetan = n.zeros_like(uveta)
-        uvs = n.ma.zeros(Im.uv.shape+(D.shape[0],)).astype(n.complex64)
-        uveta_all = n.zeros_like(uveta).astype(n.complex64)
-        uveta_buff = n.zeros_like(uveta).astype(n.complex64)
-        uvin = n.zeros_like(uvs).astype(n.int)
+#        uvs = n.ma.zeros(Im.uv.shape+(D.shape[0],)).astype(n.complex64)
+#        uveta_all = n.zeros_like(uveta).astype(n.complex64)
+#        uveta_buff = n.zeros_like(uveta).astype(n.complex64)
+#        uvin = n.zeros_like(uvs).astype(n.int)
         del(D)
         #grid by cross multiplying FTd samples
         print 'Gridding.',;flush()
@@ -349,41 +350,37 @@ for vis in args:
             uveta[ui,vi,:]  +=  FD[:,l]
             uvetan[ui,vi,:] +=  1
         print ".. done";flush()
-        uveta = uveta*n.conj(uveta)
         uveta[uvetan>0] /= uvetan[uvetan>0]
         uveta = a.img.recenter(uveta,
-            (uveta.shape[0]/2,uveta.shape[1]/2,0)).astype(n.float)
-        #average +k and -k parts
-#        uveta_power = n.zeros((uveta.shape[:2]+(uveta.shape[2]/2,))
-#        print uveta[:,:,:uveta.shape[2]/2].shape,uveta[:,:,:-uveta.shape[2]/2-1:-1].shape
-        uveta_power = (uveta[:,:,:uveta.shape[2]/2] + \
-            uveta[:,:,:-uveta.shape[2]/2-1:-1])/2
+            (uveta.shape[0]/2,uveta.shape[1]/2,0))
+        uvetastack.append(n.fft.fftshift(uveta,axes=(2,)))
+
+        uveta = uveta*n.conj(uveta)
+        #average +k and -k parts, take take the abs
+        uveta_power = n.abs((uveta[:,:,:uveta.shape[2]/2] + \
+            uveta[:,:,:-uveta.shape[2]/2-1:-1])/2)
+
+        print "uveta power min,max",uveta_power.min(),uveta_power.max()
         if uveta_power.min()<0: print "WARNING: ",uveta_power.min()
-        uvetastack.append(uveta_power)
+        uveta_powerstack.append(uveta_power)
+
         dly = n.fft.fftfreq(nchan,df)[:uveta.shape[2]/2]
         print nchan,df,dly[:3]
-#        dly = n.concatenate([dly[-len(dly)/2:],dly[:len(dly)/2]])
-        #reset nchan to be what the pfb tells us it is
-#        nchan = uvs.shape[2]
-#        print "CLEANing before max=%f"%(uvs.max());flush()
-#        if opts.clean<1: uvs = CLEAN_uvs(uvs)
-#        print "after max=%f"%(uvs.max());flush()
-#        print "FFT";flush()
-#        print uvs.shape
-##        uveta = n.abs(n.fft.ifft(uvs,axis=2))[:,:,:nchan/2]
-#        uveta = n.abs(pfb(uvs,taps=NTAPS,window='hanning', fft=n.fft.ifft))
-#        print uveta.shape
         print "t = %6.1fs"%(time.time()-tstart,)
 
 
     #end spectral loop
-    uvetastack = n.array(uvetastack)
+    print "uveta0 min",uvetastack[0].min()
+    uvetastack = n.array(uvetastack).astype(n.complex64)
+    uveta_powerstack = n.array(uveta_powerstack)
     print uvetastack.shape
     uvetastack = n.transpose(uvetastack,axes=[1,2,0,3])
+    uveta_powerstack = n.transpose(uveta_powerstack,axes=[1,2,0,3])
     print uvetastack.shape
+    print "full uveta data type",uvetastack.dtype
+    print "uveta min",uvetastack.min()
 
-
-
+    #save the power
     csupdate = {'linear0':{'cdelt':n.array([-uvres, uvres]).astype(n.float),
                             'crpix':n.array((uveta.shape[0]/2,uveta.shape[1]/2)).astype(n.float)},
                 'obsdate':{'m0':{'unit':'d','value':t/86400},
@@ -407,8 +404,40 @@ for vis in args:
     csys.fromrecord(csysrecord)
     csys.replace(newspec.torecord(),0,1)
     print "writing ",outfile;flush()
-    uveta.shape = (uveta.shape[0],uveta.shape[1],1,uveta.shape[2])
-    ia.fromarray(outfile=outfile,pixels=uvetastack,csys=csys.torecord(),overwrite=True)
+#    uveta.shape = (uveta.shape[0],uveta.shape[1],1,uveta.shape[2])
+    ia.fromarray(outfile=outfile,pixels=uveta_powerstack,csys=csys.torecord(),overwrite=True)
+
+    ########################################################
+    #save the complex uveta
+    csupdate = {'linear0':{'cdelt':n.array([-uvres, uvres]).astype(n.float),
+                            'crpix':n.array((uveta.shape[0]/2,uveta.shape[1]/2)).astype(n.float)},
+                'obsdate':{'m0':{'unit':'d','value':t/86400},
+                            'refer':'UTC','type':'epoch'},
+                'pointingcenter':{'initial':False,
+                                    'value':direction
+                           },
+                'linear2':{'cdelt':array([n.diff(dly)[0]]),
+                            'crpix':array([0.]),
+                            'crval':array([dly.min()])},    
+                  }
+    csysrecord = csystemplate
+    for k in csupdate:
+        csysrecord[k].update(csupdate[k])
+    csysrecord['observer']=str(z)
+
+    newspec = cs.newcoordsys(spectral=T)
+    newspec.setreferencelocation(pixel=0,world=n.round(n.median(fs.min()),decimals=1))
+    newspec.setincrement(value=bw/opts.fspace,type='spectral')
+    csys = cs
+    csys.fromrecord(csysrecord)
+    csys.replace(newspec.torecord(),0,1)
+    print "writing ",outfile+'.im,.re';flush()
+#    uveta.shape = (uveta.shape[0],uveta.shape[1],1,uveta.shape[2])
+    ia.fromarray(outfile=outfile+'.re',pixels=n.real(uvetastack),csys=csys.torecord(),overwrite=True)
+    ia.fromarray(outfile=outfile+'.im',pixels=n.imag(uvetastack),csys=csys.torecord(),overwrite=True)
+
+
+
 print "\a"
 #    ia.open(outfile)
 #    csys = ia.coordsys()
