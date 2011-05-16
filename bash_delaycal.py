@@ -203,7 +203,7 @@ for msfile in args:
         #then replace the existing channelwise model with the delay model
         dlylog = open(cal_name+'.txt','w')
         for i in range(G.shape[2]):
-            P,res,rank,sv,cond = n.polyfit(F/1e3,n.unwrap(n.angle(G[0,:,i])),2,full=True)
+            P,res,rank,sv,cond = n.polyfit(F/1e3,n.unwrap(n.angle(G[0,:,i])),1,full=True)
             print "Ant: %d,\t Delay [ns]: %3.2f,\t Phase residual [r]: %3.2f"%(i,P[1],res.squeeze()/(G.shape[1]-rank));flush()
             l = pl.plot(F,n.unwrap(n.angle(G[0,:,i])),label=str(i))[0]
             lines.append(l)
