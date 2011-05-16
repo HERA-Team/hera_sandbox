@@ -197,6 +197,7 @@ for msfile in args:
         tb.open(cal_name,nomodify=False)
         G = tb.getcol('GAIN')
         F = n.linspace(fstart,fstop,num=G.shape[1])
+        n.savez(cal_name,G=G[0,:,:],freq=F)
         lines = []
         #for each spectrum compute a linear delay model
         #then replace the existing channelwise model with the delay model
@@ -208,7 +209,6 @@ for msfile in args:
             lines.append(l)
             phasemodel = n.poly1d(P)
             pl.plot(F,phasemodel(F/1e3),color=l.get_color())
-            n.savez(cal_name,G=G[0,:,:],freq=F)
             if apply_cal:
                 G[0,:,i] = n.abs(G[0,:,i])*n.exp(1j*phasemodel(F/1e3))
             dlylog.write('%d \t'%i)#output the index
