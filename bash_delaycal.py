@@ -197,7 +197,7 @@ for msfile in args:
                 minsnr=2)
         print '='*50
         tb.open(cal_name,nomodify=False)
-        G = n.array(tb.getcol('GAIN'),mask=tb.getcol('FLAG'))
+        G = n.ma.array(tb.getcol('GAIN'),mask=tb.getcol('FLAG'))
         F = n.linspace(fstart,fstop,num=G.shape[1])
         n.savez(cal_name,G=G[0,:,:],freq=F)
         lines = []
