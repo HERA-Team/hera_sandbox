@@ -197,7 +197,7 @@ for msfile in args:
                 minsnr=2)
         print '='*50
         tb.open(cal_name,nomodify=False)
-        G = tb.getcol('GAIN')
+        G = n.array(tb.getcol('GAIN'),mask=tb.getcol('FLAG'))
         F = n.linspace(fstart,fstop,num=G.shape[1])
         n.savez(cal_name,G=G[0,:,:],freq=F)
         lines = []
@@ -205,7 +205,7 @@ for msfile in args:
         #then replace the existing channelwise model with the delay model
         dlylog = open(cal_name+'.txt','w')
         for i in range(G.shape[2]):
-            P,res,rank,sv,cond = n.polyfit(F/1e3,n.unwrap(n.angle(G[0,:,i])),1,full=True)
+            P,res,rank,sv,cond = n.ma.polyfit(F/1e3,n.unwrap(n.angle(G[0,:,i])),1,full=True)
             print "Ant: %d,\t Delay [ns]: %3.2f,\t Phase residual [r]: %3.2f"%(i,P[1],res.squeeze()/(G.shape[1]-rank));flush()
             l = pl.plot(F,n.unwrap(n.angle(G[0,:,i])),label=str(i))[0]
             lines.append(l)
