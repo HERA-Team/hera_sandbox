@@ -237,7 +237,8 @@ for msfile in args:
     #            antenna='',
                 gaintable=cal_name)
         print '='*50
-        
+    print "store the SNR flag table"
+    flagmanager(vis=vis,mode='save',versionname='delaycal')
     print 'Computation time: %2.1f m'%((time()-t0)/60.,)
     print '='*50
 
