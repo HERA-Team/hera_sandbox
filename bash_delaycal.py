@@ -192,6 +192,7 @@ for msfile in args:
                 bandtype='B',
     #            calmode='ap',
                 interp=['linear'],
+                fillgaps=10,
                 solnorm=False)
         print '='*50
         tb.open(cal_name,nomodify=False)
