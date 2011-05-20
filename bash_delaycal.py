@@ -209,7 +209,7 @@ for msfile in args:
             P,res,rank,sv,cond = n.ma.polyfit(F/1e3,n.ma.array(
             n.unwrap(n.angle(G[0,:,i])),mask=M[0,:,i]),1,full=True)
             print "Ant: %d,\t Delay [ns]: %3.2f,\t Phase residual [r]: %3.2f"%(i,P[1],res.squeeze()/(G.shape[1]-rank));flush()
-            l = pl.plot(F,n.ma.masked_where(M[0,:i],n.unwrap(n.angle(G[0,:,i]))),label=str(i))[0]
+            l = pl.plot(F,n.ma.masked_where(M[0,:,i],n.unwrap(n.angle(G[0,:,i]))),label=str(i))[0]
             lines.append(l)
             phasemodel = n.poly1d(P)
             pl.plot(F,phasemodel(F/1e3),color=l.get_color())
