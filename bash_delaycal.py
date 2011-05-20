@@ -197,18 +197,19 @@ for msfile in args:
                 minsnr=2)
         print '='*50
         tb.open(cal_name,nomodify=False)
-        G = n.ma.array(tb.getcol('GAIN'),mask=tb.getcol('FLAG'))
+        G = tb.getcol('GAIN')
+        M = tb.getcol('FLAG'))
         F = n.linspace(fstart,fstop,num=G.shape[1])
-        n.savez(cal_name,G=G[0,:,:],freq=F)
+        n.savez(cal_name,G=G[0,:,:],freq=F,mask=M)
         lines = []
         #for each spectrum compute a linear delay model
         #then replace the existing channelwise model with the delay model
         dlylog = open(cal_name+'.txt','w')
         for i in range(G.shape[2]):
             P,res,rank,sv,cond = n.ma.polyfit(F/1e3,n.ma.array(
-            n.unwrap(n.angle(G[0,:,i])),mask=G[0,:,i].mask),1,full=True)
+            n.unwrap(n.angle(G[0,:,i])),mask=M),1,full=True)
             print "Ant: %d,\t Delay [ns]: %3.2f,\t Phase residual [r]: %3.2f"%(i,P[1],res.squeeze()/(G.shape[1]-rank));flush()
-            l = pl.plot(F,n.unwrap(n.angle(G[0,:,i])),label=str(i))[0]
+            l = pl.plot(F,n.ma.masked_where(M,n.unwrap(n.angle(G[0,:,i]))),label=str(i))[0]
             lines.append(l)
             phasemodel = n.poly1d(P)
             pl.plot(F,phasemodel(F/1e3),color=l.get_color())
