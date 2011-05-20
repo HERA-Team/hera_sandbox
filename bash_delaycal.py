@@ -208,7 +208,7 @@ for msfile in args:
         for i in range(G.shape[2]):
             P,res,rank,sv,cond = n.ma.polyfit(F/1e3,n.ma.array(
             n.unwrap(n.angle(G[0,:,i])),mask=M[0,:,i]),1,full=True)
-            print P[0],res.squeeze()
+            if len(P)<1: P,res = [0,0],n.array([0.0])
             print "Ant: %d,\t Delay [ns]: %3.2f,\t Phase residual [r]: %3.2f"%(i,P[1],res.squeeze()/(G.shape[1]-rank));flush()
             l = pl.plot(F,n.ma.masked_where(M[0,:,i],n.unwrap(n.angle(G[0,:,i]))),label=str(i))[0]
             lines.append(l)
