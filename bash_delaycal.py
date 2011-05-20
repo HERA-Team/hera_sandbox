@@ -22,6 +22,8 @@ o.add_option('--fconfig',default='120_180_6',
     help='Start_stop_step for output image and cal in MHz.[120_180_6]')
 o.add_option('--useflagversion',default=None,type='str',
     help='Version of flags to use [None]')
+o.add_option('--minsnr',default=2,type='float',
+    help='SNR threshold for calibration solution (see minsnr in CASA bandpass)')
 #o.add_option('--scratch',default=None,type='str',
 #    help='Directory to use as scratch for imaging. Use to avoid NFS lock errors. Default=None')
 #clean off the casa args:
