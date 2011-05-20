@@ -196,7 +196,7 @@ for msfile in args:
                 interp=['linear'],
                 fillgaps=10,
                 solnorm=False,
-                minsnr=2)
+                minsnr=opts.minsnr)
         print '='*50
         tb.open(cal_name,nomodify=False)
         G = tb.getcol('GAIN')
