@@ -59,13 +59,13 @@ for s in args:
     #print ra1,aa.sidereal_time(),ra2
     if aa.sidereal_time()>(ra1-pad) and aa.sidereal_time()<(ra2+pad):
         if active==0 and not opts.dchar is None: print opts.dchar
-        print s,
+#        print s,
         active=1
         is_listed=True
         if not opts.debug is None: print 'ra range',
     elif aa.sidereal_time()>(sun.ra-20.0*n.pi/180-pad) and aa.sidereal_time()<(sun.ra+20*n.pi/180+pad) and opts.sun:
         if active==0 and not opts.dchar is None: print opts.dchar
-        print s,
+#        print s,
         active =1
         is_listed=True
         if not opts.debug is None: print 'sun',
@@ -74,7 +74,7 @@ for s in args:
             if opts.debug: print aa.sidereal_time(),obj.ra
             if aa.sidereal_time()>(obj.ra-2.*n.pi/12-pad) and aa.sidereal_time()<(obj.ra+1.*n.pi/12+pad):
                 if active==0 and not opts.dchar is None: print opts.dchar
-                print s,
+#                print s,
                 active =1
                 is_listed = True
                 if not opts.debug is None: print obj.src_name,
@@ -85,6 +85,7 @@ for s in args:
     if opts.night and sun.alt>0:
         active=0
         is_listed=False
+    if is_listed: print s
     if not opts.lst_list is None and is_listed: print "\t",aa.sidereal_time()
     if not opts.debug is None and opts.lst_list is None and is_listed: print "."
     is_listed=False
