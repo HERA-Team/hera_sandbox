@@ -21,7 +21,8 @@ o.add_option('--lst_list',dest='lst_list',action='store_true',
     help="Output optional lst info.")
 o.add_option('--lst_pad',dest='lst_pad',default=0,type='float',
     help="LST search pad.  Increase the search range by this many hours.")
-
+o.add_option('--night',action='store_true',
+    help='only select files when the Sun is below the horizon.')
 opts, args = o.parse_args(sys.argv[1:])
 
 if opts.debug:
@@ -81,6 +82,9 @@ for s in args:
     else:
         active=0
         is_listed = False
+    if opts.night and sun.alt>0:
+        active=0
+        is_listed=False
     if not opts.lst_list is None and is_listed: print "\t",aa.sidereal_time()
     if not opts.debug is None and opts.lst_list is None and is_listed: print "."
     is_listed=False
