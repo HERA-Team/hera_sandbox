@@ -210,15 +210,20 @@ for msfile in args:
         for i in range(G.shape[2]):
             P,res,rank,sv,cond = n.ma.polyfit(F/1e3,n.ma.array(
             n.unwrap(n.angle(G[0,:,i])),mask=M[0,:,i]),1,full=True)
+            AP,Ares,Arank,Asv,Acond = n.ma.polyfit(F/1e4,n.ma.array(
+            n.abs(G[0,:,i]),mask=M[0,:,i]),4,full=True)
+            ampmodel = n.poly1d(AP)
             if rank<2: P,res = [0,0],n.array([0.0])
 #            print len(P),P[1],res.squeeze(),rank,cond,sv
-            print "Ant: %d,\t Delay [ns]: %3.2f,\t Phase residual [r]: %3.2f"%(i,P[1],res.squeeze()/(G.shape[1]-rank));flush()
+            print "Ant: %d,\t Delay [ns]: %3.2f,\t Phase res [r]: %3.2f, \t Amp [Jys/count] %3.2f"%\
+            (i,P[1],res.squeeze()/(G.shape[1]-rank),ampmodel(150));flush()
             l = pl.plot(F,n.ma.masked_where(M[0,:,i],n.unwrap(n.angle(G[0,:,i]))),label=str(i))[0]
             lines.append(l)
             phasemodel = n.poly1d(P)
             pl.plot(F,phasemodel(F/1e3),color=l.get_color())
             if apply_cal:
-                G[0,:,i] = n.abs(G[0,:,i])*n.exp(1j*phasemodel(F/1e3))
+#                G[0,:,i] = n.abs(G[0,:,i])*n.exp(1j*phasemodel(F/1e3))
+                G[0,:,i] = ampmodel(F/1e3)*n.exp(1j*phasemodel(F/1e3))
             dlylog.write('%d \t'%i)#output the index
             for p in P:
                 dlylog.write('%3.2f\t'%p)
