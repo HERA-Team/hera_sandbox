@@ -1,21 +1,39 @@
 import aipy as a, numpy as n, pylab as P
 import sys
 
-def get_dict_of_uv_data(filename, antstr, polstr, decimate=1, decphs=0):
+def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose=False):
     times, dat, flg = [], {}, {}
-    uv = a.miriad.UV(filename)
-    a.scripting.uv_selector(uv, antstr, polstr)
-    if decimate > 1: uv.select('decimate', decimate, decphs)
-    for (crd,t,(i,j)),d,f in uv.all(raw=True):
-        if len(times) == 0 or t != times[-1]:
-            times.append(t)
-        bl = a.miriad.ij2bl(i,j)
-        dat[bl] = dat.get(bl,[]) + [d]
-        flg[bl] = flg.get(bl,[]) + [f]
+    if type(filenames) == 'str': filenames = [filenames]
+    for filename in filenames:
+        if verbose: print '   Reading', filename
+        uv = a.miriad.UV(filename)
+        a.scripting.uv_selector(uv, antstr, polstr)
+        if decimate > 1: uv.select('decimate', decimate, decphs)
+        for (crd,t,(i,j)),d,f in uv.all(raw=True):
+            if len(times) == 0 or t != times[-1]:
+                times.append(t)
+            bl = a.miriad.ij2bl(i,j)
+            dat[bl] = dat.get(bl,[]) + [d]
+            flg[bl] = flg.get(bl,[]) + [f]
     for bl in dat:
         dat[bl] = n.array(dat[bl])
         flg[bl] = n.array(flg[bl])
     return n.array(times), dat, flg
+
+def clean_transform(d, f, clean=1e-3, axis=0):
+    #d = d.swapaxes(0, axis)
+    #f = n.logical_not(f.swapaxes(0, axis))
+    f = n.logical_not(f)
+    _d = n.fft.ifft(n.where(f,d,0), axis=1)
+    if True:
+        _f = n.fft.ifft(f, axis=1)
+        for i in range(_d.shape[0]):
+            g = n.sqrt(n.average(f[i]**2))
+            if g == 0: continue
+            _d[i],info = a.deconv.clean(_d[i], _f[i], tol=clean)
+            _d[i] += info['res'] / g
+        #_d = _d.swapaxes(0, axis)
+    return _d
 
 def gen_ddr_filter(shape, dw, drw, ratio=.25, invert=False):
     filter = n.ones(shape)
