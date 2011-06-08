@@ -219,12 +219,12 @@ for msfile in args:
             if rank<2: P,res = [0,0],n.array([0.0])
 #            print len(P),P[1],res.squeeze(),rank,cond,sv
             print "Ant: %d,\t Delay [ns]: %3.2f,\t Phase res [r]: %3.2f, \t Amp [Jys/count] %3.2f"%\
-            (i,P[1],res.squeeze()/(G.shape[1]-rank),ampmodel(150));flush()
+            (i,P[1],res.squeeze()/(G.shape[1]-rank),ampmodel(.150));flush()
             pl.figure(10)
             l = pl.plot(F,n.ma.masked_where(M[0,:,i],n.unwrap(n.angle(G[0,:,i]),discont=2.6)),label=str(i))[0]
             pl.figure(11)
-            pl.plot(F,n.ma.masked_where(M[0,:,i],dB(n.abs(G[0,:,i]/G[0,:,i].max()))),label=str(i),color=l.get_color())
-            pl.plot(F,n.ma.masked_where(M[0,:,i],dB(ampmodel(F/1e3)/n.max(ampmodel(F/1e3)))),color=l.get_color())
+            pl.plot(F,n.ma.masked_where(M[0,:,i],dB(n.abs(G[0,:,i]/n.abs(G[0,:,i]).max()))),label=str(i),color=l.get_color())
+            pl.plot(F,n.ma.masked_where(M[0,:,i],dB(ampmodel(F/1e3)/n.abs(G[0,:,i]).max())))),color=l.get_color())
             lines.append(l)
             phasemodel = n.poly1d(P)
             pl.figure(10)
