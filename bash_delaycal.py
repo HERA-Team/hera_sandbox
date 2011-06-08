@@ -50,7 +50,7 @@ fstop   =   fconfig[1]#180
 df      =   fconfig[2]#1
 #!0&&1;!2&&3;!4&&5;!6&&7;!8&&9;!10&&11;!12&&13;!14&&15;!16&&17;!18&&19;!20&&21;!22&&23;!24&&25;!26&&27;!28&&29;!30&&31'
 docal=True
-apply_cal=False
+apply_cal=True
 flush = sys.stdout.flush
 
 aa = a.cal.get_aa(aipycalfile,np.array([0.160]))
@@ -213,7 +213,7 @@ for msfile in args:
         for i in range(G.shape[2]):
             P,res,rank,sv,cond = n.ma.polyfit(F/1e3,n.ma.array(
             n.unwrap(n.angle(G[0,:,i]),discont=2.6),mask=M[0,:,i]),1,full=True)
-            AP,Ares,Arank,Asv,Acond = n.ma.polyfit(F/1e4,n.ma.array(
+            AP,Ares,Arank,Asv,Acond = n.ma.polyfit(F/1e3,n.ma.array(
             n.abs(G[0,:,i]),mask=M[0,:,i]),2,full=True)
             ampmodel = n.poly1d(AP)
             if rank<2: P,res = [0,0],n.array([0.0])
