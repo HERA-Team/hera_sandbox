@@ -214,7 +214,7 @@ for msfile in args:
             P,res,rank,sv,cond = n.ma.polyfit(F/1e3,n.ma.array(
             n.unwrap(n.angle(G[0,:,i]),discont=2.6),mask=M[0,:,i]),1,full=True)
             AP,Ares,Arank,Asv,Acond = n.ma.polyfit(F/1e4,n.ma.array(
-            n.abs(G[0,:,i]),mask=M[0,:,i]),4,full=True)
+            n.abs(G[0,:,i]),mask=M[0,:,i]),2,full=True)
             ampmodel = n.poly1d(AP)
             if rank<2: P,res = [0,0],n.array([0.0])
 #            print len(P),P[1],res.squeeze(),rank,cond,sv
@@ -246,10 +246,11 @@ for msfile in args:
         ax = pl.gca()
         pl.figlegend(lines,map(str,range(G.shape[2])),'top center',numpoints=1,mode='expand',ncol=8)
         pl.xlabel('Freq [MHz]')
-        pl.ylabel('gain phase [r]')
     pl.figure(10)
+    pl.ylabel('gain phase [r]')
     pl.savefig(msfile+'.delaymodel.png')
     pl.figure(11)
+    pl.ylabel('gain [dB]')
     pl.savefig(msfile+'.ampmodel.png')
     if apply_cal:
         print 'APPLYCAL'
