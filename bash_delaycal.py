@@ -194,7 +194,7 @@ for msfile in args:
                 bandtype='B',
     #            calmode='ap',
                 interp=['linear'],
-                fillgaps=10,
+                fillgaps=1,
                 solnorm=False,
                 minsnr=opts.minsnr)
         print '='*50
