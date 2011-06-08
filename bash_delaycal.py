@@ -224,7 +224,7 @@ for msfile in args:
             l = pl.plot(F,n.ma.masked_where(M[0,:,i],n.unwrap(n.angle(G[0,:,i]),discont=2.6)),label=str(i))[0]
             pl.figure(11)
             pl.plot(F,n.ma.masked_where(M[0,:,i],dB(n.abs(G[0,:,i]/n.abs(G[0,:,i]).max()))),label=str(i),color=l.get_color())
-            pl.plot(F,n.ma.masked_where(M[0,:,i],dB(ampmodel(F/1e3)/n.abs(G[0,:,i]).max())))),color=l.get_color())
+            pl.plot(F,n.ma.masked_where(M[0,:,i],dB(ampmodel(F/1e3)/n.abs(G[0,:,i]).max())),color=l.get_color())
             lines.append(l)
             phasemodel = n.poly1d(P)
             pl.figure(10)
