@@ -30,7 +30,7 @@ for filename in args:
     uvo = a.miriad.UV(filename+'F', status='new')
     def mfunc(uv, p, d,f):
         if p[2] in flagants:
-            return None,None,None    
+            return p,d,n.ones_like(f)
         else:
             return p,d,f
     uvo.init_from_uv(uvi)
