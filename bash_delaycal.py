@@ -193,8 +193,8 @@ for msfile in args:
     #            gaintype='G',
                 bandtype='B',
     #            calmode='ap',
-                interp=['linear'],
-                fillgaps=1,
+                interp=['nearest'],
+                fillgaps=10,
                 solnorm=False,
                 minsnr=opts.minsnr)
         print '='*50
