@@ -103,6 +103,8 @@ def findcalsrcs(aa,cat,Nsrcs=1,altmin=10):
 #    return ([(src[0],pjys(src[1],aa),src[1].ra,src[1].dec,src[1].alt,src[1].index,src[1].mfreq) for src in sorted_cat[:Nsrcs]],
 #        [dir2strlist(aipysrc2dir(src[1])) for src in sorted_cat[:Nsrcs]])
     return [src[0] for src in sorted_cat[:Nsrcs]]
+def dB(A):
+    return 10*n.log10(A)
 for msfile in args:
     vis=msfile
     ######################
@@ -178,6 +180,7 @@ for msfile in args:
     print '='*50
     pl.figure(10)
     pl.clf()
+    pl.figure(11)
     if docal:
         print 'GAINCAL'
         flush()
@@ -217,9 +220,14 @@ for msfile in args:
 #            print len(P),P[1],res.squeeze(),rank,cond,sv
             print "Ant: %d,\t Delay [ns]: %3.2f,\t Phase res [r]: %3.2f, \t Amp [Jys/count] %3.2f"%\
             (i,P[1],res.squeeze()/(G.shape[1]-rank),ampmodel(150));flush()
+            pl.figure(10)
             l = pl.plot(F,n.ma.masked_where(M[0,:,i],n.unwrap(n.angle(G[0,:,i]),discont=2.6)),label=str(i))[0]
+            pl.figure(11)
+            pl.plot(F,n.ma.masked_where(M[0,:,i],dB(n.abs(G[0,:,i]/G[0,:,i].max()))),label=str(i),color=l.get_color())
+            pl.plot(F,dB(ampmodel(F/1e3)/n.max(ampmodel(F/1e3))),color=l.get_color())
             lines.append(l)
             phasemodel = n.poly1d(P)
+            pl.figure(10)
             pl.plot(F,phasemodel(F/1e3),color=l.get_color())
             if apply_cal:
 #                G[0,:,i] = n.abs(G[0,:,i])*n.exp(1j*phasemodel(F/1e3))
@@ -233,11 +241,16 @@ for msfile in args:
         if apply_cal:tb.putcol('GAIN',G)
         tb.close()
     #pl.legend(numpoints=1,mode='expand',ncol=8)
-    ax = pl.gca()
-    pl.figlegend(lines,map(str,range(G.shape[2])),'top center',numpoints=1,mode='expand',ncol=8)
-    pl.xlabel('Freq [MHz]')
-    pl.ylabel('gain phase [r]')
+    for fi in [10,11]:
+        pl.figure(fi)
+        ax = pl.gca()
+        pl.figlegend(lines,map(str,range(G.shape[2])),'top center',numpoints=1,mode='expand',ncol=8)
+        pl.xlabel('Freq [MHz]')
+        pl.ylabel('gain phase [r]')
+    pl.figure(10)
     pl.savefig(msfile+'.delaymodel.png')
+    pl.figure(11)
+    pl.savefig(msfile+'.ampmodel.png')
     if apply_cal:
         print 'APPLYCAL'
         flush()
