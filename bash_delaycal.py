@@ -209,7 +209,7 @@ for msfile in args:
         dlylog = open(cal_name+'.txt','w')
         for i in range(G.shape[2]):
             P,res,rank,sv,cond = n.ma.polyfit(F/1e3,n.ma.array(
-            n.unwrap(n.angle(G[0,:,i])),mask=M[0,:,i]),1,full=True)
+            n.unwrap(n.angle(G[0,:,i]),discont=2.6),mask=M[0,:,i]),1,full=True)
             AP,Ares,Arank,Asv,Acond = n.ma.polyfit(F/1e4,n.ma.array(
             n.abs(G[0,:,i]),mask=M[0,:,i]),4,full=True)
             ampmodel = n.poly1d(AP)
@@ -217,7 +217,7 @@ for msfile in args:
 #            print len(P),P[1],res.squeeze(),rank,cond,sv
             print "Ant: %d,\t Delay [ns]: %3.2f,\t Phase res [r]: %3.2f, \t Amp [Jys/count] %3.2f"%\
             (i,P[1],res.squeeze()/(G.shape[1]-rank),ampmodel(150));flush()
-            l = pl.plot(F,n.ma.masked_where(M[0,:,i],n.unwrap(n.angle(G[0,:,i]))),label=str(i))[0]
+            l = pl.plot(F,n.ma.masked_where(M[0,:,i],n.unwrap(n.angle(G[0,:,i]),discont=2.6)),label=str(i))[0]
             lines.append(l)
             phasemodel = n.poly1d(P)
             pl.plot(F,phasemodel(F/1e3),color=l.get_color())
