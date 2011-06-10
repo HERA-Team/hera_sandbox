@@ -126,7 +126,7 @@ for msfile in args:
     
     use_src = ['pic']#,'144']
     print "Choosing a cal source(s)"
-    use_src = findcalsrcs(aa,cat,Nsrcs=1,altmin=45)
+    use_src = findcalsrcs(aa,cat,Nsrcs=3,altmin=80)
     print "Using",','.join(use_src)
     
     
