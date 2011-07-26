@@ -15,19 +15,24 @@ o.add_option('-p',dest='p',action='store_true',
 opts, args = o.parse_args(sys.argv[1:])
 
 if not opts.origin is None: origin = n.array(map(float,opts.origin.split(',')))
-else: origin = n.array([-1,-1,0])
+else: origin = n.array([0,0,0])
 print "origin = ",origin
 th = n.arange(0, 2*n.pi, .01)
 fmts = (('k.','k-'), ('r.','r-.'))
 
 aas = [a.cal.get_aa(opts.cal, .1, .1, 1)]
 if len(args)>0: aas.append(a.cal.get_aa(args[0], .1, .1, 1))
-print aas
+#print aas
 all_antpos = n.zeros((len(aas[0].ants),3,len(aas)) )
 if len(aas)>1:
     for cnt, aa in enumerate(aas):
         antpos = [aa.get_baseline(0,i,src='z') for i in range(len(aa.ants))]
         antpos = n.array(antpos) * a.const.len_ns / 100.
+        print n.sum(origin)
+        if n.sum(origin)== 0:
+            origin = n.mean(antpos,axis=1)
+            antpos -= origin
+            print "using origin = ",origin
         x,y,z = antpos[:,0], antpos[:,1], antpos[:,2]
         all_antpos[:,:,cnt]=antpos
         for l in antpos: print "[",l[0],",",l[1],",",l[2],"]"
@@ -70,7 +75,7 @@ if len(aas)>1:
     a.set_aspect('equal')
     #print p.axes()
 #    p.axes([0.4,0.4,0.2,0.2])
-    p.figure()
+    p.figure(figsize=(9,9))
     p.plot(delta_coords[:,0],delta_coords[:,1],'.')
     p.xlim(-25,25)
     p.xlabel("delta x [cm]")
@@ -102,15 +107,17 @@ if len(aas)>1:
     #print r_a,t_a
     p.show()
 else:
+    p.figure(figsize=(7,9))
     aa = aas[0]
     antpos = n.array([aa.get_baseline(0,i,src='z') for i in range(len(aa.ants))])
     antpos /= 3.3356
-    antpos += origin
+    if opts.origin is None: origin = n.mean(antpos,axis=0)
+    antpos -= origin
     print antpos
     fmt1,fmt2 = fmts[0 % len(fmts)]
     p.plot(antpos[:,0],antpos[:,1], fmt1)
     p.plot([0],[0],fmt1)
-    p.text(0,0,"base [ref base2]",fontsize=14)
+    if not opts.origin is None: p.text(0,0,"base [ref base2]",fontsize=14)
     if not opts.p is None: 
         prms = aa.get_params()
         print "Circles are %f * dly"%(opts.z)
@@ -131,5 +138,12 @@ else:
         if xa>0 and ya<0: az += 180
         if az==n.NaN: az=0
         print "%d\t%d\t%d"%(ant,n.round(n.sqrt(xa**2+ya**2)).astype(int), int(az))
-    p.axis('equal')
+#    p.axis('equal')
+    p.grid()
+    p.xlim([-150,150])
+    p.ylim([-150,150])
+    p.ylabel('N [m]')
+    p.xlabel('E [m]')
+#    p.axis('square')
+    p.subplots_adjust(left=0.15,right=0.95,bottom=0.15,top=0.95)
     p.show()
