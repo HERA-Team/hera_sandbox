@@ -21,7 +21,8 @@ o.add_option('--lst_list',dest='lst_list',action='store_true',
     help="Output optional lst info.")
 o.add_option('--lst_pad',dest='lst_pad',default=0,type='float',
     help="LST search pad.  Increase the search range by this many hours.")
-
+o.add_option('--suntime',default='e',
+    help='Sun up = y, sun down = n, either = e [default=e]')
 opts, args = o.parse_args(sys.argv[1:])
 
 if opts.debug:
@@ -58,13 +59,13 @@ for s in args:
     #print ra1,aa.sidereal_time(),ra2
     if aa.sidereal_time()>(ra1-pad) and aa.sidereal_time()<(ra2+pad):
         if active==0 and not opts.dchar is None: print opts.dchar
-        print s,
+#        print s,
         active=1
         is_listed=True
         if not opts.debug is None: print 'ra range',
     elif aa.sidereal_time()>(sun.ra-20.0*n.pi/180-pad) and aa.sidereal_time()<(sun.ra+20*n.pi/180+pad) and opts.sun:
         if active==0 and not opts.dchar is None: print opts.dchar
-        print s,
+#        print s,
         active =1
         is_listed=True
         if not opts.debug is None: print 'sun',
@@ -73,7 +74,7 @@ for s in args:
             if opts.debug: print aa.sidereal_time(),obj.ra
             if aa.sidereal_time()>(obj.ra-2.*n.pi/12-pad) and aa.sidereal_time()<(obj.ra+1.*n.pi/12+pad):
                 if active==0 and not opts.dchar is None: print opts.dchar
-                print s,
+#                print s,
                 active =1
                 is_listed = True
                 if not opts.debug is None: print obj.src_name,
@@ -81,6 +82,13 @@ for s in args:
     else:
         active=0
         is_listed = False
+    if opts.suntime=='n' and sun.alt>0:
+        active=0
+        is_listed=False
+    elif opts.suntime=='y' and sun.alt<0:
+        active=0
+        is_listed=False
+    if is_listed: print s
     if not opts.lst_list is None and is_listed: print "\t",aa.sidereal_time()
     if not opts.debug is None and opts.lst_list is None and is_listed: print "."
     is_listed=False
