@@ -106,6 +106,8 @@ o.add_option('--wcontour', type='int',
     help="Plot weight contours, averaged by this factor. recommended=10")
 o.add_option('--contour',type='str',
     help="Plot the data as contours averaged by this factor. Recommended=2")
+o.add_option('--skip_im',action='store_true',
+    help="Don't plot the actual image. Just the contours and sources and stuff")
 o.add_option('--interp', dest='interp', type='str',default=None,
     help="""Interpolation scheme for plotting.  Options are *None*, 'nearest', 'bilinear',
           'bicubic', 'spline16', 'spline36', 'hanning', 'hamming',
@@ -124,20 +126,20 @@ cen,coff,cats = a.scripting.parse_srcs(opts.cen,opts.cat)
 cat = a.src.get_catalog(cen,catalogs=cats)
 cen = cat[cat.keys()[0]]
 ephem.FixedBody.compute(cen,ephem.J2000)
-
+cenra = cen.ra*a.img.rad2deg
 if opts.projection.startswith('sp'):
     map = Basemap(projection=opts.projection,boundinglat=cen.dec*a.img.rad2deg+90,
-    lon_0=cen.ra*a.img.rad2deg, rsphere=1.)
+    lon_0=(360-cenra)%360, rsphere=1.)
 elif opts.projection.startswith('bigstere'):
     map = Basemap(projection='spstere',lat_0=cen.dec*a.img.rad2deg,boundinglat=10,
-    lon_0=cen.ra*a.img.rad2deg, rsphere=1.)
+    lon_0=(360-cenra)%360, rsphere=1.)
 elif opts.projection.startswith('moll') and opts.osys!='ga':
     map = Basemap(projection=opts.projection,lat_0=cen.dec*a.img.rad2deg,
-    lon_0=cen.ra*a.img.rad2deg, rsphere=1.,anchor='N')
+    lon_0=(360-cenra)%360, rsphere=1.,anchor='N')
     gal = Basemap(projection='moll',lat_0=27.12,lon_0=192.9,rsphere=1,anchor='N')
 else:
     map = Basemap(projection=opts.projection,lat_0=cen.dec*a.img.rad2deg,
-    lon_0=cen.ra*a.img.rad2deg, rsphere=1.,anchor='N')
+    lon_0=(360-cenra)%360, rsphere=1.,anchor='N')
 lons,lats,x,y = map.makegrid(360/opts.res,180/opts.res, returnxy=True)
 # Mask off parts of the image to be plotted that are outside of the map
 lt = lats[:,0]
@@ -147,13 +149,13 @@ x1,y1 = map(ln1,lt); x2,y2 = map(ln2,lt)
 x = n.ma.array(x)
 for c,(i,j) in enumerate(zip(x1,x2)): x[c] = n.ma.masked_outside(x[c], i, j)
 mask = x.mask
-if opts.osys == 'eq': lons = 360 - lons
+#if opts.osys == 'eq': lons = 360 - lons
 lats *= a.img.deg2rad; lons *= a.img.deg2rad
 if opts.osys=='ga' and opts.projection!='moll': lons *= -1
 if opts.osys=='eq':lons *=-1
 def xy2radec(x,y):
     lon,lat = map(x, y,inverse=True)
-    lon = lon % 360 #lon = (360 - lon) % 360
+    lon = (360 - lon) % 360
     lon *= a.img.deg2rad; lat *= a.img.deg2rad
     ra,dec = ephem.hours(lon), ephem.degrees(lat)
     return ra,dec
@@ -178,7 +180,7 @@ m1 = n.int(n.floor(len(args)/m2))
 if m2*m1<len(args):
     m2 += 1
     print "m2 +1"
-
+p.figure(facecolor='k')
 for i,file in enumerate(args):
     print 'Reading %s' % file
     h = a.map.Map(fromfits=file)
@@ -245,13 +247,13 @@ for i,file in enumerate(args):
         slats = n.array([float(s.get()[1]) for s in scrds]) * a.img.rad2deg
         slons = n.array([float(s.get()[0]) for s in scrds]) * a.img.rad2deg
 #        if opts.osys == 'eq': slons = 360 - slons
-        slons = n.where(slons < -180, slons + 360, slons)
-        slons = n.where(slons >= 180, slons - 360, slons)
+#        slons = n.where(slons < -180, slons + 360, slons)
+#        slons = n.where(slons >= 180, slons - 360, slons)
 #        if opts.osys=='ga':slons *= -1
-
+        if opts.osys=='eq':slons *=-1
     # Generate map grid/outline
     map.drawmapboundary()
-    map.drawmeridians(n.arange(-180, 180, 30))
+    #map.drawmeridians(n.arange(-180, 180, 30))
     #if not opts.proj.startswith('ortho'): map.drawparallels(n.arange(-90,90,30)[1:], labels=[0,1,0,0], labelstyle='+/-')
     # Set up data to plot
     if not opts.blank is None: data *= n.where(data<opts.blank,0,1)
@@ -266,7 +268,7 @@ for i,file in enumerate(args):
     data = data.clip(min, max)
     if not opts.projection in ['ortho','geos','spaeqd']: data = n.ma.array(data, mask=mask)
 
-    ax = p.subplot(m1,m2,i+1)
+    ax = p.subplot(m1,m2,i+1,axisbg='k')
     if not opts.contour is None:
         scale = int(opts.contour.split(',')[0])
         try: 
@@ -295,6 +297,7 @@ for i,file in enumerate(args):
         DC = map.contour(x,y,D,levels,colors='k',lw=6)
         p.clabel(DC, fontsize=10, inline=1)    
         print "flux levels = ",10**n.array(DC.levels)
+    if opts.skip_im: pass
     else: map.imshow(data, vmax=max, vmin=min, cmap=cmap,interpolation=opts.interp)
     ax.format_coord = format_coord
     # Plot src labels and markers on top of map image
@@ -325,14 +328,17 @@ for i,file in enumerate(args):
         M /=scale        
         print "computing contours"
         mpl.rcParams['contour.negative_linestyle'] = 'solid'
-        C = map.contour(x,y,n.ma.array(n.log10(W),mask=M),colors='w',ls=1)
+        if opts.skip_im:
+            C = map.contour(x,y,n.ma.array(n.log10(W),mask=M),colors='k',ls=1,lw=3)
+        else:
+            C = map.contour(x,y,n.ma.array(n.log10(W),mask=M),colors='w',ls=1,lw=3)
         p.clabel(C, fontsize=10, inline=1)
 #        C = map.contour(X,Y,n.log10(W))
         print "Weight levels [dB]:",C.levels
-    p.title(file)
+    #p.title(file)
     map.drawmapboundary()
-    map.drawmeridians(n.arange(-180, 180, 30))
-    map.drawparallels([-30,-10,10,30])
+    #map.drawmeridians(n.arange(-180, 180, 30))
+    #map.drawparallels([-30,-10,10,30])
 #    if opts.osys!='ga':
 #        gal.drawmeridians(n.arange(-180,180,30))
 #        gal.drawparallels(n.arange(-90,90,20))
