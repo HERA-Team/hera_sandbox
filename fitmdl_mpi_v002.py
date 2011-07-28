@@ -7,7 +7,7 @@
 #  PAPER Project
 #
 
-import aipy as a, numpy as n, pylab as p,math as m
+import aipy as a, numpy as n,math as m
 import sys, optparse,pickle,time,re,glob,os,datetime
 import mpi4py.rc,sys,logging,warnings
 from copy import copy,deepcopy
