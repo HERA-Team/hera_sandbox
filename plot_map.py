@@ -253,7 +253,7 @@ for i,file in enumerate(args):
 #        if opts.osys == 'eq': slons = 360 - slons
 #        slons = n.where(slons < -180, slons + 360, slons)
 #        slons = n.where(slons >= 180, slons - 360, slons)
-        if opts.osys=='ga':slons *= -1
+#        if opts.osys=='ga':slons *= -1
         if opts.osys=='eq':slons *=-1
     # Generate map grid/outline
     map.drawmapboundary()
@@ -302,6 +302,7 @@ for i,file in enumerate(args):
         p.clabel(DC, fontsize=10, inline=1)    
         print "flux levels = ",10**n.array(DC.levels)
     if opts.skip_im: pass
+    it opts.osys='ga': data = n.fliplr(data)
     else: map.imshow(data, vmax=max, vmin=min, cmap=cmap,interpolation=opts.interp)
     ax.format_coord = format_coord
     # Plot src labels and markers on top of map image
