@@ -115,8 +115,8 @@ o.add_option('--interp', dest='interp', type='str',default=None,
           'bessel', 'mitchell', 'sinc', 'lanczos'""")
 o.add_option('--blank',type='float',
     help="A flux threshold, below which will be blanked. default=None. [Jys]")
-o.add_option('--facecolor',type='str',default='w',
-    help='Input to the figure command. see help for pylab.figure. Default=w')
+o.add_option('--facecolor',type='str',
+    help='Input to the figure command. see help for pylab.figure. Default=None')
 opts,args = o.parse_args(sys.argv[1:])
 
 cmap = p.get_cmap(opts.cmap)
@@ -181,7 +181,10 @@ m1 = n.int(n.floor(len(args)/m2))
 if m2*m1<len(args):
     m2 += 1
     print "m2 +1"
-p.figure(facecolor=opts.facecolor)
+if not opts.facecolor is None:
+    p.figure(facecolor=opts.facecolor)
+else:
+    p.figure()
 for i,file in enumerate(args):
     print 'Reading %s' % file
     h = a.map.Map(fromfits=file)
