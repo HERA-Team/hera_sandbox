@@ -253,7 +253,7 @@ for i,file in enumerate(args):
 #        if opts.osys == 'eq': slons = 360 - slons
 #        slons = n.where(slons < -180, slons + 360, slons)
 #        slons = n.where(slons >= 180, slons - 360, slons)
-#        if opts.osys=='ga':slons *= -1
+        if opts.osys=='ga':slons *= -1
         if opts.osys=='eq':slons *=-1
     # Generate map grid/outline
     map.drawmapboundary()
