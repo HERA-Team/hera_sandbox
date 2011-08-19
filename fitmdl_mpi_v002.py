@@ -7,7 +7,7 @@
 #  PAPER Project
 #
 
-import aipy as a, numpy as n, pylab as p,math as m
+import aipy as a, numpy as n,math as m
 import sys, optparse,pickle,time,re,glob,os,datetime
 import mpi4py.rc,sys,logging,warnings
 from copy import copy,deepcopy
@@ -357,9 +357,11 @@ if rank==0:  #The "master node"
                 if opts.time and startup_time: 
                     timelog(timefile,'startup',time.time()-tstart)  #The amount of time to start the script and get to sending out the first data chunk
                     startup_time = False
+                if opts.verb: print 'DEBUG: priming the nodes'
                 comm.bcast(2,root=0) #Send the "load data" command
                 if opts.time and scatter_time:
                     tscatter = time.time()
+                if opts.verb: print 'DEBUG: Scattering data...',
                 comm.scatter([0]*1+n.array_split(data,size-1),root=0)
                 if opts.time and scatter_time:
                     timelog(timefile,'scatter',time.time()-tscatter) #the amount of time to scatter the data
@@ -426,6 +428,7 @@ else: #All other nodes
     while(True):
         #get the latest command
         cmd = comm.bcast(root=0)
+        if opts.verb: "node",rank,"recieved cmd = ",cmd
         if cmd==4:#update ok source list, and catalog
             good_srcs = comm.bcast(root=0)
             cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs) #restore catalog to pristine
