@@ -62,6 +62,7 @@ intbins = [[0.1,0.25,40,9],[0.1,0.25,20,9],[0.1,0.25,40,8],[0.4,0.7,40,9],[1,1.5
 
 for file in files:
     #load file
+    print file
     ia.open(file)
     uveta = ia.getchunk()
     if dologk:
