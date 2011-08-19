@@ -255,7 +255,8 @@ for vis in args:
     df = rec['axis_info']['freq_axis']['resolution'].squeeze()[0]
     ms.close()
     fs = n.arange(fstart,fstop,bw/opts.fspace)
-    nchan = int(bw/df) + int(bw/df)%NTAPS
+    print fs
+    nchan = int(bw/df)
     print fstart,fstop,bw
     uvetastack = []
     uveta_powerstack = []
@@ -264,8 +265,10 @@ for vis in args:
         #calculate channels, start the timer clock
         tstart = time.time()
         medchan = plop(F,fmed)
-        lowchan = medchan - nchan - nchan*NTAPS/2
-        highchan = medchan + nchan + nchan*NTAPS/2
+#        lowchan = medchan - (nchan + nchan*NTAPS)/2
+#        highchan = medchan + (nchan + nchan*NTAPS)/2
+        lowchan = medchan - int(1./3*(NTAPS*nchan)) - int(1./3*NTAPS*nchan)%NTAPS
+        highchan = medchan + int(2./3*(NTAPS*nchan)) + int(2./3*NTAPS*nchan)%NTAPS
         if highchan>(len(F)-1):continue
 
         #get data
@@ -274,7 +277,7 @@ for vis in args:
         ms.selectinit()
         ms.select({'uvdist':ulim})
         #ms.iterinit(columns=['TIME'])
-        print lowchan,highchan,highchan-lowchan,
+        print lowchan,highchan,highchan-lowchan,nchan,df
         ms.selectchannel(highchan-lowchan,lowchan,1,1)
         rec = ms.getdata(['axis_info'])
         f = n.median(rec['axis_info']['freq_axis']['chan_freq'].squeeze())
@@ -328,7 +331,7 @@ for vis in args:
         print "PFB [%s]. "%(opts.window,),;flush()
         FD = n.zeros((D.shape[0]/NTAPS,D.shape[1])).astype(n.complex64)
         for l in range(D.shape[1]):
-            FD[:,l] = pfb(D[:,l],taps=NTAPS,window='hanning', 
+            FD[:,l] = pfb(D[:,l],taps=NTAPS,window=opts.window, 
                         fft=n.fft.ifft)
         print "done"
         Im = a.img.Img(uvsize, uvres, mf_order=0)
@@ -351,14 +354,16 @@ for vis in args:
             uvetan[ui,vi,:] +=  1
         print ".. done";flush()
         uveta[uvetan>0] /= uvetan[uvetan>0]
+        print uveta.shape
         uveta = a.img.recenter(uveta,
             (uveta.shape[0]/2,uveta.shape[1]/2,0))
         uvetastack.append(n.fft.fftshift(uveta,axes=(2,)))
 
         uveta = uveta*n.conj(uveta)
         #average +k and -k parts, take take the abs
+        print uveta.shape[2]/2
         uveta_power = n.abs((uveta[:,:,:uveta.shape[2]/2] + \
-            uveta[:,:,:-uveta.shape[2]/2-1:-1])/2)
+            uveta[:,:,:-uveta.shape[2]/2-(uveta.shape[2]-1)%2:-1])/2)
 
         print "uveta power min,max",uveta_power.min(),uveta_power.max()
         if uveta_power.min()<0: print "WARNING: ",uveta_power.min()
