@@ -34,7 +34,7 @@ for file in args:
     def mfunc(uv,preamble,data):
         uvw,t,(i,j) = preamble
         bl = "%d_%d"%(i,j)
-        data -= AVG.get(bl,0)
+        if i!=j: data -= AVG.get(bl,0)
         return preamble, data
     uvo.pipe(uvi,mfunc=mfunc,
         append2hist='\n sub_nightly_avg.py: %s'%night_avg_file)
