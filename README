@@ -1,0 +1,18 @@
+CAPO Notes:
+Pasted from PAPER wiki Sep 12 2011
+====== Calibration and Analysis of PAPER Observations (CAPO)======
+CAPO is hosted as a repository on [[computing:shredder]]((Note that the head node address will occasionally change. As of this writing shredder's head node is folio.sas.upenn.edu.)) using [[http://git-scm.com/|git]]. This repository is meant to contain medium to well developed tools meant to be used on a project-wide basis.  Codes in development may be kept in personal files (eg capo/arp.py) or in subdirectories (eg capo/dcj/).  A tool or script need not be fully documented or tested for inclusion here //but no one will complain if it is.//
+==== To use on shredder ====
+within a python session or script, simply 
+  import capo
+==== To install locally ====
+  git clone username@shredder:/usr/global/paper/capo
+  python setup install
+==== To pull any changes to your local git ==== 
+  git pull 
+  or
+  git pull username@shredder:/usr/global/paper/capo
+==== To push your updates to the main repo ====
+  git push
+  or
+  git push username@shredder:/usr/global/paper/capo
