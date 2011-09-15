@@ -96,12 +96,12 @@ def streaming_pfb(data, nfreq, window='hamming', taps=8, fwidth=1,
     """Perform as many PFBs of length 'nfreq' as fit in the 1d array 'data'.
     PFBs are computed using windows of length 'taps' * 'nfreq', which step
     through 'data' in increments of 'nfreq'."""
-    d = n.resize(data, (floor(len(data)/nfreq), nfreq))
+    d = n.resize(data, (n.floor(len(data)/nfreq), nfreq))
     for t in range(taps-1):
         d = n.concatenate([d[:-1], d[1:,t*nfreq:(t+1)*nfreq]], axis=1)
     return pfb(d, window=window, taps=taps, fwidth=fwidth, fft=fft)
 
 def streaming_fft(data, nfreq, fft=n.fft.fft):
     """Perform as many FFTs of length 'nfreq' as fit in the 1d array 'data'."""
-    d = n.resize(data, (floor(len(data)/nfreq), nfreq))
+    d = n.resize(data, (n.floor(len(data)/nfreq), nfreq))
     return fft(d)
