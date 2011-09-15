@@ -20,15 +20,13 @@ uv = a.miriad.UV(args[0])
 aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
 freqs = aa.get_afreqs()
 
-MIN_CH,MAX_CH = 60,804
-aa.select_chans(n.arange(MIN_CH, MAX_CH))
 lstbins = n.arange(0,2*n.pi, C.pspec.LST_RES)
 if opts.sumfiles:
     ofile = 'summed__cross.npz'
     if os.path.exists(ofile):
         print ofile, 'exists.  Skipping...'
         sys.exit(0)
-    dat = {'freqs':freqs[MIN_CH:MAX_CH]}
+    dat = {'freqs':freqs}
 
 for filename in args:
     print 'Reading', filename
@@ -37,7 +35,7 @@ for filename in args:
         if os.path.exists(ofile):
             print ofile, 'exists.  Skipping...'
             continue
-        dat = {'freqs':freqs[MIN_CH:MAX_CH]}
+        dat = {'freqs':freqs}
     uv = a.miriad.UV(filename)
     a.scripting.uv_selector(uv, opts.ant, opts.pol)
     times = []
@@ -55,30 +53,34 @@ for filename in args:
         bl = a.miriad.ij2bl(i,j)
         x,y,z = aa.get_baseline(i,j, src=src)
         u150,v150,w150 = .150*x, .150*y, .150*z
-        # mask out overly short baselines adversely affected by xtalk removal
-        if u150 < 12.5: continue
         # ignoring w here, which must be carefully considered.  over FoV, baselines w/ same
         # u,v but diff w will have sources away from phase center come in at slightly diff delays
         # Is this ok?
         bin = C.pspec.uv2bin(u150,v150,lst)
-        d = d[MIN_CH:MAX_CH]
-        w = n.logical_not(f[MIN_CH:MAX_CH]).astype(n.float)
-        if n.average(w) < .5: continue
+        w = n.logical_not(f).astype(n.float)
+        #if n.average(w) < .5: continue
         d = aa.phs2src(d, src, i, j)
+        if n.all(aa.passband(i,j) == 0): continue
         d /= aa.passband(i,j)
         d *= w
+        if len(times) == 10:
+            print i,j,t, bin, C.pspec.bin2uv(bin),
+            print n.abs(d*C.pspec.jy2T(freqs)).sum() / w.sum()
         # Weight by square of primary beam response in the direction we're projecting for.
         #d *= bm_wgt
         #w = bm_wgt**2 * val
-        sumkey, wgtkey = 'sum_%d' % (bin), 'wgt_%d' % (bin)
-        dat[sumkey] = dat.get(sumkey,0) + d
-        dat[wgtkey] = dat.get(wgtkey,0) + w
+        dkey, wkey = 'd_%d' % (bin), 'w_%d' % (bin)
+        dat[dkey] = dat.get(dkey,0) + d
+        dat[wkey] = dat.get(wkey,0) + w
 
+    print len(dat)
     if not opts.sumfiles:
         dat['times'] = n.array(times)
+        print 'Writing', ofile
         n.savez(ofile, **dat)
 
 if opts.sumfiles:
     dat['times'] = n.array(times)
+    print 'Writing', ofile
     n.savez(ofile, **dat)
 
