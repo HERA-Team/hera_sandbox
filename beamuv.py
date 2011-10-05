@@ -15,8 +15,8 @@ class BeamUV(a.phs.Beam):
         center = size/2
         offset = _coeffs.shape[0]/2
         _beam = n.zeros((size,size))
-        _beam[center-offset:center+offset,center-offset:center+offset] = _coeffs
-        beam = n.fft.ifft2(a.img.recenter(_beam,(self.size/2,self.size/2)))*(_beam.size)
+        _beam[center-offset:center+offset+1,center-offset:center+offset+1] = _coeffs
+        beam = n.fft.ifft2(a.img.recenter(_beam,(center,center)))*(_beam.size)
         if pol == 'x':
             beam = n.rot90(beam)
         self.im = n.sqrt(n.abs(beam))
@@ -42,7 +42,8 @@ class BeamUV(a.phs.Beam):
             print "Equatorial support not yet enabled."
         else:
             l,m = self.xyz2lm(c1,c2,c3)
-            l,m = (self.size*l*self.res)+(self.size/2),(self.size*m*self.res)+(self.size/2)
+            #l,m = (self.size*l*self.res)+(self.size/2),(self.size*m*self.res)+(self.size/2)
+            l,m = (self.size*l*self.res),(self.size*m*self.res)
             #You need better interpolation.
             cl,fl = n.ceil(l).astype(int), n.floor(l).astype(int)
             cm,fm = n.ceil(m).astype(int), n.floor(m).astype(int)
