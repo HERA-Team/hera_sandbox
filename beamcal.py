@@ -7,17 +7,13 @@ o.add_option('--nside', dest='nside', type='int', default=32,
     help='NSIDE parameter for HEALPix map of beam.')
 o.add_option('-o', '--outfile', dest='outfile',
     help='The basename of the output files to create.')
-#o.add_option('--pickle',dest='pickle',action='store_true',
-#    help='Store measurement dictionaries in a pickle file.')
-o.add_option('--fluxcal',dest='fluxcal',default='cyg,10622',
+o.add_option('--fluxcal',dest='fluxcal',default='cyg,10622.92',
     help='The source to use as a flux calibrator.')
-             
 opts,args = o.parse_args(sys.argv[1:])
 
 afreqs = n.load(args[0])['afreqs']
 srctimes,srcfluxes,x,y,z = C.jcp.read_srcnpz(args, verbose=True)
 for src in srcfluxes: srcfluxes[src] = n.mean(srcfluxes[src], axis=1)
-
 srcs = srctimes.keys()
 
 beama = a.map.Map(opts.nside,interp=True)
@@ -102,13 +98,9 @@ for k in srcs:
 wM.append(1e16*n.log10(calflux))
 wM = n.array(wM,dtype=n.float32)
 
-measurements = {'wgt':wgttrack,'meas':fluxtrack}
-
 print 'Solving equation...'
 #B = n.dot(n.linalg.inv(n.dot(n.transpose(A),A)),n.dot(n.transpose(A),wM))
 B = n.linalg.lstsq(A,wM)
-#print 'Saving source info to', opts.outfile+'.npz'
-#n.savez(opts.outfile+'.npz',solution=B[0],srcnames=srcs,srcfluxes=B[0][-nsrcs:])
 for src,flx in zip(srcs,B[0][-nsrcs:]):
     print 'flux', src, 10**flx
 
@@ -119,11 +111,6 @@ beama.add(crossing_pixels,n.ones_like(bm),bm)
 outnamea = opts.outfile + 'a.fits'
 print 'Saving crossing-points beam to', outnamea
 beama.to_fits(outnamea, clobber=True)
-
-#pname = opts.outfile + '.pkl'
-#output = open(pname,'wb')
-#pickle.dump(measurements,output)
-#output.close
 
 outnameb = opts.outfile + 'b.fits'
 fluxes = 10**(B[0][npix:])
