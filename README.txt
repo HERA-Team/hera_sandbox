@@ -12,3 +12,10 @@ source tracks:
 ../mk_smooth_beam.py testb.fits.fits
 > output output.npz
 
+Simulations done with:
+cyg is 10622.92
+cas is 8914.3854135739166
+crab is 1817.0860545717171
+vir is 1400.7651852892755
+
+Embedded xyz coordinates directly in npz files (originals in data/no_xyz)

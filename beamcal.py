@@ -129,10 +129,10 @@ measurements = {'wgt':wgttrack,'meas':fluxtrack}
 print 'Solving equation...'
 #B = n.dot(n.linalg.inv(n.dot(n.transpose(A),A)),n.dot(n.transpose(A),wM))
 B = n.linalg.lstsq(A,wM)
-print 'Saving source info to', opts.outfile+'.npz'
-n.savez(opts.outfile+'.npz',solution=B[0],srcnames=srcs,srcfluxes=B[0][-nsrcs:])
+#print 'Saving source info to', opts.outfile+'.npz'
+#n.savez(opts.outfile+'.npz',solution=B[0],srcnames=srcs,srcfluxes=B[0][-nsrcs:])
 for src,flx in zip(srcs,B[0][-nsrcs:]):
-    print src, 10**flx
+    print 'flux', src, 10**flx
 
 print 'Making beams...'
 #bm = 10**(B[:-nsrcs])
@@ -142,10 +142,10 @@ outnamea = opts.outfile + 'a.fits'
 print 'Saving crossing-points beam to', outnamea
 beama.to_fits(outnamea, clobber=True)
 
-pname = opts.outfile + '.pkl'
-output = open(pname,'wb')
-pickle.dump(measurements,output)
-output.close
+#pname = opts.outfile + '.pkl'
+#output = open(pname,'wb')
+#pickle.dump(measurements,output)
+#output.close
 
 outnameb = opts.outfile + 'b.fits'
 fluxes = 10**(B[0][npix:])
