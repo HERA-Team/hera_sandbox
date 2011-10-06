@@ -1,48 +1,37 @@
 #! /usr/bin/env python
-import aipy as a, numpy as n, pylab as p, optparse, sys
+import aipy as a, numpy as n, optparse, sys
 import capo as C
-import beamuv
 
 o = optparse.OptionParser()
-a.scripting.add_standard_options(o, cal=True)
-o.add_option('--cat', dest='cat', default='helm,misc',
-    help='A comma-delimited list of catalogs from which sources are to be drawn.  Default is "helm,misc".  Other available catalogs are listed under aip y._src.  Some catalogs may require a separate data file to be downloaded and installed.')
 o.add_option('--nside', dest='nside', type='int', default=32,
     help='NSIDE parameter for HEALPix map of beam.')
 o.add_option('-o', '--outfile', dest='outfile',
     help='The basename of the output files to create.  If not supplied, just plots source tracks.')
 o.add_option('-b','--beam',dest='beam',default=None,
-    help='The beam npz file to use.')
+    help='The beam file to use (can be npz or fits).')
              
 opts,args = o.parse_args(sys.argv[1:])
 
 afreqs = n.load(args[0])['afreqs']
-aa = a.cal.get_aa(opts.cal, afreqs)
 srctimes,srcfluxes,x,y,z = C.jcp.read_srcnpz(args, verbose=True)
 for src in srcfluxes: srcfluxes[src] = n.mean(srcfluxes[src], axis=1)
 
 srcs = srctimes.keys()
-srclist, cutoff, catalogs = a.scripting.parse_srcs(','.join(srcs), opts.cat)
-cat = a.cal.get_catalog(opts.cal,srclist)
-cat.compute(aa)
 
-_coeffs = beamuv.coeffs_from_file(opts.beam)
-beam = beamuv.BeamUV(_coeffs,.150,size=500)
+if opts.beam.endswith('npz'):
+    import beamuv
+    _coeffs = beamuv.coeffs_from_file(opts.beam)
+    beam = beamuv.BeamUV(_coeffs,.150,size=500)
+    response = lambda x,y,z: beam.response(x,y,z)**2
+else:
+    h = a.map.Map(fromfits=opts.beam)
+    h.set_interpol(True)
+    response = lambda x,y,z: h[x,y,z]
 
 newflux = {}
-#x,y,z, = {},{},{}
 
 for k in srcs:
-    #for t in srctimes[k]:
-    #    aa.set_jultime(t)
-    #    cat[k].compute(aa)
-    #    xi,yi,zi = cat[k].get_crds('top')
-    #    x[k] = x.get(k,[]) + [xi]
-    #    y[k] = y.get(k,[]) + [yi]
-    #    z[k] = z.get(k,[]) + [zi]
-    #x[k],y[k],z[k] = n.array(x[k]), n.array(y[k]), n.array(z[k])
-    # XXX Could put possibility of hmap here instead of beam...
-    beamtrack = beam.response(x[k], y[k], z[k])**2
+    beamtrack = response(x[k], y[k], z[k])
     newflux[k] = n.abs(n.sum(beamtrack*srcfluxes[k])/n.sum(beamtrack**2))
     if not opts.outfile:
         import pylab as p
@@ -50,13 +39,9 @@ for k in srcs:
         p.semilogy(srctimes[k], srcfluxes[k])
 
 fluxes = n.array([newflux[k] for k in srcs])
-npzfluxes = n.log10(fluxes)
 
-
-#print 'Saving source info to', opts.outfile+'.npz'
-#n.savez(opts.outfile+'.npz',srcnames=srcs,srcfluxes=npzfluxes)
-for src,flx in zip(srcs,npzfluxes):
-    print 'flux', src, 10**flx
+for src,flx in zip(srcs,fluxes):
+    print 'flux', src, flx
 
 if not opts.outfile:
     p.show()

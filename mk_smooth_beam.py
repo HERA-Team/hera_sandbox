@@ -3,16 +3,12 @@
 import aipy as a, numpy as n, sys, optparse
 
 o = optparse.OptionParser()
-o.set_usage('mk_smooth_beam.py [options] mapfile')
-o.set_description(__doc__)
 o.add_option('--tol', dest='tol', type='float', default=1.e-5,
     help="Tolerance for clean.  Default is 1e-5.")
 o.add_option('--nmodes', dest='nmodes',type='int',default=6,
     help="Number of CLEAN components to use in the smooth reconstruction.")
 o.add_option('--savefits', dest='savefits', action='store_true',
     help="Save the smooth beam as a HEALPix fits file.")
-o.add_option('-m','--maxwgt',dest='maxwgt',type='float',default=1e6,
-    help="Maximum weight in the deconvolution kernel.")
 o.add_option('-o','--outfile',dest='outfile',type='string',default='output.npz',
     help="Name of the smooth beam coefficient npz file.")
 opts,args = o.parse_args(sys.argv[1:])
@@ -56,9 +52,9 @@ if False:
 outname = filename.replace('.fits','_sm.fits')
 npzname = filename.replace('.fits','_sm.npz')
 outfile = a.map.Map(h.nside())
-xx,yy,zz = x.compressed(),y.compressed(),z.compressed()
+x,y,z = x.compressed(),y.compressed(),z.compressed()
 hbeam = n.ma.array(beam,mask=x.mask).compressed()
-outfile.add((xx,yy,zz),1,hbeam)
+outfile.add((x,y,z),1,hbeam)
 
 print 'Saving smooth beam to', outname
 outfile.to_fits(outname,clobber=True)
