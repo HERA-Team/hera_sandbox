@@ -52,8 +52,8 @@ if False:
 outname = filename.replace('.fits','_sm.fits')
 npzname = filename.replace('.fits','_sm.npz')
 outfile = a.map.Map(h.nside())
-x,y,z = x.compressed(),y.compressed(),z.compressed()
 hbeam = n.ma.array(beam,mask=x.mask).compressed()
+x,y,z = x.compressed(),y.compressed(),z.compressed()
 outfile.add((x,y,z),1,hbeam)
 
 print 'Saving smooth beam to', outname
