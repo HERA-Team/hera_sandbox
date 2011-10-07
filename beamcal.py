@@ -40,6 +40,7 @@ for k in srcs:
     bm.add(px, wgt, flx)
     src_bmtrk[k] = (bm.map.map.copy(), bm.wgt.map.copy())
     bm.map.map *= 0; bm.wgt.map *= 0
+    # XXX currently, this doesn't find self-crossing points
     sum_src += n.where(src_bmtrk[k][1] > 0, 1., 0)
 
 crossing_pixels = n.where(sum_src > 1)[0]
@@ -54,7 +55,7 @@ for j, src in enumerate(srcs):
         mp,wt = src_bmtrk[src]
         if wt[px] == 0: continue  # skip if crossing point isn't in this source track
         m,w = mp[px], wt[px]
-        logm, logw = n.log10(m/w), m**2 * w
+        logm, logw = n.log10(m/w), (m/w)**2 * w
         Aline = n.zeros(len(srcs) + crossing_pixels.size, dtype=n.float)
         Aline[j],Aline[i] = logw, logw
         A.append(Aline)
