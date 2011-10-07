@@ -67,8 +67,9 @@ Aline[j] = logw
 A.append(Aline)
 M.append(logm * logw)
     
-print 'Solving equation (M = A*B) for B...'
-B = n.linalg.lstsq(n.array(A),n.array(M))[0]
+A = n.array(A)
+print 'Solving equation (M = A*B) for B: inverting %s matrix' % str(A.shape)
+B = n.linalg.lstsq(A,n.array(M))[0]
 src_fluxes = 10**B[:len(srcs)]
 bm_resps = 10**B[len(srcs):]
 
@@ -83,8 +84,8 @@ outmap,outwgt = 0,0
 for src,flx in zip(srcs, src_fluxes):
     print 'flux', src, flx
     mp,wt = src_bmtrk[src]
-    outmap += mp * flx
-    outwgt += wt * flx**2
+    outmap += mp * (wt * flx)
+    outwgt += (wt * flx)**2
 
 bm.map.map, bm.wgt.map = outmap, outwgt
 print 'Saving source-tracks beam to', outnameb

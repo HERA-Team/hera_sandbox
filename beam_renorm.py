@@ -25,8 +25,8 @@ if opts.beam.endswith('npz'):
     response = lambda x,y,z: beam.response(x,y,z)**2
 else:
     h = a.map.Map(fromfits=opts.beam)
-    #h.set_interpol(True)
-    h.set_interpol(False)
+    h.set_interpol(True)
+    #h.set_interpol(False)
     response = lambda x,y,z: h[x,y,z]
 
 newflux = {}
