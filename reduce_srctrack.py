@@ -24,5 +24,7 @@ for filename in args:
         y.append(yi)
         z.append(zi)
     x,y,z = n.array(x), n.array(y), n.array(z)
-    n.savez('_'+filename, x=x, y=y, z=z, **npz)
+    dict = {}
+    for file in npz.files: dict[file] = npz[file]
+    n.savez('_'+filename, x=x, y=y, z=z, **dict)
 

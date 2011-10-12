@@ -15,8 +15,9 @@ class BeamUV(a.phs.Beam):
         center = size/2
         offset = _coeffs.shape[0]/2
         _beam = n.zeros((size,size))
+        print _beam[center-offset:center+offset+1,center-offset:center+offset+1].shape
         _beam[center-offset:center+offset+1,center-offset:center+offset+1] = _coeffs
-        beam = n.fft.ifft2(a.img.recenter(_beam,(center,center)))*(_beam.size)
+        beam = n.fft.ifft2(_beam)*(_beam.size)
         if pol == 'x':
             beam = n.rot90(beam)
         self.im = n.sqrt(n.abs(beam))
@@ -62,10 +63,11 @@ class BeamUV(a.phs.Beam):
         h_l,h_m = (self.size*h_l*self.res)+(self.size/2),(self.size*h_m*self.res)+(self.size/2)
         p.plot(h_l,h_m,color='k')
     def _show_(self,power=False):
+        im = a.img.recenter(self.im,(-self.size/2,-self.size/2))
         if power==True:
-            p.imshow(self.im**2,extent=[0,self.size,0,self.size],interpolation='nearest')
+            p.imshow(im**2,extent=[0,self.size,0,self.size],interpolation='nearest')
         else:
-            p.imshow(self.im,extent=[0,self.size,0,self.size],interpolation='nearest')
+            p.imshow(im,extent=[0,self.size,0,self.size],interpolation='nearest')
         self._plot_horizon_()
         p.colorbar(shrink=0.5)
     def showtrack(self,c1,c2,c3=None):

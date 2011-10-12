@@ -3,7 +3,7 @@ import aipy as a, numpy as n, sys, optparse#, pickle
 import capo as C
 
 o = optparse.OptionParser()
-o.add_option('--nside', dest='nside', type='int', default=32,
+o.add_option('--nside', dest='nside', type='int', default=64,
     help='NSIDE parameter for HEALPix map of beam.')
 o.add_option('--no_interp', dest='no_interp', action='store_true',
     help='Do not use sub-pixel interpolation when gridding sources.')

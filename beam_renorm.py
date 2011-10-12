@@ -21,7 +21,7 @@ srcs = srctimes.keys()
 if opts.beam.endswith('npz'):
     import beamuv
     _coeffs = beamuv.coeffs_from_file(opts.beam)
-    beam = beamuv.BeamUV(_coeffs,.150,size=500)
+    beam = beamuv.BeamUV(_coeffs,.150,size=1000)
     response = lambda x,y,z: beam.response(x,y,z)**2
 else:
     h = a.map.Map(fromfits=opts.beam)
