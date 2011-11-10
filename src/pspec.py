@@ -68,7 +68,7 @@ def k3pk_sense_vs_t(t, k=.3, fq=.150, B=.001, bm_poly=DEFAULT_BEAM_POLY, Tsys=50
 
 # Misc helper functions
 def uv2bin(u,v,lst,uv_res=UV_RES, lst_res=LST_RES):
-    return (int(n.around(u / uv_res) + 4096) * 8192 + int(n.around(v / uv_res) + 4096)) * 8192 + lst/lst_res
+    return (int(n.around(u / uv_res) + 4096) * 8192 + int(n.around(v / uv_res) + 4096)) * 8192 + int(n.around(lst/lst_res))
 def bin2uv(bin, uv_res=UV_RES, lst_res=LST_RES):
     bin = int(bin)
     v = ((bin/8192) % 8192 - 4096) * float(uv_res)
