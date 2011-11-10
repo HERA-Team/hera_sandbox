@@ -13,18 +13,20 @@ import aipy as a, numpy as n, sqlite3 as sql
 
 
 class CAPO_dB():
-    def __init__(self):
-        self.conn = sql.connect('paper_test1.db')
+    def __init__(self,filename='paper_test1.db'):
+        self.conn = sql.connect(filename)
         self.conn.row_factory = sql.Row
         self.c = self.conn.cursor()
         try: self.c.execute('''create table aa (ant int, bp_r blob, amp  real, 
-                             phsoff text, x real, y real, z real, bp_i text)''')
+                             phsoff text, x real, y real, z real, bp_i text,
+                             dly real,off real)''')
         except: pass #the db already exists or something I don't know what is wrong.
         self.c.close()
         self.aa_db_params = ['ant','bp_r','bp_i','amp','phsoff','x','y','z']
 class AntennaArray(a.fit.AntennaArray,CAPO_dB):
     def __init__(self,location,ants,**kwargs):
-        CAPO_dB.__init__(self)
+        if kwargs.has_key('filename'): CAPO_dB.__init__(self,filename=kwargs['filename'])
+        else: CAPO_dB.__init__(self)
         a.fit.AntennaArray.__init__(self, location,ants,**kwargs)
         #initialize antennae using existing table entries
         if kwargs.has_key('beam'): beam = kwargs['beam']
@@ -37,7 +39,14 @@ class AntennaArray(a.fit.AntennaArray,CAPO_dB):
            for db_row in self.c:
               self.ants.append(Antenna(0,0,0,beam,db_row=db_row,
               db_desc=self.c.description))
-              
+    def clear(self):
+        """
+        Delete _all_ entries in a table.  Use with trepidation.
+        """
+        c = self.conn.cursor()
+        c.execute("DELETE FROM aa")
+        c.close()
+                        
     def save(self):
         """
         Saves parameters returned by get_params()
