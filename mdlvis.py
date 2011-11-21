@@ -66,8 +66,10 @@ if len(args) > 0:
     del(uv)
 else:
     aa = a.cal.get_aa(opts.cal, opts.sdf, opts.sfreq, opts.nchan)
+    print a.scripting.parse_ants(opts.ant,len(aa.ants))
+    ants = dict([A[:-1] for A in a.scripting.parse_ants(opts.ant,len(aa.ants))])
     no_data = n.zeros(opts.nchan, dtype=n.complex64)
-    no_flags = n.zeros(opts.nchan, dtype=n.int32)
+    no_flags = n.zeros_like(no_data)
 
 # Generate a model of the sky with point sources and a pixel map
 
@@ -117,7 +119,6 @@ curtime = None
 def mdl(uv, p, d, f):
     global curtime, eqs
     uvw, t, (i,j) = p
-    if i == j: return p, d, f
     if curtime != t:
         curtime = t
         aa.set_jultime(t)
@@ -141,6 +142,13 @@ def mdl(uv, p, d, f):
         aa.sim_cache(eqs, flx, mfreqs=mfq, 
             ionrefs=(dras,ddecs), srcshapes=(a1s,a2s,ths))
     sd = aa.sim(i, j, pol=a.miriad.pol2str[uv['pol']])
+    if opts.noiselev != 0:
+        # Add on some noise for a more# realistic experience
+        noise_amp = n.random.normal(size=sd.shape) * opts.noiselev
+        noise_phs = n.random.random(size=sd.shape) * 2*n.pi * 1j
+        noise = noise_amp * n.exp(noise_phs)    
+    #if i == j and opts.noiselev !=0: return p, n.ma.array(n.ones_like(sd))*opts.noiselev, f
+    #elif i==j and opts.noiselev ==0: return p,d,f
     if opts.mode.startswith('sim'):
         d = sd
         if not opts.flag: f = no_flags
@@ -150,12 +158,12 @@ def mdl(uv, p, d, f):
         d += sd
     else:
         raise ValueError('Mode "%s" not supported.' % opts.mode)
-    if opts.noiselev != 0:
+    if opts.noiselev != 0 and i!=j:
+        #print i,j,'N = ',n.sqrt(n.mean(n.abs(d)**2))
         # Add on some noise for a more realistic experience
-        noise_amp = n.random.random(d.shape) * opts.noiselev
-        noise_phs = n.random.random(d.shape) * 2*n.pi * 1j
-        noise = noise_amp * n.exp(noise_phs)
-        d += noise * aa.passband(i, j)
+        d += noise * aa.passband(i, j,pol)
+    elif opts.noiselev !=0 and  i==j:
+        d += n.ones_like(noise) * opts.noiselev * aa.passband(i,j,pol)*n.sqrt(uv['inttime']*uv['sdf']*1e9)
     if not opts.sim_flags is None:
         f = n.where(n.random.uniform(0,1,size=len(f))>opts.sim_flags,False,True)
     return p, n.where(f, 0, d), f
@@ -235,6 +243,9 @@ else:
         uv['obsra'] = aa.sidereal_time()
         for i,ai in enumerate(aa):
             for j,aj in enumerate(aa):
+                try: 
+                    if ants[a.miriad.ij2bl(i,j)]<0:continue
+                except(KeyError):continue
                 try: i,j = ai.num,aj.num
                 except(AttributeError): pass
                 if j < i: continue
