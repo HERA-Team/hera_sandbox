@@ -14,8 +14,11 @@ o = optparse.OptionParser()
 #a.scripting.add_standard_options(o, cal=True)
 o.add_option('--add',type=str,
     help="Add variables to be applied across the board. ie --add mfreq:0.15,seq:100")
+o.add_option('-d',type=str,default='\t',
+    help="Delimeter [default=\\t]")
 opts, args = o.parse_args(sys.argv[1:])
-
+if opts.d is '': opts.d = None
+print 'Seperator between colons :%s:'%opts.d
 types = {'ra':str,'dec':str,'name':str,'npix':int,'_ra':float,'_dec':float,
 's_nu_':float,'s_nu_int_':float,'dr':float}
 ucds = {"pos.eq.ra;meta.main":'_Ra',
@@ -29,10 +32,25 @@ ucds = {"pos.eq.ra;meta.main":'_Ra',
 ucds = dict(zip(ucds.values(),ucds.keys()))
 for file in args:
     lines = open(file).readlines()
-    names = [s.strip() for s in lines[0][1:].split('\t')]
+    lines = [l for l in lines if not l.startswith('#')]
+    names = [s.strip() for s in lines[0].split()]
+    lines = lines[1:]
+    print "columns:",names
     t = atpy.Table()
+    print [len(s.split(opts.d)) for s in lines]
     for i,name in enumerate(names):
-        col = [s.split('\t')[i].strip() for s in lines if not s.startswith('#')]
+        try:
+            col =  [s.split(opts.d)[i].strip() for s in lines]
+#        col = [s.split('\t')[i].strip() for s in lines]
+        except(IndexError):
+            #Column is "irregular" flag column, 
+            #this kinda sucks and only works for the last column
+            col = []
+            for l in lines:
+                l = l.split()
+                if len(names)== len(l):
+                    col.append(l[i].strip())
+                else: col.append('')
         try: 
             float(col[0])
             tipe = '<f8'
@@ -43,6 +61,7 @@ for file in args:
         else: ucd=None
         t.add_column(name,col,dtype=tipe,ucd=ucd)
         if name.lower()=='ra':
+            print col[0]
             t.add_column('_Ra',[e.hours(s)*180/n.pi for s in col],dtype='<f8',ucd="pos.eq.ra;meta.main")    
         if name.lower()=='dec':
             t.add_column('_Dec',[e.degrees(s)*180/n.pi for s in col],dtype='<f8',ucd="pos.eq.dec;meta.main")    
