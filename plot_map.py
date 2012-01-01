@@ -6,7 +6,7 @@ in a *.fits file.
 Author: Aaron Parsons
 """
 
-import aipy as a, numpy as n, pylab as p, sys, os, ephem, optparse
+import aipy as a, numpy as n, sys, os, ephem, optparse
 import matplotlib as mpl
 
 class Basemap:
@@ -117,8 +117,12 @@ o.add_option('--blank',type='float',
     help="A flux threshold, below which will be blanked. default=None. [Jys]")
 o.add_option('--facecolor',type='str',
     help='Input to the figure command. see help for pylab.figure. Default=None')
+o.add_option('--highquality',type=float,default=None,
+    help='Pair with outfile option to generate a matched resolution image')
 opts,args = o.parse_args(sys.argv[1:])
-
+#if not opts.highquality is None:
+#    mpl.use('Agg')
+import pylab as p
 cmap = p.get_cmap(opts.cmap)
 if opts.cen is None:
     if opts.osys == 'eq': opts.cen = '12_0'
@@ -181,10 +185,22 @@ m1 = n.int(n.floor(len(args)/m2))
 if m2*m1<len(args):
     m2 += 1
     print "m2 +1"
+figopts = {}
+print opts.outfile,opts.highquality
+if not opts.outfile=='' and not opts.highquality is None:
+    imres = opts.res/opts.highquality
+    DIM = 360/imres
+    printdpi = 1200/4
+    figopts['figsize'] = (n.round(DIM/printdpi),n.round(DIM/printdpi/2))
+    figopts['dpi'] = printdpi
+    print """WARNING: Generating a high quality image.
+                    Image resolution: %5.2f arcmin (at projection center)
+                    Image print size ~ %d inches (at %d dpi)
+                    Image pixel count: %g"""%(imres*60,figopts['figsize'][0],printdpi,DIM**2/2)
 if not opts.facecolor is None:
-    p.figure(facecolor=opts.facecolor)
+    p.figure(facecolor=opts.facecolor,**figopts)
 else:
-    p.figure()
+    p.figure(**figopts)
 for i,file in enumerate(args):
     print 'Reading %s' % file
     h = a.map.Map(fromfits=file)
@@ -306,7 +322,7 @@ for i,file in enumerate(args):
         print data.shape
         data = n.fliplr(data)
         print data.shape
-    else: map.imshow(data, vmax=max, vmin=min, cmap=cmap,interpolation=opts.interp)
+    map.imshow(data, vmax=max, vmin=min, cmap=cmap,interpolation=opts.interp)
     ax.format_coord = format_coord
     # Plot src labels and markers on top of map image
     if not opts.src is None:
