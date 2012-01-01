@@ -24,6 +24,15 @@ o.add_option('--useflagversion',default=None,type='str',
     help='Version of flags to use [None]')
 o.add_option('--minsnr',default=2,type='float',
     help='SNR threshold for calibration solution (see minsnr in CASA bandpass)')
+o.add_option('--applyfit',action='store_true',
+    help='Actually apply the fitted bandpass. By default, just calculates the delays implied by the solution')
+o.add_option('--nsrcs',type='int',default=5,
+    help="""Number of sources to include. Proxy for flux cut, but that depends where you are looking in the sky. You
+    could do this in the srcs option, but that takes thinking. Default=5""")
+o.add_option('--fov',type='float',default=75,
+    help="""Radius in degrees to search for calibrator sources. Default = 75 """)
+o.add_option('--antenna',type='str',default='',
+    help="""Antenna string. See selection criteria in casa user manual. default = '' """)
 #o.add_option('--scratch',default=None,type='str',
 #    help='Directory to use as scratch for imaging. Use to avoid NFS lock errors. Default=None')
 #clean off the casa args:
@@ -42,7 +51,9 @@ fconfig = n.array(opts.fconfig.split('_')).astype(n.float)
 #aipycalfile = 'psa455_sim'
 aipycalfile = opts.cal#calfile
 skymodelcatalogs = opts.cat.split(',')#['misc','three_cr']#['culgoora_160']
-ants = '!24'
+#ants = '!24'
+ants = opts.antenna
+print ants
 solint='10min'
 uvrange='>20lambda'
 fstart  =   fconfig[0]#120
@@ -119,14 +130,22 @@ for msfile in args:
     ms.open(msfile)
     rec = ms.getdata(['time'])
     t = n.median(rec['time'])
-    ms.close()
     print "median time: MJD [s], JD [d]"
     print t,MJDs2JD(t)
     aa.set_jultime(MJDs2JD(t))
+
+
+    #find the spectral axis 
+    rec = ms.getdata(['axis_info'])
+    df,f0 = (rec['axis_info']['freq_axis']['resolution'][0],rec['axis_info']['freq_axis']['chan_freq'][0])
+    print "spectral axis: df [kHz], f0 [MHz]"
+    print df/1.e3,f0/1.e6
+    
+    ms.close()
     
     use_src = ['pic']#,'144']
     print "Choosing a cal source(s)"
-    use_src = findcalsrcs(aa,cat,Nsrcs=5,altmin=25)
+    use_src = findcalsrcs(aa,cat,Nsrcs=opts.nsrcs,altmin=(90-opts.fov))
     print "Using",','.join(use_src)
     
     
@@ -152,6 +171,7 @@ for msfile in args:
                         positionangle = '0deg',
     #                    flux = [f,0.,0.,0.],
                         flux = f,
+                        polarization='stokes',
                         freq = qa.quantity(160.,'MHz'),
                         spectrumtype = 'spectral index',
                         index = s.index,
@@ -161,7 +181,51 @@ for msfile in args:
         os.system('rm -rf %s'%cl_name)
     cl.rename(cl_name)
     cl.close()
+   
+    ################################
+    #   Make an image of the model #
+    ################################
+    print "using "
+    print "vis = ",vis
+    print "cl  = ",cl_name
+    ms.open(vis)
     
+    
+    rec = ms.getdata(['axis_info'])
+    df,f0 = (rec['axis_info']['freq_axis']['resolution'][0],rec['axis_info']['freq_axis']['chan_freq'][0])
+    print "spectral axis: df [kHz], f0 [MHz]"
+    print df/1.e3,f0/1.e6
+        
+    
+    modelimage = cl_name+'.im'
+    print "See %s for model image"%(modelimage)
+    cl.done()
+    cl.open(cl_name)
+    ia.fromshape(modelimage,[2000,2000,1,1],overwrite=True)
+    ia.setrestoringbeam(major='3arcmin',minor='3arcmin',pa='0deg')
+    cs=ia.coordsys()
+    cs.setunits(['rad','rad','','Hz'])
+    cell_rad=qa.convert(qa.quantity("3arcmin"),"rad")['value']
+    cs.setincrement([-cell_rad,cell_rad],'direction')
+    cs.setreferencevalue([ms.summary()['header']['field_0']['direction']['m1']['value'],
+                        ms.summary()['header']['field_0']['direction']['m0']['value']],
+                        type="direction")
+    cs.setreferencevalue('%fMHz'%(f0/1e6),'spectral')
+    cs.setincrement('%fkHz'%(df/1e3),'spectral')
+    ia.setcoordsys(cs.torecord())
+    ia.setbrightnessunit("Jy/beam")
+    #ia.modify(cl.torecord(),subtract=False)
+    for i in range(cl.length()):
+        print "adding component ",cl.getcomponent(i)['label']
+        sys.stdout.flush()
+        ia.modify({'component0':cl.getcomponent(i),'nelements':1},subtract=False)
+    exportfits(imagename=modelimage,fitsimage=modelimage[:-3]+'.fits',overwrite=True)
+    print "and ",modelimage[:-3]+'.fits'
+    ms.close()
+    print "done"
+
+
+    ################################
     #print "clearcal";flush()
     #clearcal()
     #Make the model
@@ -229,7 +293,7 @@ for msfile in args:
             phasemodel = n.poly1d(P)
             pl.figure(10)
             pl.plot(F,phasemodel(F/1e3),color=l.get_color())
-            if apply_cal:
+            if apply_cal and opts.applyfit:
 #                G[0,:,i] = n.abs(G[0,:,i])*n.exp(1j*phasemodel(F/1e3))
                 G[0,:,i] = ampmodel(F/1e3)*n.exp(1j*phasemodel(F/1e3))
             dlylog.write('%d \t'%i)#output the index
