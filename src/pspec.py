@@ -1,5 +1,6 @@
 '''Units in mK, GHz, Mpc unless stated otherwise'''
 import numpy as n, aipy as a
+import pfb
 
 F21 = 1.42040575177 # GHz
 LST_RES = 2*n.pi/24
@@ -61,7 +62,7 @@ def jy2T(f, bm_poly=DEFAULT_BEAM_POLY):
 def k3pk_from_Trms(Trms, k=.3, fq=.150, B=.001, bm_poly=DEFAULT_BEAM_POLY):
     z = f2z(fq)
     bm = n.polyval(bm_poly, fq)
-    return X2Y(z) * bm * B * k**3 / (2*n.pi**2) * Trms**2
+    return X2Y(z) * bm * B * k**3 / (2*n.pi**2) * n.abs(Trms)**2
 def k3pk_sense_vs_t(t, k=.3, fq=.150, B=.001, bm_poly=DEFAULT_BEAM_POLY, Tsys=500e3):
     Trms = Tsys / n.sqrt(2*(B*1e9)*t)
     return k3pk_from_Trms(Trms, k=k, fq=fq, B=B, bm_poly=bm_poly)
@@ -144,6 +145,30 @@ def _circ(x, y, r, p, thresh):
     return rv
 def ring(dim, r_inner, r_outer, thresh=.4):
     return circ(dim, r_outer, thresh=thresh) - circ(dim, r_inner, thresh=thresh)
+
+def Trms_vs_fq(fqs, jy_spec, umag150=20., B=.008, cen_fqs=None, ntaps=3, 
+        window='kaiser3', bm_poly=DEFAULT_BEAM_POLY):
+    dfq = fqs[1] - fqs[0]
+    dCH = int(n.around(B / dfq))
+    if cen_fqs is None: cen_fqs = n.arange(fqs[0]+dCH*dfq*ntaps/2, fqs[-1]-dCH*dfq, dCH*dfq)
+    Tspec = jy_spec * jy2T(fqs, bm_poly=bm_poly)
+    Trms, ks = {}, {}
+    for fq0 in cen_fqs:
+        z = f2z(fq0)
+        umag_fq0 = umag150 * (fq0 / .150)
+        k_pr = dk_du(z) * umag_fq0
+        ch0 = n.argmin(n.abs(fqs-fq0))
+        ch1,ch2 = ch0-dCH/2, ch0+dCH/2
+        _fqs = fqs[ch1:ch2]
+        etas = f2eta(_fqs)
+        k_pl = dk_deta(z) * etas
+        _ks = n.sqrt(k_pr**2 + k_pl**2)
+        V = Tspec[ch1-ntaps/2*(ch2-ch1):ch2+(ntaps-1)/2*(ch2-ch1)]
+        _Trms = pfb.pfb(V, taps=ntaps, window=window, fft=n.fft.ifft)
+        # Trms has both the primary beam and bandwidth divided out, matching Trms in Parsons et al. (2012).
+        Trms[fq0], ks[fq0] = _Trms, (_ks, k_pl, k_pr)
+    return Trms, ks
+    
 
 def Trms2_vs_umag(uvs, bms, umag_px, uv_bm_area=2., umin=4., umax=200., logstep=.1):
     ubins = 10**n.arange(n.log10(umin), n.log10(umax), logstep)
