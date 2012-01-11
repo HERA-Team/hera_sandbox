@@ -59,13 +59,22 @@ def jy2T(f, bm_poly=DEFAULT_BEAM_POLY):
     lam = a.const.c / (f * 1e9)
     bm = n.polyval(bm_poly, f)
     return 1e-23 * lam**2 / (2 * a.const.k * bm) * 1e3
-def k3pk_from_Trms(Trms, k=.3, fq=.150, B=.001, bm_poly=DEFAULT_BEAM_POLY):
+def k3pk_from_Trms(list_of_Trms, list_of_Twgt, k=.3, fq=.150, B=.001, bm_poly=DEFAULT_BEAM_POLY):
     z = f2z(fq)
     bm = n.polyval(bm_poly, fq)
-    return X2Y(z) * bm * B * k**3 / (2*n.pi**2) * n.abs(Trms)**2
+    scalar = X2Y(z) * bm * B * k**3 / (2*n.pi**2)
+    Trms2_sum, Trms2_wgt = 0, 0
+    if len(list_of_Trms) == 1: Trms2_sum,Trms2_wgt = n.abs(list_of_Trms[0])**2, n.abs(list_of_Twgt[0])**2
+    else:
+        for i,(Ta,Wa) in enumerate(zip(list_of_Trms, list_of_Twgt)):
+            for Tb,Wb in zip(list_of_Trms[i+1:], list_of_Twgt[i+1:]):
+                Trms2_sum += Ta * n.conj(Tb)
+                Trms2_wgt += Wa * n.conj(Wb)
+    return scalar * Trms2_sum / Trms2_wgt, Trms2_wgt
 def k3pk_sense_vs_t(t, k=.3, fq=.150, B=.001, bm_poly=DEFAULT_BEAM_POLY, Tsys=500e3):
-    Trms = Tsys / n.sqrt(2*(B*1e9)*t)
-    return k3pk_from_Trms(Trms, k=k, fq=fq, B=B, bm_poly=bm_poly)
+    #Trms = Tsys / n.sqrt(2*(B*1e9)*t)
+    Trms = Tsys / n.sqrt((B*1e9)*t)
+    return k3pk_from_Trms([Trms], [1.], k=k, fq=fq, B=B, bm_poly=bm_poly)
 
 # Misc helper functions
 def uv2bin(u,v,lst,uv_res=UV_RES, lst_res=LST_RES):
@@ -76,14 +85,14 @@ def bin2uv(bin, uv_res=UV_RES, lst_res=LST_RES):
     u = (bin / 8192**2 - 4096) * float(uv_res)
     lst = (bin % 8192) * float(lst_res)
     return u,v, lst
-def rebin_log(x, y, nbins=10):
-    '''For y=f(x), bin x into log_10 bins, and average y over
+def rebin_log(x, y, bin=10):
+    '''For y=f(x), bin x into log_e bins, and average y over
     these bin sizes.'''
-    logx = n.log10(n.abs(x))
-    hist1,bins = n.histogram(logx, bins=nbins, weights=y)
-    hist2,bins = n.histogram(logx, bins=nbins)
+    logx = n.log(n.abs(x))
+    hist1,bins = n.histogram(logx, bins=bin, weights=y)
+    hist2,bins = n.histogram(logx, bins=bin)
     logx = .5 * (bins[1:] + bins[:-1])
-    return 10**logx, hist1 / n.where(hist2 == 0, 1., hist2)
+    return n.e**logx, hist1 / n.where(hist2 == 0, 1., hist2)
 def f2eta(f):
     '''Convert an array of frequencies to an array of etas (freq^-1) 
     corresponding to the bins that an FFT generates.'''
@@ -147,11 +156,12 @@ def ring(dim, r_inner, r_outer, thresh=.4):
     return circ(dim, r_outer, thresh=thresh) - circ(dim, r_inner, thresh=thresh)
 
 def Trms_vs_fq(fqs, jy_spec, umag150=20., B=.008, cen_fqs=None, ntaps=3, 
-        window='kaiser3', bm_poly=DEFAULT_BEAM_POLY):
+        window='kaiser3', bm_poly=DEFAULT_BEAM_POLY, bm_fqs=None):
+    if bm_fqs is None: bm_fqs = fqs
     dfq = fqs[1] - fqs[0]
     dCH = int(n.around(B / dfq))
     if cen_fqs is None: cen_fqs = n.arange(fqs[0]+dCH*dfq*ntaps/2, fqs[-1]-dCH*dfq, dCH*dfq)
-    Tspec = jy_spec * jy2T(fqs, bm_poly=bm_poly)
+    Tspec = jy_spec * jy2T(bm_fqs, bm_poly=bm_poly)
     Trms, ks = {}, {}
     for fq0 in cen_fqs:
         z = f2z(fq0)
