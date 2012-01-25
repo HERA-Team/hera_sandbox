@@ -192,7 +192,9 @@ for msfile in args:
     
     
     rec = ms.getdata(['axis_info'])
-    df,f0 = (rec['axis_info']['freq_axis']['resolution'][0],rec['axis_info']['freq_axis']['chan_freq'][0])
+    df,F = (rec['axis_info']['freq_axis']['resolution'][0],rec['axis_info']['freq_axis']['chan_freq'])
+    f0 = F[0]
+    F /= 1e6
     print "spectral axis: df [kHz], f0 [MHz]"
     print df/1.e3,f0/1.e6
         
@@ -268,7 +270,7 @@ for msfile in args:
         tb.open(cal_name,nomodify=False)
         G = tb.getcol('GAIN')
         M = tb.getcol('FLAG')
-        F = n.linspace(fstart,fstop,num=G.shape[1])
+        #F = n.linspace(fstart,fstop,num=G.shape[1])
         n.savez(cal_name,G=G[0,:,:],freq=F,mask=M.squeeze())
         lines = []
         #for each spectrum compute a linear delay model
