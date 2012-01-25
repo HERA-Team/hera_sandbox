@@ -23,7 +23,7 @@ a.scripting.add_standard_options(o,src=True)
 #    help='Snapshot mode.  Fits parameters separately for each integration.')
 opts, args = o.parse_args(sys.argv[1:])
 
-
+lsts = []
 def update_pos(c):
     date=ephem.J2000
     for s in c.keys():
@@ -56,7 +56,10 @@ for file in args:
     uv = a.miriad.UV(file)
     if opts.corr_plot:
         cmat = n.zeros([uv['nants']]*2)
+    lsts.append([])
     for (uvw,t,(i,j)),d in uv.all():
+        aa.set_jultime(t)
+        lsts[-1].append(aa.sidereal_time())
         if about['tmin']==0 or t<about['tmin']: about['tmin'] = t
         if about['tmax']==0 or t>about['tmax']: about['tmax'] = t
         if c_time != t:
@@ -102,3 +105,9 @@ for file in args:
     if opts.corr_plot: 
         p.matshow(n.log10(cmat))
 #        p.show()
+lsts = n.diff(n.array(lsts),axis=1)
+for i in range(lsts.shape[1]):
+    for j in range(lsts.shape[0]):
+        print "%4.2e"%lsts[j,i],
+    print 
+print lsts.shape

@@ -13,7 +13,7 @@ import sys, optparse,ephem,datetime
 o = optparse.OptionParser()
 o.set_usage('cube_crop.py --crop <degrees> *.fits')
 #a.scripting.add_standard_options(o, cal=True)
-o.add_option('--crop',dest='crop',default=70,
+o.add_option('--crop',dest='crop',default=70,type=float,
     help='Width of square central crop region, 0 to skip, default=70.')
 opts, args = o.parse_args(sys.argv[1:])
 
@@ -36,12 +36,16 @@ for file in args:
     print file + ' > ' + out_file
     c,kwrd = a.img.from_fits(file)
     pic_res = (n.abs(kwrd['d_ra']) + n.abs(kwrd['d_dec']))/2 
-    cen = n.array(c.shape)[:2]/2
+    cen = n.round(n.array(c.shape).astype(float)[:2]/2)
+    print "image center at pixels",kwrd
     hw = round(opts.crop/pic_res/2)
+    print "extracting central %d pixels"%hw
     cnrs = n.vstack([cen,cen])                              #corner matrix 
     cnrs += n.vstack([[-hw,-hw],[hw,hw]])                   #crnrs[0,:]=blc=[y,x]
-                                                            #crnrs[1,:]=trc=[y,x]
+    print "with corners ",cnrs                              #crnrs[1,:]=trc=[y,x]
+    print "input shape:",c.shape
     cc = c[cnrs[0,0]:cnrs[1,0],cnrs[0,1]:cnrs[1,1]]     #crop
+    print "output shape:",cc.shape
     history = "Cropped to central %3.1f degrees"%(opts.crop,)
     kwrd['object'] = 'J'+hname(kwrd['ra'])+dname(kwrd['dec'])
     a.img.from_fits_to_fits(file,out_file,cc,kwrd)
