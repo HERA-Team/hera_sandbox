@@ -192,7 +192,7 @@ for msfile in args:
     
     
     rec = ms.getdata(['axis_info'])
-    df,F = (rec['axis_info']['freq_axis']['resolution'][0],rec['axis_info']['freq_axis']['chan_freq'])
+    df,F = (rec['axis_info']['freq_axis']['resolution'][0],rec['axis_info']['freq_axis']['chan_freq'].squeeze())
     f0 = F[0]
     F /= 1e6
     print "spectral axis: df [kHz], f0 [MHz]"
@@ -285,7 +285,7 @@ for msfile in args:
             if rank<2: P,res = [0,0],n.array([0.0])
 #            print len(P),P[1],res.squeeze(),rank,cond,sv
             print "Ant: %d,\t Delay [ns]: %3.2f,\t Phase res [r]: %3.2f, \t Amp [Jys/count] %3.2f"%\
-            (i,P[1],res.squeeze()/(G.shape[1]-rank),ampmodel(.150));flush()
+            (i,P[1]/(2*n.pi),res.squeeze()/(G.shape[1]-rank),ampmodel(.150));flush()
             pl.figure(10)
             l = pl.plot(F,n.ma.masked_where(M[0,:,i],n.unwrap(n.angle(G[0,:,i]),discont=2.6)),label=str(i))[0]
             pl.figure(11)
