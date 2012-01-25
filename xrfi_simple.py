@@ -35,7 +35,11 @@ for uvfile in args:
     if os.path.exists(uvofile):
         print uvofile, 'exists, skipping.'
         continue
-    uvi = a.miriad.UV(uvfile)
+    try:
+        uvi = a.miriad.UV(uvfile)
+    except(RuntimeError):
+        print uvfile, 'broken, skipping'
+        continue
 #    uvi.select('auto', -1, -1, include=False)
     # Gather all data and each time step
     data,mask,times = {}, {}, []
