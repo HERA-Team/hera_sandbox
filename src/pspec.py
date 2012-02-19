@@ -74,7 +74,7 @@ def k3pk_from_Trms(list_of_Trms, list_of_Twgt, k=.3, fq=.150, B=.001, bm_poly=DE
 def k3pk_sense_vs_t(t, k=.3, fq=.150, B=.001, bm_poly=DEFAULT_BEAM_POLY, Tsys=500e3):
     #Trms = Tsys / n.sqrt(2*(B*1e9)*t)
     Trms = Tsys / n.sqrt((B*1e9)*t)
-    return k3pk_from_Trms([Trms], [1.], k=k, fq=fq, B=B, bm_poly=bm_poly)
+    return k3pk_from_Trms([Trms], [1.], k=k, fq=fq, B=B, bm_poly=bm_poly)[0]
 
 # Misc helper functions
 def uv2bin(u,v,lst,uv_res=UV_RES, lst_res=LST_RES):
@@ -174,7 +174,11 @@ def Trms_vs_fq(fqs, jy_spec, umag150=20., B=.008, cen_fqs=None, ntaps=3,
         k_pl = dk_deta(z) * etas
         _ks = n.sqrt(k_pr**2 + k_pl**2)
         V = Tspec[ch1-ntaps/2*(ch2-ch1):ch2+(ntaps-1)/2*(ch2-ch1)]
-        _Trms = pfb.pfb(V, taps=ntaps, window=window, fft=n.fft.ifft)
+        if ntaps <= 1:
+            w = a.dsp.gen_window(V.size, window=window)
+            _Trms = n.fft.ifft(V*w)
+        else:
+            _Trms = pfb.pfb(V, taps=ntaps, window=window, fft=n.fft.ifft)
         # Trms has both the primary beam and bandwidth divided out, matching Trms in Parsons et al. (2012).
         Trms[fq0], ks[fq0] = _Trms, (_ks, k_pl, k_pr)
     return Trms, ks
