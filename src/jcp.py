@@ -1,31 +1,37 @@
 import os, numpy as n, pylab as p, aipy as a
 
 def read_srcnpz(npzfiles, verbose=False, with_xyz=True):
-    times, fluxes, x,y,z = {}, {}, {},{},{}
+    times, fluxes, wgts, x,y,z = {}, {}, {}, {},{},{}
     for npz in npzfiles:
         if verbose: print 'Reading', npz
+        f = open(npz)
         src = os.path.basename(npz).split('__')[0]
-        try: npz = n.load(npz)
+        try: npz = n.load(f)
         except:
             print 'Load file failed'
             continue
-        try: valid = n.logical_not(npz['mask'])
-        except: valid = n.ones_like(npz['times'])
-        times[src] = times.get(src,[]) + [n.compress(valid, npz['times'])]
-        fluxes[src] = fluxes.get(src,[]) + [n.compress(valid, npz['spec'], axis=0)]
+        try: wgt = npz['wgts']
+        except(KeyError):
+            try: wgt = n.logical_not(npz['mask'])
+            except(KeyError): wgt = n.ones_like(npz['times'])
+        times[src] = times.get(src,[]) + [npz['times']]
+        fluxes[src] = fluxes.get(src,[]) + [npz['spec']]
+        wgts[src] = wgts.get(src,[]) + [wgt]
         if with_xyz:
-            x[src] = x.get(src,[]) + [n.compress(valid, npz['x'])]
-            y[src] = y.get(src,[]) + [n.compress(valid, npz['y'])]
-            z[src] = z.get(src,[]) + [n.compress(valid, npz['z'])]
+            x[src] = x.get(src,[]) + [npz['x']]
+            y[src] = y.get(src,[]) + [npz['y']]
+            z[src] = z.get(src,[]) + [npz['z']]
+        f.close()
     for src in times:
         times[src] = n.concatenate(times[src])
         fluxes[src] = n.concatenate(fluxes[src])
+        wgts[src] = n.concatenate(wgts[src])
         if with_xyz:
             x[src] = n.concatenate(x[src])
             y[src] = n.concatenate(y[src])
             z[src] = n.concatenate(z[src])
-    if with_xyz: return times, fluxes, x, y, z
-    else: return times, fluxes
+    if with_xyz: return times, fluxes, wgts, x, y, z
+    else: return times, fluxes, wgts
 
 def plot_hpx(hpx, mode='log', pol='x', mx=None, drng=2, interpolation=False, 
         colorbar=False, nogrid=False):
