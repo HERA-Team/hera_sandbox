@@ -13,10 +13,16 @@ o.add_option('--fluxcal',dest='fluxcal',default='cyg,10622.92',
     help='The source,flux to use for calibration.  Default is "cyg,10622.92"')
 opts,args = o.parse_args(sys.argv[1:])
 
-afreqs = n.load(args[0])['afreqs']
-srctimes,srctracks,x,y,z = C.jcp.read_srcnpz(args, verbose=True)
-for src in srctracks: srctracks[src] = n.mean(srctracks[src], axis=1)
+afreqs = n.load(args[0])['freq']
+srctimes,srcfluxes,srcwgts,x,y,z = C.jcp.read_srcnpz(args, verbose=True)
 srcs = srctimes.keys()
+if False:
+    bigsrcs = []
+    for s in srcs:
+        peak = n.abs(n.max(srcfluxes[s]) / n.max(srcwgts[s]))
+        if peak > 20: bigsrcs.append(s)
+    srcs = bigsrcs
+    print srcs
 
 bm = a.map.Map(opts.nside,interp=True)
 
@@ -28,15 +34,15 @@ src_bmtrk = {}
 sum_src = 0
 for k in srcs:
     xk,yk,zk = n.concatenate([x[k],-x[k]]), n.concatenate([y[k],-y[k]]), n.concatenate([z[k],z[k]])
-    flx = n.concatenate([srctracks[k], srctracks[k]])
+    flx = n.concatenate([srcfluxes[k], srcfluxes[k]])
+    wgt = n.concatenate([srcwgts[k], srcwgts[k]])
     if opts.no_interp:
-        px,wgt = bm.crd2px(xk,yk,zk, interpolate=False), n.ones_like(xk)
+        px = bm.crd2px(xk,yk,zk, interpolate=False)
     else:
-        px,wgt = bm.crd2px(xk,yk,zk, interpolate=True)
-        px,wgt = px.flatten(), wgt.flatten()
+        px,_wgt = bm.crd2px(xk,yk,zk, interpolate=True)
+        px,_wgt = px.flatten(), _wgt.flatten()
         flx = n.array([flx,flx,flx,flx]).transpose().flatten()
-        #valid = n.where(wgt < .1, 0, 1)
-        #px,wgt,flx = px.compress(valid), wgt.compress(valid), flx.compress(valid)
+        wgt = n.array([wgt,wgt,wgt,wgt]).transpose().flatten() * _wgt
     bm.add(px, wgt, flx)
     src_bmtrk[k] = (bm.map.map.copy(), bm.wgt.map.copy())
     bm.map.map *= 0; bm.wgt.map *= 0
@@ -55,6 +61,7 @@ for j, src in enumerate(srcs):
         mp,wt = src_bmtrk[src]
         if wt[px] == 0: continue  # skip if crossing point isn't in this source track
         m,w = mp[px], wt[px]
+        if m <= 0: continue # skip if source measurement is negative (logrithm explodes).  This will bias answer
         logm, logw = n.log10(m/w), (m/w)**2 * w
         Aline = n.zeros(len(srcs) + crossing_pixels.size, dtype=n.float)
         Aline[j],Aline[i] = logw, logw
