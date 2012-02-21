@@ -16,11 +16,11 @@ opts,args = o.parse_args(sys.argv[1:])
 afreqs = n.load(args[0])['freq']
 srctimes,srcfluxes,srcwgts,x,y,z = C.jcp.read_srcnpz(args, verbose=True)
 srcs = srctimes.keys()
-if False:
+if True:
     bigsrcs = []
     for s in srcs:
         peak = n.abs(n.max(srcfluxes[s]) / n.max(srcwgts[s]))
-        if peak > 20: bigsrcs.append(s)
+        if peak > 25: bigsrcs.append(s)
     srcs = bigsrcs
     print srcs
 
@@ -34,6 +34,7 @@ src_bmtrk = {}
 sum_src = 0
 for k in srcs:
     xk,yk,zk = n.concatenate([x[k],-x[k]]), n.concatenate([y[k],-y[k]]), n.concatenate([z[k],z[k]])
+    # XXX Should throw away a hemisphere here for efficiency (must get the same answer top/bottom)
     flx = n.concatenate([srcfluxes[k], srcfluxes[k]])
     wgt = n.concatenate([srcwgts[k], srcwgts[k]])
     if opts.no_interp:
@@ -50,6 +51,7 @@ for k in srcs:
     sum_src += n.where(src_bmtrk[k][1] > 0, 1., 0)
 
 crossing_pixels = n.where(sum_src > 1)[0]
+print 'Solving for %d crossing pixels' % crossing_pixels.size
 
 # Creating matrices for least-squares inversion
 # B matrix is parameter values (beam pixels, source fluxes) to solve for
