@@ -54,7 +54,7 @@ for srcname in cat:
                 src.compute(aa)
                 xi,yi,zi = src.get_crds('top')
             if src.alt < opts.altmin * a.img.deg2rad: continue
-            x.append(xi); y.append(yi); z.append(zi)
+            #x.append(xi); y.append(yi); z.append(zi)
             times.append(t)
             d,w = d.take(chans), n.logical_not(f.take(chans)).astype(n.int)
             if opts.addsrc:
@@ -63,7 +63,7 @@ for srcname in cat:
             spec.append(n.sum(d))
             wgts.append(n.sum(w))
     
-    x,y,z = n.array(x), n.array(y), n.array(z)
+    #x,y,z = n.array(x), n.array(y), n.array(z)
     spec,wgts = n.array(spec), n.array(wgts)
     times = n.array(times)
     plot(times,spec/wgts,label=srcname)
