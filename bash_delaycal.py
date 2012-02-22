@@ -33,6 +33,8 @@ o.add_option('--fov',type='float',default=75,
     help="""Radius in degrees to search for calibrator sources. Default = 75 """)
 o.add_option('--antenna',type='str',default='',
     help="""Antenna string. See selection criteria in casa user manual. default = '' """)
+o.add_option('--refant',default='',type=str,
+    help="Reference antenna for phase cal")
 #o.add_option('--scratch',default=None,type='str',
 #    help='Directory to use as scratch for imaging. Use to avoid NFS lock errors. Default=None')
 #clean off the casa args:
@@ -164,6 +166,8 @@ for msfile in args:
         print 'width =',w,'arcmin'
         print '='*50
         flush()
+        try: ind = s.index[0]
+        except(TypeError): ind = s.index
         cl.addcomponent(dir = aipysrc2dir(cat[src]),
                         shape = 'Gaussian',
                         majoraxis = '%2.0farcmin'%w,
@@ -174,7 +178,7 @@ for msfile in args:
                         polarization='stokes',
                         freq = qa.quantity(160.,'MHz'),
                         spectrumtype = 'spectral index',
-                        index = s.index,
+                        index = ind,
                         label = src )
     if os.path.exists(cl_name):
         print "overwriting %s"%cl_name;flush()
@@ -192,7 +196,9 @@ for msfile in args:
     
     
     rec = ms.getdata(['axis_info'])
-    df,f0 = (rec['axis_info']['freq_axis']['resolution'][0],rec['axis_info']['freq_axis']['chan_freq'][0])
+    df,F = (rec['axis_info']['freq_axis']['resolution'][0],rec['axis_info']['freq_axis']['chan_freq'].squeeze())
+    f0 = F[0]
+    F /= 1e6
     print "spectral axis: df [kHz], f0 [MHz]"
     print df/1.e3,f0/1.e6
         
@@ -251,6 +257,7 @@ for msfile in args:
         bandpass(vis=msfile,
                 caltable=cal_name,
                 spw=spw,
+                refant=opts.refant,
                 selectdata=True,
                 timerange='',
                 scan='',
@@ -268,7 +275,7 @@ for msfile in args:
         tb.open(cal_name,nomodify=False)
         G = tb.getcol('GAIN')
         M = tb.getcol('FLAG')
-        F = n.linspace(fstart,fstop,num=G.shape[1])
+        #F = n.linspace(fstart,fstop,num=G.shape[1])
         n.savez(cal_name,G=G[0,:,:],freq=F,mask=M.squeeze())
         lines = []
         #for each spectrum compute a linear delay model
@@ -283,7 +290,7 @@ for msfile in args:
             if rank<2: P,res = [0,0],n.array([0.0])
 #            print len(P),P[1],res.squeeze(),rank,cond,sv
             print "Ant: %d,\t Delay [ns]: %3.2f,\t Phase res [r]: %3.2f, \t Amp [Jys/count] %3.2f"%\
-            (i,P[1],res.squeeze()/(G.shape[1]-rank),ampmodel(.150));flush()
+            (i,P[1]/(2*n.pi),res.squeeze()/(G.shape[1]-rank),ampmodel(.150));flush()
             pl.figure(10)
             l = pl.plot(F,n.ma.masked_where(M[0,:,i],n.unwrap(n.angle(G[0,:,i]),discont=2.6)),label=str(i))[0]
             pl.figure(11)
