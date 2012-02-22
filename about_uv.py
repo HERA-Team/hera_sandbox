@@ -18,6 +18,8 @@ o.set_usage("""about_uv.py [files]
 Print a nice summary about a uv file""")
 o.add_option('--corr_plot',action='store_true',
     help='Plot a cross-correlation matrix for the first time.')
+o.add_option('--print_lst_bins',action='store_true',
+    help='Print a list of the lst bins in the file [experimental]')
 a.scripting.add_standard_options(o,src=True)
 #o.add_option('--snap', dest='snap', action='store_true',
 #    help='Snapshot mode.  Fits parameters separately for each integration.')
@@ -105,9 +107,10 @@ for file in args:
     if opts.corr_plot: 
         p.matshow(n.log10(cmat))
 #        p.show()
-lsts = n.diff(n.array(lsts),axis=1)
-for i in range(lsts.shape[1]):
-    for j in range(lsts.shape[0]):
-        print "%4.2e"%lsts[j,i],
-    print 
-print lsts.shape
+if opts.print_lst_bins:
+    lsts = n.diff(n.array(lsts),axis=1)
+    for i in range(lsts.shape[1]):
+        for j in range(lsts.shape[0]):
+            print "%4.2e"%lsts[j,i],
+        print 
+    print lsts.shape
