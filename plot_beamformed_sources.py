@@ -66,7 +66,7 @@ for srcname in cat:
     x,y,z = n.array(x), n.array(y), n.array(z)
     spec,wgts = n.array(spec), n.array(wgts)
     times = n.array(times)
-    plot(times,n.mean(spec,axis=1),label=srcname)
+    plot(times,spec/wgts,label=srcname)
     draw()
 show()
 #afreqs = aa.get_afreqs()
