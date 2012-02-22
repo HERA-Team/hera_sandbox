@@ -3,7 +3,7 @@ import aipy as a, numpy as n
 import optparse, sys, os
 
 o = optparse.OptionParser()
-a.scripting.add_standard_options(o, ant=True, pol=True, cal=True, src=True)
+a.scripting.add_standard_options(o, ant=True, pol=True, cal=True, src=True, dec=True)
 o.add_option('-b', '--beam', dest='beam', action='store_true',
     help='Normalize by the primary beam response in the direction of the specified source.')
 o.add_option('-f', '--srcflux', dest='srcflux', action='store_true',
@@ -30,6 +30,7 @@ for filename in args:
     print '    Summing baselines...'
     uvi = a.miriad.UV(filename)
     a.scripting.uv_selector(uvi, ants, opts.pol)
+    uvi.select('decimate', opts.decimate, opts.decphs)
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
         if t != curtime:
             curtime = t
@@ -40,7 +41,6 @@ for filename in args:
                 s_eq = cat.get_crds('eq', ncrd=3)
                 aa.sim_cache(s_eq)
         try:
-            oldd = n.copy(d)
             d = aa.phs2src(d, src, i, j)
             u,v,w = aa.gen_uvw(i, j, src)
             tooshort = n.where(n.sqrt(u**2+v**2) < opts.minuv, 1, 0).squeeze()
@@ -56,8 +56,8 @@ for filename in args:
         except(a.phs.PointingError): d *= 0
         dbuf[t] = dbuf.get(t, 0) + n.where(f, 0, d)
         cbuf[t] = cbuf.get(t, 0) + n.logical_not(f).astype(n.int)
-    
     uvi.rewind()
+
     print '    Writing output file'
     curtime = None
     def mfunc(uv, p, d, f):
@@ -68,8 +68,6 @@ for filename in args:
             cnt = cbuf[t].clip(1,n.Inf)
             f = n.where(cbuf[t] == 0, 1, 0)
             d = dbuf[t] / cnt
-            print t,d
-            sys.exit()
             return (uvw,t,(i,j)), d, f
         else: return (uvw,t,(1,1)), None, None
         
