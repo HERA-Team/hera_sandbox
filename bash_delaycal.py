@@ -33,6 +33,8 @@ o.add_option('--fov',type='float',default=75,
     help="""Radius in degrees to search for calibrator sources. Default = 75 """)
 o.add_option('--antenna',type='str',default='',
     help="""Antenna string. See selection criteria in casa user manual. default = '' """)
+o.add_option('--refant',default='',type=str,
+    help="Reference antenna for phase cal")
 #o.add_option('--scratch',default=None,type='str',
 #    help='Directory to use as scratch for imaging. Use to avoid NFS lock errors. Default=None')
 #clean off the casa args:
@@ -164,6 +166,8 @@ for msfile in args:
         print 'width =',w,'arcmin'
         print '='*50
         flush()
+        try: ind = s.index[0]
+        except(TypeError): ind = s.index
         cl.addcomponent(dir = aipysrc2dir(cat[src]),
                         shape = 'Gaussian',
                         majoraxis = '%2.0farcmin'%w,
@@ -174,7 +178,7 @@ for msfile in args:
                         polarization='stokes',
                         freq = qa.quantity(160.,'MHz'),
                         spectrumtype = 'spectral index',
-                        index = s.index,
+                        index = ind,
                         label = src )
     if os.path.exists(cl_name):
         print "overwriting %s"%cl_name;flush()
@@ -253,6 +257,7 @@ for msfile in args:
         bandpass(vis=msfile,
                 caltable=cal_name,
                 spw=spw,
+                refant=opts.refant,
                 selectdata=True,
                 timerange='',
                 scan='',
