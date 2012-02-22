@@ -68,6 +68,7 @@ for srcname in cat:
     times = n.array(times)
     plot(times,spec/wgts,label=srcname)
     draw()
+legend()
 show()
 #afreqs = aa.get_afreqs()
 ##npzfile = src.src_name + '_spec.npz'
