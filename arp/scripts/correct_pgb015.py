@@ -21,6 +21,7 @@ def parse_gom_line(line, filename):
     else:
         date = tstr2jd(' '.join(fields[:2]))
         temps = map(float, fields[2:])
+    print date
     return [date] + temps
 
 def grid_jd(jds, temps, binsize=120):
@@ -100,6 +101,7 @@ if opts.tempdir != None:
     #p.show()
         
 
+histline = ' '.join([s for s in sys.argv if not s in args])
 for filename in args:
     print filename, '->', filename+'c'
     if os.path.exists(filename+'c'):
@@ -128,15 +130,21 @@ for filename in args:
             global curtime, uvo
             (crd, t, (i,j)) = p
             if curtime != t:
-                curtime = t
                 b = int(n.floor((t - bins[0]) / (bins[1] - bins[0])))
+                if curtime is None and n.isnan(T_r[b]):
+                    # If this is the first integration in file, find the closest bin that works
+                    b_off = 1
+                    while n.isnan(T_r[b-b_off]) and n.isnan(T_r[b+b_off]):
+                        b_off += 1
+                    if not n.isnan(T_r[b-b_off]): b -= b_off
+                    else: b += b_off
                 if not n.isnan(T_r[b]): uvo['t_recvr'] = T_r[b]
                 if not n.isnan(T_c[b]): uvo['t_cable'] = T_c[b]
                 if not n.isnan(T_b[b]): uvo['t_balun'] = T_b[b]
                 if not n.isnan(T_l[b]): uvo['t_load']  = T_l[b]
+                curtime = t
             return _mfunc(uv, p, d, f)
     else: mfunc = _mfunc
-    uvo.pipe(uvi, mfunc=mfunc, raw=True,
-        append2hist='Relabeled as 16 ants, conjugated, trimmed freqs\nRemoved antennas %s\nIncorporated temp data from %s\n' % (str(skip_ants), opts.tempdir))
+    uvo.pipe(uvi, mfunc=mfunc, raw=True, append2hist=histline+' %s\n' % filename)
     del(uvo)
 
