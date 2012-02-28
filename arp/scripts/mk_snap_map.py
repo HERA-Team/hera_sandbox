@@ -1,4 +1,4 @@
-#!/usr/global/paper/bin/python
+#!/usr/bin/env python
 """
 This is a general-purpose script for making faceted, spherical maps (stored in
 Healpix FITS format) from individual "flat" maps stored in FITS files.

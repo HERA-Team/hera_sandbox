@@ -3,7 +3,7 @@ import aipy as a, numpy as n
 import optparse, sys, os
 
 o = optparse.OptionParser()
-a.scripting.add_standard_options(o, ant=True, pol=True, cal=True, src=True)
+a.scripting.add_standard_options(o, ant=True, pol=True, cal=True, src=True, dec=True)
 o.add_option('-b', '--beam', dest='beam', action='store_true',
     help='Normalize by the primary beam response in the direction of the specified source.')
 o.add_option('-f', '--srcflux', dest='srcflux', action='store_true',
@@ -30,6 +30,7 @@ for filename in args:
     print '    Summing baselines...'
     uvi = a.miriad.UV(filename)
     a.scripting.uv_selector(uvi, ants, opts.pol)
+    uvi.select('decimate', opts.decimate, opts.decphs)
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
         if t != curtime:
             curtime = t

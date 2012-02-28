@@ -18,7 +18,7 @@ for ch in $MYCHS ; do
     echo Working on channels: $ch
     FMT_FILE=${CAL}_c${ch}_
     FMT=${FMT_FILE}%04d
-    #mk_img.py -p $POL -a $ANTS -C $CAL -c $ch --fmt=${FMT} --size=$SZ --res=$RES -o dim,dbm --altmin=$ALTMIN --minuv=$MINUV $*
+    mk_img.py -p $POL -a $ANTS -C $CAL -c $ch --fmt=${FMT} --size=$SZ --res=$RES -o dim,dbm --altmin=$ALTMIN --minuv=$MINUV $*
     cl_img.py -d cln --maxiter=500 --div --tol=1e-7 -r radial -o bim ${FMT_FILE}*.d[ib]m.fits
     mk_map.py --nside=$NSIDE -m ${FMT_FILE}bmap.fits ${FMT_FILE}*.bim.fits
     #mk_map.py --nside=$NSIDE -m ${FMT_FILE}rmap.fits ${FMT_FILE}*.rim.fits

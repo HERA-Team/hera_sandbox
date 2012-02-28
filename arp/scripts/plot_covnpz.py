@@ -2,93 +2,207 @@
 import numpy as n, pylab as p, sys, aipy as a
 import optparse
 
+EXP_NOISE = 1.
+
+try:
+    import fftw3
+    print 'Using FFTW FFT'
+    _fftw3_dat, _fftw3_fwd, _fftw3_rev = None, None, None
+    def fft2(d):
+        global _fftw3_fwd, _fftw3_dat
+        if _fftw3_fwd is None:
+            if _fftw3_dat is None: _fftw3_dat = n.zeros(d.shape, dtype=n.complex)
+            _fftw3_fwd = fftw3.Plan(_fftw3_dat, None, direction='forward', flags=['measure'])
+        _fftw3_dat[:] = d
+        _fftw3_fwd()
+        return _fftw3_dat
+    def ifft2(d):
+        global _fftw3_rev, _fftw3_dat
+        if _fftw3_rev is None:
+            if _fftw3_dat is None: _fftw3_dat = n.zeros(d.shape, dtype=n.complex)
+            _fftw3_rev = fftw3.Plan(_fftw3_dat, None, direction='backward', flags=['measure'])
+        _fftw3_dat[:] = d
+        _fftw3_rev()
+        return _fftw3_dat
+except(ImportError):
+    print 'Using numpy FFT'
+    fft2, ifft2 = n.fft.fft2, n.fft.ifft2
+
 colors = 'kbrgcmy'
 
 o = optparse.OptionParser()
-a.scripting.add_standard_options(o, cal=True)
+a.scripting.add_standard_options(o, cal=True, pol=True)
+o.add_option('-d', '--dw', dest='dw', type=int, default=5,
+    help='The number of delay bins to null. If -1, uses baseline lengths to generate a sky-pass filter.')
+o.add_option('-r', '--drw', dest='drw', type=int, default=5,
+    help='The number of delay-rate bins to null. If -1, uses baseline lengths to generate a sky-pass filter.')
+o.add_option('-q', '--quality', dest='quality', default=0., help='Cutoff for plotting a source.')
 opts, args = o.parse_args(sys.argv[1:])
 
 p.rcParams['legend.fontsize'] = 6
 
+def gen_filter(shape, dw, drw, ratio=.25):
+    filter = n.ones(shape)
+    x1,x2 = drw, -drw
+    if x2 == 0: x2 = shape[0]
+    y1,y2 = dw, -dw
+    if y2 == 0: y2 = shape[1]
+    filter[x1+1:x2,0] = 0
+    filter[0,y1+1:y2] = 0
+    filter[1:,1:] = 0
+    x,y = n.indices(shape).astype(n.float)
+    x -= shape[0]/2
+    y -= shape[1]/2
+    r2 = (x/(ratio*drw+.5))**2 + (y/(ratio*dw+.5))**2
+    r2 = a.img.recenter(r2, (shape[0]/2, shape[1]/2))
+    filter += n.where(r2 <= 1, 1, 0)
+    return filter.clip(0,1)
+
 filegroups = {}
-for filename in args:
+for cnt, filename in enumerate(args):
     basefile = filename.split('__')[0]
     filegroups[basefile] = filegroups.get(basefile, []) + [filename]
-srcdata, caldata, srctimes = {}, {}, {}
-for basefile in filegroups.keys():
-    for filename in filegroups[basefile]:
-        f = n.load(filename)
-        if filename.find('srctimes') != -1:
-            for src in f.files: srctimes[src] = srctimes.get(src,[]) + [f[src]]
-        elif filename.find('srcfreqs') != -1:
+srcdata, srctimes = {}, {}
+basefiles = filegroups.keys(); basefiles.sort()
+for basefile in basefiles:
+    filenames = filegroups[basefile]; filenames.sort(); filenames.reverse()
+    srcs = {}
+    for filename in filenames:
+        fwords = filename[:-len('.npz')].split('__')
+        print filename
+        try: f = n.load(filename)
+        except:
+            print '    Load file failed'
+            continue
+        if fwords[1] == 'info':
+            times = f['times']
             afreqs = f['freqs']
-        elif filename.find('srcdata') != -1:
-            for src in f.files: srcdata[src] = srcdata.get(src,[]) + [f[src]]
-        elif filename.find('caldata') != -1:
-            for src in f.files: caldata[src] = caldata.get(src,[]) + [f[src]]
-for src in srcdata:
-    srctimes[src] = n.concatenate(srctimes[src], axis=0)
-    srcdata[src] = n.concatenate(srcdata[src], axis=0)
-    caldata[src] = n.concatenate(caldata[src], axis=0)
-srckeys = srcdata.keys()
-srckeys.sort()
-if opts.cal != None: cat = a.cal.get_catalog(opts.cal, srckeys)
+            scores = f['scores']
+            SHAPE = times.shape + afreqs.shape
+            filter = gen_filter(SHAPE, opts.dw, opts.drw)
+            filter_take = n.where(filter)
+            def from_coeffs(c):
+                d = n.zeros(SHAPE, dtype=n.complex)
+                d[filter_take] = c
+                return fft2(d) / d.size
+        else:
+            k = fwords[1]
+            srcs[k] = {}
+            for i in f.files: srcs[k][int(i)] = f[i]
+    best_score = scores.min()
+    argclose = n.where(scores < best_score + 2*EXP_NOISE)[0]
+    print len(argclose)
+    print 'Using Score:', best_score
+    srcant = {}
+    for k in srcs:
+        print k
+        srcant[k] = {}
+        for i in srcs[k]:
+            _ant, _wgt = 0, 0
+            for iter in argclose:
+                w = n.exp((best_score - scores[iter]) / EXP_NOISE)
+                _wgt += w
+                _ant += from_coeffs(srcs[k][i][iter]) * w
+            srcant[k][i] = _ant / _wgt
+        if not srcdata.has_key(k): srcdata[k] = {}
+        d = {}
+        for i in srcant.get(k,{}):
+          for j in srcant.get(k,{}):
+            if j <= i: continue
+            ai = srcant[k][i]
+            aj = srcant[k][j]
+            d[a.miriad.ij2bl(i,j)] = ai * n.conj(aj)
+        flag = False
+        for bl in d:
+            srcdata[k][bl] = srcdata[k].get(bl,[]) + [d[bl]]
+            flag = True
+        if flag: srctimes[k] = srctimes.get(k,[]) + [times]
+for k in srcdata:
+    srctimes[k] = n.concatenate(srctimes[k], axis=0)
+    for bl in srcdata[k]:
+        srcdata[k][bl] = n.concatenate(srcdata[k][bl], axis=0)
+srcs = srcdata.keys(); srcs.sort()
+if opts.cal != None:
+    srclist = []
+    for src in srcs:
+        radec = src.split('_')
+        if len(radec) == 2:
+            src = a.phs.RadioFixedBody(ra=radec[0], dec=radec[1], name=src)
+        srclist.append(src)
+    cat = a.cal.get_catalog(opts.cal, srclist)
+    aa = a.cal.get_aa(opts.cal, afreqs)
 else: cat = {}
-corr = []
-for src in srckeys:
-    srcdata[src] = n.array(srcdata[src]).real.clip(.1,n.Inf)
-    caldata[src] = n.array(caldata[src])
-    if True:
-        c = n.average((srcdata[src] - n.average(srcdata[src])) * (caldata[src] - n.average(caldata[src]))) / n.std(srcdata[src]) / n.std(caldata[src])
-    else: c = 1
-    corr.append(c)
-corr = n.array(corr)
-order = n.argsort(corr)
-if cat.has_key('cyg'):
-    cat['cyg'].update_jys(afreqs)
-    o = srckeys.index('cyg')
-    flux = n.sum(srcdata['cyg']*caldata['cyg'], axis=0) / n.sum(caldata['cyg']**2, axis=0)
-    norm = cat['cyg'].jys / flux
-else: norm = 1.
-print norm
-for i, o in enumerate(order):
-    src = srckeys[o]
-    c = corr[o]
-    clr = colors[i%len(colors)]
-    #if c < .1: continue
-    #if c < .65: continue
-    if src not in ['cyg','cas','crab','vir','Sun']: continue
-    p.subplot(211)
-    #srcdata[src][:,1:-1] /= n.sqrt(srcdata[src][:,2:] * srcdata[src][:,:-2])
-    #p.semilogy(srctimes[src], n.std(srcdata[src][:,1:-1], axis=1), ',', label=src)
-    #srcdata[src][1:-1] -= .5*(srcdata[src][2:]+srcdata[src][:-2])
-    #p.semilogy(srctimes[src][1:-1], n.abs(n.median(srcdata[src][1:-1], axis=1)), ',', label=src)
-    p.semilogy(srctimes[src], n.median(srcdata[src], axis=1), clr+',', label=src)
+
+if 'cyg' in srcs: srcs = ['cyg'] + srcs
+norm=1
+for cnt, k in enumerate(srcs):
+    d,w = 0.,0.
+    for bl in srcdata[k]:
+        d += srcdata[k][bl]
+        w += n.where(srcdata[k][bl] == 0, 0, 1)
+    #d /= w.clip(1,n.Inf)
+    t = srctimes[k]
+    #order = n.argsort(t)
+    #d,t = d.take(order, axis=0), t.take(order)
+    #I = 1
+    #shape = (int(t.shape[0]/I), I)
+    #ints = shape[0] * shape[1]
+    #d,t = d[:ints], t[:ints]
+    #d.shape,t.shape = shape + d.shape[1:], shape
+    #d,t = n.average(d, axis=1), n.average(t, axis=1)
+    d *= norm
+
+    # Calculate beam response
+    bm = []
+    lsts = []
+    for jd in t:
+        aa.set_jultime(jd)
+        lsts.append(aa.sidereal_time())
+        cat[k].compute(aa)
+        bm.append(aa[0].bm_response(cat[k].get_crds('top'), pol=opts.pol)**2)
+    bm = n.array(bm).squeeze()
+    #spec = n.sum(d*bm, axis=0)/n.sum(bm**2, axis=0)
+    d_bm = n.sum(d*bm, axis=0)
+    w_bm = n.sum(w*bm**2, axis=0)
+    spec = d_bm / n.where(w_bm == 0, 1, w_bm)
+    dsum = n.sum(n.abs(d), axis=1)
+    wsum = n.sum(w, axis=1)
+    vs_time = dsum / n.where(wsum == 0, 1, wsum)
+    #bsum = n.sum(n.abs(cat[k].get_jys()*w*bm), axis=1)
+    #bsum = n.sum(n.abs(w*bm), axis=1)
+    bsum = n.sum(n.abs(100*(afreqs/.150)**-1*w*bm), axis=1)
+    bm_vs_time = bsum / n.where(wsum == 0, 1, wsum)
+    if cnt == 0 and k == 'cyg':
+        norm = cat['cyg'].jys / n.where(spec == 0, 1, spec)
+        norm.shape = (1,norm.size)
+        continue
+    valid = n.where(spec != 0, 1, 0)
+    ind, flx = n.polyfit(n.log10(afreqs.compress(valid)/.150), n.log10(spec.compress(valid)), deg=1)
+    
+    d, w, bm = d.flatten(), w.flatten(), bm.flatten()
+    valid = n.where(w == 0, 0, 1)
+    d, bm = d.compress(valid), bm.compress(valid)
+    q = n.average((d-n.average(d))*(bm - n.average(bm))) / n.std(d) / n.std(bm)
+    #q = n.median((d-n.median(d))*(bm - n.median(bm))) / n.std(d) / n.std(bm)
+    print '%25s: FLX=%6.1f IND=%+4.2f Q=%+4.2f' % (k, 10**flx, n.round(ind,2), n.round(q,2))
+    #d /= bm
+    #_f = flx[1:-1] - .5 * (flx[2:] + flx[:-2])
+    #q = n.sum(n.abs(_f)) / n.sum(n.abs(flx[1:-1]))
+    if q < opts.quality: continue
+    color = colors[cnt%len(colors)]
+    #p.subplot(211)
+    #p.semilogy(t, n.average(n.abs(d), axis=1), color+',', label=k)
+    p.semilogy(lsts, vs_time, color+',', label=k)
+    #p.semilogy(lsts, bm_vs_time, color+'-', label=k)
     p.ylim(.1,1e5)
-    p.xlim(0, 2*n.pi)
-    p.subplot(212)
-    flux = n.sum(srcdata[src]*caldata[src], axis=0) / n.sum(caldata[src]**2, axis=0) * norm
-    srcpoly = n.polyfit(n.log10(afreqs), n.log10(flux), deg=1)
-    print src, srcpoly
-    if cat.has_key(src):
-        cat[src].update_jys(afreqs)
-        p.loglog(afreqs, cat[src].jys, clr+'-.')
-    p.loglog(afreqs, 10**n.polyval(srcpoly, n.log10(afreqs)), clr+':')
-    p.loglog(afreqs, flux, clr, label=src)
-    p.xlim(.100, .200)
-    #if False:
-    #    nullsig = n.std(srcdata[src])
-    #    sig = n.std(srcdata[src] - flux*caldata[src])
-    #else:
-    #    wgts = caldata[src]**2 / n.sum(caldata[src]**2)
-    #    nullavg = n.sum(srcdata[src] * wgts)
-    #    nullsig = n.sqrt(n.sum((srcdata[src] - nullavg)**2 * wgts))
-    #    sig = n.sqrt(n.sum((srcdata[src] - flux*caldata[src])**2 * wgts))
-    #print '%25s: flux=%7.1f (%6.1f), cor=%4.2f, gof=%4.2f' % ( src, flux, sig, c, 1-sig/nullsig)
-    #p.loglog(flux*n.median(caldata[src], axis=1), n.median(n.real(srcdata[src]), axis=1), ',', label=src)
-#p.loglog(10**n.arange(-2,5,.01), 10**n.arange(-2,5,.01), 'k:')
-#p.xlim(1e-2,1e5)
-#p.ylim(1e-2,1e5)
-p.legend(loc='best')
+
+    #p.subplot(212)
+    #p.loglog(afreqs, spec, color+',', label=k)
+    #p.loglog(afreqs, 10**n.polyval([ind,flx], n.log10(afreqs/.150)), color+'-', label=k)
+    #p.xlim(afreqs[0], afreqs[-1])
+    #p.ylim(10,1e5)
+
+#p.subplot(211)
+#p.legend(loc='best')
 p.show()
 
