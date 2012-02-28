@@ -14,19 +14,21 @@ def mfunc(uv, p, d, f):
     global dat, cnt, tbuf
     crd,t,(i,j) = p
     bl = a.miriad.ij2bl(i,j)
-    if not dat.has_key(bl):
-        dat[bl] = 0; cnt[bl] = 0; tbuf[bl] = []
-    dat[bl] += n.where(f,0,d)
-    cnt[bl] += n.logical_not(f).astype(n.int)
-    tbuf[bl].append(t)
-    if len(tbuf[bl]) == opts.nint:
-        f = n.where(cnt[bl] > opts.nint/2, 0, 1)
-        d = n.where(f, 0, dat[bl]/cnt[bl])
-        t = n.average(tbuf[bl])
+    pol = uv['pol']
+    if not dat.has_key(pol):
+        dat[pol], cnt[pol], tbuf[pol] = {}, {}, {}
+    if not dat[pol].has_key(bl):
+        dat[pol][bl] = 0; cnt[pol][bl] = 0; tbuf[pol][bl] = []
+    dat[pol][bl] += n.where(f,0,d)
+    cnt[pol][bl] += n.logical_not(f).astype(n.int)
+    tbuf[pol][bl].append(t)
+    if len(tbuf[pol][bl]) == opts.nint:
+        f = n.where(cnt[pol][bl] > opts.nint/2, 0, 1)
+        d = n.where(f, 0, dat[pol][bl]/cnt[pol][bl])
+        t = n.average(tbuf[pol][bl])
         p = crd,t,(i,j)
-        del(dat[bl])
-    else:
-        d, f = None, None
+        del(dat[pol][bl])
+    else: d, f = None, None
     return p, d, f
 
 for filename in args:

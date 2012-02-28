@@ -2,7 +2,7 @@
 import numpy as n, pylab as p, sys, aipy as a
 import optparse
 
-EXP_NOISE = 10.
+EXP_NOISE = 1.
 
 try:
     import fftw3

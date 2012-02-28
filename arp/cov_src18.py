@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n
 import optparse, sys, math, glob
-PLOT = False
+PLOT = True
 if PLOT: import pylab as P; P.ion()
 
 o = optparse.OptionParser()
@@ -34,8 +34,9 @@ cat = a.fit.SrcCatalog()
 for c in srctier: cat.add_srcs(c.values())
 blsrcs = opts.blsrcs.split(',')
 
-CLEAN_GAIN = .9
+#CLEAN_GAIN = .9
 #CLEAN_GAIN = .5
+CLEAN_GAIN = .2
 FINAL_MODE = 1
 #FINAL_MODE = 0
 TRIM = True
@@ -63,16 +64,25 @@ def gen_ddr_mask(shape, dw, drw, ratio=.25):
     return filter.clip(0,1)
 
 def set_plot(data):
-    global LINE1
+    global LINE1, LINE2
     if not PLOT: return
+    if True: data = n.fft.fft(data, axis=1)
+    #if False: data = a.img.recenter(data, n.array(data.shape)/2)
+    if True: data = a.img.recenter(data, (0,data.shape[1]/2))
+    dabs = n.log10(n.abs(data))
+    dang = n.angle(data)
     if LINE1 is None:
-        LINE1 = P.imshow(a.img.recenter(n.log10(n.abs(data)), n.array(data.shape)/2), vmax=7, vmin=0)
+        #P.subplot(211)
+        LINE1 = P.imshow(dabs, vmax=5, vmin=1, aspect='auto')
+        #P.subplot(212)
+        #LINE2 = P.imshow(dang, vmax=n.pi, vmin=-n.pi, aspect='auto')
     else:
-        LINE1.set_data(a.img.recenter(n.log10(n.abs(data)), n.array(data.shape)/2))
+        LINE1.set_data(dabs)
+        #LINE2.set_data(dang)
     P.draw()
 
 filter, filter_cache = None, None
-LINE1 = None
+LINE1, LINE2 = None, None
 try:
     import fftw3
     print 'Using FFTW FFT'
@@ -87,7 +97,7 @@ try:
             fft_ddr_rev = fftw3.Plan(fft_ddr_dat, None, direction='backward', flags=['measure'])
         fft_ddr_dat[:] = d
         fft_ddr_rev() # DDR Transform
-        set_plot(fft_ddr_dat)
+        #set_plot(fft_ddr_dat)
         # Apply DDR Filter
         if (dw,drw) != filter_cache:
             filter_cache = (dw, drw)
@@ -121,6 +131,9 @@ def compute_residual(msrdat, msrval, simdat, rsvdat, __srcest_ant, __srcest_bl, 
             if __srcest_bl.has_key(k): __resdat[bl] -= __srcest_bl[k][bl] * simdat[k][bl]
         if not do_xtalk: __resdat[bl] -= xtalk[bl]
         __resdat[bl] *= msrval[bl] # Mask out invalid data
+        if bl == a.miriad.ij2bl(0,3):
+        #if bl == a.miriad.ij2bl(0,14):
+            set_plot(__resdat[bl])
     if do_xtalk: return compute_xtalk(msrval, __resdat)
     else: return __resdat
 
@@ -145,9 +158,9 @@ for arg in args:
     # Gather data
     print 'Processing', arg
     findex = filelist.index(arg)
-    files = filelist[findex:findex+1]
+    #files = filelist[findex:findex+1]
     #files = filelist[findex:findex+2]
-    #files = filelist[findex-1:findex+2]
+    files = filelist[findex-1:findex+2]
     msrdat, msrval, simdat, rsvdat = {}, {}, {}, {}
     blwgt = {}
     ants = {}
@@ -232,17 +245,7 @@ for arg in args:
                     w += wgt
                 d /= n.where(w == 0, 1, w)
                 d = ddr_filter(d, dw, drw)
-                #if k == 'vir':
-                #    import pylab as P
-                #    P.subplot(121)
-                #    P.imshow(n.log10(n.abs(d)), vmax=7, vmin=0)
-                #    P.subplot(122)
-                #    #P.imshow(n.log10(n.abs(n.where(w==0,0,d))), vmax=7, vmin=0)
-                #    print w.shape
-                #    P.imshow(n.abs(w))
-                #    P.show()
                 d = n.where(w == 0, 0, n.sqrt(d))
-                #d = n.sqrt(d)
                 if not _srcest_ant.has_key(k): _srcest_ant[k] = {}
                 for ant in ants:
                     if not srcest_ant.get(k,{}).has_key(ant): _srcest_ant[k][ant] = CLEAN_GAIN * d

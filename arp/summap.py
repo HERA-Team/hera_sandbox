@@ -22,9 +22,10 @@ for map in addargs:
         m2 = a.map.Map(fromfits=map)
         m.map.map += m2.map.map
         m.wgt.map += m2.wgt.map
+        print m2.wgt.map.sum(), m.wgt.map.sum()
 for map in subargs:
     print 'Subtracting', map
     m2 = a.map.Map(fromfits=map)
-    m.map.map -= m2.map.map
-    m.wgt.map += m2.wgt.map
+    m.map.map = m.map.map * m2.wgt.map - m2.map.map * m.wgt.map
+    m.wgt.map *= m2.wgt.map
 m.to_fits('summap.fits')

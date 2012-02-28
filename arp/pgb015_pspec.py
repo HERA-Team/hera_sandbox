@@ -3,7 +3,7 @@ import aipy as a, numpy as n, pylab as p
 import sys, re, optparse
 from matplotlib import rc
 rc('font',**{'family':'serif','serif':['Times']})
-rc('text', usetex=True)
+#rc('text', usetex=True)
 o = optparse.OptionParser()
 o.add_option('--fov', dest='fov', type='float', default=5.,
     help='Radius of field of View (in degrees) to limit images to before doing power-spectrum analysis.  Used to enforce the flat-sky approximation inherent to mapping the UV-plane to the angular power spectrum.  Default 5')
@@ -11,9 +11,13 @@ o.add_option('-r', '--rewgt', dest='rewgt',  default='natural',
     help='Reweighting to apply to dim/dbm data before cleaning.  Options are: natural, uniform(LEVEL), or radial, where LEVEL is the fractional cutoff for using uniform weighting (recommended range .01 to .1).  Default is natural')
 opts, args = o.parse_args(sys.argv[1:])
 
+SFREQ = 0.121142578125
+SDF = 7.32421875e-05
 x = n.array([1e2,2e2,4e2,1e3,3e3,1e4])
 y = n.array([1.,3,10,30,60,50])
-C_l_sim = n.polyfit(n.log10(x), n.log10(y), deg=3)
+c_l_sim = n.polyfit(n.log10(x), n.log10(y), deg=3)
+#logstep = .04
+logstep = .1
 
 def C_l_sync(L, freq):
     return L*(L+1)/(2*n.pi) * 700. * (1e3/L)**2.4 * (130e6/freq)**(2*2.8)
@@ -73,9 +77,10 @@ def _circ(x, y, r, p, thresh):
 def ring(dim, r, w, thresh=.4):
     return circ(dim, r+w/2, thresh=thresh) - circ(dim, r-w/2., thresh=thresh)
 
-f_re = re.compile(r'(.*_c(\d+)_(\d+)\w*)\.\w+\.fits')
+#f_re = re.compile(r'(.*_c(\d+)_(\d+)\w*)\.\w+\.fits')
+f_re = re.compile(r'(.*_c(\d+)\w*)\.\w+\.fits')
 
-def ch2freq(chan, sfreq=0.1212890625, sdf=0.00029296875):
+def ch2freq(chan, sfreq=SFREQ, sdf=SDF):
     return (sfreq + chan*sdf) * 1e9
 
 def r2ell(r, dpx, dim):
@@ -87,9 +92,11 @@ def r2ell(r, dpx, dim):
 chs = {}
 for filename in args:
     print filename
-    prefix, ch1, ch2 = f_re.match(filename).groups()
-    ch1,ch2 = float(ch1),float(ch2)
-    ch = (ch1 + ch2) / 2.
+    #prefix, ch1, ch2 = f_re.match(filename).groups()
+    prefix, ch = f_re.match(filename).groups()
+    #ch1,ch2 = float(ch1),float(ch2)
+    ch = float(ch)
+    #ch = (ch1 + ch2) / 2.
     chs[ch] = chs.get(ch, []) + [(filename,prefix)]
 
 chs_list = chs.keys()
@@ -97,22 +104,22 @@ chs_list.sort()
     
 # Loop over all channels:
 for cnt, ch in enumerate(chs_list):
-    print 'Working on CH=%f, FREQ=%f MHz' % (ch, ch2freq(ch)/1e6)
-
-    def jy2t(chan=ch, sfreq=0.1212890625, sdf=0.00029296875):
-        '''Convert Jy to K for this channel.'''
-        freq = ch2freq(chan, sfreq=sfreq, sdf=sdf)
-        lam = a.const.c / freq
-        pb = n.polyval(pb_poly, freq*1e-9)
-        return 1e-23 * lam**2 / (2 * a.const.k * pb)
-
-    print 'Jy to T conversion factor:', jy2t()
-    freq = ch2freq(ch)
-
-    # Get the data
-    uvsq,bmsq = [],[]
-    fov = None
     for fname, pfx in chs[ch]:
+        print 'Working on CH=%f, FREQ=%f MHz' % (ch, ch2freq(ch)/1e6)
+
+        def jy2t(chan=ch, sfreq=SFREQ, sdf=SDF):
+            '''Convert Jy to K for this channel.'''
+            freq = ch2freq(chan, sfreq=sfreq, sdf=sdf)
+            lam = a.const.c / freq
+            pb = n.polyval(pb_poly, freq*1e-9)
+            return 1e-23 * lam**2 / (2 * a.const.k * pb)
+
+        print 'Jy to T conversion factor:', jy2t()
+        freq = ch2freq(ch)
+
+        # Get the data
+        uvsq,bmsq = [],[]
+        fov = None
         print fname
         dim, kwds = a.img.from_fits(fname)
         dbm, kwds = a.img.from_fits(pfx+'.dbm.fits')
@@ -153,97 +160,102 @@ for cnt, ch in enumerate(chs_list):
         uvsq.append(n.abs(uv)**2)
         bmsq.append(n.abs(bm)**2)
 
-    uvsq,bmsq = n.array(uvsq),n.array(bmsq)
+        uvsq,bmsq = n.array(uvsq),n.array(bmsq)
 
-    #def ring(r, w): return n.fromfunction(lambda x,y: gen_ring(x,y,r=r,w=w),sh)
+        #def ring(r, w): return n.fromfunction(lambda x,y: gen_ring(x,y,r=r,w=w),sh)
 
-    ps = []
-    wgts,sigs,ells = [],[],[]
-    
-    # Draw rings of geometrically increasing radius
-    logstep = .04
-    rpxs = 10**n.arange(n.log10(5.), n.log10(385.), logstep)
-    for rpx in rpxs:
-        # Choose a ring width (for averaging) ~1/2 step size between radii
-        w = rpx * (10**logstep - 10**(-logstep)) / 4
-        ell = r2ell(rpx, dpx_rd, DIM)
-        rng = ring(DIM, rpx, w)
-        while len(rng.shape) < len(uvsq.shape): rng.shape = (1,) + rng.shape
-        print 'R_px = %f, width = %f, ell = %f' % (rpx, w, ell)
-        # Select a ring out of square visibilities
-        uvsq_r = uvsq * rng
-        bmsq_r = bmsq * rng
-        # Sum square visibilities around ring and divide by their weighting
-        # Giving a weighted average for a sample on the ring
-        wgt1 = bmsq_r.sum()
-        if wgt1 == 0: continue
-        wgt2 = (bmsq_r**2).sum()
-        ps.append(uvsq_r.sum() / wgt1)
-        # Estimate sample variance  around ring by removing average
-        # vis^2 and finding how variance is beating down
-        sigsq_r = (uvsq_r - ps[-1] * bmsq_r)**2
-        # Compute stddev of measurements of C_l
-        sig = n.sqrt(sigsq_r.sum() / wgt2)
-        # Degrade resolution to get # of actual independent samples
-        factors = n.array([2,4,5,8,10,20,25,40,50,100,125,200,250,500])
-        degres = factors[n.argmin(n.abs(factors - DIM / (opts.fov / dpx_dg)))]
-        #degres = 10
-        bmsq_rd = bmsq_r.copy()
-        bmsq_rd.shape = (bmsq_rd.shape[0], DIM/degres,degres,DIM/degres,degres)
-        bmsq_rd = bmsq_rd.sum(axis=4)
-        bmsq_rd = bmsq_rd.sum(axis=2)
-        wgt2 = (bmsq_rd**2).sum()
-        # Beat down stddev by number of independent samples of C_l
-        # Divide by 2 b/c only half of ring are independent measurements
-        sig = sig * n.sqrt(wgt2 / wgt1**2 / 2)
-        sigs.append(sig); wgts.append(wgt1); ells.append(ell)
-    ps = n.array(ps)
-    ells,wgts,sigs = n.array(ells), n.array(wgts), n.array(sigs)
-
-    # Convert power spectra in Jy^2 to K^2
-    c_l1 = ps * jy2t()**2
-    sigs = sigs * jy2t()**2
-
-    # Compute a "total error" that is combo of sample variance and
-    # the computed power spectrum of thermal noise.  Do 2sig for 95% confidence
-    errs = 2*sigs
-
-    # Fit a line (in log space) to c_l to determine approx. power law
-    #def pwrlaw(x):
-    #    A, ind = x
-    #    wgt = 1 / errs**2
-    #    wgt /= wgt.sum()
-    #    dif = (c_l1 - A*ells**ind) * wgt
-    #    return n.sqrt((dif**2).sum())
-    #A,ind = a.optimize(pwrlaw, n.array([0., 0.]))
+        ps = []
+        wgts,sigs,ells = [],[],[]
         
-        
-    c_l1_poly = n.polyfit(n.log10(ells), n.log10(c_l1), 1)
-    c_l3 = 10**n.polyval(c_l1_poly, n.log10(ells))
-    print 'c_l1 power law:', c_l1_poly
+        # Draw rings of geometrically increasing radius
+        rpxs = 10**n.arange(n.log10(5.), n.log10(385.), logstep)
+        for rpx in rpxs:
+            # Choose a ring width (for averaging) ~1/2 step size between radii
+            w = rpx * (10**logstep - 10**(-logstep)) / 4
+            ell = r2ell(rpx, dpx_rd, DIM)
+            rng = ring(DIM, rpx, w)
+            while len(rng.shape) < len(uvsq.shape): rng.shape = (1,) + rng.shape
+            print 'R_px = %f, width = %f, ell = %f' % (rpx, w, ell)
+            # Select a ring out of square visibilities
+            uvsq_r = uvsq * rng
+            bmsq_r = bmsq * rng
+            # Sum square visibilities around ring and divide by their weighting
+            # Giving a weighted average for a sample on the ring
+            wgt1 = bmsq_r.sum()
+            if wgt1 == 0: continue
+            wgt2 = (bmsq_r**2).sum()
+            print '    Jy=%f, Jy^2=%f' % (uvsq_r.sum() / wgt1, n.sqrt(uvsq_r.sum() / wgt1))
+            ps.append(uvsq_r.sum() / wgt1)
+            # Estimate sample variance  around ring by removing average
+            # vis^2 and finding how variance is beating down
+            sigsq_r = (uvsq_r - ps[-1] * bmsq_r)**2
+            # Compute stddev of measurements of C_l
+            sig = n.sqrt(sigsq_r.sum() / wgt2)
+            # Degrade resolution to get # of actual independent samples
+            factors = n.array([2,4,5,8,10,20,25,40,50,100,125,200,250,500])
+            degres = factors[n.argmin(n.abs(factors - DIM / (opts.fov / dpx_dg)))]
+            #degres = 10
+            bmsq_rd = bmsq_r.copy()
+            bmsq_rd.shape = (bmsq_rd.shape[0], DIM/degres,degres,DIM/degres,degres)
+            bmsq_rd = bmsq_rd.sum(axis=4)
+            bmsq_rd = bmsq_rd.sum(axis=2)
+            wgt2 = (bmsq_rd**2).sum()
+            # Beat down stddev by number of independent samples of C_l
+            # Divide by 2 b/c only half of ring are independent measurements
+            sig = sig * n.sqrt(wgt2 / wgt1**2 / 2)
+            sigs.append(sig); wgts.append(wgt1); ells.append(ell)
+        ps = n.array(ps)
+        ells,wgts,sigs = n.array(ells), n.array(wgts), n.array(sigs)
 
-    # Also calculate C_l = (L*(L+1)/2pi) c_l
-    C_l1 = ells*(ells+1)/(2*n.pi) * c_l1 * 1e6
-    C_l3 = ells*(ells+1)/(2*n.pi) * c_l3 * 1e6
-    Sigs = ells*(ells+1)/(2*n.pi) * sigs * 1e6
-    Errs = ells*(ells+1)/(2*n.pi) * errs * 1e6
+        # Convert power spectra in Jy^2 to K^2
+        c_l1 = ps * jy2t()**2
+        sigs = sigs * jy2t()**2
 
-    # And generate the plots...
-    color = .8 * float(cnt) / len(chs_list)
-    color = (color, color, color)
-    errs_dn = n.where(errs >= c_l1-1e-6, c_l1-1e-6, errs)
-    p.errorbar(ells, C_l1, [errs_dn, errs], 
-        fmt='.-', label='ch%fcl' % ch, color=color)
-    #p.plot(ells, C_l3, ':', label='ch%ffit' % ch, color=color)
-    #p.plot(ells, wgts, 'r-')
+        # Compute a "total error" that is combo of sample variance and
+        # the computed power spectrum of thermal noise.  Do 2sig for 95% confidence
+        errs = 2*sigs
 
-p.plot(ells, 10**n.polyval(C_l_sim, n.log10(ells)), 'k-',
-    label='z=9.2_santos2005', linewidth=4)
-p.plot(ells, C_l_sync(ells,freq), 'k:',
+        # Fit a line (in log space) to c_l to determine approx. power law
+        #def pwrlaw(x):
+        #    A, ind = x
+        #    wgt = 1 / errs**2
+        #    wgt /= wgt.sum()
+        #    dif = (c_l1 - A*ells**ind) * wgt
+        #    return n.sqrt((dif**2).sum())
+        #A,ind = a.optimize(pwrlaw, n.array([0., 0.]))
+            
+            
+        c_l1_poly = n.polyfit(n.log10(ells), n.log10(c_l1), 1)
+        c_l3 = 10**n.polyval(c_l1_poly, n.log10(ells))
+        print 'c_l1 power law:', c_l1_poly
+
+        # Also calculate C_l = (L*(L+1)/2pi) c_l
+        C_l1 = ells*(ells+1)/(2*n.pi) * c_l1
+        C_l3 = ells*(ells+1)/(2*n.pi) * c_l3
+        Sigs = ells*(ells+1)/(2*n.pi) * sigs
+        Errs = ells*(ells+1)/(2*n.pi) * errs
+
+        # And generate the plots...
+        color = .8 * float(cnt) / len(chs_list)
+        color = (color, color, color)
+        errs_dn = n.where(errs >= c_l1-1e-6, c_l1-1e-6, errs)
+        Errs_dn = n.where(Errs >= C_l1-1e-6, C_l1-1e-6, Errs)
+        #p.errorbar(ells, C_l1, [Errs_dn, Errs], 
+        p.errorbar(ells, c_l1, [errs_dn, errs], 
+            fmt='.-', label='ch%fCl' % ch, color=color)
+        #p.plot(ells, C_l3, ':', label='ch%ffit' % ch, color=color)
+        #p.plot(ells, wgts, 'r-')
+
+C_l_sim = 10**n.polyval(c_l_sim, n.log10(ells)) * 1e-6
+C_l_sim *= 50 # Agrees more w/ GMRT paper description of Jelic 2008
+#p.plot(ells, 10**n.polyval(C_l_sim, n.log10(ells)), 'k-',
+#p.plot(ells, C_l_sim, 'k-',
+#    label='z=9.2_santos2005', linewidth=4)
+p.plot(ells, C_l_sync(ells,freq) * 1e-6, 'k:',
     label='sync')
 ax = p.gca(); ax.set_xscale('log'); ax.set_yscale('log')
 p.xlim(60,1e3)
-p.ylim(1e-1,1e11)
+p.ylim(1e-6,1e3)
 p.xlabel(r'$\ell=2\pi|u|$', fontsize=20)
-p.ylabel(r'$\ell(\ell+1)C_\ell/2\pi\ \ (mK^2)$', fontsize=20)
+p.ylabel(r'$\ell(\ell+1)C_\ell/2\pi\ \ (K^2)$', fontsize=20)
 p.show()

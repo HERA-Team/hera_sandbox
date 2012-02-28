@@ -1,8 +1,6 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n
 import optparse, sys, math, glob
-PLOT = False
-if PLOT: import pylab as P; P.ion()
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, chan=True, src=True,
@@ -34,41 +32,20 @@ cat = a.fit.SrcCatalog()
 for c in srctier: cat.add_srcs(c.values())
 blsrcs = opts.blsrcs.split(',')
 
-CLEAN_GAIN = .9
-#CLEAN_GAIN = .5
+#CLEAN_GAIN = .9
+CLEAN_GAIN = .5
 XTALK_GAIN = 1
 #FINAL_MODE = 2
-FINAL_MODE = 1
-#FINAL_MODE = 0
+FINAL_MODE = 0
 
 # Generate a list of files for padding
 def globize(s):
     if s.isdigit(): return '*'
     return s
 
-def gen_ddr_mask(shape, dw, drw, ratio=.25):
-    filter = n.ones(shape)
-    x1,x2 = drw, -drw
-    if x2 == 0: x2 = shape[0]
-    y1,y2 = dw, -dw
-    if y2 == 0: y2 = shape[1]
-    filter[x1+1:x2,0] = 0
-    filter[0,y1+1:y2] = 0
-    filter[1:,1:] = 0
-    x,y = n.indices(shape).astype(n.float)
-    x -= shape[0]/2
-    y -= shape[1]/2
-    r2 = (x/(ratio*drw+.5))**2 + (y/(ratio*dw+.5))**2
-    r2 = a.img.recenter(r2, (shape[0]/2, shape[1]/2))
-    filter += n.where(r2 <= 1, 1, 0)
-    #if PLOT:
-    #    LINE1.set_data(a.img.recenter(n.log10(n.abs(filter)), n.array(filter.shape)/2))
-    #    P.draw()
-    return filter.clip(0,1)
-
 def ddr_filter(d, dw, drw):
     padlen = math.ceil(d.shape[1] * .2)
-    #d = n.concatenate([n.fliplr(d[:,:padlen]),d,n.fliplr(d[:,-padlen:])], axis=1)
+    d = n.concatenate([n.fliplr(d[:,:padlen]),d,n.fliplr(d[:,-padlen:])], axis=1)
     #d = n.fft.ifft(d, axis=1) # Delay Transform
     #d = n.fft.ifft(d, axis=0) # Delay-Rate Transform
     d = n.fft.ifft2(d) # DDR Transform
@@ -82,19 +59,16 @@ def ddr_filter(d, dw, drw):
     d = n.fft.fft2(d) # undo DDR Transform
     #d = n.fft.fft(d, axis=0) # undo Delay-Rate Transform
     #d = n.fft.fft(d, axis=1) # undo Delay Transform
-    return d#[:,padlen:-padlen]
+    return d[:,padlen:-padlen]
 
 try:
     import fftw3
     print 'Using FFTW'
     fft_ddr_dat, fft_ddr_fwd, fft_ddr_rev = None, None, None
-    LINE1 = None
-    filter, filter_cache = None, None
     def ddr_filter(d, dw, drw):
-        global LINE1, filter_cache, filter
         global fft_ddr_dat, fft_ddr_fwd, fft_ddr_rev
-        #padlen = math.ceil(d.shape[1] * .2)
-        #d = n.concatenate([n.fliplr(d[:,:padlen]),d,n.fliplr(d[:,-padlen:])], axis=1)
+        padlen = math.ceil(d.shape[1] * .2)
+        d = n.concatenate([n.fliplr(d[:,:padlen]),d,n.fliplr(d[:,-padlen:])], axis=1)
         if fft_ddr_dat is None or d.shape != fft_ddr_dat.shape:
             print 'Reseting FFTW Plan'
             fft_ddr_dat = n.zeros((d.shape[0],d.shape[1]), dtype=n.complex)
@@ -102,29 +76,18 @@ try:
             fft_ddr_rev = fftw3.Plan(fft_ddr_dat, None, direction='backward', flags=['measure'])
         fft_ddr_dat[:] = d
         fft_ddr_rev() # DDR Transform
-        if PLOT:
-            if LINE1 is None:
-                LINE1 = P.imshow(a.img.recenter(n.log10(n.abs(fft_ddr_dat)), n.array(fft_ddr_dat.shape)/2), vmax=6, vmin=0)
-            else:
-                LINE1.set_data(a.img.recenter(n.log10(n.abs(fft_ddr_dat)), n.array(fft_ddr_dat.shape)/2))
-            P.draw()
         # Apply DDR Filter
-        if (dw,drw) != filter_cache:
-            filter_cache = (dw, drw)
-            filter = gen_ddr_mask(fft_ddr_dat.shape, dw, drw)
-        fft_ddr_dat[:] = fft_ddr_dat * filter
-        #x1,x2 = drw, -drw
-        #if x2 == 0: x2 = d.shape[0]
-        #y1,y2 = dw, -dw
-        #if y2 == 0: y2 = d.shape[1]
-        #fft_ddr_dat[x1+1:x2] = 0
-        #fft_ddr_dat[:,y1+1:y2] = 0
-        #v = n.concatenate([fft_ddr_dat[x2:], fft_ddr_dat[:x1+1]], axis=0)
-        #v = n.concatenate([v[:,y2:], v[:,:y1+1]], axis=1)
-        #print n.round(n.log10(v), 0)
+        x1,x2 = drw, -drw
+        if x2 == 0: x2 = d.shape[0]
+        y1,y2 = dw, -dw
+        if y2 == 0: y2 = d.shape[1]
+        fft_ddr_dat[x1+1:x2] = 0
+        fft_ddr_dat[:,y1+1:y2] = 0
+        v = n.concatenate([fft_ddr_dat[x2:], fft_ddr_dat[:x1+1]], axis=0)
+        v = n.concatenate([v[:,y2:], v[:,:y1+1]], axis=1)
+        print n.round(n.log10(v), 0)
         fft_ddr_fwd() # undo DDR Transform
-        #return fft_ddr_dat[:,padlen:-padlen] / (d.shape[0] * d.shape[1])
-        return fft_ddr_dat / fft_ddr_dat.size #(d.shape[0] * d.shape[1])
+        return fft_ddr_dat[:,padlen:-padlen] / (d.shape[0] * d.shape[1])
 except(ImportError): pass
 
 file_glob = '.'.join(map(globize, args[0].split('.')))
@@ -205,7 +168,9 @@ for arg in args:
                     d += (resdat[bl] * n.conj(simdat[k][bl])).real * blwgt[k][bl]
                     w += n.abs(simdat[k][bl])**2 * blwgt[k][bl]
                 d /= n.where(w > 0, w, 1)
+                print '   ', k
                 d = ddr_filter(d, dw, drw)
+                print n.average(d).real, n.average(srcest_bm.get(k,0)).real
                 _srcest_bm[k] = srcest_bm.get(k, 0.) + CLEAN_GAIN * d
         elif mode == 1: # VARY PER ANT
             for k in simdat:
@@ -221,10 +186,8 @@ for arg in args:
                     _w = n.abs(simdat[k][bl])**2 * blwgt[k][bl]
                     est_gi = n.sqrt(srcest_bm[k]) + srcest_ant.get(k,{}).get(i,0.)
                     est_gj = n.sqrt(srcest_bm[k]) + srcest_ant.get(k,{}).get(j,0.)
-                    #d[i], w[i] = d.get(i,0.) + _d, w.get(i,0.) + _w*(est_gi+n.conj(est_gj))
-                    #d[j], w[j] = d.get(j,0.) + n.conj(_d), w.get(j,0.) + _w*(n.conj(est_gi)+est_gj)
-                    d[i], w[i] = d.get(i,0.) + .5*_d, w.get(i,0.) + _w * n.conj(est_gj)
-                    d[j], w[j] = d.get(j,0.) + n.conj(.5*_d), w.get(j,0.) + _w * n.conj(est_gi)
+                    d[i], w[i] = d.get(i,0.) + _d, w.get(i,0.) + _w*(est_gi+n.conj(est_gj))
+                    d[j], w[j] = d.get(j,0.) + n.conj(_d), w.get(j,0.) + _w*(n.conj(est_gi)+est_gj)
                 for i in d:
                     d[i] /= n.where(w[i] > 0, w[i], 1)
                     d[i] = ddr_filter(d[i], dw, drw)
@@ -318,93 +281,12 @@ for arg in args:
                     if srcest_ant[k].has_key(i): gi += srcest_ant[k][i]
                     if srcest_ant[k].has_key(j): gj += srcest_ant[k][j]
                 _resdat[bl] -= gi * n.conj(gj) * simdat[k][bl]
-                if mode == 2 and _srcest_bl.has_key(k):
-                    sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
-                    _resdat[bl] -= _srcest_bl[k][bl] * simdat[k][bl] / sd
-                elif srcest_bl.has_key(k):
-                    sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
-                    _resdat[bl] -= srcest_bl[k][bl] * simdat[k][bl] /sd
+                sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
+                if mode == 2 and _srcest_bl.has_key(k): _resdat[bl] -= _srcest_bl[k][bl] * simdat[k][bl] / sd
+                elif srcest_bl.has_key(k): _resdat[bl] -= srcest_bl[k][bl] * simdat[k][bl] /sd
             _resdat[bl] -= _xtalk[bl]
             _resdat[bl] *= msrval[bl] # Mask out invalid data
         _score = n.sqrt(sum([n.sum(n.abs(_resdat[bl]**2)) for bl in msrdat]) / sum([n.sum(msrval[bl]) for bl in msrdat]))
-
-        # Recompute source by source if this score is not an improvement
-        if _score > score:
-            # Figure out which changes to model improve the residuals
-            for k in simdat:
-                if k not in srctier[tier]: continue
-                if mode == 2 and not k in blsrcs: continue
-                __resdat = {}
-                for bl in msrdat:
-                    i,j = a.miriad.bl2ij(bl)
-                    __resdat[bl] = resdat[bl].copy()
-                    gi,gj = 0,0
-                    _gi,_gj = 0,0
-                    if srcest_bm.has_key(k):
-                        gi = n.sqrt(srcest_bm[k])
-                        gj = gi.copy()
-                        _gi,_gj = gi.copy(),gj.copy()
-                    if _srcest_bm.has_key(k):
-                        _gi = n.sqrt(_srcest_bm[k])
-                        _gj = _gi.copy()
-                    if srcest_ant.get(k,{}).has_key(i): gi += srcest_ant[k][i]
-                    if srcest_ant.get(k,{}).has_key(j): gj += srcest_ant[k][j]
-                    if _srcest_ant.get(k,{}).has_key(i): _gi += _srcest_ant[k][i]
-                    elif srcest_ant.get(k,{}).has_key(i): _gi += srcest_ant[k][i]
-                    if _srcest_ant.get(k,{}).has_key(j): _gj += _srcest_ant[k][j]
-                    elif srcest_ant.get(k,{}).has_key(j): _gj += srcest_ant[k][j]
-                    # Subtract only the difference between the proposed model
-                    # and the model that's been subtracted already
-                    __resdat[bl] -= (_gi*n.conj(_gj)-gi*n.conj(gj)) * simdat[k][bl]
-                    sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
-                    if _srcest_bl.has_key(k):
-                        __resdat[bl] -= (_srcest_bl[k][bl] - srcest_bl.get(k,{}).get(bl,0.)) * simdat[k][bl] / sd
-                    __resdat[bl] -= (_xtalk[bl] - xtalk.get(bl,0.))
-                    __resdat[bl] *= msrval[bl] # Mask out invalid data
-                __score = n.sqrt(sum([n.sum(n.abs(__resdat[bl]**2)) for bl in msrdat]) / sum([n.sum(msrval[bl]) for bl in msrdat]))
-                if __score >= score: 
-                    print '      * %16s %f' % (k, __score-score)
-                    if mode == 0:
-                        if srcest_bm.has_key(k): _srcest_bm[k] = srcest_bm[k].copy()
-                        elif _srcest_bm.has_key(k): del(_srcest_bm[k])
-                    elif mode == 1:
-                        if srcest_ant.has_key(k): _srcest_ant[k] = srcest_ant[k].copy()
-                        elif _srcest_ant.has_key(k): del(_srcest_ant[k])
-                    else:
-                        for bl in _srcest_bl[k]: _srcest_bl[k][bl] = srcest_bl.get(k,{}).get(bl,0.)
-                else:
-                    print '    %20s %f' % (k, __score-score)
-
-            # Compute residual for sources that succeeded individually
-            _resdat = {}
-            for bl in msrdat:
-                i,j = a.miriad.bl2ij(bl)
-                _resdat[bl] = msrdat[bl].copy()
-                for k in simdat:
-                    gi,gj = 0,0
-                    if mode == 0:
-                        if _srcest_bm.has_key(k):
-                            gi = n.sqrt(_srcest_bm[k])
-                            gj = gi.copy()
-                    elif srcest_bm.has_key(k):
-                        gi = n.sqrt(srcest_bm[k])
-                        gj = gi.copy()
-                    if mode == 1:
-                        if _srcest_ant.get(k,{}).has_key(i): gi += _srcest_ant[k][i]
-                        if _srcest_ant.get(k,{}).has_key(j): gj += _srcest_ant[k][j]
-                    elif srcest_ant.has_key(k):
-                        if srcest_ant[k].has_key(i): gi += srcest_ant[k][i]
-                        if srcest_ant[k].has_key(j): gj += srcest_ant[k][j]
-                    _resdat[bl] -= gi * n.conj(gj) * simdat[k][bl]
-                    if mode == 2 and _srcest_bl.has_key(k):
-                        sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
-                        _resdat[bl] -= _srcest_bl[k][bl] * simdat[k][bl] / sd
-                    elif srcest_bl.has_key(k):
-                        sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
-                        _resdat[bl] -= srcest_bl[k][bl] * simdat[k][bl] /sd
-                _resdat[bl] -= _xtalk[bl]
-                _resdat[bl] *= msrval[bl] # Mask out invalid data
-            _score = n.sqrt(sum([n.sum(n.abs(_resdat[bl]**2)) for bl in msrdat]) / sum([n.sum(msrval[bl]) for bl in msrdat]))
 
         # Always accept any downhill jump, advance state if bottoming out
         #tol = 1 - _score/score
@@ -434,15 +316,15 @@ for arg in args:
                 else:
                     mode = 0
                     dw += 1; drw += 1
-        print '    New Score: %f (%5.2f%%, tol=%e)' % (score, n.round(100*score/iscore,2), tol)
+        print '    New Score: %f (%5.2f%%, tol=%f)' % (score, n.round(100*score/iscore,2), tol)
     print '    Final Score: %f (%5.2f%%, tol=%f)' % (score, n.round(100*score/iscore,2), tol)
 
     # Pare down data and save to file
-    #i0 = len(times) / 6
-    #times = times[i0:-i0]
+    i0 = len(times) / 6
+    times = times[i0:-i0]
     n.savez('%s__times.npz' % (arg), times=n.array(times))
     n.savez('%s__afreqs.npz' % (arg), freqs=afreqs)
-    #for k in srcest_bm: srcest_bm[k] = srcest_bm[k][i0:-i0]
+    for k in srcest_bm: srcest_bm[k] = srcest_bm[k][i0:-i0]
     n.savez( '%s__srcest_bm.npz' % (arg), **srcest_bm)
     __xtalk = {}
     for bl in xtalk: __xtalk[str(bl)] = xtalk[bl]
@@ -451,14 +333,12 @@ for arg in args:
         for k in srcest_ant:
             d = {}
             for i in srcest_ant[k]:
-                #d[str(i)] = srcest_ant[k][i][i0:-i0]
-                d[str(i)] = srcest_ant[k][i]
+                d[str(i)] = srcest_ant[k][i][i0:-i0]
             n.savez( '%s__srcest_ant__%s.npz' % (arg,k), **d)
     if FINAL_MODE >= 2:
         for k in srcest_bl:
             d = {}
             for bl in srcest_bl[k]:
-                #d[str(bl)] = srcest_bl[k][bl][i0:-i0]
-                d[str(bl)] = srcest_bl[k][bl]
+                d[str(bl)] = srcest_bl[k][bl][i0:-i0]
             n.savez( '%s__srcest_bl__%s.npz' % (arg,k), **d)
 

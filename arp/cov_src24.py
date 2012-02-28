@@ -208,7 +208,7 @@ for arg in args:
                 del(simdat[k])
                 del(blwgt[k])
                 if k in blsrcs: del(rsvdat[k])
-    steps = [{'srcs':{}, 'burn':True, 'score': n.sqrt(sum([n.sum(n.abs(msrdat[bl]**2)) for bl in msrdat]) / sum([n.sum(msrval[bl]) for bl in msrdat]))}]
+    steps = [{'srcs':{}, 'ant':{}, 'burn':True, 'score': n.sqrt(sum([n.sum(n.abs(msrdat[bl]**2)) for bl in msrdat]) / sum([n.sum(msrval[bl]) for bl in msrdat]))}]
     print 'Initial Score: %f' % (steps[0]['score'])
 
     # Initialize filters
@@ -232,7 +232,7 @@ for arg in args:
         print 'Iteration %d:' % iter
         iter %= RESTART
         # Derive source estimators
-        step = {'srcs':{}, 'd_ant':{}, 'burn':False}
+        step = {'srcs':{}, 'burn':False}
         # Sometimes change filter width
         if iter < BURN_IN:
             step['burn'] = True
@@ -250,13 +250,18 @@ for arg in args:
             mask = 1
         if iter != 0:
             for k in steps[-1]['srcs']:
-                step['srcs'][k] = steps[-1]['srcs'][k]
+                step['srcs'][k] = {}
+                for i in steps[-1]['srcs'][k]:
+                    step['srcs'][k][i] = steps[-1]['srcs'][k][i].copy()
+                step['ant'] = steps[-1]['ant'].copy()
+                
         _clean_gain = {}
         print '    DW=%d DRW=%d TIER=%d' % (dw, drw, tier)
             
         for k in simdat:
             _clean_gain[k] = max(n.random.uniform(.75,1.25) * clean_gain.get(k, n.random.uniform(.2,1)), .01)
-            if not k in srctier[tier] or _clean_gain[k] < .05:
+            #if not k in srctier[tier] or _clean_gain[k] < .05:
+            if not k in srctier[tier]:
                 #if iter > 0:
                 #    try: step['srcs'][k] = steps[-1]['srcs'][k]
                 #    except(KeyError): pass
@@ -290,8 +295,8 @@ for arg in args:
                     d[j] = d.get(j,0) + n.conj(_d)
                     #w[j] = w.get(j,0) + _w * n.conj(steps[-1]['ant'][k][i])
                     w[j] = w.get(j,0) + _w * n.conj(step['ant'][k][i])
-                step['srcs'][k] = {}
-                step['d_ant'][k] = {}
+                #step['srcs'][k] = {}
+                #step['d_ant'][k] = {}
                 for i in d:
                     # This divide can cause an explosion if w[i] is close to
                     # 0, which can happen early on when summing weights that
@@ -300,15 +305,18 @@ for arg in args:
                     # technically filter before dividing by w[i], but that
                     # results in a convolution in DDR domain...
                     #c = to_coeffs(n.where(w[i] == 0, 0, d[i]/w[i]))
-                    step['d_ant'][k][i] = n.where(w[i] == 0, 0, d[i]/w[i])
-                    c = to_coeffs(step['d_ant'][k][i])
+                    #step['d_ant'][k][i] = n.where(w[i] == 0, 0, d[i]/w[i])
+                    d_ant_i = n.where(w[i] == 0, 0, d[i]/w[i])
+                    #c = to_coeffs(step['d_ant'][k][i])
+                    c = to_coeffs(d_ant_i)
                     c *= _clean_gain[k]
                     #step['srcs'][k][i] = steps[-1]['srcs'][k][i] + c * mask
+                    #print k, i, n.abs(c[0]), n.abs(step['srcs'][k][i][0])
                     step['srcs'][k][i] += c * mask
         # Estimate noise
         for k in simdat:
             if not k in srctier[tier]: continue
-            if not step['srcs'].has_key(k): step['srcs'][k] = {}
+            #if not step['srcs'].has_key(k): step['srcs'][k] = {}
             if not type(d) == dict: continue
             #for i in d:
             for i in step['srcs'][k]:
@@ -319,6 +327,8 @@ for arg in args:
                 noise = noise_amp * n.exp(1j*noise_phs)
                 step['srcs'][k][i] += noise * mask
         # Compute residual for all sources
+        try: del(step['ant'])
+        except(KeyError): pass
         _resdat = compute_residual(msrdat, msrval, simdat, rsvdat, step)
         step['score'] = compute_score(_resdat,msrval)
 
@@ -329,7 +339,7 @@ for arg in args:
             # Clear off unnecessary data
             if len(steps) > 1:
                 del(steps[-1]['ant'])
-                del(steps[-1]['d_ant'])
+                #del(steps[-1]['d_ant'])
                 del(steps[-1]['xtalk'])
             steps.append(step)
             resdat = _resdat
@@ -382,7 +392,7 @@ for arg in args:
             step = steps[-1].copy()
             if len(steps) > 1:
                 del(steps[-1]['ant'])
-                del(steps[-1]['d_ant'])
+                #del(steps[-1]['d_ant'])
                 del(steps[-1]['xtalk'])
             steps.append(step)
 

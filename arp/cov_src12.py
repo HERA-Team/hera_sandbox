@@ -40,6 +40,23 @@ FINAL_MODE = 2
 def globize(s):
     if s.isdigit(): return '*'
     return s
+
+def ddr_filter(d, drw, dw):
+    padlen = math.ceil(d.shape[1] * .2)
+    d = n.concatenate([n.fliplr(d[:,:padlen]),d,n.fliplr(d[:,-padlen:])], axis=1)
+    d = n.fft.ifft(d, axis=1) # Delay Transform
+    d = n.fft.ifft(d, axis=0) # Delay-Rate Transform
+    # Apply DDR Filter
+    x1,x2 = drw, -drw
+    if x2 == 0: x2 = d.shape[0]
+    y1,y2 = dw, -dw
+    if y2 == 0: y2 = d.shape[1]
+    d[x1+1:x2] = 0
+    d[:,y1+1:y2] = 0
+    d = n.fft.fft(d, axis=0) # undo Delay-Rate Transform
+    d = n.fft.fft(d, axis=1) # undo Delay Transform
+    return d[:,padlen:-padlen]
+
 file_glob = '.'.join(map(globize, args[0].split('.')))
 filelist = glob.glob(file_glob)
 filelist.sort()
@@ -57,6 +74,7 @@ for arg in args:
         simdat[k] = {}
         blwgt[k] = {}
     times = []
+    # Collect data
     for filename in files:
         print '    Reading', filename
         uv = a.miriad.UV(filename)
@@ -82,6 +100,7 @@ for arg in args:
                     u = v = w = n.zeros_like(d)
                 simdat[k][bl] = simdat[k].get(bl,[]) + [simd]
                 blwgt[k][bl] = f * n.sqrt(u**2 + v**2)
+    # Simulate visibilities for each source for the data we collected
     for bl in msrdat:
         msrdat[bl] = n.array(msrdat[bl])
         msrval[bl] = n.array(msrval[bl])
@@ -116,20 +135,7 @@ for arg in args:
                     d += resdat[bl] * n.conj(simdat[k][bl]) * blwgt[k][bl]
                     w += n.abs(simdat[k][bl])**2 * blwgt[k][bl]
                 d /= n.where(w > 0, w, 1)
-                padlen1 = math.ceil(d.shape[1] * .2)
-                d = n.concatenate([n.fliplr(d[:,:padlen1]),d,n.fliplr(d[:,-padlen1:])], axis=1)
-                d = n.fft.ifft(d, axis=1) # Delay Transform
-                d = n.fft.ifft(d, axis=0) # Delay-Rate Transform
-                # Apply DDR Filter
-                x1,x2 = drw, -drw
-                if x2 == 0: x2 = d.shape[0]
-                y1,y2 = dw, -dw
-                if y2 == 0: y2 = d.shape[1]
-                d[x1+1:x2] = 0
-                d[:,y1+1:y2] = 0
-                d = n.fft.fft(d, axis=0) # undo Delay-Rate Transform
-                d = n.fft.fft(d, axis=1) # undo Delay Transform
-                d = d[:,padlen1:-padlen1]
+                d = ddr_filter(d, dw, drw)
                 _srcest_bm[k] = srcest_bm.get(k, 0.) + CLEAN_GAIN * d
         elif mode == 1: # VARY PER ANT
             for k in simdat:
@@ -149,24 +155,11 @@ for arg in args:
                     d[j], w[j] = d.get(j,0.) + n.conj(_d), w.get(j,0.) + _w*(n.conj(est_gi)+est_gj)
                 for i in d:
                     d[i] /= n.where(w[i] > 0, w[i], 1)
-                    padlen1 = math.ceil(d[i].shape[1] * .2)
-                    _d = n.concatenate([n.fliplr(d[i][:,:padlen1]),d[i],n.fliplr(d[i][:,-padlen1:])], axis=1)
-                    _d = n.fft.ifft(_d, axis=1) # Delay Transform
-                    _d = n.fft.ifft(_d, axis=0) # Delay-Rate Transform
-                    # Apply DDR Filter
-                    x1,x2 = drw, -drw
-                    if x2 == 0: x2 = _d.shape[0]
-                    y1,y2 = dw, -dw
-                    if y2 == 0: y2 = _d.shape[1]
-                    _d[x1+1:x2] = 0
-                    _d[:,y1+1:y2] = 0
-                    _d = n.fft.fft(_d, axis=0) # undo Delay-Rate Transform
-                    _d = n.fft.fft(_d, axis=1) # undo Delay Transform
-                    d[i] = _d[:,padlen1:-padlen1]
+                    d[i] = ddr_filter(d[i], dw, drw)
                     if not srcest_ant.has_key(k): srcest_ant[k] = {}
                     if not _srcest_ant.has_key(k): _srcest_ant[k] = {}
                     _srcest_ant[k][i] = srcest_ant[k].get(i,0.) + CLEAN_GAIN * d[i]
-        else: # POLISH UP PER BASELINE
+        else: # Polish up per baseline for select sources
             for k in simdat:
                 if not k in blsrcs: continue
                 if not k in srctier[tier]:
@@ -176,21 +169,7 @@ for arg in args:
                 for bl in msrdat:
                     sd = n.abs(simdat[k][bl]).clip(1., n.Inf)
                     d = resdat[bl] * n.conj(simdat[k][bl]) / sd
-                    padlen1 = math.ceil(d.shape[1] * .2)
-                    d = n.concatenate([n.fliplr(d[:,:padlen1]),d,n.fliplr(d[:,-padlen1:])], axis=1)
-
-                    d = n.fft.ifft(d, axis=1) # Delay Transform
-                    d = n.fft.ifft(d, axis=0) # Delay-Rate Transform
-                    # Apply DDR Filter
-                    x1,x2 = drw, -drw
-                    if x2 == 0: x2 = d.shape[0]
-                    y1,y2 = dw, -dw
-                    if y2 == 0: y2 = d.shape[1]
-                    d[x1+1:x2] = 0
-                    d[:,y1+1:y2] = 0
-                    d = n.fft.fft(d, axis=0) # undo Delay-Rate Transform
-                    d = n.fft.fft(d, axis=1) # undo Delay Transform
-                    d = d[:,padlen1:-padlen1]
+                    d = ddr_filter(d, dw, drw)
                     if not srcest_bl.has_key(k): srcest_bl[k] = {}
                     if not _srcest_bl.has_key(k): _srcest_bl[k] = {}
                     _srcest_bl[k][bl] = srcest_bl[k].get(bl,0.) + CLEAN_GAIN * d
@@ -245,6 +224,7 @@ for arg in args:
                     for bl in _srcest_bl[k]: _srcest_bl[k][bl] = srcest_bl.get(k,{}).get(bl,0.)
             else:
                 print '    %20s %f' % (k, __score-score)
+
         # Compute residual for sources that succeeded individually
         _resdat = {}
         for bl in msrdat:
@@ -283,6 +263,7 @@ for arg in args:
             if mode == 0: srcest_bm = _srcest_bm
             elif mode == 1: srcest_ant = _srcest_ant
             else: srcest_bl = _srcest_bl
+
         # If we are at tolerance, add degrees of freedom and repeat
         if tol < opts.clean:
             if mode < FINAL_MODE:
@@ -301,6 +282,8 @@ for arg in args:
                     dw += 1; drw += 1
         print '    New Score: %f (%5.2f%%, tol=%f)' % (score, n.round(100*score/iscore,2), tol)
     print '    Final Score: %f (%5.2f%%, tol=%f)' % (score, n.round(100*score/iscore,2), tol)
+
+    # Pare down data and save to file
     i0 = len(times) / 6
     times = times[i0:-i0]
     n.savez('%s__times.npz' % (arg), times=n.array(times))

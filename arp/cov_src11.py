@@ -48,7 +48,8 @@ for arg in args:
     # Gather data
     print 'Processing', arg
     findex = filelist.index(arg)
-    files = filelist[findex:findex+2]
+    #files = filelist[findex:findex+2]
+    files = filelist[findex-1:findex+2]
     msrdat, msrval, simdat = {}, {}, {}
     blwgt = {}
     for k in cat:
