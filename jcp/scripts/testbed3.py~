@@ -1,0 +1,27 @@
+#! /usr/bin/env python
+import aipy as a, numpy as n
+import sys, optparse, os
+
+o = optparse.OptionParser()
+opts,args = o.parse_args(sys.argv[1:])
+
+
+def mfunc(uv, p, d):
+    return p, d
+
+for filename in args:
+    print filename, '->', filename+'.test'
+    if os.path.exists(filename+'.test'):
+        print '    File exists... skipping.'
+        continue
+    uvi = a.miriad.UV(filename)
+    uvi.select('antennae', 0, 1)
+    uvo = a.miriad.UV(filename+'.test', status='new')
+    #override = {
+    #    'inttime':uvi['inttime'] * opts.nint,
+    #}
+    uvo.init_from_uv(uvi)#, override=override)
+    uvo.pipe(uvi, mfunc=mfunc,
+        append2hist='A test.')
+    del(uvo)
+    

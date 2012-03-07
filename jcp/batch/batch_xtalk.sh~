@@ -1,0 +1,11 @@
+#$ -S /bin/bash
+source .bashrc
+echo $PATH
+ARGS=`pull_args.py $*`
+CORRECT=correct_pgb341_v004.py
+CAL=pgb322_v001_gc
+
+for FILE in $ARGS; do
+    xtalk3.py -o
+
+done

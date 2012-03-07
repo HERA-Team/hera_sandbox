@@ -1,0 +1,9 @@
+### Warning:  Error opening zen.2455040*.uvcbr, in UVOPEN(old)
+### Fatal Error:  No such file or directory
+zen.2455040*.uvcbr -> zen.2455040*.uvcbrt
+Traceback (most recent call last):
+  File "/data1/paper/pober/scripts/tempgain.py", line 32, in <module>
+    uvi = a.miriad.UV(filename)
+  File "/usr/global/paper/lib/python2.6/site-packages/aipy/miriad.py", line 73, in __init__
+    _miriad.UV.__init__(self, filename, status, corrmode)
+RuntimeError: Runtime error in MIRIAD

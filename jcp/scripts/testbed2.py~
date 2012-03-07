@@ -1,0 +1,28 @@
+#! /usr/bin/env python
+import aipy as a, numpy as n
+import sys, optparse, os
+
+o = optparse.OptionParser()
+a.scripting.add_standard_options(o)
+opts,args = o.parse_args(sys.argv[1:])
+
+aa = a.phs.ArrayLocation(('-30:43:17.4', '21:25:41.9'))
+
+
+for filename in args:
+    print 'Reading', filename
+    uvi = a.miriad.UV(filename)
+    uvo = a.miriad.UV(filename+'.test', status='new')
+    def mfunc(uv, p, d):
+        (crd,t,(i,j)) = p
+        t = t - (1/12.)
+        return p, d
+
+    override = {
+        'time': uv['time']
+        }
+
+    uvi = a.miriad.UV(args[0])
+    uvo.init_from_uv(uvi, override=override)
+    uvo.pipe(uvi, mfunc=mfunc)
+    del(uvo)

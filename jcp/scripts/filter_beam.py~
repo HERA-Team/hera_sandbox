@@ -1,0 +1,45 @@
+#!/usr/global/paper/bin/python
+
+import aipy as a, numpy as n, pylab as p, sys, os, optparse
+from mpl_toolkits.basemap import Basemap
+import beamuv
+
+o = optparse.OptionParser()
+o.set_description(__doc__)
+a.scripting.add_standard_options(o, cmap=True, max=True, drng=True)
+o.add_option('--nmodes', dest='nmodes',type='int',default=6,
+    help="Number of CLEAN components to use in the smooth reconstruction.")
+o.add_option('-s','--size',dest='size',type='int',default=1000,
+    help="Size of the uv matrix in pixels.  Default is 1000.")
+
+opts,args = o.parse_args(sys.argv[1:])
+center = opts.size/2
+
+_coeffs = beamuv.coeffs_from_file(args[0])
+_beam[center-offset:center+offset+1,center-offset:center+offset+1] = _coeffs
+
+_sbeam = _beam.copy()
+_sbeam[:,:center-opts.nmodes] = 0.
+_sbeam[:,center+opts.nmodes:] = 0.
+_sbeam[:center-opts.nmodes,:] = 0.
+_sbeam[center+opts.nmodes:,:] = 0.
+
+beam = n.fft.ifft2(a.img.recenter(_beam,(center,center)))
+sbeam = n.fft.ifft2(a.img.recenter(_sbeam,(center,center)))
+
+outnamea,outnameb = args[0].split('_')
+outname = outnamea + '_f_' + outnameb
+print 'saving smooth beam coeffecients to', outname
+
+coeffs = _sbeam[center-opts.nmodes:center+opts.nmodes,center-opts.nmodes:center+opts.nmodes]
+n.savez(outname,coeffs=coeffs)
+
+
+p.subplot(121)
+p.imshow(n.abs(beam))
+p.colorbar()
+p.subplot(122)
+p.imshow(n.abs(sbeam))
+p.colorbar()
+
+p.show()
