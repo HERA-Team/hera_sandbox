@@ -55,7 +55,7 @@ for uvfile in args:
     window = a.dsp.gen_window(uvi['nchan'], window=opts.window)
     curtime, zen = None, None
     def mfunc(uv, p, d, f):
-        global curtime
+        global curtime,zen
         crd,t,(i,j) = p
         if t != curtime:
             aa.set_jultime(t)
