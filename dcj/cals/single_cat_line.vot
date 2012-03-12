@@ -1,0 +1,70 @@
+<?xml version='1.0'?>
+<VOTABLE version="1.1"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.ivoa.net/xml/VOTable/v1.1 http://www.ivoa.net/xml/VOTable/v1.1"
+ xmlns="http://www.ivoa.net/xml/VOTable/v1.1">
+<!--
+ !  VOTable written by STIL version 2.9-3x (uk.ac.starlink.votable.VOTableWriter)
+ !  at 2010-11-20T04:55:43
+ !-->
+<RESOURCE>
+<TABLE name="VIII/16/mrcj2000" nrows="1">
+<DESCRIPTION>
+Catalog Data
+</DESCRIPTION>
+<PARAM arraysize="15" datatype="char" name="-ref" value="VIZ4c9931645873"/>
+<PARAM arraysize="9" datatype="char" name="-out.max" value="unlimited"/>
+<PARAM arraysize="43" datatype="char" name="-c" value="243.489958-60.806833,bm=21600.000000/21600."/>
+<FIELD datatype="double" name="_RAJ2000" precision="4" ref="J2000" ucd="pos.eq.ra;meta.main" unit="deg" width="8">
+<DESCRIPTION>Right ascension (FK5) Equinox=J2000. (computed by VizieR, not part of the original data)</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="_DEJ2000" precision="4" ref="J2000" ucd="pos.eq.dec;meta.main" unit="deg" width="8">
+<DESCRIPTION>Declination (FK5) Equinox=J2000. (computed by VizieR, not part of the original data)</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="10" datatype="char" name="RAB1950" ref="B1950" ucd="pos.eq.ra" unit="&quot;h:m:s&quot;">
+<DESCRIPTION>Right ascension in B1950 equinox</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="9" datatype="char" name="DEB1950" ref="B1950" ucd="pos.eq.dec" unit="&quot;d:m:s&quot;">
+<DESCRIPTION>DEC in degrees in B1950 equinox</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="S408" precision="2" ucd="phot.flux.density;em.radio.200-400MHz" unit="Jy" width="7">
+<DESCRIPTION>Flux density</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="e_S408" precision="2" ucd="stat.error" unit="Jy" width="5">
+<DESCRIPTION>Standard error</DESCRIPTION>
+</FIELD>
+<FIELD datatype="float" name="S_nu" ucd="phot.flux.density;em.radio.200-400MHz" unit="Jys">
+<DESCRIPTION>Flux at frequency nu ($7)</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="index" ucd="phot.flux.index">
+<DESCRIPTION>spectral index (-1.00001)</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="nu" ucd="em.radio.100-200MHz" unit="GHz">
+<DESCRIPTION>Measured Freq (0.408)</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="Notes" ucd="meta.note">
+<DESCRIPTION>("a note")</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="Common_Name" ucd="meta.id;meta.main">
+<DESCRIPTION>(replaceAll($12,"MRC",$4))</DESCRIPTION>
+</FIELD>
+<DATA>
+<TABLEDATA>
+  <TR>
+    <TD>201.3332</TD>
+    <TD>-43.01</TD>
+    <TD>13 22 24.0</TD>
+    <TD>-42 45 00</TD>
+    <TD>2740.0</TD>
+    <TD>0.0</TD>
+    <TD>5144.0</TD>
+    <TD>-0.64</TD>
+    <TD>0.15</TD>
+    <TD>flux extrapolated from israel 1997</TD>
+    <TD>cen</TD>
+  </TR>
+</TABLEDATA>
+</DATA>
+</TABLE>
+</RESOURCE>
+</VOTABLE>
