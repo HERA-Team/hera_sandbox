@@ -67,9 +67,14 @@ for srcname in cat:
     x,y,z = n.array(x), n.array(y), n.array(z)
     spec,wgts = n.array(spec), n.array(wgts)
     times = n.array(times)
-    plot(times,spec/wgts,label=srcname)
+    #print src.src_name,src.dec,repr(src.dec)
+    if src.dec>(-30*n.pi/180): color='k'
+    else: color='r'
+    plot(spec/wgts,color,label=srcname)
     draw()
-legend()
+#legend()
+print "black: dec>-30, red:dec<-30"
+print "according to the current error model red should be bigger than black"
 show()
 #afreqs = aa.get_afreqs()
 ##npzfile = src.src_name + '_spec.npz'
