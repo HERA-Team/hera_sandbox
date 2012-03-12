@@ -33,7 +33,7 @@ ucds = dict(zip(ucds.values(),ucds.keys()))
 for file in args:
     lines = open(file).readlines()
     lines = [l for l in lines if not l.startswith('#')]
-    names = [s.strip() for s in lines[0].split()]
+    names = [s.strip() for s in lines[0].split(opts.d)]
     lines = lines[1:]
     print "columns:",names
     t = atpy.Table()
