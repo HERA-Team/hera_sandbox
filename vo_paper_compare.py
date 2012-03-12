@@ -36,7 +36,7 @@ o.add_option('--prefix',dest='prefix',type='str',
     help="Spectrum file prefix default=<cal file name>. If that doesn't work, looks for a name in the file.")
 o.add_option('-p',dest='plot',action='store_true',
     help="Plot.")
-o.add_option('--fmax',type='float',
+o.add_option('--fmax',type='float',default=1.4,
     help="Maximum frequency to search for in the vo. [GHz]")
 o.add_option('-v',dest='verb',action='store_true',
     help="Print stuff.")
@@ -85,17 +85,22 @@ def find_srcname_in_specfile(filename):
         m = re.search("name=([a-zA-Z0-9_+]+)",l)
         if not m is None: 
             return m.groups()[0]
+def find_srcname_in_arp_filename(filename):
+    return os.path.basename(filename.split('_spec')[0])
 def find_seq_of_brightest_src(vodata):
     return vodata[n.where(vodata['S_nu_']==n.max(vodata['S_nu_']))]['Seq'][0]
 
-if opts.vverb: logging.disable(logging.DEBUG)
+if opts.vverb: 
+    logging.disable(0)
+    print "enabling logging at the deepest level"
 elif opts.verb: logging.disable(logging.INFO)
 else: 
     logging.disable(logging.ERROR)
-    warnings.simplefilter('ignore',Warning)
+warnings.simplefilter('ignore',Warning)
 fname = sys.argv[0].split(os.sep)[-1]
 log = logging.getLogger(fname)
-
+log.debug("DEBUG LOGGING ENABLED")
+log.info("INFO LOGGING ENABLED")
     
 if opts.prefix is None and not opts.cal is None:
     opts.prefix=opts.cal+'_'
@@ -107,6 +112,7 @@ if opts.cal != None:
     cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs)
 else:
     cat = a.src.get_catalog(srclist, cutoff, catalogs)
+log.debug('loading %d sources from %s'%(len(cat),opts.cal))
 #print dir(cat[cat.keys()[0]])
 #print [cat[src]._jys for src in cat]
 #try: print [cat[src].e_S_nu for src in cat]
@@ -115,22 +121,36 @@ else:
 
 file_srcs = []
 spectra = {}
-for file in args:
+print len(args)
+for i,file in enumerate(args):
     if len(file.split(opts.prefix))>1:
         srcname = file.split(opts.prefix)[1].split('.txt')[0]
-    else: srcname = find_srcname_in_specfile(file)
+    else: srcname = find_srcname_in_arp_filename(file)
     if srcname.startswith('3c'):srcname = srcname[2:]
 #        ra = srcname.split('_')[0]
 #        dec = srcname.split('_')[1]
 #        src = a.phs.RadioFixedBody(ra,dec,srcname=srcname)
 #        src,sep = find_src_in_cat(src,cat,opts.sep)
 #        file_srcs.append(src)
-    spectra[srcname] = n.loadtxt(file)
+    try:
+        with open(file) as f:
+            F = n.load(f)
+            cat[srcname].update_jys(F['spec'])
+            paperspectrum = cat[srcname].get_jys()
+            spectra[srcname] = n.array(zip(F['freq'],paperspectrum+F['spec'],n.ones_like(F['spec'])*n.std(F['spec'])))
+    except(KeyError):continue
     #n.array(
 #        [(float(s.split()[0]),float(s.split()[1])) for s in open(file).readlines() if s[0]!='#' \
 #         and s[0].isdigit()]).astype(n.float)
 #print spectra
 #    scat = a.phs.RadioCatalog(file_srcs)
+log.debug('found %d sources'%len(spectra))
+#print spectra.keys()
+#log.debug("spectra['0511-305'].size = %f"%spectra['0511-305'])
+#print spectra['0511-305']
+#sys.exit()
+
+
 curfig = opts.fig
 if opts.plot: 
     fig = figure(curfig,figsize=(15,15))
@@ -138,7 +158,7 @@ if opts.plot:
 nsub = n.min((opts.max_sub,len(cat)))
 m1 = round(sqrt(nsub))
 m2 = ceil(nsub/m1)
-#print m1,m2
+print m1,m2
 print '\t'.join(('Name','Ra','Ra_rad','Dec','Dec_rad',
                 'S_sf','e_S_sf','S_nu_paper','e_S_nu_paper',
                 'logL_spec','logL_cat','seq','search_r','sep',
@@ -182,7 +202,7 @@ try:
             if opts.plot:
                 figtext(0.05,0.5,"flux [Jys]",rotation='vertical')
                 figtext(0.5,0.05,"frequency [MHz]")
-                subplots_adjust(hspace=0,wspace=0)
+                subplots_adjust(hspace=0,wspace=0,bottom=0.1,left=0.1)
                 draw()
                 fig.savefig(opts.cat+"_vo_paper_compare_"+str(curfig)+".png",dpi=500)
                 fig=figure(curfig,figsize=(15,15))
@@ -194,15 +214,16 @@ try:
             except(AttributeError): 
              #   print "This catalog does not have flux errors"
                 plot(src.mfreq,src._jys)
-            if spectra.has_key(src.src_name):
+            log.debug('plotting spectra %s: %s'%(src.src_name,spectra.has_key(src.src_name)))
+            if spectra.has_key(src.src_name):                
                 spectrum = spectra[src.src_name]
                 if spectrum.shape[1]==3:
-                    errorbar(spectrum[:,0]*10**3,spectrum[:,1],yerr=spectrum[:,2],
-                    fmt='.',alpha=0.3)
+                    errorbar(spectrum[:,0],spectrum[:,1],yerr=spectrum[:,2],
+                    fmt='.k',alpha=0.3)
                 else:
-                    plot(spectrum[:,0]*10**3,spectrum[:,1],'.')
+                    plot(spectrum[:,0]*10**3,spectrum[:,1],'.k')
         if not opts.uri is None:
-         #   print "performing cone search"
+            log.debug("performing cone search")
             catstr += "%s \t %8.5f \t %s \t %8.5f \t"%(src.ra, float(src.ra),src.dec, float(src.dec))
             #perform the cone search and make a spectrum numpy array
             log.debug("Connecting to %s"%(opts.uri))
@@ -218,8 +239,17 @@ try:
                 T.vo_read(votable_f,pedantic=False)
                 votable_f.reset()
             VO = atpy.Table()
-            VO.vo_read(votable_f,pedantic=False)
-            if len(VO)==0: notfound.append(catstr); continue
+            try:
+                VO.vo_read(votable_f,pedantic=False,tid=0)
+                assert(len(VO)!=0)
+            except(ValueError,AssertionError):
+                notfound.append(catstr);
+                ylim([0.1,500])
+                xlim([0.050,opts.fmax+1])
+                text(0.1,0.85,src.src_name,size=8,weight='normal',transform=ax.transAxes)
+                if (i % m1): yticks([])
+                if ((m2-1)*m1>(i%opts.max_sub+(m2*m1-nsub))): xticks([])
+                continue
             for col in newcols:
                 VO.add_empty_column(col['name'],col['dtype'],unit=col['units'],null=Nun)
                 if not col['name'] in T.data.dtype.names:
@@ -234,6 +264,7 @@ try:
             if len(vodata)<2: notfound.append(catstr); continue
             #extract a single spectrum (hope there was only one hit, throw a warning at the end if not)
             seqs = list(set(vodata['Seq']))
+            log.debug("Found %d VO data points for %s "%(len(seqs),src.src_name))
             vodata = sort(vodata[n.where(vodata['nu']*MHz<opts.fmax)[0]],order='nu')
             #compute best fits for each selected source
             P = {}
@@ -256,57 +287,69 @@ try:
             #compute likelihoods for sources
             seqs = [seq for seq in seqs if not seq in ill]
             if opts.res is None: sres = 1./sqrt(len(seqs)/(pi*opts.sep**2))
+            log.debug('vodata.shape %s'%(','.join(map(str,vodata.shape))))
+            if len(seqs)<2:#if we only found one source, the IDing is easy
+                seq = vodata[n.where(vodata['_r']==n.min(vodata['_r']))[0]]['Seq'][0] 
+                src_logL = -99
+                src_logLs = [src_logL]
+            else:
+                try: #Use the flux maximum likelihood method to choose the optimal match d
+                    src_logLs = []
+                    for seq in seqs:
+                        spec = n.sort(vodata[n.where(vodata['Seq']==seq)[0]],order='nu').squeeze()
+                        src_logL = -(log10(src.jys)-P[seq](log10(src.mfreq)))**2/\
+                             (2*((log10(src.e_S_nu+src.jys)-log10(src.jys))**2+e_P[seq](src.mfreq)**2)) +\
+                             -n.max(spec['_r'])**2/(2*sres**2)
+                        src_logLs.append(src_logL)
+                    log.debug('calculated %d likelihoods'%len(src_logLs))
+                    src_logLs =n.array(src_logLs)
+                    src_logLs -= loge(sum(exp(src_logLs)))
+                    src_logL = n.max(src_logLs)                    
+                    seq = seqs[n.where(src_logLs==src_logL)[0]]
 
-            try: 
-                src_logLs = []
-                for seq in seqs:
-                    spec = n.sort(vodata[n.where(vodata['Seq']==seq)[0]],order='nu').squeeze()
-                    src_logL = -(log10(src.jys)-P[seq](log10(src.mfreq)))**2/\
-                         (2*((log10(src.e_S_nu+src.jys)-log10(src.jys))**2+e_P[seq](src.mfreq)**2)) +\
-                         -n.max(spec['_r'])**2/(2*sres**2)
-                    src_logLs.append(src_logL)
-                src_logLs =n.array(src_logLs)
-                src_logLs -= loge(sum(exp(src_logLs)))
-                for seq in seqs:
-                    VO.data['logL_cat'][n.where(VO.data['Seq']==seq)[0]] = src_logLs
-                    VO.data['S_sf'][n.where(VO.data['Seq']==seq)[0]]=10**P[seq](log10(src.mfreq))
-                    VO.data['e_S_sf'][n.where(VO.data['Seq']==seq)[0]]=\
-                            10**(P[seq](log10(src.mfreq))+res[seq]) -\
-                                10**P[seq](log10(src.mfreq))
-                    VO.data['S_nu_paper'][n.where(VO.data['Seq']==seq)[0]] = src.jys
-                    VO.data['e_S_nu_paper'][n.where(VO.data['Seq']==seq)[0]] = src.e_S_nu
-                src_logL = n.max(src_logLs)                    
-                seq = seqs[n.where(src_logLs==src_logL)[0]]
-                VO.data['PAPER_seq'] = seq
-                VO.data['PAPER_Ra'][n.where(VO.data['Seq']==seq)[0]] = repr(src.ra)
-                VO.data['PAPER_Dec'][n.where(VO.data['Seq']==seq)[0]] = repr(src.dec)
-                VO.data['PAPER_Name'][n.where(VO.data['Seq']==seq)[0]] = src.src_name
-                VO.data['sf_select'][n.where(VO.data['Seq']==seq)[0]] = 1
-                VO.data['search_r'] = sres
+                except(AttributeError): 
+                 #   print "This catalog does not have flux errors"
+                    src_logL = -99
+                    #if not enough flux info, use the nearest position only
+                    seq = vodata[n.where(vodata['_r']==n.min(vodata['_r']))[0]]['Seq'][0]  
+                #put in the data for the matched source
+            for seq in seqs:
+                VO.data['logL_cat'][n.where(VO.data['Seq']==seq)[0]] = src_logLs
+                VO.data['S_sf'][n.where(VO.data['Seq']==seq)[0]]=10**P[seq](log10(src.mfreq))
+                VO.data['e_S_sf'][n.where(VO.data['Seq']==seq)[0]]=\
+                        10**(P[seq](log10(src.mfreq))+res[seq]) -\
+                            10**P[seq](log10(src.mfreq))
+                VO.data['S_nu_paper'][n.where(VO.data['Seq']==seq)[0]] = src.jys
+                VO.data['e_S_nu_paper'][n.where(VO.data['Seq']==seq)[0]] = src.e_S_nu
+
+
+            VO.data['PAPER_seq'] = seq
+            VO.data['PAPER_Ra'][n.where(VO.data['Seq']==seq)[0]] = repr(src.ra)
+            VO.data['PAPER_Dec'][n.where(VO.data['Seq']==seq)[0]] = repr(src.dec)
+            VO.data['PAPER_Name'][n.where(VO.data['Seq']==seq)[0]] = src.src_name
+            VO.data['sf_select'][n.where(VO.data['Seq']==seq)[0]] = 1
+            VO.data['search_r'] = sres
 #                if seq==10068: 
 #                    print vodata[n.where(vodata['Seq']==seq)[0]]
 #                    print '.'*10
 #                    print VO.data
-            except(AttributeError): 
-             #   print "This catalog does not have flux errors"
-                src_logL = -99
-                #if not enough flux info, use the nearest position only
-                seq = vodata[n.where(vodata['_r']==n.min(vodata['_r']))[0]]['Seq'][0]    
-            catstr += "%6.3f\t"%(10**P[seq](log10(src.mfreq)))
-            catstr += "%6.4f\t"%(10**(P[seq](log10(src.mfreq))+res[seq]) -\
-                10**P[seq](log10(src.mfreq)))# n.abs(10**P[seq](log10(src.mfreq)) - \
+  
+            if not seq in ill:
+                catstr += "%6.3f\t"%(10**P[seq](log10(src.mfreq)))
+                catstr += "%6.4f\t"%(10**(P[seq](log10(src.mfreq))+res[seq]) -\
+                    10**P[seq](log10(src.mfreq)))# n.abs(10**P[seq](log10(src.mfreq)) - \
 #                    10**P[seq](log10(src.mfreq)-res[seq])))#-res[seq])
             catstr += "%6.3f\t"%(src.jys)
             catstr += "%6.4f\t"%(src.e_S_nu)            
             if spectra.has_key(src.src_name):
                 spectrum = spectra[src.src_name]
                 spectrum = spectrum[n.where(spectrum[:,2]>0)[0]] 
-                if spectrum.shape[-1]>2:
+                if spectrum.shape[-1]>2 and not seq in ill:
                     spec_logL = n.sum(-(n.log10(spectrum[:,0])- \
-                        P[seq](n.log10(spectrum[:,0])))**2/(2*log10((spectrum[:0,]-spectrum[:,2]))**2))
-                    spec_logL += -loge(exp(-spec_logL)+sum(Prob.values()))
+                        P[seq](n.log10(spectrum[:,0])))**2/(2*log10((spectrum[:,0]-spectrum[:,2]))**2))
+                    spec_logL += -loge(exp(-spec_logL))#+sum(Prob.values()))
                     VO.data['logL_spec'][n.where(vodata['Seq']==seq)[0]] = spec_logL
-                    catstr += spec_logL+"\t"
+                    catstr += str(spec_logL)+"\t"
                     #print n.average(spectrum[:,2]/spectrum[:,1]),"\t",
             else: catstr += "\'\'\t"       
             if n.isinf(src_logL):
@@ -318,12 +361,14 @@ try:
             catstr += str(max(spec['_r'])) + "\t"
             #the rest takes care of the nice subplot with labels
             if len(vodata['S_nu_'])<1 and opts.plot: 
-                print "no data!", 
+                #print "no data!", 
                 ylim([0.1,500])
-                xlim([0.050,opts.fmax+1000])
-                text(100,0.2,src.src_name,size='small',weight='normal')
+                xlim([0.050,opts.fmax+1])
+                text(0.1,0.85,src.src_name,size=8,weight='normal',transform=ax.transAxes)
                 if (i % m1): yticks([])
                 if ((m2-1)*m1>(i%opts.max_sub+(m2*m1-nsub))): xticks([])
+                continue
+            elif len(vodata['S_nu_'])<1:
                 continue
             spec = n.sort(vodata[n.argwhere(vodata['Seq']==seq)],order='nu').squeeze()
             if vodata['n_Seq'][0]==0: fmt = '.'; ms =7
@@ -331,13 +376,20 @@ try:
             if opts.plot:
                 errorbar(spec['nu']*MHz,spec['S_nu_']*Jys,yerr=spec['e_S_nu_']*eJys\
                         ,fmt=fmt,markersize=ms,linewidth=2)
-                plot(linspace(0.050,opts.fmax+1000),
-                    10**(P[seq](log10(linspace(0.050,opts.fmax+1000)))),'-k')
+                if seq not in ill:
+                    plot(linspace(0.050,opts.fmax+1),
+                        10**(P[seq](log10(linspace(0.050,opts.fmax+1)))),'-k')
                 ylim([0.1,10000])
-                xlim([0.050,opts.fmax+1000])
-            #apply src label                
-            srcname = find_src_name(spec['Name'])
+                xlim([0.050,opts.fmax+1])
+            #apply src label
+            if len(spec.shape)>0:
+                srcname = find_src_name(spec['Name'])
+            else:
+                srcname = str(spec['Name'])
+                print "srcname = ",srcname
             if srcname is None: srcname = 'PAPER '+ src.src_name
+            if opts.plot:
+                text(0.1,0.85,srcname,size=8,weight='normal',transform=ax.transAxes)
             catstr += srcname+'\t'+str(n.max(spec['n_Seq']))+'\t'
             catstr += str(i % m1)+'\t'+str(int(i)/int(m1)) + '\t' + str(curfig)
             VO.data['col'][n.where(VO.data['Seq']==seq)[0]] = i%m1+1
@@ -347,8 +399,7 @@ try:
                 src.compute(aa)
                 VO.data['sun_sep'] = ep.separation(src,sun)
                 VO.data['transit'] = aa.next_transit(src).tuple()[3]
-            if opts.plot:
-                text(0.1,0.85,srcname,size=8,weight='normal',transform=ax.transAxes)
+            
         if (i % m1) and opts.plot: yticks([])
         if ((m2-1)*m1>(i%nsub+(m2*m1-nsub))) and opts.plot: xticks([])
         if opts.plot: draw()
@@ -365,7 +416,7 @@ for catstr in notfound:
 if opts.plot:
     figtext(0.05,0.5,"flux [Jys]",rotation='vertical')
     figtext(0.5,0.05,"frequency [MHz]")
-    subplots_adjust(hspace=0,wspace=0)
+    subplots_adjust(hspace=0,wspace=0,left=0.1,bottom=0.1)
     draw()
     fig.savefig(opts.cat+"_vo_paper_compare_"+str(curfig)+".png",dpi=500)
     show()
