@@ -6,7 +6,7 @@ a.scripting.add_standard_options(o,cal=True)
 opts,args = o.parse_args(sys.argv[1:])
 
 afreqs = n.linspace(.1,.2,1024)
-chans = n.linspace(0,256,1024)
+chans = n.linspace(0,2048,1024)
 
 aa = a.cal.get_aa(opts.cal,afreqs)
 
