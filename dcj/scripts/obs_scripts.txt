@@ -1,0 +1,10 @@
+#a useful set of scripts Danny uses for observing
+
+cn_rx_log_check.py
+corr_email.py
+correct_psa898.py
+daily_move.py
+plot_all_temps.py
+plot_uv_maxred2.py
+pull_gridspacing.py
+temp_check.py
