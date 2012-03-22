@@ -1,4 +1,0 @@
-#$ -S /bin/bash
-source .bashrc
-echo ${SGE_TASK_ID}
-echo ${TASK_ID}

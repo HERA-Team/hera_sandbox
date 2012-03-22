@@ -1,5 +1,0 @@
-unflagged = n.load(file)
-
-mask = n.where(unflagged['times'] > (2455016. + ) AND unflagged['times'] < (2455016. + ))
-               OR
-mask = n.where(unflagged['spec'] )
