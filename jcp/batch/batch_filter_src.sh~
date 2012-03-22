@@ -1,0 +1,13 @@
+#$ -S /bin/bash
+#$ -V
+#$ -j y
+#$ -cwd
+#$ -o grid_output/
+#$ -N filter_sun
+CAL=pgb322_v008_gc
+SRCS=Sun
+
+ARGS=`pull_args.py $*`
+for FILE in $ARGS; do
+    filter_src.py -e -C $CAL -s $SRCS -d 10 -r 10 --clean=5e-4 $FILE
+done

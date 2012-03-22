@@ -7,7 +7,8 @@ setup_args = {
     'author': 'Danny Jacobs and Aaron Parsons',
     'author_email': 'jacobsda at sas.upenn.edu',
     'license': 'GPL',
-    'py_modules': ['capodb'],
+    'package_dir' : {'capo':'src'},
+    'packages' : ['capo'],
     'scripts': glob.glob('scripts/*.*'),
     'version': __version__,
 }

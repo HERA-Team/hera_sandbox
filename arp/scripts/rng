@@ -1,0 +1,2 @@
+#! /bin/bash
+python -c "print '$1'.join(map(str,range($2,$3,$4)))"

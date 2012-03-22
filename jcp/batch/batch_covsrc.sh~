@@ -1,0 +1,13 @@
+#$ -S /bin/bash
+#$ -o grid_output
+CAL=pgb015_v006
+ANTS="cross,-1"
+#ANTS="cross,-16,-31,-3_13,-3_14,-3_29,-4_14,-4_15,-4_30,-4_32,-5_15,-5_32,-6_32,-13_20,-14_21,-15_21,-15_22,-15_23,-20_29,-21_30,-21_32,-22_32,-23_32"
+
+SRCS1="cas,cyg,crab,vir"
+
+ARGS=`pull_args.py $*`
+for FILE in ${ARGS}; do 
+    cov_src27.py $FILE -d 10 -r 15 -C $CAL -s $SRCS1 -c 240_719 -x 4 -a $ANTS -p yy --maxiter=1000
+    #/data1/paper/arp/scripts/rm_npz26.py $FILE -d 20 -r 30 -C $CAL -D .
+done

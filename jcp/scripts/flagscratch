@@ -1,0 +1,15 @@
+unflagged = n.load(file)
+
+
+               OR
+mask = n.where(unflagged['spec'] )
+
+numpy.savez(file.replace('npz','f.npz'),afreqs=unflagged['afreqs'],mask=mask,times=unflagged['times'],spec=unflagged['spec'])
+
+
+
+LATER....
+mask = f['mask']
+ftimes = n.ma.array(f['times'],mask=mask)
+srctimes[src] = ftimes.compressed()
+ftimes = n.ma.array(unflagged['times'],mask=mask)

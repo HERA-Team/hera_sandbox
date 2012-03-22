@@ -1,0 +1,312 @@
+Name,Description,Feature Code,ECEFX,ECEFY,ECEFZ,Latitude,Longitude,Northing,Easting,Elevation,Ellipsoid Height,Horizontal Quality,Elevation Quality,Ellipsoid Height Quality,Point style,Layer
+"a6m","","A6",5109322.427,2005300.149,-3239961.544,30ø43'18.07711"S,21ø25'44.21670"E,6601162.815,541068.711,1086.299,1086.299,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,17:07:37 30 Nov 2011
+"d6m","","D6",5109315.856,2005297.647,-3239973.675,30ø43'18.53231"S,21ø25'44.21937"E,6601148.802,541068.728,1086.452,1086.452,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,17:09:01 30 Nov 2011
+"d7m","","D7",5109304.968,2005325.623,-3239973.523,30ø43'18.52665"S,21ø25'45.34750"E,6601148.861,541098.732,1086.448,1086.448,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,17:09:58 30 Nov 2011
+"a7m","","A7",5109311.560,2005328.114,-3239961.413,30ø43'18.07177"S,21ø25'45.34416"E,6601162.864,541098.697,1086.319,1086.319,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,17:12:20 30 Nov 2011
+"a4w","","a4",5109344.465,2005242.444,-3239962.548,30ø43'18.11456"S,21ø25'41.89548"E,6601161.898,541006.972,1086.324,1086.324,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:21:49 2 Dec 2011
+"b4w","","b4",5109342.545,2005241.744,-3239966.025,30ø43'18.24549"S,21ø25'41.89738"E,6601157.867,541007.007,1086.344,1086.344,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:23:20 2 Dec 2011
+"c4w","","c4",5109340.664,2005241.046,-3239969.464,30ø43'18.37472"S,21ø25'41.89876"E,6601153.889,541007.029,1086.376,1086.376,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:23:57 2 Dec 2011
+"d4w","","d4",5109338.797,2005240.306,-3239972.956,30ø43'18.50551"S,21ø25'41.89851"E,6601149.863,541007.007,1086.434,1086.434,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:25:07 2 Dec 2011
+"d4s","","d4",5109337.335,2005241.609,-3239974.462,30ø43'18.56221"S,21ø25'41.96417"E,6601148.110,541008.747,1086.442,1086.442,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:26:10 2 Dec 2011
+"d4e","","d4",5109337.504,2005243.584,-3239972.939,30ø43'18.50513"S,21ø25'42.03093"E,6601149.861,541010.529,1086.420,1086.420,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:27:46 2 Dec 2011
+"c4e","","c4",5109339.386,2005244.339,-3239969.493,30ø43'18.37529"S,21ø25'42.03152"E,6601153.858,541010.560,1086.403,1086.403,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:29:23 2 Dec 2011
+"b4e","","b4",5109341.272,2005245.050,-3239966.020,30ø43'18.24495"S,21ø25'42.03049"E,6601157.870,541010.548,1086.360,1086.360,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:30:30 2 Dec 2011
+"a4e","","a4",5109343.166,2005245.713,-3239962.559,30ø43'18.11509"S,21ø25'42.02768"E,6601161.868,541010.488,1086.316,1086.316,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:31:19 2 Dec 2011
+"a4n","","a4",5109344.626,2005244.379,-3239961.038,30ø43'18.05818"S,21ø25'41.96096"E,6601163.627,541008.720,1086.288,1086.288,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:32:34 2 Dec 2011
+"a5n","","5",5109333.714,2005272.425,-3239960.969,30ø43'18.05479"S,21ø25'43.09188"E,6601163.616,541038.798,1086.330,1086.330,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:33:55 2 Dec 2011
+"a5w","","5",5109333.517,2005270.467,-3239962.519,30ø43'18.11296"S,21ø25'43.02608"E,6601161.832,541037.041,1086.349,1086.349,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:34:54 2 Dec 2011
+"b5w","","5",5109331.626,2005269.773,-3239965.992,30ø43'18.24328"S,21ø25'43.02776"E,6601157.820,541037.071,1086.392,1086.392,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:44:16 2 Dec 2011
+"c5w","","5",5109329.797,2005269.035,-3239969.450,30ø43'18.37252"S,21ø25'43.02706"E,6601153.842,541037.037,1086.463,1086.463,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:46:01 2 Dec 2011
+"d5w","","5",5109327.912,2005268.265,-3239972.918,30ø43'18.50307"S,21ø25'43.02602"E,6601149.823,541036.994,1086.485,1086.485,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:46:47 2 Dec 2011
+"d5s","","5",5109326.422,2005269.631,-3239974.412,30ø43'18.55951"S,21ø25'43.09427"E,6601148.079,541038.802,1086.485,1086.485,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:47:27 2 Dec 2011
+"d5e","","5",5109326.637,2005271.649,-3239972.891,30ø43'18.50151"S,21ø25'43.16187"E,6601149.857,541040.607,1086.514,1086.514,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:48:13 2 Dec 2011
+"c5e","","5",5109328.491,2005272.348,-3239969.480,30ø43'18.37346"S,21ø25'43.16089"E,6601153.799,541040.596,1086.474,1086.474,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:48:22 2 Dec 2011
+"b5e","","5",5109330.399,2005273.062,-3239966.014,30ø43'18.24292"S,21ø25'43.15968"E,6601157.818,541040.579,1086.454,1086.454,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:50:15 2 Dec 2011
+"a5e","","5",5109332.274,2005273.771,-3239962.471,30ø43'18.11080"S,21ø25'43.15873"E,6601161.885,541040.569,1086.368,1086.368,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:50:42 2 Dec 2011
+"a6n","","6",5109322.802,2005300.266,-3239960.927,30ø43'18.05339"S,21ø25'44.21562"E,6601163.545,541068.685,1086.321,1086.321,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:51:33 2 Dec 2011
+"a6w","","6",5109322.616,2005298.344,-3239962.475,30ø43'18.11112"S,21ø25'44.15096"E,6601161.774,541066.958,1086.359,1086.359,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:52:07 2 Dec 2011
+"b6w","","6",5109320.755,2005297.678,-3239965.901,30ø43'18.23951"S,21ø25'44.15321"E,6601157.822,541067.003,1086.411,1086.411,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:52:51 2 Dec 2011
+"c6w","","6",5109318.858,2005296.967,-3239969.356,30ø43'18.36952"S,21ø25'44.15438"E,6601153.819,541067.019,1086.434,1086.434,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:53:34 2 Dec 2011
+"d6w","","6",5109316.992,2005296.171,-3239972.845,30ø43'18.50054"S,21ø25'44.15213"E,6601149.786,541066.944,1086.474,1086.474,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:54:07 2 Dec 2011
+"d6s","","6",5109315.520,2005297.522,-3239974.341,30ø43'18.55684"S,21ø25'44.21961"E,6601148.047,541068.731,1086.484,1086.484,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:54:43 2 Dec 2011
+"d6e","","6",5109315.706,2005299.484,-3239972.824,30ø43'18.49974"S,21ø25'44.28571"E,6601149.797,541070.496,1086.475,1086.475,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:56:04 2 Dec 2011
+"c6e","","6",5109317.568,2005300.240,-3239969.330,30ø43'18.36887"S,21ø25'44.28658"E,6601153.826,541070.535,1086.417,1086.417,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:58:33 2 Dec 2011
+"b6e","","6",5109319.469,2005300.939,-3239965.866,30ø43'18.23861"S,21ø25'44.28494"E,6601157.836,541070.506,1086.388,1086.388,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:59:46 2 Dec 2011
+"a6e","","6",5109321.347,2005301.614,-3239962.417,30ø43'18.10925"S,21ø25'44.28276"E,6601161.819,541070.464,1086.341,1086.341,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:00:19 2 Dec 2011
+"a7n","","6",5109311.968,2005328.298,-3239960.763,30ø43'18.04622"S,21ø25'45.34497"E,6601163.651,541098.721,1086.372,1086.372,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:01:23 2 Dec 2011
+"a7w","","7",5109311.778,2005326.365,-3239962.279,30ø43'18.10319"S,21ø25'45.27997"E,6601161.904,541096.986,1086.387,1086.387,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:02:03 2 Dec 2011
+"b7w","","7",5109309.897,2005325.626,-3239965.742,30ø43'18.23336"S,21ø25'45.27993"E,6601157.896,541096.969,1086.419,1086.419,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:02:35 2 Dec 2011
+"c7w","","7",5109307.984,2005324.925,-3239969.196,30ø43'18.36355"S,21ø25'45.28167"E,6601153.889,541097.000,1086.432,1086.432,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:03:08 2 Dec 2011
+"d7w","","7",5109306.129,2005324.174,-3239972.654,30ø43'18.49325"S,21ø25'45.28087"E,6601149.896,541096.964,1086.478,1086.478,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:04:02 2 Dec 2011
+"d7s","","7",5109304.643,2005325.473,-3239974.158,30ø43'18.55030"S,21ø25'45.34673"E,6601148.133,541098.708,1086.465,1086.465,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:04:40 2 Dec 2011
+"d7e","","7",5109304.826,2005327.468,-3239972.663,30ø43'18.49366"S,21ø25'45.41399"E,6601149.870,541100.504,1086.474,1086.474,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:05:39 2 Dec 2011
+"c7e","","7",5109306.722,2005328.175,-3239969.168,30ø43'18.36255"S,21ø25'45.41270"E,6601153.906,541100.485,1086.428,1086.428,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:06:17 2 Dec 2011
+"b7e","","7",5109308.602,2005328.883,-3239965.739,30ø43'18.23352"S,21ø25'45.41165"E,6601157.878,541100.472,1086.403,1086.403,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:06:58 2 Dec 2011
+"a7e","","7",5109310.472,2005329.607,-3239962.272,30ø43'18.10350"S,21ø25'45.41130"E,6601161.881,541100.478,1086.356,1086.356,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:07:57 2 Dec 2011
+"a7c","","7",5109312.006,2005328.377,-3239962.807,30ø43'18.10220"S,21ø25'45.34722"E,6601161.927,541098.774,1087.471,1087.471,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:08:57 2 Dec 2011
+"a7c.2","","7",5109312.029,2005328.365,-3239962.771,30ø43'18.10090"S,21ø25'45.34649"E,6601161.967,541098.755,1087.467,1087.467,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:09:42 2 Dec 2011
+"ar52n","","r",5109324.709,2005352.565,-3239925.151,30ø43'16.70853"S,21ø25'46.01894"E,6601204.761,541116.803,1085.996,1085.996,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:15:01 2 Dec 2011
+"ar52w","","r",5109324.469,2005350.637,-3239926.678,30ø43'16.76651"S,21ø25'45.95480"E,6601202.983,541115.091,1085.978,1085.978,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:15:47 2 Dec 2011
+"ar52s","","r",5109323.001,2005351.962,-3239928.154,30ø43'16.82234"S,21ø25'46.02131"E,6601201.258,541116.853,1085.974,1085.974,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:16:33 2 Dec 2011
+"ar52e","","r",5109323.219,2005353.935,-3239926.610,30ø43'16.76393"S,21ø25'46.08731"E,6601203.049,541118.615,1085.979,1085.979,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:17:25 2 Dec 2011
+"ar7n","","r",5109326.320,2005373.146,-3239909.601,30ø43'16.12492"S,21ø25'46.71679"E,6601222.656,541135.432,1085.805,1085.805,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:19:23 2 Dec 2011
+"ar7w","","r",5109326.187,2005371.164,-3239911.079,30ø43'16.18025"S,21ø25'46.64927"E,6601220.960,541133.630,1085.831,1085.831,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:19:53 2 Dec 2011
+"ar7s","","r",5109324.716,2005372.405,-3239912.627,30ø43'16.23864"S,21ø25'46.71289"E,6601219.156,541135.315,1085.835,1085.835,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:20:20 2 Dec 2011
+"ar7e","","r",5109324.870,2005374.386,-3239911.182,30ø43'16.18391"S,21ø25'46.78006"E,6601220.834,541137.107,1085.842,1085.842,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:20:51 2 Dec 2011
+"ar7c","","r",5109326.414,2005373.133,-3239911.666,30ø43'16.18119"S,21ø25'46.71504"E,6601220.924,541135.378,1086.931,1086.931,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:21:58 2 Dec 2011
+"ar52c","","r",5109324.736,2005352.529,-3239927.175,30ø43'16.76481"S,21ø25'46.01732"E,6601203.029,541116.753,1087.040,1087.040,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:23:37 2 Dec 2011
+"ar44n","","r",5109344.286,2005323.845,-3239911.833,30ø43'16.20861"S,21ø25'44.74549"E,6601220.280,541082.994,1085.838,1085.838,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:25:15 2 Dec 2011
+"ar44s","","r",5109342.667,2005323.189,-3239914.855,30ø43'16.32190"S,21ø25'44.74477"E,6601216.793,541082.962,1085.880,1085.880,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:25:53 2 Dec 2011
+"ar44c","","r",5109344.326,2005323.864,-3239913.905,30ø43'16.26569"S,21ø25'44.74561"E,6601218.523,541082.991,1086.934,1086.934,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:27:56 2 Dec 2011
+"base0","","",5109354.031,2005240.463,-3239949.512,30ø43'17.61503"S,21ø25'41.69487"E,6601177.296,541001.696,1086.697,1086.697,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:28:00 20 May 2010
+"base0","","",5109354.031,2005240.463,-3239949.512,30ø43'17.61503"S,21ø25'41.69487"E,6601177.296,541001.696,1086.697,1086.697,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,12:11:47 18 May 2010
+"base0","","",5109354.031,2005240.463,-3239949.512,30ø43'17.61503"S,21ø25'41.69487"E,6601177.296,541001.696,1086.697,1086.697,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,12:49:08 18 May 2010
+"p0n","","pol-gs0 n",5109324.542,2005372.189,-3239910.404,30ø43'16.18059"S,21ø25'46.70770"E,6601220.943,541135.183,1084.492,1084.492,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,12:49:08 18 May 2010
+"pol-gs0 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"p0s","","pol-gs0 s",5109322.895,2005371.546,-3239913.446,30ø43'16.29483"S,21ø25'46.70781"E,6601217.426,541135.173,1084.526,1084.526,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,12:52:57 18 May 2010
+"pol-gs0 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"pol-gs1 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"p1n","","pol-gs1 n",5109355.682,2005293.497,-3239909.939,30ø43'16.16367"S,21ø25'43.52741"E,6601221.788,541050.604,1084.458,1084.458,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,12:58:28 18 May 2010
+"pol-gs1 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"p2s","","pol-gs2 n",5109386.513,2005214.272,-3239910.257,30ø43'16.17660"S,21ø25'40.33269"E,6601221.714,540965.637,1084.411,1084.411,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:02:17 18 May 2010
+"pol-gs2 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"p2ss","","pol-gs2 s",5109385.611,2005213.938,-3239911.899,30ø43'16.23838"S,21ø25'40.33341"E,6601219.812,540965.649,1084.423,1084.423,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:03:49 18 May 2010
+"pol-gs2 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"p3s","","pol-gs3",5109416.528,2005134.648,-3239912.152,30ø43'16.24852"S,21ø25'37.13523"E,6601219.824,540880.590,1084.392,1084.392,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:06:37 18 May 2010
+"pol-gs3 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"p3n","","pol-gn3",5109417.448,2005135.008,-3239910.450,30ø43'16.18464"S,21ø25'37.13521"E,6601221.791,540880.597,1084.372,1084.372,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:08:21 18 May 2010
+"pol-gs3 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"test1","","",5109356.006,2005240.647,-3239949.309,30ø43'17.57775"S,21ø25'41.67417"E,6601178.445,541001.150,1088.232,1088.232,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,11:17:32 20 May 2010
+"p3o","","",5109356.383,2005291.760,-3239913.345,30ø43'16.25844"S,21ø25'43.45701"E,6601218.878,541048.720,1086.214,1086.214,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:28:00 20 May 2010
+"p3p","","",5109356.511,2005293.774,-3239911.899,30ø43'16.20389"S,21ø25'43.52570"E,6601220.550,541050.553,1086.210,1086.210,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:28:21 20 May 2010
+"p3q","","",5109355.015,2005295.070,-3239913.447,30ø43'16.26235"S,21ø25'43.59159"E,6601218.743,541052.299,1086.211,1086.211,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:28:43 20 May 2010
+"p3r","","",5109354.857,2005293.063,-3239914.978,30ø43'16.31969"S,21ø25'43.52353"E,6601216.985,541050.482,1086.236,1086.236,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:29:03 20 May 2010
+"p3t","","",5109387.153,2005212.590,-3239913.717,30ø43'16.27347"S,21ø25'40.26508"E,6601218.739,540963.827,1086.162,1086.162,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:30:28 20 May 2010
+"p3u","","",5109387.344,2005214.583,-3239912.148,30ø43'16.21465"S,21ø25'40.33215"E,6601220.543,540965.618,1086.139,1086.139,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:30:45 20 May 2010
+"p3v","","",5109385.860,2005215.939,-3239913.668,30ø43'16.27179"S,21ø25'40.40000"E,6601218.777,540967.416,1086.154,1086.154,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:31:06 20 May 2010
+"p3w","","",5109385.654,2005213.985,-3239915.234,30ø43'16.33051"S,21ø25'40.33447"E,6601216.976,540965.666,1086.176,1086.176,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:31:26 20 May 2010
+"p3x","","",5109418.113,2005133.313,-3239913.916,30ø43'16.28138"S,21ø25'37.06677"E,6601218.820,540878.766,1086.142,1086.142,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:32:43 20 May 2010
+"p3y","","",5109418.270,2005135.308,-3239912.388,30ø43'16.22422"S,21ø25'37.13441"E,6601220.572,540880.571,1086.114,1086.114,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:32:59 20 May 2010
+"p3z","","",5109416.797,2005136.667,-3239913.899,30ø43'16.28091"S,21ø25'37.20218"E,6601218.820,540882.367,1086.134,1086.134,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:33:13 20 May 2010
+"p4A","","",5109416.591,2005134.638,-3239915.480,30ø43'16.34051"S,21ø25'37.13401"E,6601216.993,540880.547,1086.140,1086.140,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:33:35 20 May 2010
+"g37s","","gs37 s",5109415.515,2005142.818,-3239912.041,30ø43'16.21157"S,21ø25'37.43495"E,6601220.931,540888.566,1086.090,1086.090,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:41:01 20 May 2010
+"gs37 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g37n","","gs37 n",5109416.448,2005143.155,-3239910.336,30ø43'16.14753"S,21ø25'37.43394"E,6601222.903,540888.546,1086.072,1086.072,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:42:40 20 May 2010
+"gs37 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g49s","","gs49 s",5109408.571,2005134.762,-3239928.228,30ø43'16.81938"S,21ø25'37.24848"E,6601202.240,540883.535,1086.273,1086.273,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:45:09 20 May 2010
+"gs49 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g49n","","gs49 n",5109409.479,2005135.163,-3239926.499,30ø43'16.75467"S,21ø25'37.25003"E,6601204.232,540883.584,1086.243,1086.243,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:45:57 20 May 2010
+"gs49 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g41s","","gs41 s",5109396.808,2005156.988,-3239933.081,30ø43'17.00178"S,21ø25'38.18745"E,6601196.530,540908.486,1086.319,1086.319,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:47:34 20 May 2010
+"gs41 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g41n","","gs41 n",5109397.726,2005157.323,-3239931.424,30ø43'16.93931"S,21ø25'38.18658"E,6601198.453,540908.470,1086.312,1086.312,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:48:21 20 May 2010
+"gs41 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g58n","","gs58 n",5109381.514,2005138.789,-3239969.064,30ø43'18.35247"S,21ø25'37.76077"E,6601154.993,540896.980,1086.748,1086.748,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:50:07 20 May 2010
+"gs58 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g58s","","gs58 s",5109380.569,2005138.409,-3239970.790,30ø43'18.41753"S,21ø25'37.76045"E,6601152.991,540896.964,1086.754,1086.754,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:51:38 20 May 2010
+"gs58 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g61n","","gs61 n",5109362.076,2005154.348,-3239990.401,30ø43'19.15383"S,21ø25'38.57194"E,6601130.242,540918.460,1086.979,1086.979,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:53:18 20 May 2010
+"gs61 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g61s","","gs61 s",5109361.141,2005153.993,-3239992.099,30ø43'19.21780"S,21ø25'38.57233"E,6601128.273,540918.462,1086.987,1086.987,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:55:11 20 May 2010
+"gs61 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g47s","","gs47 s",5109393.920,2005205.532,-3239907.340,30ø43'16.03378"S,21ø25'39.92528"E,6601226.152,540954.818,1086.103,1086.103,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:57:38 20 May 2010
+"gs47 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g47n","","gs47 n",5109394.786,2005205.914,-3239905.669,30ø43'15.97147"S,21ø25'39.92672"E,6601228.070,540954.864,1086.063,1086.063,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:59:16 20 May 2010
+"gs47 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g33s","","gs33 s",5109422.411,2005164.402,-3239887.491,30ø43'15.28912"S,21ø25'38.09532"E,6601249.261,540906.237,1085.845,1085.845,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:01:50 20 May 2010
+"gs33 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g33n","","gs33 n",5109423.284,2005164.791,-3239885.826,30ø43'15.22683"S,21ø25'38.09694"E,6601251.179,540906.287,1085.816,1085.816,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:02:54 20 May 2010
+"gs33 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g42n","","gs42 n",5109425.166,2005152.218,-3239890.723,30ø43'15.41060"S,21ø25'37.63129"E,6601245.568,540893.882,1085.876,1085.876,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:04:18 20 May 2010
+"gs42 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g42s","","gs42 s",5109424.242,2005151.814,-3239892.459,30ø43'15.47577"S,21ø25'37.62984"E,6601243.562,540893.835,1085.896,1085.896,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:05:39 20 May 2010
+"gs42 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g63s","","gs63 s",5109433.869,2005175.277,-3239862.360,30ø43'14.34491"S,21ø25'38.31846"E,6601278.305,540912.282,1085.593,1085.593,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:07:01 20 May 2010
+"gs63 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g63n","","gs63 n",5109434.822,2005175.607,-3239860.604,30ø43'14.27917"S,21ø25'38.31690"E,6601280.329,540912.248,1085.561,1085.561,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:08:24 20 May 2010
+"gs63 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g45s","","gs45 s",5109431.496,2005212.580,-3239842.790,30ø43'13.60930"S,21ø25'39.65593"E,6601300.814,540947.940,1085.411,1085.411,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:09:52 20 May 2010
+"gs45 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g45n","","gs45 n",5109432.423,2005212.915,-3239841.105,30ø43'13.54595"S,21ø25'39.65493"E,6601302.764,540947.920,1085.397,1085.397,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:11:00 20 May 2010
+"gs45 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g43n","","gs43 n",5109404.807,2005264.415,-3239853.003,30ø43'13.99234"S,21ø25'41.83563"E,6601288.802,541005.865,1085.551,1085.551,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:13:21 20 May 2010
+"gs43 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g43s","","gs43 s",5109403.872,2005264.033,-3239854.735,30ø43'14.05744"S,21ø25'41.83511"E,6601286.798,541005.844,1085.566,1085.566,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:14:21 20 May 2010
+"gs43 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g50n","","gs50 n",5109386.441,2005286.682,-3239868.396,30ø43'14.57060"S,21ø25'42.86670"E,6601270.896,541033.219,1085.710,1085.710,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:15:41 20 May 2010
+"gs50 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g50s","","gs50 s",5109385.522,2005286.299,-3239870.163,30ø43'14.63642"S,21ø25'42.86593"E,6601268.870,541033.191,1085.756,1085.756,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:17:26 20 May 2010
+"gs50 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g38s","","gs38 s",5109388.785,2005300.811,-3239855.901,30ø43'14.10007"S,21ø25'43.32876"E,6601285.334,541045.563,1085.640,1085.640,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:18:23 20 May 2010
+"gs38 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g38n","","gs38 n",5109389.704,2005301.183,-3239854.205,30ø43'14.03628"S,21ø25'43.32916"E,6601287.297,541045.582,1085.626,1085.626,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:19:06 20 May 2010
+"gs38 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g54s","","gs54 s",5109392.869,2005310.933,-3239843.071,30ø43'13.61758"S,21ø25'43.62678"E,6601300.156,541053.546,1085.533,1085.533,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:20:15 20 May 2010
+"gs54 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g54n","","gs54 n",5109393.798,2005311.242,-3239841.396,30ø43'13.55461"S,21ø25'43.62486"E,6601302.095,541053.503,1085.518,1085.518,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:21:33 20 May 2010
+"gs54 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g46s","","gs46 s",5109403.069,2005296.587,-3239835.719,30ø43'13.34184"S,21ø25'42.98491"E,6601308.710,541036.508,1085.434,1085.434,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:22:48 20 May 2010
+"gs46 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g46n","","gs46 n",5109403.957,2005296.969,-3239834.016,30ø43'13.27826"S,21ø25'42.98608"E,6601310.667,541036.546,1085.395,1085.395,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:23:43 20 May 2010
+"gs46 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g53s","","gs53 s",5109408.859,2005287.135,-3239832.335,30ø43'13.21525"S,21ø25'42.57478"E,6601312.648,541025.615,1085.370,1085.370,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:34:47 20 May 2010
+"gs53 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g53n","","gs53 n",5109409.821,2005287.471,-3239830.606,30ø43'13.15012"S,21ø25'42.57331"E,6601314.653,541025.583,1085.362,1085.362,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:35:58 20 May 2010
+"gs53 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g39n","","gs39 n",5109380.937,2005338.179,-3239845.091,30ø43'13.69308"S,21ø25'44.74371"E,6601297.718,541083.243,1085.574,1085.574,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:38:25 20 May 2010
+"gs39 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g39s","","gs39 s",5109380.022,2005337.810,-3239846.793,30ø43'13.75695"S,21ø25'44.74337"E,6601295.752,541083.226,1085.596,1085.596,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:39:00 20 May 2010
+"gs39 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g60n","","gs60 n",5109347.940,2005367.235,-3239879.521,30ø43'14.98741"S,21ø25'46.21317"E,6601257.724,541122.172,1085.884,1085.884,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:42:13 20 May 2010
+"gs60 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g60s","","gs60 s",5109347.019,2005366.886,-3239881.269,30ø43'15.05252"S,21ø25'46.21361"E,6601255.720,541122.176,1085.929,1085.929,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:42:58 20 May 2010
+"gs60 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g52n","","gs52 n",5109323.904,2005351.984,-3239927.439,30ø43'16.78831"S,21ø25'46.00966"E,6601202.306,541116.547,1086.338,1086.338,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:44:25 20 May 2010
+"gs52 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g52s","","gs52 s",5109322.982,2005351.629,-3239929.153,30ø43'16.85255"S,21ø25'46.00990"E,6601200.329,541116.546,1086.364,1086.364,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:45:14 20 May 2010
+"gs52 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g51n","","gs51 n",5109305.761,2005367.996,-3239946.519,30ø43'17.50393"S,21ø25'46.81889"E,6601180.194,541137.984,1086.595,1086.595,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:46:25 20 May 2010
+"gs51 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g51s","","gs51 s",5109304.824,2005367.656,-3239948.209,30ø43'17.56764"S,21ø25'46.81987"E,6601178.233,541138.003,1086.602,1086.602,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:46:58 20 May 2010
+"gs51 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g57n","","gs57 n",5109299.263,2005363.121,-3239959.894,30ø43'18.00710"S,21ø25'46.73757"E,6601164.713,541135.762,1086.697,1086.697,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:48:11 20 May 2010
+"gs57 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g57s","","gs57 s",5109298.314,2005362.698,-3239961.620,30ø43'18.07248"S,21ø25'46.73580"E,6601162.701,541135.708,1086.687,1086.687,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:48:48 20 May 2010
+"gs57 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g59n","","gs59 n",5109303.847,2005337.646,-3239968.475,30ø43'18.33020"S,21ø25'45.78349"E,6601154.864,541110.350,1086.748,1086.748,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:50:24 20 May 2010
+"gs59 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g59s","","gs59 s",5109302.962,2005337.270,-3239970.237,30ø43'18.39532"S,21ø25'45.78247"E,6601152.860,541110.315,1086.822,1086.822,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:51:22 20 May 2010
+"gs59 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g56n","","gs56 n",5109291.007,2005331.814,-3239992.689,30ø43'19.23960"S,21ø25'45.75576"E,6601126.872,541109.506,1087.012,1087.012,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:52:40 20 May 2010
+"gs56 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g56s","","gs56 s",5109290.043,2005331.440,-3239994.439,30ø43'19.30557"S,21ø25'45.75592"E,6601124.841,541109.502,1087.017,1087.017,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:53:29 20 May 2010
+"gs56 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g36n","","gs36 n",5109281.883,2005304.065,-3240024.798,30ø43'20.44477"S,21ø25'44.91033"E,6601089.858,541086.879,1087.399,1087.399,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:55:50 20 May 2010
+"gs36 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g36s","","gs36 s",5109280.892,2005303.665,-3240026.568,30ø43'20.51191"S,21ø25'44.90993"E,6601087.792,541086.861,1087.384,1087.384,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:56:36 20 May 2010
+"gs36 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g62n","","gs62 n",5109284.553,2005286.189,-3240031.726,30ø43'20.70524"S,21ø25'44.24832"E,6601081.907,541069.242,1087.461,1087.461,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:57:46 20 May 2010
+"gs62 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g62s","","gs62 s",5109283.616,2005285.735,-3240033.484,30ø43'20.77152"S,21ø25'44.24529"E,6601079.867,541069.154,1087.467,1087.467,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,14:58:33 20 May 2010
+"gs62 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g40n","","gs40 n",5109290.925,2005248.417,-3240045.282,30ø43'21.21409"S,21ø25'42.83950"E,6601066.386,541031.714,1087.622,1087.622,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,15:00:09 20 May 2010
+"gs40 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g40s","","gs40 s",5109290.006,2005248.079,-3240046.963,30ø43'21.27724"S,21ø25'42.84029"E,6601064.442,541031.728,1087.640,1087.640,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,15:01:02 20 May 2010
+"gs40 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g48s","","gs48 s",5109318.278,2005228.882,-3240013.717,30ø43'20.02917"S,21ø25'41.78060"E,6601102.970,541003.692,1087.250,1087.250,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,15:03:01 20 May 2010
+"gs48 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g48n","","gs48 n",5109319.197,2005229.215,-3240012.009,30ø43'19.96529"S,21ø25'41.77963"E,6601104.937,541003.674,1087.218,1087.218,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,15:04:31 20 May 2010
+"gs48 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g35n","","gs35 n",5109336.962,2005161.496,-3240026.150,30ø43'20.49603"S,21ø25'39.16676"E,6601088.864,540934.121,1087.390,1087.390,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,15:06:45 20 May 2010
+"gs35 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g35s","","gs35 s",5109336.053,2005161.096,-3240027.877,30ø43'20.56069"S,21ø25'39.16525"E,6601086.874,540934.074,1087.420,1087.420,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,15:07:41 20 May 2010
+"gs35 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g55s","","gs55 s",5109335.511,2005304.391,-3239938.788,30ø43'17.21426"S,21ø25'44.18544"E,6601189.380,541067.981,1086.476,1086.476,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,15:11:34 20 May 2010
+"gs55 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g55n","","gs55 n",5109336.410,2005304.778,-3239937.135,30ø43'17.15191"S,21ø25'44.18663"E,6601191.299,541068.020,1086.473,1086.473,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,15:12:29 20 May 2010
+"gs55 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g34n","","gs34 n",5109321.409,2005323.905,-3239949.126,30ø43'17.60229"S,21ø25'45.06168"E,6601177.345,541091.239,1086.602,1086.602,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,15:13:45 20 May 2010
+"gs34 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g34s","","gs34 s",5109320.466,2005323.501,-3239950.793,30ø43'17.66582"S,21ø25'45.06049"E,6601175.390,541091.200,1086.572,1086.572,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,15:14:30 20 May 2010
+"gs34 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g44s","","gs44 s",5109342.611,2005322.942,-3239915.807,30ø43'16.35083"S,21ø25'44.73691"E,6601215.903,541082.749,1086.244,1086.244,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,15:15:44 20 May 2010
+"gs44 s","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"g44n","","gs44 n",5109343.543,2005323.290,-3239914.133,30ø43'16.28763"S,21ø25'44.73626"E,6601217.849,541082.739,1086.244,1086.244,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,15:16:39 20 May 2010
+"gs44 n","","",,,,,,,,,,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,
+"2154","","",5109356.470,2005242.003,-3239947.553,30ø43'17.51334"S,21ø25'41.71525"E,6601180.424,541002.250,1088.132,1088.132,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,13:07:37 20 May 2010
+"a3n","","3",5109355.518,2005216.457,-3239961.154,30ø43'18.06245"S,21ø25'40.83466"E,6601163.609,540978.765,1086.295,1086.295,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,15:48:45 2 Dec 2011
+"a3w","","3",5109355.379,2005214.434,-3239962.622,30ø43'18.11782"S,21ø25'40.76580"E,6601161.912,540976.928,1086.298,1086.298,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,15:49:14 2 Dec 2011
+"b3w","","3",5109353.467,2005213.702,-3239966.164,30ø43'18.25064"S,21ø25'40.76644"E,6601157.823,540976.929,1086.348,1086.348,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,15:49:45 2 Dec 2011
+"c3w","","3",5109351.573,2005213.003,-3239969.649,30ø43'18.38140"S,21ø25'40.76800"E,6601153.798,540976.955,1086.393,1086.393,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,15:50:13 2 Dec 2011
+"d3w","","3",5109349.677,2005212.321,-3239973.092,30ø43'18.51089"S,21ø25'40.77018"E,6601149.812,540976.998,1086.421,1086.421,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,15:50:45 2 Dec 2011
+"d3s","","3",5109348.229,2005213.638,-3239974.598,30ø43'18.56729"S,21ø25'40.83612"E,6601148.068,540978.745,1086.445,1086.445,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,15:52:30 2 Dec 2011
+"d3e","","3",5109348.438,2005215.577,-3239973.062,30ø43'18.50943"S,21ø25'40.90109"E,6601149.843,540980.480,1086.436,1086.436,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,15:53:33 2 Dec 2011
+"c3e","","3",5109350.328,2005216.318,-3239969.592,30ø43'18.37893"S,21ø25'40.90105"E,6601153.860,540980.494,1086.409,1086.409,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,15:54:13 2 Dec 2011
+"b3e","","3",5109352.220,2005216.988,-3239966.132,30ø43'18.24910"S,21ø25'40.89852"E,6601157.857,540980.442,1086.366,1086.366,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,15:55:18 2 Dec 2011
+"a3e","","3",5109354.026,2005217.706,-3239962.741,30ø43'18.12222"S,21ø25'40.89884"E,6601161.763,540980.465,1086.304,1086.304,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,15:56:00 2 Dec 2011
+"a3c","","3",5109355.607,2005216.399,-3239963.243,30ø43'18.11972"S,21ø25'40.83142"E,6601161.847,540978.673,1087.415,1087.415,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,15:57:41 2 Dec 2011
+"a2n","","3",5109366.419,2005188.509,-3239961.282,30ø43'18.06708"S,21ø25'39.70733"E,6601163.581,540948.783,1086.307,1086.307,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,15:59:23 2 Dec 2011
+"a2w","","3",5109366.248,2005186.539,-3239962.805,30ø43'18.12415"S,21ø25'39.64078"E,6601161.831,540947.006,1086.329,1086.329,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:00:01 2 Dec 2011
+"b2w","","3",5109364.357,2005185.801,-3239966.244,30ø43'18.25380"S,21ø25'39.64089"E,6601157.840,540946.994,1086.341,1086.341,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:00:41 2 Dec 2011
+"c2w","","3",5109362.469,2005185.125,-3239969.701,30ø43'18.38353"S,21ø25'39.64316"E,6601153.846,540947.039,1086.384,1086.384,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:01:10 2 Dec 2011
+"d2w","","3",5109360.586,2005184.384,-3239973.174,30ø43'18.51404"S,21ø25'39.64312"E,6601149.829,540947.023,1086.419,1086.419,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:02:20 2 Dec 2011
+"d2s","","3",5109359.151,2005185.679,-3239974.696,30ø43'18.57080"S,21ø25'39.70811"E,6601148.075,540948.745,1086.454,1086.454,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:02:55 2 Dec 2011
+"d2e","","3",5109359.342,2005187.648,-3239973.214,30ø43'18.51458"S,21ø25'39.77438"E,6601149.799,540950.514,1086.469,1086.469,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:03:24 2 Dec 2011
+"c2e","","3",5109361.201,2005188.411,-3239969.738,30ø43'18.38422"S,21ø25'39.77553"E,6601153.812,540950.560,1086.420,1086.420,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:03:49 2 Dec 2011
+"b2e","","3",5109363.080,2005189.099,-3239966.293,30ø43'18.25491"S,21ø25'39.77379"E,6601157.793,540950.529,1086.380,1086.380,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:04:41 2 Dec 2011
+"a2e","","3",5109364.951,2005189.829,-3239962.812,30ø43'18.12444"S,21ø25'39.77365"E,6601161.809,540950.540,1086.328,1086.328,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:05:17 2 Dec 2011
+"a2c","","3",5109366.483,2005188.555,-3239963.371,30ø43'18.12409"S,21ø25'39.70807"E,6601161.826,540948.796,1087.440,1087.440,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:06:33 2 Dec 2011
+"a1n","","2",5109377.309,2005160.461,-3239961.372,30ø43'18.07139"S,21ø25'38.57665"E,6601163.564,540918.712,1086.258,1086.258,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:07:55 2 Dec 2011
+"a1w","","1",5109377.106,2005158.512,-3239962.886,30ø43'18.12858"S,21ø25'38.51125"E,6601161.809,540916.966,1086.257,1086.257,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:09:24 2 Dec 2011
+"b1w","","1",5109375.212,2005157.883,-3239966.307,30ø43'18.25713"S,21ø25'38.51525"E,6601157.852,540917.057,1086.292,1086.292,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:09:54 2 Dec 2011
+"c1w","","1",5109373.332,2005157.197,-3239969.769,30ø43'18.38693"S,21ø25'38.51707"E,6601153.856,540917.090,1086.340,1086.340,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:10:44 2 Dec 2011
+"d1w","","1",5109371.489,2005156.480,-3239973.217,30ø43'18.51595"S,21ø25'38.51726"E,6601149.884,540917.080,1086.402,1086.402,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:11:36 2 Dec 2011
+"d1s","","1",5109370.022,2005157.818,-3239974.725,30ø43'18.57258"S,21ø25'38.58423"E,6601148.134,540918.855,1086.419,1086.419,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:12:10 2 Dec 2011
+"d1e","","1",5109370.195,2005159.752,-3239973.206,30ø43'18.51582"S,21ø25'38.64950"E,6601149.875,540920.597,1086.389,1086.389,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:13:07 2 Dec 2011
+"c1e","","1",5109372.038,2005160.491,-3239969.761,30ø43'18.38671"S,21ø25'38.65006"E,6601153.849,540920.627,1086.336,1086.336,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:14:17 2 Dec 2011
+"b1e","","1",5109373.943,2005161.153,-3239966.311,30ø43'18.25702"S,21ø25'38.64708"E,6601157.842,540920.563,1086.306,1086.306,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:15:08 2 Dec 2011
+"a1e","","1",5109375.871,2005161.792,-3239962.857,30ø43'18.12698"S,21ø25'38.64294"E,6601161.845,540920.468,1086.285,1086.285,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:15:41 2 Dec 2011
+"a1c","","1",5109377.274,2005160.466,-3239963.569,30ø43'18.13321"S,21ø25'38.57729"E,6601161.660,540918.721,1087.354,1087.354,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:16:36 2 Dec 2011
+"a0n","","1",5109388.115,2005132.649,-3239961.501,30ø43'18.07665"S,21ø25'37.45537"E,6601163.515,540888.890,1086.238,1086.238,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:17:53 2 Dec 2011
+"a0w","","1",5109387.953,2005130.702,-3239963.002,30ø43'18.13286"S,21ø25'37.38950"E,6601161.791,540887.132,1086.263,1086.263,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:18:44 2 Dec 2011
+"b0w","","0",5109386.100,2005129.931,-3239966.482,30ø43'18.26326"S,21ø25'37.38794"E,6601157.777,540887.075,1086.316,1086.316,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:20:23 2 Dec 2011
+"c0w","","0",5109384.242,2005129.188,-3239969.944,30ø43'18.39308"S,21ø25'37.38747"E,6601153.781,540887.047,1086.364,1086.364,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:21:05 2 Dec 2011
+"d0w","","0",5109382.347,2005128.454,-3239973.425,30ø43'18.52393"S,21ø25'37.38780"E,6601149.753,540887.041,1086.396,1086.396,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:21:41 2 Dec 2011
+"d0s","","0",5109380.907,2005129.780,-3239974.924,30ø43'18.57998"S,21ø25'37.45396"E,6601148.021,540888.794,1086.425,1086.425,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:22:27 2 Dec 2011
+"d0e","","0",5109381.080,2005131.720,-3239973.424,30ø43'18.52368"S,21ø25'37.51944"E,6601149.747,540890.542,1086.408,1086.408,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:22:53 2 Dec 2011
+"c0e","","0",5109382.946,2005132.454,-3239969.970,30ø43'18.39404"S,21ø25'37.51951"E,6601153.738,540890.559,1086.367,1086.367,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:23:23 2 Dec 2011
+"b0e","","0",5109384.799,2005133.236,-3239966.501,30ø43'18.26387"S,21ø25'37.52143"E,6601157.745,540890.625,1086.322,1086.322,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:23:59 2 Dec 2011
+"a0e","","0",5109386.672,2005133.950,-3239963.040,30ø43'18.13402"S,21ø25'37.52071"E,6601161.742,540890.621,1086.277,1086.277,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:25:59 2 Dec 2011
+"a0c","","0",5109388.195,2005132.678,-3239963.578,30ø43'18.13324"S,21ø25'37.45527"E,6601161.773,540888.881,1087.372,1087.372,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:26:50 2 Dec 2011
+"ar16n","","0",5109415.945,2005153.772,-3239903.738,30ø43'15.90682"S,21ø25'37.81223"E,6601230.275,540898.636,1085.633,1085.633,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:30:05 2 Dec 2011
+"ar16s","","0",5109414.267,2005153.152,-3239906.771,30ø43'16.02112"S,21ø25'37.81358"E,6601226.756,540898.658,1085.645,1085.645,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:30:47 2 Dec 2011
+"ar06n","","r",5109421.977,2005145.956,-3239898.950,30ø43'15.72741"S,21ø25'37.45599"E,6601235.834,540889.182,1085.560,1085.560,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:32:38 2 Dec 2011
+"ar06s","","r",5109420.341,2005145.296,-3239902.006,30ø43'15.84195"S,21ø25'37.45539"E,6601232.308,540889.153,1085.604,1085.604,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:33:28 2 Dec 2011
+"ar15n","","r",5109431.725,2005166.755,-3239870.338,30ø43'14.65233"S,21ø25'38.04977"E,6601268.869,540905.100,1085.276,1085.276,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:34:45 2 Dec 2011
+"ar15s","","r",5109430.031,2005166.203,-3239873.383,30ø43'14.76680"S,21ø25'38.05372"E,6601265.344,540905.192,1085.302,1085.302,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:35:16 2 Dec 2011
+"ar45n","","r",5109433.124,2005213.519,-3239838.837,30ø43'13.46815"S,21ø25'39.66646"E,6601305.158,540948.236,1084.989,1084.989,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:36:45 2 Dec 2011
+"ar45s","","r",5109431.493,2005212.864,-3239841.872,30ø43'13.58201"S,21ø25'39.66593"E,6601301.653,540948.209,1085.029,1085.029,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:37:22 2 Dec 2011
+"ar20n","","r",5109429.470,2005241.685,-3239827.129,30ø43'13.02713"S,21ø25'40.70190"E,6601318.629,540975.826,1084.930,1084.930,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:38:31 2 Dec 2011
+"ar20s","","r",5109427.798,2005241.066,-3239830.152,30ø43'13.14109"S,21ø25'40.70319"E,6601315.121,540975.847,1084.942,1084.942,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:40:43 2 Dec 2011
+"a5c","","5",5109333.754,2005272.464,-3239963.063,30ø43'18.11240"S,21ø25'43.09269"E,6601161.843,541038.813,1087.444,1087.444,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:50:09 2 Dec 2011
+"a6c","","5",5109322.869,2005300.325,-3239963.024,30ø43'18.11054"S,21ø25'44.21678"E,6601161.786,541068.709,1087.464,1087.464,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,16:51:50 2 Dec 2011
+"a4c","","5",5109344.727,2005244.373,-3239963.094,30ø43'18.11406"S,21ø25'41.95938"E,6601161.907,541008.672,1087.418,1087.418,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa32m,17:02:26 2 Dec 2011
+"se hut corner","","0",5109359.174,2005245.114,-3239945.151,30ø43'17.38573"S,21ø25'41.78693"E,6601184.345,541004.171,1090.046,1090.046,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,15:48:45 2 Dec 2011
+"se hut corner","","0",5109359.174,2005245.114,-3239945.151,30ø43'17.38573"S,21ø25'41.78693"E,6601184.345,541004.171,1090.046,1090.046,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,13:25:04 30 Nov 2011
+"se hut corner","","0",5109359.174,2005245.114,-3239945.151,30ø43'17.38573"S,21ø25'41.78693"E,6601184.345,541004.171,1090.046,1090.046,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:26:32 30 Nov 2011
+"se hut corner","","0",5109359.174,2005245.114,-3239945.151,30ø43'17.38573"S,21ø25'41.78693"E,6601184.345,541004.171,1090.046,1090.046,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,16:45:53 30 Nov 2011
+"se hut corner","","0",5109359.174,2005245.114,-3239945.151,30ø43'17.38573"S,21ø25'41.78693"E,6601184.345,541004.171,1090.046,1090.046,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,10:21:49 2 Dec 2011
+"se hut corner","","0",5109359.174,2005245.114,-3239945.151,30ø43'17.38573"S,21ø25'41.78693"E,6601184.345,541004.171,1090.046,1090.046,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:42:52 25 Jun 2011
+"se hut corner","","0",5109359.174,2005245.114,-3239945.151,30ø43'17.38573"S,21ø25'41.78693"E,6601184.345,541004.171,1090.046,1090.046,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,11:43:02 25 Jun 2011
+"se hut corner","","0",5109359.174,2005245.114,-3239945.151,30ø43'17.38573"S,21ø25'41.78693"E,6601184.345,541004.171,1090.046,1090.046,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,12:32:47 25 Jun 2011
+"a0","","",5109387.764,2005132.416,-3239962.037,30ø43'18.09844"S,21ø25'37.45203"E,6601162.845,540888.799,1086.158,1086.158,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,13:25:55 30 Nov 2011
+"pad sw","","",5109357.661,2005226.591,-3239951.219,30ø43'17.69066"S,21ø25'41.15976"E,6601175.022,540987.455,1086.118,1086.118,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,13:27:57 30 Nov 2011
+"pad se","","",5109350.903,2005245.751,-3239950.129,30ø43'17.64850"S,21ø25'41.92277"E,6601176.242,541007.753,1086.170,1086.170,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,13:28:39 30 Nov 2011
+"A1","","",5109376.857,2005160.368,-3239961.938,30ø43'18.09473"S,21ø25'38.57960"E,6601162.845,540918.787,1086.158,1086.158,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,
+"A2","","",5109365.950,2005188.320,-3239961.840,30ø43'18.09102"S,21ø25'39.70717"E,6601162.845,540948.776,1086.158,1086.158,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,
+"A3","","",5109355.043,2005216.273,-3239961.742,30ø43'18.08730"S,21ø25'40.83474"E,6601162.845,540978.765,1086.158,1086.158,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,
+"aa4","","",5109344.136,2005244.225,-3239961.643,30ø43'18.08358"S,21ø25'41.96231"E,6601162.845,541008.753,1086.158,1086.158,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,
+"A5","","",5109333.228,2005272.177,-3239961.545,30ø43'18.07986"S,21ø25'43.08988"E,6601162.845,541038.742,1086.158,1086.158,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,
+"A6","","",5109322.321,2005300.129,-3239961.446,30ø43'18.07613"S,21ø25'44.21745"E,6601162.845,541068.731,1086.158,1086.158,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,
+"A7","","",5109311.413,2005328.081,-3239961.347,30ø43'18.07241"S,21ø25'45.34502"E,6601162.845,541098.719,1086.158,1086.158,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,
+"D0","","",5109381.086,2005129.852,-3239974.074,30ø43'18.55305"S,21ø25'37.45403"E,6601148.850,540888.799,1086.158,1086.158,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,
+"D1","","",5109370.179,2005157.805,-3239973.976,30ø43'18.54933"S,21ø25'38.58160"E,6601148.850,540918.787,1086.158,1086.158,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,
+"D2","","",5109359.272,2005185.757,-3239973.877,30ø43'18.54562"S,21ø25'39.70917"E,6601148.850,540948.776,1086.158,1086.158,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,
+"D3","","",5109348.365,2005213.709,-3239973.779,30ø43'18.54190"S,21ø25'40.83674"E,6601148.850,540978.765,1086.158,1086.158,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,
+"D4","","",5109337.457,2005241.661,-3239973.680,30ø43'18.53819"S,21ø25'41.96432"E,6601148.850,541008.753,1086.158,1086.158,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,
+"D5","","",5109326.550,2005269.613,-3239973.582,30ø43'18.53446"S,21ø25'43.09189"E,6601148.850,541038.742,1086.158,1086.158,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,
+"D6","","",5109315.642,2005297.566,-3239973.483,30ø43'18.53074"S,21ø25'44.21946"E,6601148.850,541068.731,1086.158,1086.158,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,
+"D7","","",5109304.735,2005325.518,-3239973.384,30ø43'18.52701"S,21ø25'45.34703"E,6601148.850,541098.719,1086.158,1086.158,Survey quality,Survey quality,Unknown quality,<By Layer>,Default,
+"a0m","","a0",5109387.825,2005132.451,-3239962.056,30ø43'18.09782"S,21ø25'37.45242"E,6601162.864,540888.809,1086.227,1086.227,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,16:45:53 30 Nov 2011
+"d0m","","D0",5109381.283,2005129.882,-3239974.222,30ø43'18.55397"S,21ø25'37.45235"E,6601148.822,540888.754,1086.400,1086.400,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,16:46:53 30 Nov 2011
+"d1m","","D1",5109370.349,2005157.931,-3239974.100,30ø43'18.54941"S,21ø25'38.58370"E,6601148.847,540918.843,1086.397,1086.397,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,16:50:29 30 Nov 2011
+"a1m","","A1",5109376.966,2005160.350,-3239961.979,30ø43'18.09429"S,21ø25'38.57747"E,6601162.858,540918.731,1086.260,1086.260,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,16:51:51 30 Nov 2011
+"a2m","","A2",5109366.086,2005188.353,-3239961.892,30ø43'18.09017"S,21ø25'39.70643"E,6601162.871,540948.756,1086.303,1086.303,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,16:53:26 30 Nov 2011
+"d2m","","D2",5109359.466,2005185.846,-3239974.052,30ø43'18.54696"S,21ø25'39.70961"E,6601148.809,540948.787,1086.430,1086.430,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,16:54:24 30 Nov 2011
+"d3m","","D3",5109348.560,2005213.764,-3239973.918,30ø43'18.54246"S,21ø25'40.83599"E,6601148.833,540978.745,1086.402,1086.402,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,16:57:24 30 Nov 2011
+"a3m","","A3",5109355.144,2005216.309,-3239961.807,30ø43'18.08734"S,21ø25'40.83462"E,6601162.843,540978.762,1086.282,1086.282,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,16:58:24 30 Nov 2011
+"a4m","","aa4",5109344.194,2005244.217,-3239961.694,30ø43'18.08416"S,21ø25'41.96121"E,6601162.827,541008.724,1086.228,1086.228,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,17:01:16 30 Nov 2011
+"d4m","","D4",5109337.651,2005241.728,-3239973.825,30ø43'18.53882"S,21ø25'41.96401"E,6601148.830,541008.745,1086.407,1086.407,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,17:03:25 30 Nov 2011
+"d5m","","D5",5109326.753,2005269.742,-3239973.752,30ø43'18.53530"S,21ø25'43.09360"E,6601148.824,541038.787,1086.448,1086.448,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,17:05:02 30 Nov 2011
+"a5m","","A5",5109333.363,2005272.250,-3239961.587,30ø43'18.07853"S,21ø25'43.09058"E,6601162.885,541038.761,1086.310,1086.310,Unknown quality,Unknown quality,Unknown quality,<By Layer>,Default,17:06:19 30 Nov 2011
+"p1s","","pol-gs1 s",5109354.777,2005293.058,-3239911.702,30ø43'16.22950"S,21ø25'43.52449"E,6601219.761,541050.518,1084.497,1084.497,Unknown quality,Unknown quality,Unknown quality,<By Layer>,psa64,12:57:24 18 May 2010
