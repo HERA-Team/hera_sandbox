@@ -24,9 +24,9 @@ Names = []
 for L in A[1:]:
     name = L.split(',')[0][1:-1]
     try:
-        x = float(L.split(',')[3][1:-1])
-        y = float(L.split(',')[4][1:-1])
-        z = float(L.split(',')[5][1:-1])
+        x = float(L.split(',')[3])
+        y = float(L.split(',')[4])
+        z = float(L.split(',')[5])
     except(ValueError):continue
     #print name
     if name in phase_centers:
@@ -44,8 +44,11 @@ for row in rows:
         pos[row+str(col)] = (epos[row+str(col)+'e'] + wpos[row+str(col)+'w'])/2
 
 
-lon = -79.84997221765981*n.pi/180
-m= a.coord.rot_m(lon,n.array([0,0,1]))
+#long and lat for PSA (radians)
+lon = -0.373994485068
+lat = -0.536191810965
+
+m= a.coord.rot_m(-1.*lon,n.array([0,0,1]))
 m_per_ns = 0.299792458
 #antposr = n.dot(m,antpos.transpose()).transpose()
 
@@ -54,7 +57,8 @@ print '{'
 for row in rows:
     for col in cols:
 #        print row+str(col),pos[row+str(col)] - pos['a0']
-        V = n.dot(m,pos[row+str(col)] - pos['a0'])/m_per_ns
+        #V = (pos[row+str(col)] - pos['a0'])/m_per_ns
+        V = n.dot(m,(pos[row+str(col)] - pos['a0']))/m_per_ns
         print i,':',list(V),','
         i +=1
      #   print '----'
