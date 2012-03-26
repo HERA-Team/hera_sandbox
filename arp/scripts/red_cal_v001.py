@@ -81,11 +81,13 @@ for sep in seps:
         Pline = n.zeros((1,NANT), dtype=n.float)
         Pline[0,ANTIND[j]] += 1; Pline[0,ANTIND[i]] += -1; Pline[0,ANTIND[j0]] += -1; Pline[0,ANTIND[i0]] += 1
         Mline = n.zeros((1,1), dtype=n.float)
-        g,tau = C.arp.redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False)
+        g,tau,info = C.arp.redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False)
         Mline[0,0] = tau
         P = n.append(P, Pline, axis=0)
         M = n.append(M, Mline, axis=0)
-        print ''.join(['v-0+^'[int(c)+2] for c in Pline.flatten()]), Mline, (i,j), (i0,j0)
+        print ''.join(['v-0+^'[int(c)+2] for c in Pline.flatten()]), Mline, '%d-%d/%d-%d' % (i,j,i0,j0), 
+        if info['dtau'] > .1: print info['dtau']
+        else: print
 
 C = n.linalg.lstsq(P,M)[0]
 C.shape = ANTPOS.shape

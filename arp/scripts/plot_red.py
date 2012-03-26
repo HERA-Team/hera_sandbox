@@ -41,9 +41,10 @@ uv = a.miriad.UV(sys.argv[-1])
 fqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 del(uv)
 
-seps = ['0,1']
-#plot_bls = [ij2bl(4,20), ij2bl(6,26)]
-plot_bls = bls['0,1']
+#seps = ['0,1']
+seps = ['3,2']
+plot_bls = bls[seps[0]]
+#plot_bls = [ij2bl(4,15)]
 #seps = bls.keys()
 strbls = ','.join([strbls[sep] for sep in seps])
 print strbls
@@ -73,10 +74,10 @@ for sep in seps:
         if bl == cbl or not bl in plot_bls: continue
         i,j = bl2ij(bl)
         if conj_bl.has_key(bl) and conj_bl[bl]: i,j = j,i
-        g,tau = C.arp.redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False, verbose=True)
+        g,tau,info = C.arp.redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False, verbose=True)
         P.subplot(211); P.plot(fqs, n.abs(g), label='%d,%d'%(i,j))
         P.subplot(212); P.plot(fqs, n.angle(g), label='%d,%d'%(i,j))
-        print (i,j), 'Dly:', tau
+        print (i,j), 'Dly:', tau, 'Dtau:', info['dtau']
 P.legend()
 P.show()
 
