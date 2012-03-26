@@ -121,9 +121,14 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
         else: # Pull out an integral number of phase wraps
             if mx > _phs.size/2: mx -= _phs.size
             dtau,doff = mx / (fqs[-1] - fqs[0]), 0
-            dtau = n.sum(_phs**2 * dlys) / n.sum(_phs**2)
+            mxs = mx + n.array([-1,0,1])
+            dtau = n.sum(_phs[mxs] * dlys[mxs]) / n.sum(_phs[mxs])
+            #dtau = n.sum(_phs**2 * dlys) / n.sum(_phs**2)
             #dtau = n.sum(_phs * dlys) / n.sum(_phs)
         if verbose: print j, dtau, doff, (tau, off), mx
+        #P.subplot(211); P.plot(n.fft.fftshift(dlys), n.fft.fftshift(_phs)); P.xlim(-200,200)
+        #P.subplot(212); P.plot(fqs, n.angle(d12_sum))
+        #P.show()
     off %= 1
     #if True:
     #    _phs = n.fft.fft(window*d12_sum)

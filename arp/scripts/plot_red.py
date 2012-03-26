@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n, capo as C, pylab as P
-import sys
+import sys, scipy
 
 ij2bl,bl2ij = a.miriad.ij2bl,a.miriad.bl2ij
 
@@ -41,8 +41,10 @@ uv = a.miriad.UV(sys.argv[-1])
 fqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 del(uv)
 
-#seps = ['0,1']
-seps = bls.keys()
+seps = ['0,1']
+#plot_bls = [ij2bl(4,20), ij2bl(6,26)]
+plot_bls = bls['0,1']
+#seps = bls.keys()
 strbls = ','.join([strbls[sep] for sep in seps])
 print strbls
 
@@ -63,33 +65,21 @@ calant = ANTPOS[calrow,calcol]
 cal_bl = {}
 for sep in seps: cal_bl[sep] = [bl for bl in bls[sep] if bl2ij(bl)[0] == ANTPOS[calrow,calcol]][0]
 
-P = n.zeros((3,NANT), dtype=n.float)
-M = n.zeros((3,1), dtype=n.float)
-P[0,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M[0] = 0
-P[1,ANTIND[ANTPOS[calrow,calcol+1]]] = 1e6; M[0] = 0
-P[2,ANTIND[ANTPOS[calrow+1,calcol]]] = 1e6; M[0] = 0
-print P
-    
 for sep in seps:
     cbl = cal_bl[sep]
     i0,j0 = bl2ij(cbl)
     if conj_bl.has_key(cbl) and conj_bl[cbl]: i0,j0 = j0,i0
     for bl in bls[sep]:
-        if bl == cbl: continue
+        if bl == cbl or not bl in plot_bls: continue
         i,j = bl2ij(bl)
         if conj_bl.has_key(bl) and conj_bl[bl]: i,j = j,i
-        Pline = n.zeros((1,NANT), dtype=n.float)
-        Pline[0,ANTIND[j]] += 1; Pline[0,ANTIND[i]] += -1; Pline[0,ANTIND[j0]] += -1; Pline[0,ANTIND[i0]] += 1
-        Mline = n.zeros((1,1), dtype=n.float)
-        g,tau = C.arp.redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False)
-        Mline[0,0] = tau
-        P = n.append(P, Pline, axis=0)
-        M = n.append(M, Mline, axis=0)
-        print ''.join(['v-0+^'[int(c)+2] for c in Pline.flatten()]), Mline, (i,j), (i0,j0)
+        g,tau = C.arp.redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False, verbose=True)
+        P.subplot(211); P.plot(fqs, n.abs(g), label='%d,%d'%(i,j))
+        P.subplot(212); P.plot(fqs, n.angle(g), label='%d,%d'%(i,j))
+        print (i,j), 'Dly:', tau
+P.legend()
+P.show()
 
-C = n.linalg.lstsq(P,M)[0]
-C.shape = ANTPOS.shape
-print n.around(C,2)
     #if True:
     #    print bl2ij(bl), 'Delay:', tau
     #    #P.subplot(211); P.plot(fqs, n.abs(g))
