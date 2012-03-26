@@ -1,5 +1,5 @@
 import aipy as a, numpy as n, pylab as P
-import sys
+import sys, scipy
 
 def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose=False):
     times, dat, flg = [], {}, {}
@@ -76,12 +76,12 @@ def waterfall(d, mode='log', mx=None, drng=None, recenter=False, **kwargs):
     P.imshow(d, vmax=mx, vmin=mn, aspect='auto', interpolation='nearest', **kwargs)
 
 def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='blackman-harris',
-        clean=1e-4, verbose=False):
+        clean=1e-4, verbose=False, tau=0., off=0.):
     '''Return gain and phase difference between two redundant measurements
     d1,d2 with respective weights w1,w2.'''
     # Compute measured values
-    tau,off,dtau,doff = 0,0,0,0
-    d12 = d1 * n.conj(d2)
+    dtau,doff = 0,0
+    d12 = d2 * n.conj(d1)
     if d12.ndim > 1: d12_sum,d12_wgt = n.sum(d12,axis=0), n.sum(w1*w2,axis=0)
     else: d12_sum,d12_wgt = d12, w1*w2
     if n.all(d12_wgt == 0): return n.zeros_like(d12_sum), 0.
@@ -90,6 +90,8 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     else: d11_sum,d11_wgt = d11, w1*w1
     window = a.dsp.gen_window(d12_sum.size, window=window)
     dlys = n.fft.fftfreq(fqs.size, fqs[1]-fqs[0])
+    # Begin at the beginning
+    d12_sum *= n.exp(-2j*n.pi*(fqs*tau+off))
     for j in range(maxiter):
         d12_sum *= n.exp(-2j*n.pi*(fqs*dtau+doff))
         tau += dtau; off += doff
@@ -102,7 +104,11 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
         if j > maxiter/2 and mx == 0: # Fine-tune calibration with linear fit
             valid = n.where(d12_wgt > d12_wgt.max()/2, 1, 0)
             fqs_val = fqs.compress(valid)
-            dly = n.real(n.log(d12_sum.compress(valid))/(2j*n.pi)) # This doesn't weight data
+            if j < maxiter/2 + 2: # Unwrap data the first couple times to get close
+                dly = n.real(n.log(d12_sum.compress(valid))/1j) # This doesn't weight data
+                dly = scipy.unwrap(dly) / (2*n.pi)
+            else: # Don't unwrap once close b/c RFI can cause unwanted wraps
+                dly = n.real(n.log(d12_sum.compress(valid))/(2j*n.pi)) # This doesn't weight data
             wgt = d12_wgt.compress(valid); wgt.shape = (wgt.size,1)
             B = n.zeros((fqs_val.size,1)); B[:,0] = dly
             if use_offset: # allow for an offset component
