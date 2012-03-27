@@ -20,19 +20,26 @@ def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose
         flg[bl] = n.array(flg[bl])
     return n.array(times), dat, flg
 
-def clean_transform(d, f, clean=1e-3, axis=0):
+def clean_transform(d, w=None, f=None, clean=1e-3, window='blackman-harris'):
     #d = d.swapaxes(0, axis)
     #f = n.logical_not(f.swapaxes(0, axis))
-    f = n.logical_not(f)
-    _d = n.fft.ifft(n.where(f,d,0), axis=1)
-    if True:
-        _f = n.fft.ifft(f, axis=1)
-        for i in range(_d.shape[0]):
-            g = n.sqrt(n.average(f[i]**2))
+    if w is None and not f is None: w = n.logical_not(f)
+    elif w is None: w = n.ones(d.shape, dtype=n.float)
+    window = a.dsp.gen_window(d.shape[-1], window=window)
+    _d = n.fft.ifft(d*window, axis=-1)
+    _w = n.fft.ifft(w*window, axis=-1)
+    if _d.ndim == 2:
+        for i in range(_d.shape[0]): # XXX would be nice to make this work on any shape of d
+            g = n.sqrt(n.average(w[i]**2))
             if g == 0: continue
-            _d[i],info = a.deconv.clean(_d[i], _f[i], tol=clean)
+            _d[i],info = a.deconv.clean(_d[i], _w[i], tol=clean)
             _d[i] += info['res'] / g
-        #_d = _d.swapaxes(0, axis)
+    else: 
+        g = n.sqrt(n.average(w**2))
+        if g != 0:
+            _d,info = a.deconv.clean(_d, _w, tol=clean)
+            _d += info['res'] / g
+    #_d = _d.swapaxes(0, axis)
     return _d
 
 def gen_ddr_filter(shape, dw, drw, ratio=.25, invert=False):
@@ -139,3 +146,28 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     gain = (d12_sum / d12_wgt.clip(1,n.Inf)) / (d11_sum / d11_wgt.clip(1,n.Inf))
     if use_offset: return gain, (tau,off), info
     else: return gain, tau, info
+
+def sinuspike(d, w=None, f=None, clean=1e-3, window='blackman-harris'):
+    std = n.std(d)
+    if std == 0: return
+    mdl,_mdl = n.zeros_like(d), n.zeros_like(d)
+    if w is None and not f is None: w = n.logical_not(f)
+    elif w is None: w = n.ones(d.shape, dtype=n.float)
+    for i in range(100):
+        di = d - w*(mdl + n.fft.fft(_mdl))
+        std = n.std(di)
+        _di = clean_transform(di, w=w, clean=clean, window=window)
+        _std = n.std(_di)
+        adi,_adi = n.abs(di), n.abs(_di)
+        amx, _amx = n.argmax(adi), n.argmax(_adi)
+        print i, amx, adi[amx]/std, _amx, _adi[_amx]/_std
+        if adi[amx]/std > _adi[_amx]/_std:
+            #mdl[amx] += .3 * di[amx] / w[amx]
+            mdl[amx] += di[amx] / w[amx]
+        else:
+            #_mdl[_amx] += .3 * _di[_amx]
+            _mdl[_amx] += _di[_amx]
+        if i % 10 == 0:
+            P.subplot(211); P.semilogy(adi)
+            P.subplot(212); P.semilogy(n.fft.fftshift(_adi))
+    P.show()
