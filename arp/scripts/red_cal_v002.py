@@ -1,10 +1,8 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n, capo as C, pylab as P
-import sys, scipy
+import sys
 
 ij2bl,bl2ij = a.miriad.ij2bl,a.miriad.bl2ij
-
-USE_CAL = True
 
 A_ = [0,16,8,24,4,20,12,28]
 B_ = [i+1 for i in A_]
@@ -42,25 +40,17 @@ for sep in bls:
 uv = a.miriad.UV(sys.argv[-1])
 fqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 del(uv)
-if USE_CAL: aa = a.cal.get_aa('psa898_v002', fqs)
 
-seps = ['0,1']
-#seps = ['3,2']
-plot_bls = bls[seps[0]]
-#plot_bls = [ij2bl(4,15)]
-#seps = bls.keys()
+#seps = ['0,1']
+seps = bls.keys()
 strbls = ','.join([strbls[sep] for sep in seps])
 print strbls
 
 times, d, f = C.arp.get_dict_of_uv_data(sys.argv[1:], strbls, 'xx', verbose=True)
 for bl in d:
     i,j = bl2ij(bl)
-    if USE_CAL:
-        d[bl] = aa.phs2src(d[bl], 'z', i,j)
-        d[bl] /= n.median(aa.passband(i,j))
-    else:
-        if i == 8 or j == 8: d[bl] = -d[bl]  # XXX remove this line once correct script is run
     if conj_bl.has_key(bl) and conj_bl[bl]: d[bl] = n.conj(d[bl])
+    if i == 8 or j == 8: d[bl] = -d[bl]  # XXX remove this line once correct script is run
 
 w = {}
 for bl in f: w[bl] = n.logical_not(f[bl]).astype(n.float)
@@ -73,27 +63,52 @@ calant = ANTPOS[calrow,calcol]
 cal_bl = {}
 for sep in seps: cal_bl[sep] = [bl for bl in bls[sep] if bl2ij(bl)[0] == ANTPOS[calrow,calcol]][0]
 
+P = n.zeros((3,NANT), dtype=n.float)
+M = n.zeros((3,1), dtype=n.float)
+P[0,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M[0] = 0
+P[1,ANTIND[ANTPOS[calrow,calcol+1]]] = 1e6; M[0] = 0
+P[2,ANTIND[ANTPOS[calrow+1,calcol]]] = 1e6; M[0] = 0
+print P
+P_gain = n.zeros((1,NANT), dtype=n.float)
+M_gain = n.zeros((1,1), dtype=n.float)
+P_gain[0,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M_gain[0] = 0
+    
 for sep in seps:
     cbl = cal_bl[sep]
     i0,j0 = bl2ij(cbl)
     if conj_bl.has_key(cbl) and conj_bl[cbl]: i0,j0 = j0,i0
     for bl in bls[sep]:
-        if bl == cbl or not bl in plot_bls: continue
+        if bl == cbl: continue
         i,j = bl2ij(bl)
         if conj_bl.has_key(bl) and conj_bl[bl]: i,j = j,i
-        if USE_CAL: print aa[j].get_params(['dly'])['dly'] - aa[i].get_params(['dly'])['dly']
+        Pline = n.zeros((1,NANT), dtype=n.float)
+        Pline[0,ANTIND[j ]] +=  1; Pline[0,ANTIND[i ]] += -1
+        Pline[0,ANTIND[j0]] += -1; Pline[0,ANTIND[i0]] +=  1
+        Mline = n.zeros((1,1), dtype=n.float)
+        P_gain_line = n.zeros((1,NANT), dtype=n.float)
+        P_gain_line[0,ANTIND[j]] += 1; P_gain_line[0,ANTIND[i]] += 1
+        P_gain_line[0,ANTIND[j0]] += -1; P_gain_line[0,ANTIND[i0]] += -1
+        M_gain_line = n.zeros((1,1), dtype=n.float)
         g,tau,info = C.arp.redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False)
-        #g,tau,info = C.arp.redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False,maxiter=0)
-        gain = n.median(n.abs(g))
-        P.subplot(211); P.semilogy(fqs, n.abs(g)/gain, label='%d,%d'%(i,j))
-        P.subplot(212); P.plot(fqs, n.angle(g), label='%d,%d'%(i,j))
-        print (i,j)
-        print '   Dly:', tau, 'Dtau:', info['dtau']
-        print '  Gain:', gain
-    P.subplot(211); P.semilogy(fqs, n.abs(d[cbl]).sum(axis=0) / w[cbl].sum(axis=0))
-        
-P.legend()
-P.show()
+        gain = n.log10(n.median(n.abs(g)))
+        Mline[0,0] = tau
+        M_gain_line[0,0] = gain
+        P = n.append(P, Pline, axis=0)
+        M = n.append(M, Mline, axis=0)
+        P_gain = n.append(P_gain, P_gain_line, axis=0)
+        M_gain = n.append(M_gain, M_gain_line, axis=0)
+        print '%2d-%2d/%2d-%2d' % (i,j,i0,j0), ''.join(['v-0+^'[int(c)+2] for c in Pline.flatten()]), '%6.2f' % Mline[0,0],
+        if info['dtau'] > .1: print '*', info['dtau']
+        else: print
+        print '%2d-%2d/%2d-%2d' % (i,j,i0,j0), ''.join(['v-0+^'[int(c)+2] for c in P_gain_line.flatten()]), '%6.3f' % M_gain_line[0,0], 'G'
+
+C = n.linalg.lstsq(P,M)[0]
+C.shape = ANTPOS.shape
+print n.around(C,2)
+
+C_gain = n.linalg.lstsq(P_gain,M_gain)[0]
+C_gain.shape = ANTPOS.shape
+print n.around(10**C_gain,3)
 
     #if True:
     #    print bl2ij(bl), 'Delay:', tau

@@ -80,7 +80,7 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     '''Return gain and phase difference between two redundant measurements
     d1,d2 with respective weights w1,w2.'''
     # Compute measured values
-    dtau,doff = 0,0
+    dtau,doff,mx = 0,0,0
     d12 = d2 * n.conj(d1)
     if d12.ndim > 1: d12_sum,d12_wgt = n.sum(d12,axis=0), n.sum(w1*w2,axis=0)
     else: d12_sum,d12_wgt = d12, w1*w2
