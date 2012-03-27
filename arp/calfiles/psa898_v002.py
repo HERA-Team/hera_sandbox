@@ -11,19 +11,39 @@ v008: Put in spectra003b from 747-uvcbRmtsFFFFFs beam-forming
 import aipy as a, numpy as n,glob,ephem
 
 class AntennaArray(a.fit.AntennaArray):
+    def __init__(self, *args, **kwargs):
+        a.fit.AntennaArray.__init__(self, *args, **kwargs)
+        self.ant_layout = kwargs.pop('ant_layout')
+        self.dly_coeffs = kwargs.pop('dly_coeffs')
+        self.tau_ew = kwargs.pop('tau_ew')
+        self.tau_ns = kwargs.pop('tau_ns')
+    def update_delays(self):
+        ns,ew = n.indices(self.ant_layout.shape)
+        dlys = ns*self.tau_ns + ew*self.tau_ew + self.dly_coeffs
+        for i,tau in zip(self.ant_layout.flatten(), dlys.flatten()):
+            self[i].set_params({'dly':tau})
+    def update(self):
+        self.update_delays()
+        a.fit.AntennaArray.update(self)
     def get_params(self, ant_prms={'*':'*'}):
         try: prms = a.fit.AntennaArray.get_params(self, ant_prms)
         except(IndexError): return {}
         for k in ant_prms:
-            try: top_pos = n.dot(self._eq2zen, self[int(k)].pos)
-            except(ValueError): continue
-            if ant_prms[k] == '*':
-                prms[k].update({'top_x':top_pos[0], 'top_y':top_pos[1], 'top_z':top_pos[2]})
-            else:
+            if k == 'aa':
+                if not prms.has_key('aa'): prms['aa'] = {}
                 for val in ant_prms[k]:
-                    if   val == 'top_x': prms[k]['top_x'] = top_pos[0]
-                    elif val == 'top_y': prms[k]['top_y'] = top_pos[1]
-                    elif val == 'top_z': prms[k]['top_z'] = top_pos[2]
+                    if   val == 'tau_ns': prms['aa']['tau_ns'] = self.tau_ns
+                    elif val == 'tau_ew': prms['aa']['tau_ew'] = self.tau_ew
+            else:
+                try: top_pos = n.dot(self._eq2zen, self[int(k)].pos)
+                except(ValueError): continue
+                if ant_prms[k] == '*':
+                    prms[k].update({'top_x':top_pos[0], 'top_y':top_pos[1], 'top_z':top_pos[2]})
+                else:
+                    for val in ant_prms[k]:
+                        if   val == 'top_x': prms[k]['top_x'] = top_pos[0]
+                        elif val == 'top_y': prms[k]['top_y'] = top_pos[1]
+                        elif val == 'top_z': prms[k]['top_z'] = top_pos[2]
         return prms
     def set_params(self, prms):
         changed = a.fit.AntennaArray.set_params(self, prms)
@@ -44,39 +64,14 @@ class AntennaArray(a.fit.AntennaArray):
             except(KeyError): pass
             if ant_changed: ant.pos = n.dot(n.linalg.inv(self._eq2zen), top_pos) / a.const.len_ns
             changed |= ant_changed
+        try: self.tau_ns, changed = prms['aa']['tau_ns'], 1
+        except(KeyError): pass
+        try: self.tau_ew, changed = prms['aa']['tau_ew'], 1
+        except(KeyError): pass
+        if changed: self.update()
         return changed
 
-t16 = 2.64  # Measured on (0,4)
-#t16 = 2.883 # Measured on (0,28)
-#t16 = 2.442 # Measured on (1,29)
-#t16 = 2.893 # Measured on (0,12)
-t1 = -3.06 # Measured on (0,29)
-t1 = -3.13 # Measured on (0,5)
-#t1 = 1.29 # 0.97
-#t2 = -0.83 # Measured on (0,30)
-#t2 = -7.08 # Measured on (0,6)
-#t2 = 16.59 # Measured on (0,6)
-t2 =  8.77 # Measured on (0,6)
-t3 = 14.02 # Measured on (0,7)
-colsep = [0., t1, t2, t3]
-delta_sep1 = n.array([
-    [0.,  0.          ,-10.979254185, 13.9729544782, 1.89979514746, -0.0394931157,-19.07895156 ,  1.6994551659],
-    [0., 10.7653350728,-20.139030797,  5.3719886101, 2.93250206676,-12.9375992894, 12.179787746,-13.2928112639],
-    [0.,-13.1839086866,  9.567666783,-13.8331792019, 5.50094998423,-16.9521433364,  2.805489684, -3.0717165869],
-    [0.,-22.6729399642, -2.368950567, 10.8653715794, 3.79332417295,-13.8337202133, -0.073831907,-14.9810438071],
-])
-
-dly_coeff = n.cumsum(delta_sep1, axis=-1)
-
-row = [0,16,8,24,4,20,12,28]
-ant_layout = n.array([row, [i+1 for i in row], [i+2 for i in row], [i+3 for i in row]])
-dlys = {}
-for r in range(ant_layout.shape[0]):
-    for c in range(ant_layout.shape[1]):
-        dlys[ant_layout[r,c]] = colsep[r] + c*t16 + dly_coeff[r,c]
-
 prms = {
-    #'loc': ('-30:45:40', '21:24:24.5'), # KAT, SA (Google)
     'loc': ('-30:43:17.5', '21:25:41.9'), # KAT, SA (GPS)
     'antpos': {
         3  :[-1.8703164651063193, -700.38179398735906, -2.486720328795109] ,
@@ -119,48 +114,19 @@ prms = {
         29 : [13.380230127377081, 0.14164134349682395, 23.136005645230252] ,
         28 : [20.113783156528598, 0.12912235844973025, 34.702340643989459] ,
     },
-    #'antpos-top':{
-    #    0 : [     0.,       0.,       0.],
-    #    1 : [     0.,    -400.,       0.],
-    #    2 : [     0.,    -800.,       0.],
-    #    3 : [     0.,   -1200.,       0.],
-    #                             
-    #   16 : [  3000.,       0.,       0.],
-    #   17 : [  3000.,    -400.,       0.],
-    #   18 : [  3000.,    -800.,       0.],
-    #   19 : [  3000.,   -1200.,       0.],
-    #                             
-    #    8 : [  6000.,       0.,       0.],
-    #    9 : [  6000.,    -400.,       0.],
-    #   10 : [  6000.,    -800.,       0.],
-    #   11 : [  6000.,   -1200.,       0.],
-    #                             
-    #   24 : [  9000.,       0.,       0.],
-    #   25 : [  9000.,    -400.,       0.],
-    #   26 : [  9000.,    -800.,       0.],
-    #   27 : [  9000.,   -1200.,       0.],
-    #                            
-    #    4 : [ 12000.,       0.,       0.],
-    #    5 : [ 12000.,    -400.,       0.],
-    #    6 : [ 12000.,    -800.,       0.],
-    #    7 : [ 12000.,   -1200.,       0.],
-    #                             
-    #   20 : [ 15000.,       0.,       0.],
-    #   21 : [ 15000.,    -400.,       0.],
-    #   22 : [ 15000.,    -800.,       0.],
-    #   23 : [ 15000.,   -1200.,       0.],
-    #                             
-    #   12 : [ 18000.,       0.,       0.],
-    #   13 : [ 18000.,    -400.,       0.],
-    #   14 : [ 18000.,    -800.,       0.],
-    #   15 : [ 18000.,   -1200.,       0.],
-    #                             
-    #   28 : [ 21000.,       0.,       0.],
-    #   29 : [ 21000.,    -400.,       0.],
-    #   30 : [ 21000.,    -800.,       0.],
-    #   31 : [ 21000.,   -1200.,       0.],
-    #},
-    'delays': dlys,
+    'ant_layout': n.array(
+        [[0, 16, 8, 24, 4, 20, 12, 28],
+         [1, 17, 9, 25, 5, 21, 13, 29],
+         [2, 18, 10, 26, 6, 22, 14, 30],
+         [3, 19, 11, 27, 7, 23, 15, 31]]),
+    'dly_coeffs': n.array(
+        [[  0.  ,  0.  ,-10.09,  3.75,  6.34, -1.09,-18.37,-16.67],
+         [  0.  , 11.23, -7.65, -2.63,  0.89,-11.38,  1.1 ,-12.39],
+         [ 14.94,  3.66, 13.13, -1.42,  5.34,-10.25, -7.34,-10.04],
+         [ 24.98,  2.72,  0.77, 12.24, 16.46,  2.19,  2.86,-11.98]]),
+    'tau_ew': 2.32,
+    'tau_ns': -3.80,
+    'delays': {},
     'offsets': { 8: 0.5 },
     'amps': {
   0:0.00339455692388,  1:0.00370372788408,  2:0.00376527818632,  3:0.00387665,
@@ -222,8 +188,8 @@ def get_aa(freqs):
         twist = prms['twist'][i]
         antennas.append(a.fit.Antenna(pos[0], pos[1], pos[2], beam, phsoff=[dly,off],
                 amp=amp, bp_r=bp_r, bp_i=bp_i, pointing=(0.,n.pi/2,twist),lat=prms['loc'][0]))
-    #aa = a.fit.AntennaArray(prms['loc'], antennas)
-    aa = AntennaArray(prms['loc'], antennas)
+    aa = AntennaArray(prms['loc'], antennas, tau_ew=prms['tau_ew'], tau_ns=prms['tau_ns'],
+        dly_coeffs=prms['dly_coeffs'], ant_layout=prms['ant_layout'])
     #for i in range(nants):
     #    pos = prms['antpos-top'][i]
     #    i = str(i)

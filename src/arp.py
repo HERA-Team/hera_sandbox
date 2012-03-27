@@ -104,11 +104,7 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
         if j > maxiter/2 and mx == 0: # Fine-tune calibration with linear fit
             valid = n.where(d12_wgt > d12_wgt.max()/2, 1, 0)
             fqs_val = fqs.compress(valid)
-            if j < maxiter/2 + 2: # Unwrap data the first couple times to get close
-                dly = n.real(n.log(d12_sum.compress(valid))/1j) # This doesn't weight data
-                dly = scipy.unwrap(dly) / (2*n.pi)
-            else: # Don't unwrap once close b/c RFI can cause unwanted wraps
-                dly = n.real(n.log(d12_sum.compress(valid))/(2j*n.pi)) # This doesn't weight data
+            dly = n.real(n.log(d12_sum.compress(valid))/(2j*n.pi)) # This doesn't weight data
             wgt = d12_wgt.compress(valid); wgt.shape = (wgt.size,1)
             B = n.zeros((fqs_val.size,1)); B[:,0] = dly
             if use_offset: # allow for an offset component
@@ -121,9 +117,14 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
         else: # Pull out an integral number of phase wraps
             if mx > _phs.size/2: mx -= _phs.size
             dtau,doff = mx / (fqs[-1] - fqs[0]), 0
-            dtau = n.sum(_phs**2 * dlys) / n.sum(_phs**2)
+            mxs = mx + n.array([-1,0,1])
+            dtau = n.sum(_phs[mxs] * dlys[mxs]) / n.sum(_phs[mxs])
+            #dtau = n.sum(_phs**2 * dlys) / n.sum(_phs**2)
             #dtau = n.sum(_phs * dlys) / n.sum(_phs)
         if verbose: print j, dtau, doff, (tau, off), mx
+        #P.subplot(211); P.plot(n.fft.fftshift(dlys), n.fft.fftshift(_phs)); P.xlim(-200,200)
+        #P.subplot(212); P.plot(fqs, n.angle(d12_sum))
+        #P.show()
     off %= 1
     #if True:
     #    _phs = n.fft.fft(window*d12_sum)
@@ -134,6 +135,7 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     #    _phs = n.abs(_phs)
     #    P.plot(n.fft.fftshift(dlys), n.fft.fftshift(_phs))
     #    P.show()
+    info = {'dtau':dtau, 'doff':doff, 'mx':mx} # Some information about last step, useful for detecting screwups
     gain = (d12_sum / d12_wgt.clip(1,n.Inf)) / (d11_sum / d11_wgt.clip(1,n.Inf))
-    if use_offset: return gain, (tau,off)
-    else: return gain, tau
+    if use_offset: return gain, (tau,off), info
+    else: return gain, tau, info
