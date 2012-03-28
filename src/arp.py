@@ -147,27 +147,25 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     if use_offset: return gain, (tau,off), info
     else: return gain, tau, info
 
-def sinuspike(d, w=None, f=None, clean=1e-3, window='blackman-harris'):
-    std = n.std(d)
-    if std == 0: return
-    mdl,_mdl = n.zeros_like(d), n.zeros_like(d)
-    if w is None and not f is None: w = n.logical_not(f)
-    elif w is None: w = n.ones(d.shape, dtype=n.float)
-    for i in range(100):
-        di = d - w*(mdl + n.fft.fft(_mdl))
-        std = n.std(di)
-        _di = clean_transform(di, w=w, clean=clean, window=window)
-        _std = n.std(_di)
+def sinuspike(d, fqs, f=None, clean=1e-3, maxiter=100, nsig=3, window='blackman-harris'):
+    d = d * (fqs/.150)**2.5 # Flatten noise assuming synchrotron spectral index
+    sig = n.sqrt(n.median(n.abs(d)**2))
+    if sig == 0: return
+    _mdl = n.zeros_like(d)
+    if not f is None: w = n.logical_not(f).astype(n.float)
+    else: w = n.ones(d.shape, dtype=n.float)
+    for i in range(maxiter):
+        di = d - w*n.fft.fft(_mdl)
+        sig = n.sqrt(n.median(n.abs(di)**2))
+        #_di = clean_transform(di, w=w, clean=clean, window=window)
+        _di = n.fft.ifft(di)
+        _sig = n.sqrt(n.median(n.abs(_di)**2))
         adi,_adi = n.abs(di), n.abs(_di)
         amx, _amx = n.argmax(adi), n.argmax(_adi)
-        print i, amx, adi[amx]/std, _amx, _adi[_amx]/_std
-        if adi[amx]/std > _adi[_amx]/_std:
-            #mdl[amx] += .3 * di[amx] / w[amx]
-            mdl[amx] += di[amx] / w[amx]
-        else:
-            #_mdl[_amx] += .3 * _di[_amx]
-            _mdl[_amx] += _di[_amx]
-        if i % 10 == 0:
-            P.subplot(211); P.semilogy(adi)
-            P.subplot(212); P.semilogy(n.fft.fftshift(_adi))
-    P.show()
+        mx,_mx = adi[amx]/sig, _adi[_amx]/_sig
+        if mx < nsig and _mx < nsig: break
+        if mx > _mx: d[amx],w[amx] = 0, 0
+        else: _mdl[_amx] += .3 * _di[_amx]
+    f = n.logical_not(w).astype(n.int)
+    mdl = n.fft.fft(_mdl) * (fqs/.150)**-2.5
+    return mdl, f

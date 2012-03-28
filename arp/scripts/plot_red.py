@@ -5,6 +5,7 @@ import sys, scipy
 ij2bl,bl2ij = a.miriad.ij2bl,a.miriad.bl2ij
 
 USE_CAL = True
+IMPROVE = False
 
 A_ = [0,16,8,24,4,20,12,28]
 B_ = [i+1 for i in A_]
@@ -88,12 +89,14 @@ for sep in seps:
         if bl == cbl or not bl in plot_bls: continue
         i,j = bl2ij(bl)
         if conj_bl.has_key(bl) and conj_bl[bl]: i,j = j,i
-        g,tau,info = C.arp.redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False)
-        #g,tau,info = C.arp.redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False,maxiter=0)
-        gain = n.median(n.abs(g))
+        if IMPROVE:
+            g,tau,info = C.arp.redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False)
+            gain = n.median(n.abs(g))
+        else:
+            g,tau,info = C.arp.redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False,maxiter=0)
+            gain = 1
         d_sum[sep] += d[bl] * n.exp(-2j*n.pi*fqs*tau) / gain
         d_wgt[sep] += w[bl]
-        #gain = 1
         P.subplot(211); P.semilogy(fqs, n.abs(g)/gain, label='%d,%d'%(i,j))
         P.subplot(212); P.plot(fqs, n.angle(g), label='%d,%d'%(i,j))
         print (i,j)
@@ -110,11 +113,11 @@ for sep in seps:
     dcal = avg(d[cbl],w[cbl])
     P.subplot(231); C.arp.waterfall(dcal, drng=2)
     P.subplot(232); C.arp.waterfall(dcal, mode='phs')
-    P.subplot(233); C.arp.waterfall(n.fft.fftshift(C.arp.clean_transform(d[cbl],w[cbl]), axes=-1), mx=2.5, drng=2.5)
+    P.subplot(233); C.arp.waterfall(n.fft.fftshift(C.arp.clean_transform(d[cbl],w[cbl]), axes=-1), drng=2.5)
     d = avg(d_sum[sep], d_wgt[sep])
     P.subplot(234); C.arp.waterfall(d, drng=2)
     P.subplot(235); C.arp.waterfall(d, mode='phs')
-    P.subplot(236); C.arp.waterfall(n.fft.fftshift(C.arp.clean_transform(d_sum[sep],d_wgt[sep]), axes=-1), mx=2.5, drng=2.5)
+    P.subplot(236); C.arp.waterfall(n.fft.fftshift(C.arp.clean_transform(d_sum[sep],d_wgt[sep]), axes=-1), drng=2.5)
     P.show()
 
     #if True:
