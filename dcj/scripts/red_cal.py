@@ -121,7 +121,10 @@ for filename in args:
             P_gain_line[0,ANTIND[j0]] += -1; P_gain_line[0,ANTIND[i0]] += -1
             M_gain_line = n.zeros((1,1), dtype=n.float)
             g,tau,info = C.arp.redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False)
-            gain = n.log10(n.median(n.abs(g)))
+            #Debugging using locally defined function version
+            #g,tau,info = redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False)
+            if n.isnan(g).sum()!=312: print bl, n.isnan(g).sum()
+            gain = n.ma.log10(n.ma.median(n.ma.abs(n.ma.masked_invalid(g))))
             Mline[0,0] = tau
             M_gain_line[0,0] = gain
             P = n.append(P, Pline, axis=0)
