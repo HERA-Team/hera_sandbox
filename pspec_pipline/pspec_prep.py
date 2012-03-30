@@ -29,6 +29,8 @@ o.set_description(__doc__)
 a.scripting.add_standard_options(o, cal=True)
 o.add_option('--nophs', dest='nophs', action='store_true',
     help='Do not phase to zenith bin.')
+o.add_option('--nogain', dest='nogain', action='store_true',
+    help='Do not normalize gain.')
 o.add_option('--window', dest='window', default='none',
     help='DSP window to use.  Default: none')
 o.add_option('--horizon', dest='horizon', type=float, default=1.,
@@ -72,7 +74,7 @@ for uvfile in args:
         w = n.logical_not(f).astype(n.float)
         if n.average(w) < .5: return p, None, None
         if not opts.nophs: d = aa.phs2src(d, zen, i, j)
-        d /= aa.passband(i,j)
+        if not opts.nogain: d /= aa.passband(i,j)
         d *= w
         _d = n.fft.ifft(d * window)
         _w = n.fft.ifft(w * window)
