@@ -15,7 +15,7 @@ del(uv)
 for filename in args:
     outfile = filename + 'C'
     print filename, '->', outfile
-    if os.path.exists(outfile)
+    if os.path.exists(outfile):
         print '    File exists, skipping.'
         continue
     dsum,dwgt = {}, {}
@@ -32,11 +32,12 @@ for filename in args:
             aa.set_jultime(t)
         d = aa.phs2src(d, 'z', i, j)
         u,v,w = aa.gen_uvw(i, j, 'z')
+        u,v = u[0,-1],v[0,-1]
         gain = aa.passband(i,j)
         d /= gain
         if u < 0: # Conjugate to fold UV plane to u > 0
             u,v,d = -u,-v,n.conj(d)
-        bin = C.pspec.uv2bin(u[-1],v[-1], aa.sidereal_time(), lst_res=10*2*n.pi*a.ephem.second)
+        bin = C.pspec.uv2bin(u,v, aa.sidereal_time(), lst_res=10*2*n.pi*a.ephem.second)
         bin2bl[bin] = bin2bl.get(bin,[]) + [bl]
         dsum[bin] = dsum.get(bin, 0) + n.where(f, 0, d)
         dwgt[bin] = dwgt.get(bin, 0) + n.logical_not(f).astype(n.int)
@@ -55,11 +56,13 @@ for filename in args:
             curtime = t
             aa.set_jultime(t)
         u,v,w = aa.gen_uvw(i, j, 'z')
-        bin = C.pspec.uv2bin(u[-1],v[-1], aa.sidereal_time(), lst_res=10*2*n.pi*a.ephem.second)
-        if bl != bin2bl(bin): return (uvw,t,(1,1)), None, None
+        u,v = u[0,-1],v[0,-1]
+        if u < 0: u,v = -u,-v
+        bin = C.pspec.uv2bin(u,v, aa.sidereal_time(), lst_res=10*2*n.pi*a.ephem.second)
+        if bl != bin2bl[bin]: return (uvw,t,(1,1)), None, None
         wgt = dwgt[bin].clip(1,n.Inf)
         f = n.where(dwgt[bin] == 0, 1, 0)
-        d = dwgt[bin] / cnt
+        d = dsum[bin] / wgt
         return (uvw,t,(i,j)), d, f
 
     uvo = a.miriad.UV(outfile, status='new')
