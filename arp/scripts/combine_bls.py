@@ -5,6 +5,8 @@ import optparse, sys, os
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, cal=True)
+o.add_option('--lst_res', type='float', default=10,
+    help='Resolution in seconds for binning in sidereal time.')
 opts,args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
@@ -37,7 +39,7 @@ for filename in args:
         d /= gain
         if u < 0: # Conjugate to fold UV plane to u > 0
             u,v,d = -u,-v,n.conj(d)
-        bin = C.pspec.uv2bin(u,v, aa.sidereal_time(), lst_res=10*2*n.pi*a.ephem.second)
+        bin = C.pspec.uv2bin(u,v, aa.sidereal_time(), lst_res=2*n.pi*a.ephem.second*opts.lst_res)
         bin2bl[bin] = bin2bl.get(bin,[]) + [bl]
         dsum[bin] = dsum.get(bin, 0) + n.where(f, 0, d)
         dwgt[bin] = dwgt.get(bin, 0) + n.logical_not(f).astype(n.int)
