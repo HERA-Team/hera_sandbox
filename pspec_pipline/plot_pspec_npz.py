@@ -95,11 +95,13 @@ for cnt,b in enumerate(fdat):
 
 for fq in Dsum:
     k = ks[fq][0]
+    D = {}
     for umag in Dsum[fq]:
         print '   ', int(1e3*fq), umag
-        D = (Dsum[fq][umag] / Dwgt[fq][umag])
-        p.loglog(k, n.abs(D.real).clip(1e0,n.Inf), 
-            label='%d,%d' % (int(1e3*fq), umag))
+        D[umag] = (Dsum[fq][umag] / Dwgt[fq][umag])
+    n.savez('D_%s.npz' % fq, D**)
+        #p.loglog(k, n.abs(D.real).clip(1e0,n.Inf), 
+        #    label='%d,%d' % (int(1e3*fq), umag))
         #p.loglog(k, n.abs(D.imag).clip(1e0,n.Inf), 
         #    label='%d,%d' % (int(1e3*fq), umag))
 
