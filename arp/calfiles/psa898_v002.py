@@ -14,15 +14,24 @@ class AntennaArray(a.fit.AntennaArray):
     def __init__(self, *args, **kwargs):
         a.fit.AntennaArray.__init__(self, *args, **kwargs)
         self.ant_layout = kwargs.pop('ant_layout')
+        self.amp_coeffs = kwargs.pop('amp_coeffs')
+        self.gain = kwargs.pop('gain')
+        self.update_gains()
         self.dly_coeffs = kwargs.pop('dly_coeffs')
         self.tau_ew = kwargs.pop('tau_ew')
         self.tau_ns = kwargs.pop('tau_ns')
+        self.update_delays()
+    def update_gains(self):
+        gains = self.gain * self.amp_coeffs
+        for i,gain in zip(self.ant_layout.flatten(), gains.flatten()):
+            self[i].set_params({'amp':gain})
     def update_delays(self):
         ns,ew = n.indices(self.ant_layout.shape)
         dlys = ns*self.tau_ns + ew*self.tau_ew + self.dly_coeffs
         for i,tau in zip(self.ant_layout.flatten(), dlys.flatten()):
             self[i].set_params({'dly':tau})
     def update(self):
+        self.update_gains()
         self.update_delays()
         a.fit.AntennaArray.update(self)
     def get_params(self, ant_prms={'*':'*'}):
@@ -34,6 +43,7 @@ class AntennaArray(a.fit.AntennaArray):
                 for val in ant_prms[k]:
                     if   val == 'tau_ns': prms['aa']['tau_ns'] = self.tau_ns
                     elif val == 'tau_ew': prms['aa']['tau_ew'] = self.tau_ew
+                    elif val == 'gain': prms['aa']['gain'] = self.gain
             else:
                 try: top_pos = n.dot(self._eq2zen, self[int(k)].pos)
                 except(ValueError): continue
@@ -67,6 +77,8 @@ class AntennaArray(a.fit.AntennaArray):
         try: self.tau_ns, changed = prms['aa']['tau_ns'], 1
         except(KeyError): pass
         try: self.tau_ew, changed = prms['aa']['tau_ew'], 1
+        except(KeyError): pass
+        try: self.gain, changed = prms['aa']['gain'], 1
         except(KeyError): pass
         if changed: self.update()
         return changed
@@ -120,24 +132,25 @@ prms = {
          [2, 18, 10, 26, 6, 22, 14, 30],
          [3, 19, 11, 27, 7, 23, 15, 31]]),
     'dly_coeffs': n.array(
-        [[  0.  ,  0.  ,-10.09,  3.75,  6.34, -1.09,-18.37,-16.67],
-         [  0.  , 11.23, -7.65, -2.63,  0.89,-11.38,  1.1 ,-12.39],
-         [ 14.94,  3.66, 13.13, -1.42,  5.34,-10.25, -7.34,-10.04],
-         [ 24.98,  2.72,  0.77, 12.24, 16.46,  2.19,  2.86,-11.98]]),
-    'tau_ew': 2.32,
-    'tau_ns': -3.80,
+        [[  0.  ,  0.  ,-11.08,  2.69,  4.41, -2.69,-21.38,-19.86],
+         [  0.  , 10.4 , -9.68, -4.29, -1.59,-14.65, -2.54,-15.93],
+         [ 14.98,  1.78, 11.11, -2.66,  2.56,-14.4 ,-11.65,-14.86],
+         [ 23.43,  0.72, -1.63,  9.08, 12.65, -1.13, -1.22,-16.39]]), # from PSA903.154
+        #[[  0.  ,  0.  ,-10.87,  3.06,  5.03, -1.17,-20.52,-18.67],
+        # [  0.  , 10.81, -9.27, -4.  , -0.88,-13.61, -1.44,-14.66],
+        # [ 15.43,  2.22, 11.79, -2.08,  3.55,-13.45,-10.38,-13.39],
+        # [ 23.82,  1.31, -0.99,  9.93, 13.79,  0.14,  0.06,-14.79]]), # from PSA9903.258
+    'tau_ew': 2.71,
+    'tau_ns': -3.56,
     'delays': {},
     'offsets': { 8: 0.5 },
-    'amps': {
-  0:0.00339455692388,  1:0.00370372788408,  2:0.00376527818632,  3:0.00387665,
-  4:0.00396057349076,  5:0.00410252231494,  6:0.00348871724217,  7:0.00392404211306,
-  8:0.00375883047688,  9:0.00334462819991, 10:0.00337093254841, 11:0.00341326452831,
- 12:0.00442460216876, 13:0.00389868,       14:0.00354483945983, 15:0.00407328010273,
- 16:0.00403397,       17:0.00439585577112, 18:0.00431250874167, 19:0.00404608945244,
- 20:0.00413586961583, 21:0.00403113024808, 22:0.00359282557633, 23:0.00394237335571,
- 24:0.00366244535577, 25:0.00380304422308, 26:0.00326923586611, 27:0.00287590169933,
- 28:0.00403816252674, 29:0.00401518091533, 30:0.00409408588555, 31:0.00359266622740,
-    },
+    'gain': .0036096,
+    'amp_coeffs': n.array(
+        [[ 1.   , 1.142, 1.011, 1.025, 1.08 , 0.717, 1.014, 0.897],
+         [ 0.932, 1.242, 1.044, 1.049, 1.022, 1.131, 1.206, 1.096],
+         [ 1.038, 1.044, 1.052, 1.09 , 1.112, 0.982, 1.011, 1.028],
+         [ 1.068, 1.07 , 0.947, 1.216, 1.077, 1.062, 0.994, 1.09 ]]), # from PSA903.154
+    'amps': {},
     'bp_r': n.array([[-546778459030.53168, 664643788581.23596, -352000715429.32422, 106069000024.00294, -19886868672.0816, 2375187771.2150121, -176441928.4305163, 7452103.7565970663, -136981.43950786022]] * 64) * 1.0178**0.5, # from J2214-170 in Helmboldt, with adjustment for tempgain.py gain adjustment
     'bp_i': n.array([[0., 0., 0.]] * 32),
     'beam': a.fit.BeamAlm,
@@ -189,6 +202,7 @@ def get_aa(freqs):
         antennas.append(a.fit.Antenna(pos[0], pos[1], pos[2], beam, phsoff=[dly,off],
                 amp=amp, bp_r=bp_r, bp_i=bp_i, pointing=(0.,n.pi/2,twist),lat=prms['loc'][0]))
     aa = AntennaArray(prms['loc'], antennas, tau_ew=prms['tau_ew'], tau_ns=prms['tau_ns'],
+        gain=prms['gain'], amp_coeffs=prms['amp_coeffs'],
         dly_coeffs=prms['dly_coeffs'], ant_layout=prms['ant_layout'])
     #for i in range(nants):
     #    pos = prms['antpos-top'][i]
