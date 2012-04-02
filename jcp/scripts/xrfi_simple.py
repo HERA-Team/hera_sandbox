@@ -18,6 +18,8 @@ o.add_option('--combine', dest='combine', action='store_true',
     help='Use the same mask for all baselines/pols (and use thresh to decide how many concidences it takes to flag all data.')
 o.add_option('-t', '--thresh', dest='thresh', default=1, type='int',
     help='Number of flagging coincidences (baselines/pols) required to flag a time/chan.')
+o.add_option('--npz', action='store_true',
+    help='Instead of outputting flagged uv file, output mask in .npz form.')
 opts,args = o.parse_args(sys.argv[1:])
 
 # Parse command-line options
@@ -30,6 +32,10 @@ else:
 del(uv)
 
 
+if opts.npz and not opts.combine:
+    print "Cannot output .npz without combine option."
+    sys.exit()
+
 for uvfile in args:
     uvofile = uvfile+'R'
     print uvfile,'->',uvofile
@@ -40,6 +46,7 @@ for uvfile in args:
     if opts.combine: a.scripting.uv_selector(uvi, opts.ant)
     # Gather all data and each time step
     data,mask,times = {}, {}, []
+    if opts.npz: corrflags,manflags = {}, {}
     for (uvw,t,(i,j)), d, f in uvi.all(raw=True):
         if len(times) == 0 or times[-1] != t: times.append(t)
         bl = a.miriad.ij2bl(i,j)
@@ -47,10 +54,20 @@ for uvfile in args:
         if not pol in data:
             data[pol] = {}
             mask[pol] = {}
+            if opts.npz:
+                manflags[pol] = {}
+                corrflags[pol] = {}
         if not bl in data[pol]:
             data[pol][bl] = {}
             mask[pol][bl] = {}
-        # Manually flag channels
+            if opts.npz:
+                manflags[pol][bl] = {}
+                corrflags[pol][bl] = {}
+        if opts.npz:
+            corrflags[pol][bl][t] = f.copy()
+            manflags[pol][bl][t] = n.zeros_like(f)
+            manflags[pol][bl][t][chans] = 1
+        #manually flag channels
         f[chans] = 1
         mask[pol][bl][t] = f
         data[pol][bl][t] = d
@@ -104,10 +121,17 @@ for uvfile in args:
         return preamble, n.where(m, 0, data), m
 
     del(uvi)
-    uvi = a.miriad.UV(uvfile)
-    uvo = a.miriad.UV(uvofile, status='new')
-    uvo.init_from_uv(uvi)
-    uvo.pipe(uvi, mfunc=rfi_mfunc, raw=True, append2hist=' '.join(sys.argv)+'\n')
+    if opts.npz:
+        cflags = corrflags.values()[0].values()[0].values()
+        mflags = manflags.values()[0].values()[0].values()
+        sflags = (n.array(mask.values()[0].values()[0].values()) - n.array(mflags) - n.array(cflags)).clip(0,1)
+        npzout = uvfile+'R.npz'
+        n.savez(npzout,manflags=mflags,corrflags=cflags,statflags=sflags)
+    else:
+        uvi = a.miriad.UV(uvfile)
+        uvo = a.miriad.UV(uvofile, status='new')
+        uvo.init_from_uv(uvi)
+        uvo.pipe(uvi, mfunc=rfi_mfunc, raw=True, append2hist=' '.join(sys.argv)+'\n')
 
 
 
