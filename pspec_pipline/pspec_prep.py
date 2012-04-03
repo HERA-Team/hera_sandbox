@@ -38,7 +38,7 @@ o.add_option('--horizon', dest='horizon', type=float, default=1.,
 o.add_option('--clean', dest='clean', type='float', default=1e-9,
     help='Deconvolve delay-domain data by the response that results from flagged data.  Specify a tolerance for termination.  Default 1e-9')
 o.add_option('--model', dest='model', action='store_true',
-    help='Add the foreground model back to the residuals.')
+    help='Return the foreground model rather than the residuals.')
 opts, args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
@@ -46,7 +46,8 @@ aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
 filters = gen_skypass_delay(aa, uv['sdf'], uv['nchan'], max_bl_frac=opts.horizon)
 
 for uvfile in args:
-    uvofile = uvfile + 'B'
+    if opts.model: uvofile = uvfile + 'F'
+    else: uvofile = uvfile + 'B'
     print uvfile,'->',uvofile
     if os.path.exists(uvofile):
         print uvofile, 'exists, skipping.'
@@ -87,9 +88,8 @@ for uvfile in args:
         d_mdl = n.fft.fft(_d_cl)
         d_res = d - d_mdl * w
         if opts.model:
-            d_for = d_mdl + d_res
-            f = n.zeros_like(d_for)
-            return p, d_for, f
+            f = n.zeros_like(d_mdl)
+            return p, d_mdl, f
         else:
             return p, d_res, f
  
