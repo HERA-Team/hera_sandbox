@@ -98,8 +98,8 @@ for fq in Dsum:
     D = {}
     for umag in Dsum[fq]:
         print '   ', int(1e3*fq), umag
-        D[umag] = (Dsum[fq][umag] / Dwgt[fq][umag])
-    n.savez('D_%s.npz' % fq, D**)
+        D[str(umag)] = (Dsum[fq][umag] / Dwgt[fq][umag])
+    n.savez('D_%s.npz' % fq, **D)
         #p.loglog(k, n.abs(D.real).clip(1e0,n.Inf), 
         #    label='%d,%d' % (int(1e3*fq), umag))
         #p.loglog(k, n.abs(D.imag).clip(1e0,n.Inf), 
