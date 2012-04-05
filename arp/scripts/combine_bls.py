@@ -6,7 +6,7 @@ import optparse, sys, os
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, cal=True)
 o.add_option('--lst_res', type='float', default=10,
-    help='Resolution in seconds for binning in sidereal time.')
+    help='Resolution in seconds for binning in sidereal time.  Default is 10')
 opts,args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])

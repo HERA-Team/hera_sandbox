@@ -72,7 +72,7 @@ for uvfile in args:
         uvo['bin'] = n.float(C.pspec.uv2bin(u, v, aa.sidereal_time()))
         bl = a.miriad.ij2bl(i,j)
         w = n.logical_not(f).astype(n.float)
-        if n.average(w) < .5: return p, None, None
+        if n.average(w) < .5: return p, n.zeros_like(d), n.ones_like(f)
         if not opts.nophs: d = aa.phs2src(d, zen, i, j)
         if not opts.nogain: d /= aa.passband(i,j)
         d *= w
