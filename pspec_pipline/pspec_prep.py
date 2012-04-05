@@ -26,7 +26,7 @@ def gen_skypass_delay(aa, sdf, nchan, max_bl_frac=1.):
 o = optparse.OptionParser()
 o.set_usage('filter_sky.py [options] *.uv')
 o.set_description(__doc__)
-a.scripting.add_standard_options(o, cal=True)
+a.scripting.add_standard_options(o, cal=True,ant=True)
 o.add_option('--nophs', dest='nophs', action='store_true',
     help='Do not phase to zenith bin.')
 o.add_option('--nogain', dest='nogain', action='store_true',
@@ -35,8 +35,10 @@ o.add_option('--window', dest='window', default='none',
     help='DSP window to use.  Default: none')
 o.add_option('--horizon', dest='horizon', type=float, default=1.,
     help='The additional scalar applied to the baseline length to determine horizon cutoff.  Default is 1.')
-o.add_option('--clean', dest='clean', type='float', default=1e-4,
-    help='Deconvolve delay-domain data by the response that results from flagged data.  Specify a tolerance for termination.  Default 1e-4')
+o.add_option('--clean', dest='clean', type='float', default=1e-9,
+    help='Deconvolve delay-domain data by the response that results from flagged data.  Specify a tolerance for termination.  Default 1e-9')
+o.add_option('--model', dest='model', action='store_true',
+    help='Return the foreground model rather than the residuals.')
 opts, args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
@@ -44,12 +46,14 @@ aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
 filters = gen_skypass_delay(aa, uv['sdf'], uv['nchan'], max_bl_frac=opts.horizon)
 
 for uvfile in args:
-    uvofile = uvfile + 'B'
+    if opts.model: uvofile = uvfile + 'F'
+    else: uvofile = uvfile + 'B'
     print uvfile,'->',uvofile
     if os.path.exists(uvofile):
         print uvofile, 'exists, skipping.'
         continue
     uvi = a.miriad.UV(uvfile)
+    a.scripting.uv_selector(uvi,ants=opts.ant)
     uvo = a.miriad.UV(uvofile, status='new')
     uvo.init_from_uv(uvi)
     uvo.add_var('bin','d')
@@ -83,9 +87,11 @@ for uvfile in args:
         _d_cl[uthresh:lthresh] = 0
         d_mdl = n.fft.fft(_d_cl)
         d_res = d - d_mdl * w
-        return p, d_res, f
-        #return p, d_mdl, f
-
+        if opts.model:
+            f = n.zeros_like(d_mdl)
+            return p, d_mdl, f
+        else:
+            return p, d_res, f
+ 
     # Apply the pipe to the data
     uvo.pipe(uvi, mfunc=mfunc, raw=True, append2hist=' '.join(sys.argv)+'\n')
-
