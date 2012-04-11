@@ -43,6 +43,15 @@ mistakes = {
     55 : {'x': (55,'y'), 'y': (55,'x')}
 }
 
+badants = [11]
+badbls = [a.miriad.ij2bl(58,63),a.miriad.ij2bl(58,61),a.miriad.ij2bl(56,59)]
+
+apply_bp = 12250000.
+
+rfi_chans  = '0_36,49_60,78_83,86_90,102_110,114'
+rfi_chans += ',121_134,168_171,187_188,341,648_649,759_776,1144'
+rfi_chans += ',1540,1700_1708,1795,1826_1829,1865_1871'
+
 for filename in sys.argv[1:]:
     print filename, '->', filename+'c'
     if os.path.exists(filename+'c'):
@@ -75,6 +84,15 @@ for filename in sys.argv[1:]:
             i,j = j,i
             d = n.conjugate(d)
         
+        if i == j: return None,None,None
+        if i in badants: return None,None,None
+        if j in badants: return None,None,None
+        if a.miriad.ij2bl(i,j) in badbls: return None,None,None
+
+        d *= apply_bp
+        chans = a.scripting.parse_chans(rfi_chans,uv['nchan'])
+        f[chans] = 1
+
         if t != curtime:
             aa.set_jultime(t)
             uvo['lst'] = aa.sidereal_time()
@@ -96,7 +114,7 @@ for filename in sys.argv[1:]:
         #'sfreq': sfreq,
         #'freq': sfreq,
         #'inttime': 5.37,
-        'nchan': 1024,
+        'nchan': 2048,
         'nants': 64,
         'ngains': 128,
         'nspect0': 32,
