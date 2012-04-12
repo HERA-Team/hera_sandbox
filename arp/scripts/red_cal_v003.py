@@ -16,6 +16,8 @@ o.add_option('--name', type='str', default='cal',
     help="Output name of solution npz. [default=cal]")
 o.add_option('--plot', action='store_true',
     help="Plot the gain and phase residuals after removing the parameters solved for in this script.")
+o.add_option('--verbose', action='store_true',
+    help="Print a lot of stuff.")
 o.add_option('--calpos', type='str', default='1,3',
     help="X,Y position (row,col) of antenna to use as the calibration reference.  Default 1,3 (antenna 25)")
 o.add_option('--calpol', type='str', default='xx',
@@ -62,7 +64,7 @@ for filename in args:
             conj_bl[ij2bl(i,j)] = c
         bls[sep] = bl_list
         strbls[sep] = ','.join(strbls[sep])
-        print sep, strbls[sep]
+        if opts.verbose: print sep, strbls[sep]
     
     uv = a.miriad.UV(sys.argv[-1])
     fqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
@@ -73,9 +75,10 @@ for filename in args:
     strbls = ','.join([strbls[sep] for sep in seps])
     pols = ['xx','yy']
     NPOL = len(pols)
-    print '-'*70
-    print strbls
-    print '-'*70
+    if opts.verbose:
+        print '-'*70
+        print strbls
+        print '-'*70
     
     times, d, f = capo.arp.get_dict_of_uv_data([filename], strbls, ','.join(pols), verbose=True)
     for bl in d:
@@ -157,11 +160,12 @@ for filename in args:
                 for m in ('phs','amp'):
                     P[m] = n.append(P[m], _P[m], axis=0)
                     M[m] = n.append(M[m], _M[m], axis=0)
-                    print '%2d-%2d/%2d-%2d' % (i,j,i0,j0), ''.join(['v-0+^'[int(c)+2] for c in _P[m].flatten()]), '%6.2f' % _M[m][0,0],
-                    if m == 'phs':
-                        if info['dtau'] > .1: print '*', info['dtau']
-                        else: print
-                    else: print 'G'
+                    if opts.verbose:
+                        print '%2d-%2d/%2d-%2d' % (i,j,i0,j0), ''.join(['v-0+^'[int(c)+2] for c in _P[m].flatten()]), '%6.2f' % _M[m][0,0],
+                        if m == 'phs':
+                            if info['dtau'] > .1: print '*', info['dtau']
+                            else: print
+                        else: print 'G'
                 if opts.plot:
                     pylab.subplot(211); pylab.plot(fqs, n.abs(g)/10**gain)
                     pylab.subplot(212); pylab.plot(fqs, n.angle(g))
