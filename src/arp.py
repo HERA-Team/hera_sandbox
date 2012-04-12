@@ -142,7 +142,9 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     #P.show()
     off %= 1
     info = {'dtau':dtau, 'doff':doff, 'mx':mx} # Some information about last step, useful for detecting screwups
-    gain = (d12_sum / d12_wgt.clip(1,n.Inf)) / (d11_sum / d11_wgt.clip(1,n.Inf))
+    g12 = d12_sum / d12_wgt.clip(1,n.Inf)
+    g11 = d11_sum / d11_wgt.clip(1,n.Inf)
+    gain = n.where(g11 != 0, g12/g11, 0)
     if use_offset: return gain, (tau,off), info
     else: return gain, tau, info
 
