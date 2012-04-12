@@ -14,11 +14,11 @@ def gen_skypass_delay(aa, sdf, nchan, max_bl_frac=1.):
         if j < i: continue
         bl = aa.ij2bl(i,j)
         max_bl = aa.get_baseline(i,j)
-        print (i,j), max_bl,
+        #print (i,j), max_bl,
         max_bl = max_bl_frac * n.sqrt(n.dot(max_bl, max_bl))
         uthresh, lthresh = max_bl/bin_dly + 1.5, -max_bl/bin_dly - 0.5
         uthresh, lthresh = int(n.ceil(uthresh)), int(n.floor(lthresh))
-        print max_bl, uthresh, lthresh
+        #print max_bl, uthresh, lthresh
         filters[bl] = (uthresh,lthresh)
         #if i == 0 and j == 60: print (i,j), max_bl / max_bl_frac, max_bl_frac, filters[bl]
     return filters
@@ -70,10 +70,12 @@ for uvfile in args:
             zen = a.phs.RadioFixedBody(lstbin, aa.lat)
             zen.compute(aa)
             curtime = t
+            print t
         u,v,w = aa.gen_uvw(i,j, src=zen)
         u,v = u.flatten()[-1], v.flatten()[-1]
         if u < 0: u,v,d = -u, -v, n.conj(d)
         uvo['bin'] = n.float(C.pspec.uv2bin(u, v, aa.sidereal_time()))
+        if i == j: return p, d, f
         bl = a.miriad.ij2bl(i,j)
         w = n.logical_not(f).astype(n.float)
         if n.average(w) < .5: return p, n.zeros_like(d), n.ones_like(f)
@@ -82,9 +84,10 @@ for uvfile in args:
         d *= w
         _d = n.fft.ifft(d * window)
         _w = n.fft.ifft(w * window)
-        _d_cl, info = a.deconv.clean(_d, _w, tol=opts.clean, stop_if_div=False)
         uthresh,lthresh = filters[bl]
-        _d_cl[uthresh:lthresh] = 0
+        area = n.ones(_d.size, dtype=n.int)
+        area[uthresh:lthresh] = 0
+        _d_cl, info = a.deconv.clean(_d, _w, tol=opts.clean, area=area, stop_if_div=False, maxiter=100)
         d_mdl = n.fft.fft(_d_cl)
         d_res = d - d_mdl * w
         if opts.model:
