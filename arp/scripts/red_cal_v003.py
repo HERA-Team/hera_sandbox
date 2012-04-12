@@ -1,22 +1,25 @@
 #! /usr/bin/env python
+"""
+Calculate antenna-based corrections to co-align redundant array data.
+"""
+
 import aipy as a, numpy as n, capo as C
 import pylab
 import sys, optparse, os
-"""
-Calculates antenna based corrections to co-align redundant array data.
-
-Aaron Parsons
-27 March 2012
-
-"""
 
 ij2bl,bl2ij = a.miriad.ij2bl,a.miriad.bl2ij
 
 o = optparse.OptionParser()
 o.set_usage('red_cal.py *.uv')
 o.set_description(__doc__)
-o.add_option('--name',type='str',default='cal0',
-    help="The name of your solution. [default=cal0]")
+o.add_option('--name', type='str', default='cal',
+    help="Output name of solution npz. [default=cal]")
+o.add_option('--plot', action='store_true',
+    help="Plot the gain and phase residuals after removing the parameters solved for in this script.")
+o.add_option('--calpos', type='str', default='1,3',
+    help="X,Y position (row,col) of antenna to use as the calibration reference.  Default 1,3 (antenna 25)")
+o.add_option('--calpol', type='str', default='xx',
+    help="Polarization to calibrate to.  Should be xx or yy.  Default xx.")
 #o.add_option('--refant',type='str',default="0,0",
 #    help="Choose antenna in zero referenced grid matrix location <row>,<col>. Don't pick bottom row or rightmost column.")
 opts, args = o.parse_args(sys.argv[1:])
@@ -51,6 +54,9 @@ for filename in args:
         bl_list = []
         for (i,j),c in zip(bls[sep],conj[sep]):
             if c: i,j = j,i
+            #valid = [0,1,2,3,16,17,18,19,8,9,10,11,24,25,26,27,4,5,6,7,20,21,22,23,12,13,14]
+            #valid = [0,1,2,3,16,17,18,19,12,13,14,15,28,29,30,31]
+            #if not i in valid or not j in valid: continue
             bl_list.append(ij2bl(i,j))
             strbls[sep].append('%d_%d' % (i,j))
             conj_bl[ij2bl(i,j)] = c
@@ -62,21 +68,27 @@ for filename in args:
     fqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
     del(uv)
     
-    #seps = ['0,1']
-    seps = bls.keys()
+    seps = ['0,1','1,1','-1,1']
+    #seps = bls.keys()
     strbls = ','.join([strbls[sep] for sep in seps])
+    pols = ['xx','yy']
+    NPOL = len(pols)
     print '-'*70
     print strbls
     print '-'*70
     
-    times, d, f = C.arp.get_dict_of_uv_data([filename], strbls, 'xx', verbose=True)
+    times, d, f = C.arp.get_dict_of_uv_data([filename], strbls, ','.join(pols), verbose=True)
     for bl in d:
         i,j = bl2ij(bl)
-        if conj_bl.has_key(bl) and conj_bl[bl]: d[bl] = n.conj(d[bl])
-        if i == 8 or j == 8: d[bl] = -d[bl]  # XXX remove this line once correct script is run
+        for pol in d[bl]:
+            if conj_bl.has_key(bl) and conj_bl[bl]: d[bl][pol] = n.conj(d[bl][pol])
+            if i == 8 or j == 8: d[bl][pol] = -d[bl][pol]  # XXX remove this line once correct script is run
     
     w = {}
-    for bl in f: w[bl] = n.logical_not(f[bl]).astype(n.float)
+    for bl in f:
+        w[bl] = {}
+        for pol in f[bl]:
+            w[bl][pol] = n.logical_not(f[bl][pol]).astype(n.float)
     
     NANT = ANTPOS.size
     ANTIND = dict(zip(ANTPOS.flatten(), n.arange(ANTPOS.size)))
@@ -84,26 +96,39 @@ for filename in args:
     def cmp_bls(bl1,bl2):
         i1,j1 = bl2ij(bl1)
         i2,j2 = bl2ij(bl2)
-        return cmp(i1,i2)
-    calrow,calcol = 0,0
+        if i1 != i2: return cmp(i1,i2)
+        else: return cmp(j1,j2)
+    #calrow,calcol = 0,0
+    calrow,calcol = map(int, opts.calpos.split(','))
     calant = ANTPOS[calrow,calcol]
+    calpol = opts.calpol
     cal_bl = {}
     for sep in seps:
-        cal_bl[sep] = [bl for bl in bls[sep] if bl2ij(bl)[0] == ANTPOS[calrow,calcol]]
+        cal_bl[sep] = [bl for bl in bls[sep] if ANTPOS[calrow,calcol] in bl2ij(bl)]
         if len(cal_bl[sep]) == 0: # If cal ant is unavailable, pick another one
             cal_bl[sep] = bls[sep][:]
-            cal_bl[sep].sort(cmp_bls)
-        cal_bl[sep] = cal_bl[sep][0]
+        cal_bl[sep].sort(cmp_bls)
+        cal_bl[sep] = cal_bl[sep][0] # XXX picks lower number baseline that involves calant, but sometimes there are 2 and this arbitrarily picks one over another without a good reason
     
-    P = n.zeros((3,NANT), dtype=n.float)
-    M = n.zeros((3,1), dtype=n.float)
-    P[0,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M[0] = 0
-    P[1,ANTIND[ANTPOS[calrow,calcol+1]]] = 1e6; M[0] = 0
-    P[2,ANTIND[ANTPOS[calrow+1,calcol]]] = 1e6; M[0] = 0
-    print P
-    P_gain = n.zeros((1,NANT), dtype=n.float)
-    M_gain = n.zeros((1,1), dtype=n.float)
-    P_gain[0,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M_gain[0] = 0
+    P = { # Keeps track of antennas that are being paired together in a measurement
+        'phs': n.zeros((4,NPOL,NANT), dtype=n.double),
+        'amp': n.zeros((2,NPOL,NANT), dtype=n.double),
+    }
+    M = { # Keeps track of each measurement (delay difference or gain difference)
+        'phs': n.zeros((4,1), dtype=n.double),
+        'amp': n.zeros((2,1), dtype=n.double),
+    }
+    p0 = pols.index(calpol)
+    p1 = (p0 + 1) % len(pols) # For 2-pol data, this selects other pol
+    # Add absolute constraints that cannot be solved for internally,
+    # such as setting the delay of the reference antenna and reference baselines to 0
+    P['phs'][0,p0,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M['phs'][0] = 0
+    P['phs'][1,p0,ANTIND[ANTPOS[calrow,calcol+1]]] = 1e6; M['phs'][1] = 0
+    P['phs'][2,p0,ANTIND[ANTPOS[calrow+1,calcol]]] = 1e6; M['phs'][2] = 0
+    P['amp'][0,p0,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M['amp'][0] = 0
+    # Without cross-pol data, both pols of reference ant must be manually set to fixed values.
+    P['phs'][3,p1,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M['phs'][3] = 0
+    P['amp'][1,p1,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M['amp'][1] = 0
         
     for sep in seps:
         cbl = cal_bl[sep]
@@ -111,41 +136,56 @@ for filename in args:
         if conj_bl.has_key(cbl) and conj_bl[cbl]: i0,j0 = j0,i0
         for bl in bls[sep]:
             if not d.has_key(bl):continue
-            if bl == cbl: continue
-            i,j = bl2ij(bl)
-            if conj_bl.has_key(bl) and conj_bl[bl]: i,j = j,i
-            Pline = n.zeros((1,NANT), dtype=n.float)
-            Pline[0,ANTIND[j ]] +=  1; Pline[0,ANTIND[i ]] += -1
-            Pline[0,ANTIND[j0]] += -1; Pline[0,ANTIND[i0]] +=  1
-            Mline = n.zeros((1,1), dtype=n.float)
-            P_gain_line = n.zeros((1,NANT), dtype=n.float)
-            P_gain_line[0,ANTIND[j]] += 1; P_gain_line[0,ANTIND[i]] += 1
-            P_gain_line[0,ANTIND[j0]] += -1; P_gain_line[0,ANTIND[i0]] += -1
-            M_gain_line = n.zeros((1,1), dtype=n.float)
-            g,tau,info = C.arp.redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False)
-            if n.isnan(g).sum()!=312: print bl, n.isnan(g).sum()
-            gain = n.ma.log10(n.ma.median(n.ma.abs(n.ma.masked_invalid(g))))
-            Mline[0,0] = tau
-            M_gain_line[0,0] = gain
-            P = n.append(P, Pline, axis=0)
-            M = n.append(M, Mline, axis=0)
-            P_gain = n.append(P_gain, P_gain_line, axis=0)
-            M_gain = n.append(M_gain, M_gain_line, axis=0)
-            print '%2d-%2d/%2d-%2d' % (i,j,i0,j0), ''.join(['v-0+^'[int(c)+2] for c in Pline.flatten()]), '%6.2f' % Mline[0,0],
-            if info['dtau'] > .1: print '*', info['dtau']
-            else: print
-            print '%2d-%2d/%2d-%2d' % (i,j,i0,j0), ''.join(['v-0+^'[int(c)+2] for c in P_gain_line.flatten()]), '%6.3f' % M_gain_line[0,0], 'G'
-            #pylab.subplot(211); pylab.plot(fqs, n.abs(g))
-            #pylab.subplot(212); pylab.plot(fqs, n.angle(g))
+            for pol in d[bl]:
+                if bl == cbl and pol == calpol: continue
+                p = pols.index(pol)
+                i,j = bl2ij(bl)
+                if conj_bl.has_key(bl) and conj_bl[bl]: i,j = j,i
+                _P,_M = {}, {}
+                for m in ('phs','amp'):
+                    _P[m] = n.zeros((1,NPOL,NANT), dtype=n.double)
+                    _M[m] = n.zeros((1,1), dtype=n.double)
+                _P['phs'][0, p,ANTIND[j ]] +=  1; _P['phs'][0, p,ANTIND[i ]] += -1
+                _P['phs'][0,p0,ANTIND[j0]] += -1; _P['phs'][0,p0,ANTIND[i0]] +=  1
+                _P['amp'][0, p,ANTIND[j ]] +=  1; _P['amp'][0, p,ANTIND[i ]] +=  1
+                _P['amp'][0,p0,ANTIND[j0]] += -1; _P['amp'][0,p0,ANTIND[i0]] += -1
+                g,tau,info = C.arp.redundant_bl_cal(d[cbl][calpol], w[cbl][calpol], d[bl][pol], w[bl][pol],
+                    fqs, use_offset=False)
+                gain = n.log10(n.median(n.abs(g)))
+                _M['phs'][0,0] = tau
+                _M['amp'][0,0] = gain
+                for m in ('phs','amp'):
+                    P[m] = n.append(P[m], _P[m], axis=0)
+                    M[m] = n.append(M[m], _M[m], axis=0)
+                    print '%2d-%2d/%2d-%2d' % (i,j,i0,j0), ''.join(['v-0+^'[int(c)+2] for c in _P[m].flatten()]), '%6.2f' % _M[m][0,0],
+                    if m == 'phs':
+                        if info['dtau'] > .1: print '*', info['dtau']
+                        else: print
+                    else: print 'G'
+                if opts.plot:
+                    pylab.subplot(211); pylab.plot(fqs, n.abs(g)/10**gain)
+                    pylab.subplot(212); pylab.plot(fqs, n.angle(g))
     
-    C_tau = n.linalg.lstsq(P,M)[0]
-    C_tau.shape = ANTPOS.shape
-    print n.around(C_tau,2)
+    C = {}
+    for m in P:
+        x0 = P[m].shape[0]
+        P[m].shape = (x0, P[m].size/x0)
+        #print P[m].shape, M[m].shape
+        pinv = n.linalg.pinv(P[m]) # this succeeds where lstsq fails for some reason
+        C[m] = n.dot(pinv,M[m])
+        #C[m] = n.linalg.lstsq(P[m],M[m])[0]
+        C[m].shape = (NPOL,) + ANTPOS.shape
+    print '-' * 70
+    print 'Antenna Positions:'
+    print ANTPOS
+    print 'Pol Order:', pols
+    print 'Delays:'
+    print n.around(C['phs'],2)
+    print 'Gains:'
+    print n.around(10**C['amp'],3)
     
-    C_gain = n.linalg.lstsq(P_gain,M_gain)[0]
-    C_gain.shape = ANTPOS.shape
-    print n.around(10**C_gain,3)
+    print 'Writing', filename + '_%s.npz' % opts.name
+    n.savez(filename+'_%s.npz' % opts.name,
+        C_phs=C['phs'], C_amp=C['amp'], antpos=ANTPOS, time=n.mean(times), pols=pols)
     
-    n.savez(filename+'%s.npz'%opts.name,C=C_tau,C_gain=C_gain,inpnums=ANTPOS,time=n.mean(times))
-    
-#import pylab; pylab.show()
+if opts.plot: pylab.show()
