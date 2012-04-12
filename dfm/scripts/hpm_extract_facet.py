@@ -63,7 +63,7 @@ def to_fits(filename,i,src,name,history=''):
         object=name, 
         ra=ra*a.img.rad2deg, dec=dec*a.img.rad2deg, epoch=2000.,
         d_ra=opts.res/60., d_dec=opts.res/60.,axes=axes,
-        freq=150e6,history=history)
+        freq=150e6)
 
 class Img:
     """
@@ -108,11 +108,6 @@ class Img:
         vec = n.dot(m, vec)
         vec.shape = (3,) + shape
         return n.ma.array(vec, mask=[mask,mask,mask])    
-
-#if not opts.cat is None:
-#    srclist,cutoff,catalogs = a.scripting.parse_srcs(opts.src, opts.cat)
-#    cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs)
-
 if opts.osys=='ga':
     cat = {}
     for src in opts.src.split(','):
@@ -155,9 +150,6 @@ for infile in args:
         else:
             print "RA = %s, DEC = %s"%(s._ra,s._dec)
         print opts.size,opts.res/60.
-#        DIM = int(opts.size/(opts.res/60.))
-#        RES = int(1. / (opts.size * a.img.deg2rad))
-#        print "DIM = ",DIM,"  RES = ",RES
         RES = opts.res/60
         DIM = (n.array(opts.size.split('_')).astype(n.float)/RES)
         DIM = DIM.astype(n.int)
@@ -170,13 +162,12 @@ for infile in args:
         map_wgts.shape = (map_wgts.size,)
         valid = n.logical_not(map_wgts.mask)
         map_wgts = map_wgts.compress(valid)
-#        if opts.isys=='ga' and opts.osys!='ga': 
-#            RA,DEC = ephem.Galactic(ephem.Equatorial(s._ra,s._dec)).long,\
-#                    ephem.Galactic(ephem.Equatorial(s._ra,s._dec)).lat
-#            print RA,DEC
         if opts.osys=='ga':
             RA,DEC = s.long,s.lat
         else: RA,DEC = s._ra,s._dec
+        x,y,z = im.get_eq(RA,DEC, center=(DIM/2,DIM/2))
+        
+        im = Img(DIM, RES, mf_order=0)
         x,y,z = im.get_eq(RA,DEC, center=(DIM/2,DIM/2))
         crd = n.row_stack((x.ravel(),y.ravel(),z.ravel()))
         print crd.shape
@@ -185,6 +176,11 @@ for infile in args:
         ex,ey,ez = n.dot(m, crd)
         ex = ex.compress(valid); ey = ey.compress(valid); ez = ez.compress(valid)
         img = skymap[ex,ey,ez]
+        print img.shape
+        img_wgts = skymap.wgt[ex,ey,ez]
+        print img_wgts.shape
+        img = img/n.sqrt(img_wgts)
+        print img.shape
         if opts.output_weights: 
             wgt_img = skymap.wgt[ex,ey,ez]
             wgt_img.shape = im.shape
