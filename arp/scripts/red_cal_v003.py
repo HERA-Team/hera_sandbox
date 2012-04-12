@@ -22,6 +22,8 @@ o.add_option('--calpos', type='str', default='1,3',
     help="X,Y position (row,col) of antenna to use as the calibration reference.  Default 1,3 (antenna 25)")
 o.add_option('--calpol', type='str', default='xx',
     help="Polarization to calibrate to.  Should be xx or yy.  Default xx.")
+o.add_option('--maxiter', type='int', default=10,
+    help="Maximum number of iterations to run in redundant calibration.  Default 10.")
 #o.add_option('--refant',type='str',default="0,0",
 #    help="Choose antenna in zero referenced grid matrix location <row>,<col>. Don't pick bottom row or rightmost column.")
 opts, args = o.parse_args(sys.argv[1:])
@@ -132,6 +134,21 @@ for filename in args:
     # Without cross-pol data, both pols of reference ant must be manually set to fixed values.
     P['phs'][3,p1,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M['phs'][3] = 0
     P['amp'][1,p1,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M['amp'][1] = 0
+
+    outfile = filename+'_%s.npz' % (opts.name)
+    dly0,gain0 = {}, {} # Starting point for searching for solution
+    if os.path.exists(outfile):
+        print '      Input starting point from', outfile
+        f = open(outfile)
+        npz = n.load(f)
+        C_phs = npz['C_phs']
+        C_amp = 10**npz['C_amp']
+        for pi, pol in enumerate(pols):
+            if not dly0.has_key(pi): dly0[pi],gain0[pi] = {},{}
+            for i,tau,g in zip(ANTPOS.flatten(), C_phs[pi].flatten(), C_amp[pi].flatten()):
+                dly0[pi][i] = tau
+                gain0[pi][i] = g
+        f.close()
         
     for sep in seps:
         cbl = cal_bl[sep]
@@ -152,8 +169,13 @@ for filename in args:
                 _P['phs'][0,p0,ANTIND[j0]] += -1; _P['phs'][0,p0,ANTIND[i0]] +=  1
                 _P['amp'][0, p,ANTIND[j ]] +=  1; _P['amp'][0, p,ANTIND[i ]] +=  1
                 _P['amp'][0,p0,ANTIND[j0]] += -1; _P['amp'][0,p0,ANTIND[i0]] += -1
+                try:
+                    tau0 = (dly0[p][j] - dly0[p][i]) - (dly0[p0][j0] - dly0[p0][i0])
+                    print (i,j),(i0,j0), pol, dly0[p][i], dly0[p][j], dly0[p0][i0], dly0[p0][j0]
+                except(KeyError): tau0 = 0
                 g,tau,info = capo.arp.redundant_bl_cal(d[cbl][calpol], w[cbl][calpol], d[bl][pol], w[bl][pol],
-                    fqs, use_offset=False)
+                    fqs, use_offset=False, tau=tau0, maxiter=opts.maxiter)
+                print (i,j),(i0,j0), tau, tau0
                 gain = n.log10(n.median(n.abs(g)))
                 _M['phs'][0,0] = tau
                 _M['amp'][0,0] = gain
