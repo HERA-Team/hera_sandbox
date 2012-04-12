@@ -13,11 +13,14 @@ def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose
             if len(times) == 0 or t != times[-1]:
                 times.append(t)
             bl = a.miriad.ij2bl(i,j)
-            dat[bl] = dat.get(bl,[]) + [d]
-            flg[bl] = flg.get(bl,[]) + [f]
+            if not dat.has_key(bl): dat[bl],flg[bl] = {},{}
+            pol = a.miriad.pol2str[uv['pol']]
+            dat[bl][pol] = dat[bl].get(pol,[]) + [d]
+            flg[bl][pol] = flg[bl].get(pol,[]) + [f]
     for bl in dat:
-        dat[bl] = n.array(dat[bl])
-        flg[bl] = n.array(flg[bl])
+      for pol in dat[bl]:
+        dat[bl][pol] = n.array(dat[bl][pol])
+        flg[bl][pol] = n.array(flg[bl][pol])
     return n.array(times), dat, flg
 
 def clean_transform(d, w=None, f=None, clean=1e-3, window='blackman-harris'):
