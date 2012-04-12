@@ -3,7 +3,7 @@
 Calculate antenna-based corrections to co-align redundant array data.
 """
 
-import aipy as a, numpy as n, capo as C
+import aipy as a, numpy as n, capo
 import pylab
 import sys, optparse, os
 
@@ -77,7 +77,7 @@ for filename in args:
     print strbls
     print '-'*70
     
-    times, d, f = C.arp.get_dict_of_uv_data([filename], strbls, ','.join(pols), verbose=True)
+    times, d, f = capo.arp.get_dict_of_uv_data([filename], strbls, ','.join(pols), verbose=True)
     for bl in d:
         i,j = bl2ij(bl)
         for pol in d[bl]:
@@ -149,7 +149,7 @@ for filename in args:
                 _P['phs'][0,p0,ANTIND[j0]] += -1; _P['phs'][0,p0,ANTIND[i0]] +=  1
                 _P['amp'][0, p,ANTIND[j ]] +=  1; _P['amp'][0, p,ANTIND[i ]] +=  1
                 _P['amp'][0,p0,ANTIND[j0]] += -1; _P['amp'][0,p0,ANTIND[i0]] += -1
-                g,tau,info = C.arp.redundant_bl_cal(d[cbl][calpol], w[cbl][calpol], d[bl][pol], w[bl][pol],
+                g,tau,info = capo.arp.redundant_bl_cal(d[cbl][calpol], w[cbl][calpol], d[bl][pol], w[bl][pol],
                     fqs, use_offset=False)
                 gain = n.log10(n.median(n.abs(g)))
                 _M['phs'][0,0] = tau
