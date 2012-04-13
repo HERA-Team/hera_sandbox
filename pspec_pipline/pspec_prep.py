@@ -73,7 +73,9 @@ for uvfile in args:
             print t
         u,v,w = aa.gen_uvw(i,j, src=zen)
         u,v = u.flatten()[-1], v.flatten()[-1]
-        if u < 0: u,v,d = -u, -v, n.conj(d)
+        if u < 0: 
+            u,v = -u, -v
+            if not opts.nophs: d = n.conj(d)
         uvo['bin'] = n.float(C.pspec.uv2bin(u, v, aa.sidereal_time()))
         if i == j: return p, d, f
         bl = a.miriad.ij2bl(i,j)
