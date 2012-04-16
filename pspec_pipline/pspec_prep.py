@@ -35,10 +35,10 @@ o.add_option('--window', dest='window', default='none',
     help='DSP window to use.  Default: none')
 o.add_option('--horizon', dest='horizon', type=float, default=1.,
     help='The additional scalar applied to the baseline length to determine horizon cutoff.  Default is 1.')
-o.add_option('--clean', dest='clean', type='float', default=1e-9,
-    help='Deconvolve delay-domain data by the response that results from flagged data.  Specify a tolerance for termination.  Default 1e-9')
+o.add_option('--clean', dest='clean', type='float', default=1e-5,
+    help='Deconvolve delay-domain data by the response that results from flagged data.  Specify a tolerance for termination.  Default 1e-5')
 o.add_option('--model', dest='model', action='store_true',
-    help='Return the foreground model rather than the residuals.')
+    help='Return the foreground model summed with the residuals (in Fourier space).')
 opts, args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
@@ -90,12 +90,13 @@ for uvfile in args:
         area = n.ones(_d.size, dtype=n.int)
         area[uthresh:lthresh] = 0
         _d_cl, info = a.deconv.clean(_d, _w, tol=opts.clean, area=area, stop_if_div=False, maxiter=100)
-        d_mdl = n.fft.fft(_d_cl)
-        d_res = d - d_mdl * w
         if opts.model:
+            d_mdl = n.fft.fft(_d_cl + info['res'])
             f = n.zeros_like(d_mdl)
             return p, d_mdl, f
         else:
+            d_mdl = n.fft.fft(_d_cl)
+            d_res = d - d_mdl * w
             return p, d_res, f
  
     # Apply the pipe to the data
