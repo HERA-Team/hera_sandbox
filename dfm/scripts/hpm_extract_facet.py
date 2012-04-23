@@ -166,9 +166,6 @@ for infile in args:
             RA,DEC = s.long,s.lat
         else: RA,DEC = s._ra,s._dec
         x,y,z = im.get_eq(RA,DEC, center=(DIM/2,DIM/2))
-        
-        im = Img(DIM, RES, mf_order=0)
-        x,y,z = im.get_eq(RA,DEC, center=(DIM/2,DIM/2))
         crd = n.row_stack((x.ravel(),y.ravel(),z.ravel()))
         print crd.shape
         m = a.coord.convert_m(opts.osys, opts.isys)
@@ -179,7 +176,6 @@ for infile in args:
         print img.shape
         img_wgts = skymap.wgt[ex,ey,ez]
         print img_wgts.shape
-        img = img/n.sqrt(img_wgts)
         print img.shape
         if opts.output_weights: 
             wgt_img = skymap.wgt[ex,ey,ez]

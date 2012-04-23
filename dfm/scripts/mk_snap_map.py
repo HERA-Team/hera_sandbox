@@ -81,6 +81,6 @@ for i, filename in enumerate(args):
     img = img.flatten().compress(valid)
     # Put the data into the skymap
     if opts.nobeam: skymap.add((ex,ey,ez), n.sqrt(map_wgts), img) # down-weight by only one factor beam response
-    else: skymap.add((ex,ey,ez), map_wgts, img*n.sqrt(bm_wgts)) # down-weight by beam resp squared -- SNR
+    else: skymap.add((ex,ey,ez), map_wgts, img*bm_wgts) # down-weight by beam resp squared -- SNR
 skymap.to_fits(opts.map, clobber=True)
 
