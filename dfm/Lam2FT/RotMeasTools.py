@@ -56,8 +56,7 @@ def DFTmat(nu):
     W = np.indices(np.array((N,N)))
     RMs = gen_rm_samples(nu)
     L2 = better_guess_l2(nu)
-    L0 = np.sum(L2)/N
-    W = np.exp(-1.j*RMs[W[1]]*(L2[W[0]]-L0)) * Lam2Measure(nu[W[0]]) 
+    W = np.exp(-1.j*RMs[W[1]]*L2[W[0]]) * Lam2Measure(nu[W[0]]) 
     return RMs,W.T
 
 ########
@@ -69,8 +68,7 @@ def iDFTmat(nu):
     W = np.indices(np.array((N,N)))
     RMs = gen_rm_samples(nu)
     L2 = better_guess_l2(nu)
-    L0 = np.sum(L2)/N
-    W = np.exp(1.j*RMs[W[0]]*(L2[W[1]]-L0))
+    W = np.exp(1.j*RMs[W[0]]*L2[W[1]])
     W *= (RMs[-1]-RMs[0])/(twopi*N)
     return W.T
 
