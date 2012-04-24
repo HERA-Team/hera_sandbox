@@ -20,7 +20,7 @@ for f in args:
         else: data[:,ind] = npz[bl]
         #print npz[bl]
         print f
-        p.semilogy(npz['k'],n.abs(npz[bl]),label=bl)
+        p.semilogy(npz['k'],n.abs(npz[bl])/(n.abs(npz['k']**3)),label=bl)
         #p.plot(npz['k'],npz[bl],label=bl)
     p.legend()
     p.subplot(212)

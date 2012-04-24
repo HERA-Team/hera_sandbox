@@ -50,7 +50,7 @@ for cnt,b in enumerate(fdat):
     #if wgt < 500: continue
     #if wgt < 200: continue
     #if wgt < 100: continue
-    #if wgt < 50: continue
+    if wgt < 50: continue
 
     if PLOT_SPEC:
         d /= wgt; w /= wgt
