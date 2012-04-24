@@ -4,9 +4,17 @@ from pylab import *
 c = 0.3 #m/ns
 twopi = 2.*np.pi
 
+################
+# UTILITY BELT #
+################
+
 def nu2lam2(nu): return (c/nu)**2
 def lam22nu(lam2): return (c/np.sqrt(lam2))
 def nu_lam_swap(x): return c/x
+
+def better_guess_l2(nu):
+    dnu = np.mean(np.diff(nu))
+    return (c/nu)**2 * (1. + (3.*dnu/(4.*nu)))
 
 ####################
 # GENERATE SPECTRA #
@@ -19,10 +27,14 @@ def dlam2(nu):
     dnu = nu[1]-nu[0]
     return -2. * (c/nu)**2 * (dnu/nu)
 
-def gen_rm_samples(nu,k):
-    N = len(nu)
-    j = np.array(range(len(nu)))
-    return 2. * np.pi * (j * float(k) / N) * (nu/c)**2
+def gen_rm_samples(nu):
+    N = float(len(nu))
+    j = np.arange(N)
+    j -= N/2.
+    return twopi * (j / N) / np.max(np.abs(np.diff(better_guess_l2(nu))))
+
+def Lam2Measure(nu):
+    return np.abs(dlam2(nu))
 
 #################
 # REBIN AND FFT #
@@ -39,9 +51,42 @@ def rebin_nu2lam2(nu,f_nu,bin=100):
 # DFT #
 #######
 
-def DFTmat(nu,RMmax,Nrm):
-    W = np.indices(np.array((len(nu),Nrm)))
-    RMs = np.fft.fftshift(np.fft.fftfreq(Nrm,0.5/RMmax))
-    L2 = nu2lam2(nu)
-    W = np.exp(-1.j*L2[W[0]]*RMs[W[1]])
+def DFTmat(nu):
+    N = len(nu)
+    W = np.indices(np.array((N,N)))
+    RMs = gen_rm_samples(nu)
+    L2 = better_guess_l2(nu)
+    L0 = np.sum(L2)/N
+    W = np.exp(-1.j*RMs[W[1]]*(L2[W[0]]-L0)) * Lam2Measure(nu[W[0]]) 
     return RMs,W.T
+
+########
+# iDFT #
+########
+
+def iDFTmat(nu):
+    N = len(nu)
+    W = np.indices(np.array((N,N)))
+    RMs = gen_rm_samples(nu)
+    L2 = better_guess_l2(nu)
+    L0 = np.sum(L2)/N
+    W = np.exp(1.j*RMs[W[0]]*(L2[W[1]]-L0))
+    W *= (RMs[-1]-RMs[0])/(twopi*N)
+    return W.T
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
