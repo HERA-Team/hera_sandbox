@@ -49,19 +49,21 @@ for i,spec in enumerate(QiUsim_l2):
 
 #TEST THE DFT METHOD
 
-RM_samp,W = RMT.DFTmat(fq)
+RM_samp,W = RMT.RMTmat(fq)
 for i,spec in enumerate(QiUsim):
-    QiUsim_rm[i] = np.dot(W,spec)
+    QiUsim_rm[i] = RMT.RMT(spec,W)
 plot3(RM_samp,np.abs(QiUsim_rm),RMlabel,'$RM (m^2)$ ','DFT')
 
 there_and_back_again = []
 fuck_ups = []
-iW = RMT.iDFTmat(fq)
+iW = RMT.iRMTmat(fq)
 for i,spec in enumerate(QiUsim_rm):
-    there_and_back_again.append(np.dot(iW,spec))
-    fuck_ups.append(there_and_back_again[-1]-QiUsim[i])
+    there_and_back_again.append(RMT.iRMT(spec,iW))
+    fuck_ups.append(there_and_back_again[-1] / QiUsim[i])
 
 plot3(fq,there_and_back_again,RMlabel,'Frequency (GHz)','iDFT')
-plot3(fq,fuck_ups,RMlabel,'Frequency (GHz)','Recovered - Original')
+
+plot3(fq,np.abs(fuck_ups),RMlabel,'Frequency (GHz)','Recovered / Original [amp]')
+plot3(fq,np.angle(fuck_ups),RMlabel,'Frequency (GHz)','Recovered / Original [phase]')
 
 show()

@@ -1,4 +1,5 @@
 import numpy as np
+from aipy import dsp
 from pylab import *
 
 c = 0.3 #m/ns
@@ -21,7 +22,7 @@ def better_guess_l2(nu):
 ####################
 
 def gen_rm_spec(nu,rm,amp=1.):
-    return amp*np.exp(1.j*rm*nu2lam2(nu))
+    return amp*np.exp(2.j*rm*nu2lam2(nu))
 
 def dlam2(nu):
     dnu = nu[1]-nu[0]
@@ -31,7 +32,7 @@ def gen_rm_samples(nu):
     N = float(len(nu))
     j = np.arange(N)
     j -= N/2.
-    return twopi * (j / N) / np.max(np.abs(np.diff(better_guess_l2(nu))))
+    return np.pi * (j / N) / np.max(np.abs(np.diff(better_guess_l2(nu))))
 
 def Lam2Measure(nu):
     return np.abs(dlam2(nu))
@@ -51,27 +52,35 @@ def rebin_nu2lam2(nu,f_nu,bin=100):
 # DFT #
 #######
 
-def DFTmat(nu):
+def RMTmat(nu,window='hamming'):
     N = len(nu)
     W = np.indices(np.array((N,N)))
     RMs = gen_rm_samples(nu)
     L2 = better_guess_l2(nu)
-    W = np.exp(-1.j*RMs[W[1]]*L2[W[0]]) * Lam2Measure(nu[W[0]]) 
+    wgt = dsp.gen_window(N,window)
+    W = np.exp(-2.j*RMs[W[1]]*L2[W[0]]) * wgt[W[0]] * Lam2Measure(nu[W[0]]) 
     return RMs,W.T
+
+def RMT(spec,W):
+    return np.dot(W,spec)
+    
 
 ########
 # iDFT #
 ########
 
-def iDFTmat(nu):
+def iRMTmat(nu,window='hamming'):
     N = len(nu)
     W = np.indices(np.array((N,N)))
     RMs = gen_rm_samples(nu)
     L2 = better_guess_l2(nu)
-    W = np.exp(1.j*RMs[W[0]]*L2[W[1]])
-    W *= (RMs[-1]-RMs[0])/(twopi*N)
+    wgt = dsp.gen_window(N,window)
+    W = np.exp(2.j*RMs[W[0]]*L2[W[1]]) / wgt[W[1]]
+    W *= (RMs[-1]-RMs[0])/(np.pi*N)
     return W.T
 
+def iRMT(spec,W):
+   return np.dot(W,spec)
 
 
 
