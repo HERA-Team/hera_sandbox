@@ -59,7 +59,7 @@ for file in args:
         if name in ucds.keys():
             ucd = ucds[name]
         else: ucd=None
-        t.add_column(name,col,dtype=tipe,ucd=ucd)
+        t.add_column(name,col,dtype=tipe)#,ucd=ucd)
         if name.lower()=='ra':
             print col[0]
             t.add_column('_Ra',[e.hours(s)*180/n.pi for s in col],dtype='<f8',ucd="pos.eq.ra;meta.main")    
