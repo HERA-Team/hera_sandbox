@@ -5,7 +5,7 @@ import sys
 
 PLOT_SPEC = False
 PLOT_PSPEC = False
-B = .008
+B = .08
 WINDOW = 'blackman-harris'
 
 #if True:
@@ -35,7 +35,9 @@ for filename in sys.argv[1:]:
 print len(fdat)
 
 Dsum,Dwgt = {}, {}
-kwargs = {'cen_fqs':n.arange(.115,.190,.005),'B':B, 'ntaps':3, 'window':WINDOW, 'bm_fqs':freqs.clip(.120,.190)}
+#cen_fqs = n.arange(.115,.190,.005)
+cen_fqs = n.array([.160])
+kwargs = {'cen_fqs':cen_fqs,'B':B, 'ntaps':1, 'window':WINDOW, 'bm_fqs':freqs.clip(.120,.190)}
 window = a.dsp.gen_window(freqs.size, window=WINDOW)
 for cnt,b in enumerate(fdat):
     ubin,vbin,lstbin = C.pspec.bin2uv(b)
@@ -47,8 +49,8 @@ for cnt,b in enumerate(fdat):
     print cnt, b, (ubin,vbin), umag, wgt
     #if wgt < 500: continue
     #if wgt < 200: continue
-    if wgt < 100: continue
-    #if wgt < 50: continue
+    #if wgt < 100: continue
+    if wgt < 50: continue
 
     if PLOT_SPEC:
         d /= wgt; w /= wgt
@@ -99,12 +101,12 @@ for fq in Dsum:
     for umag in Dsum[fq]:
         print '   ', int(1e3*fq), umag
         D[str(umag)] = (Dsum[fq][umag] / Dwgt[fq][umag])
-    n.savez('B_%s.npz' % fq, **D)
+    n.savez('R_%s.npz' % fq, **D)
         #p.loglog(k, n.abs(D.real).clip(1e0,n.Inf), 
         #    label='%d,%d' % (int(1e3*fq), umag))
         #p.loglog(k, n.abs(D.imag).clip(1e0,n.Inf), 
         #    label='%d,%d' % (int(1e3*fq), umag))
 
-p.legend(loc='upper left')
-p.show()
+#p.legend(loc='upper left')
+#p.show()
         
