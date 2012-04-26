@@ -11,6 +11,8 @@ times = []
 cas = {'flux':[],'dra':[],'ddec':[]}
 cyg = {'flux':[],'dra':[],'ddec':[]}
 
+data = data[:-1]
+
 for ind,int in enumerate(data):
     if ind % 3 == 0:
         times.append(float(int))
@@ -25,7 +27,7 @@ for ind,int in enumerate(data):
         cyg['dra'].append(dict['cyg']['dra']/a.const.arcmin)
         cyg['ddec'].append(dict['cyg']['ddec']/a.const.arcmin)
 
-times = times[:-1]
+#times = times[:-1]
 
 p.subplot(231)
 p.title('cas')

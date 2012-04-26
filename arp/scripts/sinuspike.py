@@ -31,7 +31,7 @@ for bl in d:
     f[bl][:,n.where(k>3)] = 1
     for i in range(len(times)):
         mi,fi = C.arp.sinuspike(d[bl][i], fqs, f=f[bl][i], nsig=2)
-        mi *= 0; fi *= 0
+        mi *= 0
         mdl.append(mi)
         flg.append(fi)
     flg = n.array(flg)
