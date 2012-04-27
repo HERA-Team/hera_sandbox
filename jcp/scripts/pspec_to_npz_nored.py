@@ -43,7 +43,7 @@ for filename in args:
         except(KeyError): pass
         tdat[bl] = _d
 
-Dat['kpl'] = ks[1]
+    Dat['kpl'] = ks[1]
 
-print 'Writing', ofile
-n.savez(ofile,**Dat)
+    print 'Writing', ofile
+    n.savez(ofile,**Dat)
