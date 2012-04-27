@@ -7,6 +7,8 @@ o.add_option('--k3pk', action='store_true',
     help='Plot Delta^2 instead of P(k)')
 o.add_option('--nobin', action='store_true',
     help='Do not bin by u-magnitude')
+o.add_option('--ucut', type='float', default=n.Inf,
+    help='Only show baselines shorter than this value')   
 a.scripting.add_standard_options(o,cal=True)
 opts,args = o.parse_args(sys.argv[1:])
 
@@ -27,9 +29,10 @@ for npzfile in args:
         wbl = 'w'+str(bl)
         i,j = a.miriad.bl2ij(bl)
         crd = aa.get_baseline(i,j)*fq
+        umag = (crd[0]**2 + crd[1]**2)**.5
+        if umag > opts.ucut: continue
         if opts.nobin: umag = bl
         else:
-            umag = (crd[0]**2 + crd[1]**2)**.5
             umag = str(2**int(n.around(n.log2(umag.clip(0.5,n.Inf)))))
         uDat[umag] = uDat.get(umag,0) + dat[bl]
         uWgt[umag] = uWgt.get(umag,0) + dat[wbl]
