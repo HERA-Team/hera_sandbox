@@ -48,13 +48,13 @@ nbin = len(keys)
 for ind,umag in enumerate(keys):
     p.subplot(n.ceil(n.sqrt(nbin)),n.ceil(n.sqrt(nbin)),ind+1)
     if opts.k3pk: f = n.abs(kpl)**3*(2*n.pi**2)**-1
-    else: 
-        f = 1.
-        noise_ind = n.where(n.abs(kpl > 1.))
-        noise = n.mean(n.abs(n.real(uDat[umag][noise_ind])))
-        noise *= n.ones_like(kpl)
-        p.loglog(n.abs(kpl),noise,color='k',lw=3)
-    fg = n.array([C.pspec.dk_du(C.pspec.f2z(fq)) * n.float(umag),C.pspec.dk_du(C.pspec.f2z(fq)) * n.float(umag)])
+    else: f = 1.
+    noise_ind = n.where(n.abs(kpl > 1.))
+    noise = n.mean(n.abs(n.real(uDat[umag][noise_ind])))
+    noise *= n.ones_like(kpl)
+    p.loglog(n.abs(kpl),f*noise,color='k',lw=3)
+    #fg = n.array([C.pspec.dk_du(C.pspec.f2z(fq)) * n.float(umag),C.pspec.dk_du(C.pspec.f2z(fq)) * n.float(umag)])
+    fg = n.array([C.pspec.dk_deta(C.pspec.f2z(fq))*n.float(umag)/fq,C.pspec.dk_deta(C.pspec.f2z(fq))*n.float(umag)/fq])
     yfg = n.array([1e-5,1e9])
     label = str(umag)
     p.loglog(n.abs(kpl),f*n.abs(n.real(uDat[umag])),label=label)
