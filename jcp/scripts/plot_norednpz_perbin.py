@@ -28,6 +28,8 @@ for npzfile in args:
         if bl[0] == 'w': continue
         wbl = 'w'+str(bl)
         i,j = a.miriad.bl2ij(bl)
+        if i == 40 or j == 40: continue
+        if i == 55 or j == 55: continue
         crd = aa.get_baseline(i,j)*fq
         umag = (crd[0]**2 + crd[1]**2)**.5
         if umag > opts.umax: continue
@@ -44,7 +46,7 @@ for umag in keys:
 
 nbin = len(keys)
 for ind,umag in enumerate(keys):
-    p.subplot(n.floor(n.sqrt(nbin)),n.ceil(n.sqrt(nbin)),ind+1)
+    p.subplot(n.ceil(n.sqrt(nbin)),n.ceil(n.sqrt(nbin)),ind+1)
     if opts.k3pk: f = n.abs(kpl)**3*(2*n.pi**2)**-1
     else: 
         f = 1.
@@ -57,6 +59,7 @@ for ind,umag in enumerate(keys):
     label = str(umag)
     p.loglog(n.abs(kpl),f*n.abs(n.real(uDat[umag])),label=label)
     p.loglog(fg,yfg,color='r',lw=3)
+    p.ylim(1e-1,1e7)
     p.legend()
 p.show()
 
