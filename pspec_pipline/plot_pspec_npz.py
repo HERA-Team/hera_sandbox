@@ -5,7 +5,7 @@ import sys
 
 PLOT_SPEC = False
 PLOT_PSPEC = False
-B = .008
+B = .08
 WINDOW = 'blackman-harris'
 
 #if True:
@@ -35,7 +35,9 @@ for filename in sys.argv[1:]:
 print len(fdat)
 
 Dsum,Dwgt = {}, {}
-kwargs = {'cen_fqs':[.160],'B':B, 'ntaps':3, 'window':WINDOW, 'bm_fqs':freqs.clip(.120,.190)}
+#cen_fqs = n.arange(.115,.190,.005)
+cen_fqs = n.array([.160])
+kwargs = {'cen_fqs':cen_fqs,'B':B, 'ntaps':1, 'window':WINDOW, 'bm_fqs':freqs.clip(.120,.190)}
 window = a.dsp.gen_window(freqs.size, window=WINDOW)
 for cnt,b in enumerate(fdat):
     ubin,vbin,lstbin = C.pspec.bin2uv(b)
@@ -48,21 +50,20 @@ for cnt,b in enumerate(fdat):
     #if wgt < 500: continue
     #if wgt < 200: continue
     #if wgt < 100: continue
-    #if wgt < 50: continue
+    if wgt < 50: continue
 
-    if False:  # Don't need this now that pspec_prep removes a smooth model
+    if PLOT_SPEC:
         d /= wgt; w /= wgt
-        _d = n.fft.ifft(d*window)
-        _w = n.fft.ifft(w*window)
-        _d_cl, info = a.deconv.clean(_d, _w, tol=1e-9, stop_if_div=False)
-        d_mdl = n.fft.fft(_d_cl) 
-        if PLOT_SPEC:
-            jy2T = C.pspec.jy2T(freqs.clip(.120,.190))
-            p.plot(freqs, d.real*jy2T)
-            p.plot(freqs, d_mdl.real*jy2T)
-            p.plot(freqs, (d-d_mdl).real*jy2T)
-            p.show()
-        Tmdl,ks = C.pspec.Trms_vs_fq(freqs, d_mdl, **kwargs)
+        #_d = n.fft.ifft(d*window)
+        #_w = n.fft.ifft(w*window)
+        #_d_cl, info = a.deconv.clean(_d, _w, tol=1e-9, stop_if_div=False)
+        #d_mdl = n.fft.fft(_d_cl) 
+        #Tmdl,ks = C.pspec.Trms_vs_fq(freqs, d_mdl, **kwargs)
+        jy2T = C.pspec.jy2T(freqs.clip(.120,.190))
+        p.plot(freqs, d.real*jy2T)
+        #p.plot(freqs, d_mdl.real*jy2T)
+        #p.plot(freqs, (d-d_mdl).real*jy2T)
+        p.show()
     
     Tlist,Wlist = {}, {}
     for d,w in zip(fdat[b], fwgt[b]):
@@ -94,15 +95,18 @@ for cnt,b in enumerate(fdat):
         Dwgt[fq][umag] = Dwgt[fq].get(umag,0) + wgt
 
 for fq in Dsum:
-    k = ks[fq][0]
+    k = ks[fq][1]
+    D = {}
+    D['k'] = k
     for umag in Dsum[fq]:
         print '   ', int(1e3*fq), umag
-        D = (Dsum[fq][umag] / Dwgt[fq][umag])
-        p.loglog(k, n.abs(D.real).clip(1e0,n.Inf), 
-            label='%d,%d' % (int(1e3*fq), umag))
+        D[str(umag)] = (Dsum[fq][umag] / Dwgt[fq][umag])
+    n.savez('R_%s.npz' % fq, **D)
+        #p.loglog(k, n.abs(D.real).clip(1e0,n.Inf), 
+        #    label='%d,%d' % (int(1e3*fq), umag))
         #p.loglog(k, n.abs(D.imag).clip(1e0,n.Inf), 
         #    label='%d,%d' % (int(1e3*fq), umag))
 
-p.legend()
-p.show()
+#p.legend(loc='upper left')
+#p.show()
         

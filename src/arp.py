@@ -13,11 +13,14 @@ def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose
             if len(times) == 0 or t != times[-1]:
                 times.append(t)
             bl = a.miriad.ij2bl(i,j)
-            dat[bl] = dat.get(bl,[]) + [d]
-            flg[bl] = flg.get(bl,[]) + [f]
+            if not dat.has_key(bl): dat[bl],flg[bl] = {},{}
+            pol = a.miriad.pol2str[uv['pol']]
+            dat[bl][pol] = dat[bl].get(pol,[]) + [d]
+            flg[bl][pol] = flg[bl].get(pol,[]) + [f]
     for bl in dat:
-        dat[bl] = n.array(dat[bl])
-        flg[bl] = n.array(flg[bl])
+      for pol in dat[bl]:
+        dat[bl][pol] = n.array(dat[bl][pol])
+        flg[bl][pol] = n.array(flg[bl][pol])
     return n.array(times), dat, flg
 
 def clean_transform(d, w=None, f=None, clean=1e-3, window='blackman-harris'):
@@ -89,6 +92,7 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     # Compute measured values
     dtau,doff,mx = 0,0,0
     d12 = d2 * n.conj(d1)
+    # For 2D arrays, assume first axis is time and integrate over it
     if d12.ndim > 1: d12_sum,d12_wgt = n.sum(d12,axis=0), n.sum(w1*w2,axis=0)
     else: d12_sum,d12_wgt = d12, w1*w2
     if n.all(d12_wgt == 0): return n.zeros_like(d12_sum), 0.
@@ -110,6 +114,7 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
         mx = n.argmax(_phs)
         if j > maxiter/2 and mx == 0: # Fine-tune calibration with linear fit
             valid = n.where(d12_wgt > d12_wgt.max()/2, 1, 0)
+            valid *= n.where(n.abs(d12_sum) > 0, 1, 0) # Throw out zeros, which NaN in the log below
             fqs_val = fqs.compress(valid)
             dly = n.real(n.log(d12_sum.compress(valid))/(2j*n.pi)) # This doesn't weight data
             wgt = d12_wgt.compress(valid); wgt.shape = (wgt.size,1)
@@ -132,18 +137,14 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
         #P.subplot(211); P.plot(n.fft.fftshift(dlys), n.fft.fftshift(_phs)); P.xlim(-200,200)
         #P.subplot(212); P.plot(fqs, n.angle(d12_sum))
         #P.show()
+    #P.subplot(211); P.plot(n.fft.fftshift(dlys), n.fft.fftshift(_phs)); P.xlim(-200,200)
+    #P.subplot(212); P.plot(fqs, n.angle(d12_sum))
+    #P.show()
     off %= 1
-    #if True:
-    #    _phs = n.fft.fft(window*d12_sum)
-    #    _wgt = n.fft.fft(window*d12_wgt)
-    #    _phs,info = a.deconv.clean(_phs, _wgt, tol=clean)
-    #    print a.img.beam_gain(_wgt)
-    #    _phs += info['res'] / a.img.beam_gain(_wgt)
-    #    _phs = n.abs(_phs)
-    #    P.plot(n.fft.fftshift(dlys), n.fft.fftshift(_phs))
-    #    P.show()
     info = {'dtau':dtau, 'doff':doff, 'mx':mx} # Some information about last step, useful for detecting screwups
-    gain = (d12_sum / d12_wgt.clip(1,n.Inf)) / (d11_sum / d11_wgt.clip(1,n.Inf))
+    g12 = d12_sum / d12_wgt.clip(1,n.Inf)
+    g11 = d11_sum / d11_wgt.clip(1,n.Inf)
+    gain = n.where(g11 != 0, g12/g11, 0)
     if use_offset: return gain, (tau,off), info
     else: return gain, tau, info
 
