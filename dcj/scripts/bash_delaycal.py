@@ -1,5 +1,5 @@
 from time import time
-import numpy as np
+import numpy as n
 import aipy as a
 import sys,os,optparse
 
@@ -66,7 +66,7 @@ docal=True
 apply_cal=True
 flush = sys.stdout.flush
 
-aa = a.cal.get_aa(aipycalfile,np.array([0.160]))
+aa = a.cal.get_aa(aipycalfile,n.array([0.160]))
 cat = a.cal.get_catalog(aipycalfile,catalogs = skymodelcatalogs)
 cat.compute(aa)
 
