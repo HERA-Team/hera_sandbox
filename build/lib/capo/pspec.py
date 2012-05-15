@@ -43,7 +43,7 @@ def Vhat2_21cm(umag, eta, B, fq0, bm_poly=DEFAULT_BEAM_POLY):
     '''Return \hat V_{21}^2, the (Jy*BW)^2 magnitude of the peak 21cm pspec.'''
     z0 = f2z(fq0)
     Omega = n.polyval(bm_poly, fq0)
-    dk3 = Omega * B*1e9 / X2Y(z0)
+    dk3 = Omega * B / X2Y(z0)
     kmag = n.sqrt((umag*dk_du(z0))**2 + (eta*dk_deta(z0))**2)
     return dk3pk_21cm(kmag, dk3) / jy2T(fq0, bm_poly=bm_poly)**2
 def V_21cm(fqs, umag, bm_poly=DEFAULT_BEAM_POLY):
@@ -51,7 +51,7 @@ def V_21cm(fqs, umag, bm_poly=DEFAULT_BEAM_POLY):
     B = fqs[-1] - fqs[0]
     fq0 = n.average(fqs)
     Vhat2 = Vhat2_21cm(umag, etas, B, fq0, bm_poly=bm_poly)
-    return n.sqrt(Vhat2) * n.exp(2j*n.pi*n.random.uniform(0,2*n.pi,size=Vhat2.size))
+    Vhat = n.sqrt(Vhat2) * n.exp(2j*n.pi*n.random.uniform(0,2*n.pi,size=Vhat2.size))
 
 def jy2T(f, bm_poly=DEFAULT_BEAM_POLY):
     '''Return [mK] / [Jy] for a beam size vs. frequency (in GHz) defined by the

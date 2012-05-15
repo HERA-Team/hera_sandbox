@@ -75,13 +75,7 @@ class Img:
         """size = the dimensions of the image in pixels
         res = The size of a (square) pixel in radians"""
         self.res = float(res)
-#        self.size = n.array(size).astype(float)
-#        dim = n.round(self.size / self.res)
         self.shape = size
-#        self.uv = n.zeros(shape=self.shape, dtype=n.complex64)
-#        self.bm = []
-#        for i in range(mf_order+1):
-#            self.bm.append(n.zeros(shape=self.shape, dtype=n.complex64))
     def get_LM(self, center=(0,0)):
         """Get the (l,m) image coordinates for an inverted UV matrix."""
         dim = self.shape
@@ -91,7 +85,6 @@ class Img:
         mask = n.where(L**2 + M**2 >= 1, 1, 0)
         L,M = n.ma.array(L, mask=mask), n.ma.array(M, mask=mask)
         return L,M
-#        return a.img.recenter(L, center[0]), a.img.recenter(M, center[1])
     def get_top(self, center=(0,0)):
         """Return the topocentric coordinates of each pixel in the image."""
         x,y = self.get_LM(center)
