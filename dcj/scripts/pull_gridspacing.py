@@ -34,6 +34,7 @@ ants = ''
 EWs = 0
 Ds = 0
 As = 0
+Dsr  = 0
 for col in cols[:-1]:
     for r,row in enumerate(rows):
         ants += "%d_%d,"%(grid_num[str(row)+str(col)],grid_num[str(row)+str(col+1)])
@@ -42,13 +43,16 @@ for col in cols[:-1]:
             print row+str(col)+'_'+rows[r+1]+str(col+1)
             ants += "%d_%d,"%(grid_num[row+str(col)],grid_num[rows[r+1]+str(col+1)])
             Ds += 1
+        if r>0:
+            ants += "%d_%d,"%(grid_num[row+str(col)],grid_num[rows[r-1]+str(col+1)])
+            Dsr +=1
 
 for col in cols:
     for row in rows:
         ants += "%d_%d,"%(grid_num[str(row)+str(col)],grid_num[str(row)+str(col)])
         As += 1
 print "ants = ",
-print "found %d EW, %d diags, %d autos"%(EWs,Ds,As)
+print "found %d EW, %d diags (%d down, %d up), %d autos"%(EWs,Ds+Dsr,Ds,Dsr,As)
 print ants
 for filename in args:
     outfile = os.path.basename(filename)+'G'

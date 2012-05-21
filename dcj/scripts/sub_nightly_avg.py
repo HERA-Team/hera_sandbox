@@ -19,6 +19,7 @@ for file in args:
     print file, ' > ', outfile,
     if os.path.exists(outfile):
         print "File exists. Skipping."
+        continue
     jd = file2jd(file)
     night = int(jd)
     night_avg_file = str(night)+'.avg.pkl'
