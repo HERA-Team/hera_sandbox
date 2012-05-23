@@ -52,12 +52,12 @@ def dlam2(nu,dnu):
 
 def gen_rm_samples(nu):
     N = float(len(nu))
-    j = np.arange(N)
-    j -= N/2.
     L0 = l0(nu)
     nu0,dnu = np.mean(nu),nu[1]-nu[0]
     RMmax = (np.pi*nu0)/(4.*L0*dnu)
-    return np.linspace(-0.5*RMmax,0.5*RMmax,N)
+    dRM = 2.*RMmax / N
+    return np.fft.fftshift(np.fft.fftfreq(int(N),(1./dRM)))
+    #return np.linspace(-0.5*RMmax,0.5*RMmax,N)
 
 def Lam2Measure(nu,dnu):
     return np.abs(dlam2(nu,dnu))
@@ -90,8 +90,9 @@ def RMTmat(nu,window='hamming'):
     W = np.indices(np.array((N,N)))
     RMs = gen_rm_samples(nu)
     L2 = better_guess_l2(nu)
+    L0 = l0(nu)
     wgt = dsp.gen_window(N,window)
-    W = np.exp(-2.j*RMs[W[1]]*L2[W[0]]) * Lam2Measure(nu[W[0]],dnu) * wgt[W[0]] 
+    W = np.exp(-2.j*RMs[W[1]]*(L2[W[0]]-L0)) * Lam2Measure(nu[W[0]],dnu) * wgt[W[0]] 
     return RMs,W.T
 def RMT(spec,W): return np.dot(W,spec)
 
@@ -109,7 +110,7 @@ def iRMTmat(nu,window='hamming'):
     RMs = gen_rm_samples(nu)
     L2 = better_guess_l2(nu)
     wgt = dsp.gen_window(N,window)
-    W = np.exp(2.j*RMs[W[0]]*L2[W[1]]) / wgt[W[1]]
+    W = np.exp(2.j*RMs[W[0]]*(L2[W[1]]-L0)) / wgt[W[1]]
     W *= (RMs[-1]-RMs[0])/(np.pi*N)
     return W.T
 def iRMT(spec,W): return np.dot(W,spec)
