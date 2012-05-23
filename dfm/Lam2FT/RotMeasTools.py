@@ -55,9 +55,7 @@ def gen_rm_samples(nu):
     L0 = l0(nu)
     nu0,dnu = np.mean(nu),nu[1]-nu[0]
     RMmax = (np.pi*nu0)/(4.*L0*dnu)
-    dRM = 2.*RMmax / N
-    return np.fft.fftshift(np.fft.fftfreq(int(N),(1./dRM)))
-    #return np.linspace(-0.5*RMmax,0.5*RMmax,N)
+    return np.fft.fftshift(np.fft.fftfreq(int(N),(1./RMmax)))
 
 def Lam2Measure(nu,dnu):
     return np.abs(dlam2(nu,dnu))
@@ -94,6 +92,7 @@ def RMTmat(nu,window='hamming'):
     wgt = dsp.gen_window(N,window)
     W = np.exp(-2.j*RMs[W[1]]*(L2[W[0]]-L0)) * Lam2Measure(nu[W[0]],dnu) * wgt[W[0]] 
     return RMs,W.T
+
 def RMT(spec,W): return np.dot(W,spec)
 
 #  _ ____  ____ _____
