@@ -16,8 +16,8 @@ opts,args = o.parse_args(sys.argv[1:])
 Qfits = []
 Ufits = []
 for arg in args:
-    if 'U00' in arg: Ufits.append(arg)
-    if 'Q00' in arg: Qfits.append(arg)
+    if 'U_00' in arg: Ufits.append(arg)
+    if 'Q_00' in arg: Qfits.append(arg)
 Qfits.sort()
 Ufits.sort()
 
