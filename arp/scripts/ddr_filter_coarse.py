@@ -1,8 +1,10 @@
 #! /usr/bin/env python
 """
-Filter in fringe-rate to select (or de-select) fringe rates that correspond to sources fixed
-to the celestial sphere.
-Author: Aaron Parsons
+Generate 3 output files containing components from the original file, organized by smoothness.
+Smoothness is determined by the fringe-rate and delay corresponding to the maximum baseline length provided.
+..."E" is for smooth-in-freq, smooth-in-time components (nominally, the extracted sky)
+..."D" for smooth-in-freq components (delay-filtered)
+..."F" for smooth-in-time components (fringe-rate-filtered)
 """
 
 import aipy as a, numpy as n, sys, os, optparse
@@ -18,7 +20,9 @@ o.add_option('--lat', type='float', default=-30.,
     help='Latitude of array in degrees.  Default -30.  Used to estimate maximum fringe rates.')
 o.add_option('--corrmode', default='j',
     help='Data type ("r" for float32, "j" for shared exponent int16) of dly/fng output files.  Default is "j".')
-o.set_usage('fringe_rate_filter_coarse.py [options] *.uv')
+o.add_option('--no_decimate', action='store_true',
+    help='Instead of decimating, match output file size to input file size.')
+o.set_usage('ddr_filter_coarse.py [options] *.uv')
 o.set_description(__doc__)
 opts,args = o.parse_args(sys.argv[1:])
 
@@ -62,7 +66,7 @@ window_dly.shape = (1,) + window_dly.shape
 window_dly_dec.shape = (1,) + window_dly_dec.shape
 del(uv)
 
-DECIMATE = True
+DECIMATE = not opts.no_decimate
 
 data_ddr, wgts_ddr = {}, {}
 data_dly, wgts_dly = {}, {}
