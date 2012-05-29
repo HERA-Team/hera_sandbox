@@ -68,13 +68,14 @@ del(uv)
 
 DECIMATE = not opts.no_decimate
 
-data_ddr, wgts_ddr = {}, {}
-data_dly, wgts_dly = {}, {}
-data_fng, wgts_fng = {}, {}
-match_tdec = {}
-
 for files in triplets(args):
-    times, dat, flg = C.arp.get_dict_of_uv_data(files, opts.ant, opts.pol, verbose=True)
+    print '(%s) %s (%s) ->' % (files[0], files[1], files[2])
+    data_ddr, wgts_ddr = {}, {}
+    data_dly, wgts_dly = {}, {}
+    data_fng, wgts_fng = {}, {}
+    match_tdec = {}
+
+    times, dat, flg = C.arp.get_dict_of_uv_data(files, opts.ant, opts.pol, verbose=False)
     # Variables: ufng (upper fringe rate), nfng (negative fringe rate)
     ufng,nfng = sky_fng_thresh(maxbl, inttime, len(times), fqs.max(), opts.lat*a.img.deg2rad)
     # Make fringe filter width divisible by 3 so that decimation pattern is periodic across files
@@ -97,7 +98,7 @@ for files in triplets(args):
     delta_jd = n.average(times[1:] - times[:-1])
     times_dec = start_jd + n.arange(nints_dec,dtype=n.float) * delta_jd * nints / nints_dec
     # Match each dec time to a single original time for use in mfunc later
-    print nints, nints_dec
+    #print nints, nints_dec
     for cnt,tdec in enumerate(times_dec):
         if cnt < times_dec.size / 3 or cnt >= 2 * times_dec.size / 3: continue
         t = times[n.argmin(n.abs(times-tdec))]
@@ -108,7 +109,7 @@ for files in triplets(args):
     area_fng = n.ones(times.shape + fqs.shape, dtype=n.int)
     area_fng[ufng:nfng,:] = 0
     area = area_dly * area_fng
-    print (ufng,nfng,udly,ndly)
+    #print (ufng,nfng,udly,ndly)
     for bl in dat:
         if not data_ddr.has_key(bl):
             data_ddr[bl],wgts_ddr[bl] = {}, {}
@@ -177,8 +178,7 @@ for files in triplets(args):
                     if cnt < t_dat.size / 3 or cnt >= 2 * t_dat.size / 3: continue
                     data_dat[bl][pol][ti] = data_dat[bl][pol].get(ti, 0) + di * wi * fi
                     wgts_dat[bl][pol][ti] = wgts_dat[bl][pol].get(ti, 0) + (wi * fi)**2
-
-for filename in args[1:-1]:
+    filename = files[1]
     outfile_dly = filename+'D'
     outfile_fng = filename+'F'
     outfile_ddr = filename+'E'
@@ -219,7 +219,6 @@ for filename in args[1:-1]:
             f = n.where(w == 0, 1, 0)
         except(KeyError): d,f = None, None
         return p, d, f
-    print filename,'->'
     uvi = a.miriad.UV(filename)
 
     if not os.path.exists(outfile_dly):
