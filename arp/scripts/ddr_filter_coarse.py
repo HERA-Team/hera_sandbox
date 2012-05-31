@@ -20,6 +20,8 @@ o.add_option('--lat', type='float', default=-30.,
     help='Latitude of array in degrees.  Default -30.  Used to estimate maximum fringe rates.')
 o.add_option('--corrmode', default='j',
     help='Data type ("r" for float32, "j" for shared exponent int16) of dly/fng output files.  Default is "j".')
+o.add_option('--invert', action='store_true',
+    help='Invert each filter.')
 o.add_option('--no_decimate', action='store_true',
     help='Instead of decimating, match output file size to input file size.')
 o.set_usage('ddr_filter_coarse.py [options] *.uv')
@@ -66,10 +68,17 @@ window_dly.shape = (1,) + window_dly.shape
 window_dly_dec.shape = (1,) + window_dly_dec.shape
 del(uv)
 
-DECIMATE = not opts.no_decimate
+DECIMATE = not (opts.no_decimate or opts.invert)
 
 for files in triplets(args):
     print '(%s) %s (%s) ->' % (files[0], files[1], files[2])
+    filename = files[1]
+    outfile_dly = filename+'D'
+    outfile_fng = filename+'F'
+    outfile_ddr = filename+'E'
+    if os.path.exists(outfile_dly) and os.path.exists(outfile_fng) and os.path.exists(outfile_ddr):
+        print '    All output files exist.  Skipping...'
+        continue
     data_ddr, wgts_ddr = {}, {}
     data_dly, wgts_dly = {}, {}
     data_fng, wgts_fng = {}, {}
@@ -96,7 +105,8 @@ for files in triplets(args):
     nints = times.size
     nints_dec = window_fng_dec.size
     delta_jd = n.average(times[1:] - times[:-1])
-    times_dec = start_jd + n.arange(nints_dec,dtype=n.float) * delta_jd * nints / nints_dec
+    if DECIMATE: times_dec = start_jd + n.arange(nints_dec,dtype=n.float) * delta_jd * nints / nints_dec
+    else: times_dec = times
     # Match each dec time to a single original time for use in mfunc later
     #print nints, nints_dec
     for cnt,tdec in enumerate(times_dec):
@@ -178,21 +188,18 @@ for files in triplets(args):
                     if cnt < t_dat.size / 3 or cnt >= 2 * t_dat.size / 3: continue
                     data_dat[bl][pol][ti] = data_dat[bl][pol].get(ti, 0) + di * wi * fi
                     wgts_dat[bl][pol][ti] = wgts_dat[bl][pol].get(ti, 0) + (wi * fi)**2
-    filename = files[1]
-    outfile_dly = filename+'D'
-    outfile_fng = filename+'F'
-    outfile_ddr = filename+'E'
     def mfunc_dly(uv, p, d, f):
         uvw,t,(i,j) = p
         p = uvw,t,(i,j)
         bl = a.miriad.ij2bl(i,j)
         pol = a.miriad.pol2str[uv['pol']]
         try:
-            d,w = data_dly[bl][pol][t], wgts_dly[bl][pol][t]
-            d /= n.where(w > 0, w, 1)
-            f = n.where(w == 0, 1, 0)
-        except(KeyError): d,f = None, None
-        return p, d, f
+            d_,w = data_dly[bl][pol][t], wgts_dly[bl][pol][t]
+            d_ /= n.where(w > 0, w, 1)
+            f_ = n.where(w == 0, 1, 0)
+        except(KeyError): return p, None, None
+        if opts.invert: return p, n.where(f_, 0, d-d_), f_
+        else: return p, d_, f_
     def mfunc_fng(uv, p, d, f):
         uvw,t,(i,j) = p
         try: t = match_tdec[t]
@@ -201,11 +208,12 @@ for files in triplets(args):
         bl = a.miriad.ij2bl(i,j)
         pol = a.miriad.pol2str[uv['pol']]
         try:
-            d,w = data_fng[bl][pol][t], wgts_fng[bl][pol][t]
-            d /= n.where(w > 0, w, 1)
-            f = n.where(w == 0, 1, 0)
-        except(KeyError): d,f = None, None
-        return p, d, f
+            d_,w = data_fng[bl][pol][t], wgts_fng[bl][pol][t]
+            d_ /= n.where(w > 0, w, 1)
+            f_ = n.where(w == 0, 1, 0)
+        except(KeyError): return p, None, None
+        if opts.invert: return p, n.where(f_, 0, d-d_), f_
+        else: return p, d_, f_
     def mfunc_ddr(uv, p, d, f):
         uvw,t,(i,j) = p
         try: t = match_tdec[t]
@@ -214,11 +222,12 @@ for files in triplets(args):
         bl = a.miriad.ij2bl(i,j)
         pol = a.miriad.pol2str[uv['pol']]
         try:
-            d,w = data_ddr[bl][pol][t], wgts_ddr[bl][pol][t]
-            d /= n.where(w > 0, w, 1)
-            f = n.where(w == 0, 1, 0)
-        except(KeyError): d,f = None, None
-        return p, d, f
+            d_,w = data_ddr[bl][pol][t], wgts_ddr[bl][pol][t]
+            d_ /= n.where(w > 0, w, 1)
+            f_ = n.where(w == 0, 1, 0)
+        except(KeyError): return p, None, None
+        if opts.invert: return p, n.where(f_, 0, d-d_), f_
+        else: return p, d_, f_
     uvi = a.miriad.UV(filename)
 
     if not os.path.exists(outfile_dly):
