@@ -1,17 +1,7 @@
 #! /usr/bin/env python
 """
-Removes crosstalk from PAPER data by modeling it over the course of a day
-as a static per-channel cross-coupling that rises and falls uniformly across
-the band with changing input amplitude.  Steps for crosstalk removal are:
-run "xtalk3.py -o" on 1 day of UV files (which should be flagged for RFI, and
-if possible, have a sky model removed) to 
-generate *.xtalk.npz files.  Then run "xtalk3.py -r" on same UV files to 
-reprocess *.xtalk.npz files, separating them into static shape/uniform gain 
-terms that are stored in *.xtalk.rep.npz files.  Finally, run "xtalk3.py -i" on 
-UV files from the same JD (but which need not have RFI flagged or a sky model
-removed) to use the *.xtalk.rep.npz model to remove crosstalk from the visibility 
-data.
-
+Filter in fringe-rate to select (or de-select) fringe rates that correspond to sources fixed
+to the celestial sphere.
 Author: Aaron Parsons
 """
 
@@ -23,7 +13,11 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, ant=True, pol=True)
 o.add_option('--clean', dest='clean', type='float', default=1e-3,
     help='Deconvolve delay-domain data by the "beam response" that results from flagged data.  Specify a tolerance for termination (usually 1e-2 or 1e-3).')
-o.set_usage('xtalk3.py [options] *.uv')
+o.add_option('--minfr', dest='minfr', type='float', default=6e-5,
+    help='Minimum fringe rate (in Hz) to allow.  Anything varying slower than this is considered crosstalk.  A negative value indicates nothing should be considered crosstalk.  Default 6e-5')
+o.add_option('--rmsky', action='store_true',
+    help='Instead of retaining the data corresponding to the sky, remove it.')
+o.set_usage('fringe_rate_filter.py [options] *.uv')
 o.set_description(__doc__)
 opts,args = o.parse_args(sys.argv[1:])
 
@@ -33,7 +27,7 @@ aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
 del(uv)
 
 def sky_fng_thresh(bl_ew_len, inttime, nints, freq, min_fr=6e-5, neg_fr=-2e-4, max_fr_frac=1.):
-    '''For bl_ew_len (the east/west projection) in ns, return the (upper,lower) fringe rate bins 
+    '''For bl_ew_len (the east/west projection) in ns, return the (upper,negative,lower) fringe rate bins 
     that geometrically correspond to the sky.'''
     bin_fr = 1. / (inttime * nints)
     max_bl = bl_ew_len * max_fr_frac
@@ -60,9 +54,10 @@ def all_sky_fng_thresh(aa, inttime, nints, min_fr=6e-5, neg_fr=-2e-4, max_fr_fra
     return filters
 
 times, dat, flg = C.arp.get_dict_of_uv_data(args, opts.ant, opts.pol, verbose=True)
-max_fr = all_sky_fng_thresh(aa, inttime, times.size, max_fr_frac=1.)
+max_fr = all_sky_fng_thresh(aa, inttime, times.size, min_fr=opts.minfr, max_fr_frac=1.)
 
 for bl in dat:
+    # Variables: ufr (upper fringe rate), nfr (negative fringe rate), lfr (lowest fringe rate for xtalk removal)
     ufr,nfr,lfr = max_fr[bl]
     for pol in dat[bl]:
         d = n.where(flg[bl][pol], 0, dat[bl][pol])
@@ -78,9 +73,11 @@ for bl in dat:
             area[ufr[ch]+1:nfr] = 0
             _d,info = a.deconv.clean(_d,_w, area=area, tol=opts.clean, stop_if_div=False, maxiter=100)
             _d += info['res'] / gain * area
-            _d[:lfr+1] = 0
-            if lfr > 0: _d[-lfr:] = 0
-            d[:,ch] = n.fft.fft(_d)
+            if opts.minfr >= 0:
+                _d[:lfr+1] = 0
+                if lfr > 0: _d[-lfr:] = 0
+            if opts.rmsky: d[:,ch] -= n.fft.fft(_d)
+            else: d[:,ch] = n.fft.fft(_d)
         dat[bl][pol] = d * w
 
 for filename in args:
