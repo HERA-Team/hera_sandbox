@@ -32,10 +32,11 @@ for npzfile in args:
         if i == 55 or j == 55: continue
         crd = aa.get_baseline(i,j)*fq
         umag = (crd[0]**2 + crd[1]**2)**.5
+        #pick predominantly east-west baselines
+        #if crd[0]**2 < .85 * umag**2: continue
         if umag > opts.umax: continue
         if umag < opts.umin: continue
-        else:
-            umag = str(2**int(n.around(n.log2(umag.clip(0.5,n.Inf)))))
+        umag = str(2**int(n.around(n.log2(umag.clip(0.5,n.Inf)))))
         uDat[umag] = uDat.get(umag,0) + dat[bl]
         uWgt[umag] = uWgt.get(umag,0) + dat[wbl]
     
@@ -57,8 +58,8 @@ for ind,umag in enumerate(keys):
     fg = n.array([C.pspec.dk_deta(C.pspec.f2z(fq))*n.float(umag)/fq,C.pspec.dk_deta(C.pspec.f2z(fq))*n.float(umag)/fq])
     yfg = n.array([1e-5,1e9])
     label = str(umag)
-    p.loglog(n.abs(kpl),f*n.abs(n.real(uDat[umag])),label=label)
     p.loglog(fg,yfg,color='r',lw=3)
+    p.loglog(n.abs(kpl),f*n.abs(n.real(uDat[umag])),label=label,color='b') 
     p.ylim(1e-1,1e7)
     p.legend()
 p.show()

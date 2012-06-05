@@ -30,8 +30,13 @@ for npzfile in args:
         if bl[0] == 'w': continue
         wbl = 'w'+str(bl)
         i,j = a.miriad.bl2ij(bl)
+        #if i != 49 and j != 49: continue
+        if i == 40 or j == 40: continue
+        if i == 55 or j == 55: continue
         crd = aa.get_baseline(i,j)*fq
         umag = (crd[0]**2 + crd[1]**2)**.5
+        #pick predominantly east-west baselines
+        #if crd[0]**2 < .5 * umag**2: continue
         if umag > opts.umax: continue
         if umag < opts.umin: continue
         if opts.nobin: umag = bl
