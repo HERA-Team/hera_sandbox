@@ -53,18 +53,20 @@ for slice in slices:
         u,v,lst = C.pspec.bin2uv(bin)
         umag = n.sqrt(u**2 + v**2)
         iu,iv = n.round(.25*u+center),n.round(.25*v+center)
-        hor = C.pspec.dk_deta(C.pspec.f2z(fq))*n.float(umag)/fq
+        #hor = C.pspec.dk_deta(C.pspec.f2z(fq))*n.float(umag)/fq
+        hor = .15
+        kpl = n.abs(kpl)
         if slice == 'sum':
             uDat[bin] /= uWgt[bin]
             valid = n.ones_like(kpl)
         if slice == 'hor':
-            lo,hi = .95*hor,1.05*hor
+            lo,hi = .75*hor,1.5*hor
             valid = n.where(kpl > lo,1,0)*n.where(kpl < hi,1,0)
         if slice == 'hor-min':
-            lo,hi = .85*hor,.95*hor
+            lo,hi = 0*hor,.75*hor
             valid = n.where(kpl > lo,1,0)*n.where(kpl < hi,1,0)
         if slice == 'hor-plus':
-            lo,hi = 1.05*hor,1.15*hor
+            lo,hi = 1.5*hor,3*hor
             valid = n.where(kpl > lo,1,0)*n.where(kpl < hi,1,0)
         vcnt += n.sum(valid)
         uvplane[slice][iu,iv] += n.sum(uDat[bin].compress(valid))
@@ -79,7 +81,8 @@ for plot,slice in enumerate(slices):
     uvplane[slice] /= uvplane_wgt[slice].clip(1.,n.Inf)
     p.subplot(xplots,yplots,plot+1)
     p.title(slice)
-    p.imshow(n.log10(uvplane[slice].clip(1.,n.Inf)),interpolation='nearest',vmax=vmax[plot],vmin=vmin[plot])
+    #p.imshow(n.log10(uvplane[slice].clip(1.,n.Inf)),interpolation='nearest',vmax=vmax[plot],vmin=vmin[plot])
+    p.imshow(n.log10(n.abs(uvplane[slice])),interpolation='nearest',vmax=vmax[plot],vmin=vmin[plot])
     #p.imshow(uvplane_wgt[slice].clip(0.,1.),interpolation='nearest')
-    p.colorbar()
+    #p.colorbar()
 p.show()
