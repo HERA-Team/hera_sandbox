@@ -93,6 +93,7 @@ for files in triplets(args):
     match_tdec = {}
 
     # XXX rereading files 3x (for each position in triplet) is inefficient
+    print '    Reading files'
     times, dat, flg = C.arp.get_dict_of_uv_data(files, opts.ant, opts.pol, verbose=False)
     # Variables: ufng (upper fringe rate), nfng (negative fringe rate)
     ufng,nfng = sky_fng_thresh(maxbl, inttime, len(times), fqs.max(), opts.lat*a.img.deg2rad)
@@ -129,6 +130,7 @@ for files in triplets(args):
     area_fng[ufng:nfng,:] = 0
     area = area_dly * area_fng
     #print (ufng,nfng,udly,ndly)
+    print '    Processing data'
     for bl in dat:
         if not data_ddr.has_key(bl):
             # XXX the memory footprint of all these copies of data is high.  need to reduce
@@ -266,10 +268,11 @@ for files in triplets(args):
         if not os.path.exists(outfile_dly):
             print '   ', outfile_dly
             # For noise-like files (delay, fringe filter), usually use data type 'j' for enhanced compression.
-            uvo_dly = a.miriad.UV(outfile_dly, corrmode=opts.corrmode, status='new')
-            if DECIMATE: uvo_dly.init_from_uv(uvi, override={'sdf':sdf_dec, 'sfreq':sfreq_dec, 'nchan':nchan_dec})
-            else: uvo_dly.init_from_uv(uvi)
-            uvo_dly.pipe(uvi, mfunc=mfunc_dly, append2hist='DDR FILTER, DLY:'+' '.join(sys.argv)+'\n', raw=True)
+            uvo = a.miriad.UV(outfile_dly, corrmode=opts.corrmode, status='new')
+            if DECIMATE: uvo.init_from_uv(uvi, override={'sdf':sdf_dec, 'sfreq':sfreq_dec, 'nchan':nchan_dec})
+            else: uvo.init_from_uv(uvi)
+            uvo.pipe(uvi, mfunc=mfunc_dly, append2hist='DDR FILTER, DLY:'+' '.join(sys.argv)+'\n', raw=True)
+            del(uvo)
         else: print '   ', outfile_dly, 'exists.  Skipping...'
         uvi.rewind()
 
@@ -277,18 +280,20 @@ for files in triplets(args):
         if not os.path.exists(outfile_fng):
             print '   ', outfile_fng
             # For noise-like files (delay, fringe filter), usually use data type 'j' for enhanced compression.
-            uvo_fng = a.miriad.UV(outfile_fng, corrmode=opts.corrmode, status='new')
-            if DECIMATE: uvo_fng.init_from_uv(uvi, override={'sdf':sdf_dec, 'sfreq':sfreq_dec, 'inttime':inttime_dec})
-            else: uvo_fng.init_from_uv(uvi)
-            uvo_fng.pipe(uvi, mfunc=mfunc_fng, append2hist='DDR FILTER, FNG:'+' '.join(sys.argv)+'\n', raw=True)
+            uvo = a.miriad.UV(outfile_fng, corrmode=opts.corrmode, status='new')
+            if DECIMATE: uvo.init_from_uv(uvi, override={'sdf':sdf_dec, 'sfreq':sfreq_dec, 'inttime':inttime_dec})
+            else: uvo.init_from_uv(uvi)
+            uvo.pipe(uvi, mfunc=mfunc_fng, append2hist='DDR FILTER, FNG:'+' '.join(sys.argv)+'\n', raw=True)
+            del(uvo)
         else: print '   ', outfile_fng, 'exists.  Skipping...'
         uvi.rewind()
 
     if DDR:
         if not os.path.exists(outfile_ddr):
             print '   ', outfile_ddr
-            uvo_ddr = a.miriad.UV(outfile_ddr, status='new')
-            if DECIMATE: uvo_ddr.init_from_uv(uvi, override={'sdf':sdf_dec, 'sfreq':sfreq_dec, 'nchan':nchan_dec, 'inttime':inttime_dec})
-            else: uvo_ddr.init_from_uv(uvi)
-            uvo_ddr.pipe(uvi, mfunc=mfunc_ddr, append2hist='DDR FILTER, DDR:'+' '.join(sys.argv)+'\n', raw=True)
+            uvo = a.miriad.UV(outfile_ddr, status='new')
+            if DECIMATE: uvo.init_from_uv(uvi, override={'sdf':sdf_dec, 'sfreq':sfreq_dec, 'nchan':nchan_dec, 'inttime':inttime_dec})
+            else: uvo.init_from_uv(uvi)
+            uvo.pipe(uvi, mfunc=mfunc_ddr, append2hist='DDR FILTER, DDR:'+' '.join(sys.argv)+'\n', raw=True)
+            del(uvo)
         else: print '   ', outfile_ddr, 'exists.  Skipping...'
