@@ -19,7 +19,7 @@ WINDOW = 'blackman-harris'
 #
 #_window = n.fft.ifft(window * sampling)
 
-fdat,fwgt,fbl = {}, {}, {}
+fdat,fwgt = {}, {}
 for filename in sys.argv[1:]:
     print 'Reading', filename
     f = n.load(filename)
@@ -28,12 +28,9 @@ for filename in sys.argv[1:]:
     bmax, bwgt = None, 0.
     for cnt,b in enumerate(f['bins']):
         wgt = n.sum(f['wgt'][cnt], axis=0).max()
-        if wgt < 50: continue
-        if wgt > 50: print wgt
         if wgt > bwgt: bmax,bwgt = b,wgt
         fdat[b] = fdat.get(b,0) + f['dat'][cnt]
         fwgt[b] = fwgt.get(b,0) + f['wgt'][cnt]
-        fbl[b] = fbl.get(b,[]).append(f[bls][b])
     print '   ', len(bins), bmax, bwgt
 print len(fdat)
 
@@ -53,7 +50,7 @@ for cnt,b in enumerate(fdat):
     #if wgt < 500: continue
     #if wgt < 200: continue
     #if wgt < 100: continue
-    if wgt < 50: continue
+    #if wgt < 50: continue
 
     if PLOT_SPEC:
         d /= wgt; w /= wgt
@@ -104,7 +101,7 @@ for fq in Dsum:
     for umag in Dsum[fq]:
         print '   ', int(1e3*fq), umag
         D[str(umag)] = (Dsum[fq][umag] / Dwgt[fq][umag])
-    n.savez('R_%s.npz' % fq, **D)
+    n.savez('rush_%s.npz' % fq, **D)
         #p.loglog(k, n.abs(D.real).clip(1e0,n.Inf), 
         #    label='%d,%d' % (int(1e3*fq), umag))
         #p.loglog(k, n.abs(D.imag).clip(1e0,n.Inf), 

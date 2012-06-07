@@ -31,33 +31,19 @@ for filename in args:
     uv = a.miriad.UV(filename)
     a.scripting.uv_selector(uv, opts.ant, opts.pol)
     for (crd,t,(i,j)),d,f in uv.all(raw=True):
-        bl = a.miriad.ij2bl(i,j)
+        bl = str(a.miriad.ij2bl(i,j))
+        wbl = 'w'+str(a.miriad.ij2bl(i,j))
         #delay transform one sample at a time
         _d,ks =  C.pspec.Trms_vs_fq(freqs,d,**kwargs)
         _d,ks = _d[fq],ks[fq]
         try:
             #multiply adjacent time samples in delay space (leave out bias)
             Dat[bl] = Dat.get(bl,0) + tdat[bl]*_d.conj()
-            Wgt[bl] = Wgt.get(bl,0) + 1.
+            Dat[wbl] = Dat.get(wbl,0) + 1.
         except(KeyError): pass
         tdat[bl] = _d
 
-uDat, uWgt, blDat = {}, {}, {}
-#bin in umag
-for bl in Dat.keys():
-    i,j = a.miriad.bl2ij(bl)
-    crd = aa.get_baseline(i,j)*fq
-    umag = (crd[0]**2 + crd[1]**2)**.5
-    umag = str(2**int(n.around(n.log2(umag.clip(0.5,n.Inf)))))
-    uDat[umag] = uDat.get(umag,0) + Dat[bl]
-    uWgt[umag] = uWgt.get(umag,0) + Wgt[bl]
-    #storing which baselines went into a umag bin
-    if not blDat.has_key(umag): blDat[umag] = [bl]
-    else: blDat[umag].append(bl)
+    Dat['kpl'] = ks[1]
 
-uDat['kpl'] = ks[1]
-for umag in uWgt.keys():
-    uDat[umag] /= uWgt[umag]
-
-print 'Writing', ofile
-n.savez(ofile,**uDat)
+    print 'Writing', ofile
+    n.savez(ofile,**Dat)
