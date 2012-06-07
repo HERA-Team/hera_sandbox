@@ -1,4 +1,4 @@
-#!/usr/global/paper/bin/python
+#! /usr/bin/env python
 """
 This is a general-purpose script for making faceted, spherical maps (stored in
 Healpix FITS format) from individual "flat" maps stored in FITS files.
@@ -58,27 +58,27 @@ for i, filename in enumerate(args):
         im = a.img.Img(DIM*RES, RES, mf_order=0)
         tx,ty,tz = im.get_top(center=(DIM/2,DIM/2))
         valid = n.logical_not(tx.mask).flatten()
-        tx = tx.flatten().compress(valid)
-        ty = ty.flatten().compress(valid)
-        tz = tz.flatten().compress(valid)
+        tx = tx.flatten()#.compress(valid)
+        ty = ty.flatten()#.compress(valid)
+        tz = tz.flatten()#.compress(valid)
         bm_wgts = aa.ants[0].bm_response((tx,ty,tz), pol=opts.pol[0])
         if opts.pol[0] == opts.pol[-1]: bm_wgts *= bm_wgts
         else: bm_wgts *= aa.ants[0].bm_response((tx,ty,tz), pol=opts.pol[-1])
         bm_wgts = n.abs(bm_wgts.squeeze())
-        #bm_wgts = n.where(bm_wgts >= 0.5 , bm_wgts, 0)
+        #bm_wgts = n.where(bm_wgts >= 0.1 , bm_wgts, 0)
         map_wgts = bm_wgts**2
         print 'Done calculating beam weighting'
     # Get coordinates of image pixels in the epoch of the observation
     ex,ey,ez = im.get_eq(ra, dec, center=(DIM/2,DIM/2))
-    ex = ex.flatten().compress(valid)
-    ey = ey.flatten().compress(valid)
-    ez = ez.flatten().compress(valid)
+    ex = ex.flatten()#.compress(valid)
+    ey = ey.flatten()#.compress(valid)
+    ez = ez.flatten()#.compress(valid)
     # Precess the pixel coordinates to the (J2000) epoch of the map
     print 'Precessing coords'
     m = a.coord.convert_m('eq','eq', 
         iepoch=kwds['obs_date'], oepoch=ephem.J2000)
     ex,ey,ez = n.dot(m, n.array([ex,ey,ez])) 
-    img = img.flatten().compress(valid)
+    img = img.flatten()#.compress(valid)
     # Put the data into the skymap
     if opts.nobeam: skymap.add((ex,ey,ez), n.sqrt(map_wgts), img) # down-weight by only one factor beam response
     else: skymap.add((ex,ey,ez), map_wgts, img*bm_wgts) # down-weight by beam resp squared -- SNR
