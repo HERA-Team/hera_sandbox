@@ -6,6 +6,8 @@ UVR=$*
 # XXX is the "pol" argument in ddr_filter_coarse necessary?
 for FILE in $UVR; do
     TRIPLET=`get_uv_neighbor.py $FILE`
+    TRIP_LEN=`python -c "print len('${TRIPLET}'.split())"`
+    if [ $TRIP_LEN -lt 3 ] ; then continue ; fi
     if ! ls ${FILE}/flags_bk &> /dev/null; then
         ddr_filter_coarse.py -p xx -a all --clean=1e-3 --maxbl=300 --output=ddr --invert $TRIPLET
         xrfi_simple.py -n 4 ${FILE}E
