@@ -2,7 +2,7 @@
 
 UVR=$*
 
-#xrfi_simple.py -c 0_130,755_777,1540,1704,1827,1868,1885_2047 --df=6 $UV
+#xrfi_simple.py -a all -c 0_130,755_777,1540,1704,1827,1868,1885_2047 --df=6 $UV
 # XXX is the "pol" argument in ddr_filter_coarse necessary?
 for FILE in $UVR; do
     echo -------------------------------------
@@ -16,12 +16,18 @@ for FILE in $UVR; do
     if ! ls ${FILE}/flags_bk &> /dev/null; then
         echo ${FILE}/flags_bk not found.  Assuming improved flags need to be generated...
         ddr_filter_coarse.py -p xx -a all --clean=1e-3 --maxbl=300 --output=ddr --invert $TRIPLET
-        xrfi_simple.py -n 4 ${FILE}E
-        rm -rf ${FILE}E
-        echo Copying ${FILE}ER/flags to ${FILE}
-        cp ${FILE}/flags ${FILE}/flags_bk
-        cp ${FILE}ER/flags ${FILE}/flags
+        xrfi_simple.py -a all -n 4 ${FILE}E
+        # Check that we got to here successfully before continuing
+        if [ $? -eq 0 ] ; then
+            echo Copying ${FILE}ER/flags to ${FILE}
+            cp ${FILE}/flags ${FILE}/flags_bk
+            cp ${FILE}ER/flags ${FILE}/flags
+            rm -rf ${FILE}E
+        fi
         #rm -rf ${FILE}ER
     fi
-    ddr_filter_coarse.py -p xx -a all --clean=1e-4 --maxbl=300 $TRIPLET
+    # Make sure flags_bk exists (a sign the above completed successfully) before continuing
+    if ls ${FILE}/flags_bk &> /dev/null; then
+        ddr_filter_coarse.py -p xx -a all --clean=1e-4 --maxbl=300 $TRIPLET
+    fi
 done
