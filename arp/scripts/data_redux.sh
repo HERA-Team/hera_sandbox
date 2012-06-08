@@ -5,10 +5,16 @@ UVR=$*
 #xrfi_simple.py -c 0_130,755_777,1540,1704,1827,1868,1885_2047 --df=6 $UV
 # XXX is the "pol" argument in ddr_filter_coarse necessary?
 for FILE in $UVR; do
+    echo -------------------------------------
+    echo Working on $FILE
     TRIPLET=`get_uv_neighbor.py $FILE`
     TRIP_LEN=`python -c "print len('${TRIPLET}'.split())"`
-    if [ $TRIP_LEN -lt 3 ] ; then continue ; fi
+    if [ $TRIP_LEN -lt 3 ] ; then 
+        echo No adjacent files to use.  Skipping...
+        continue
+    fi
     if ! ls ${FILE}/flags_bk &> /dev/null; then
+        echo ${FILE}/flags_bk not found.  Assuming improved flags need to be generated...
         ddr_filter_coarse.py -p xx -a all --clean=1e-3 --maxbl=300 --output=ddr --invert $TRIPLET
         xrfi_simple.py -n 4 ${FILE}E
         rm -rf ${FILE}E
