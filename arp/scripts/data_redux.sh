@@ -4,6 +4,7 @@ UV=$*
 for FILE in $UV; do
     correct_psa898.py $FILE
     xrfi_simple.py -a all -c 0_130,755_777,1540,1704,1827,1868,1885_2047 --df=6 ${FILE}c
+    rm -rf ${FILE}c
 done
 
 UVCR=`python -c "print ' '.join([f+'cR' for f in '${UVC}'.split()])"`
@@ -28,8 +29,8 @@ for FILE in $UVCR; do
             cp ${FILE}/flags ${FILE}/flags_bk
             cp ${FILE}ER/flags ${FILE}/flags
             rm -rf ${FILE}E
+            rm -rf ${FILE}ER
         fi
-        #rm -rf ${FILE}ER
     fi
     # Make sure flags_bk exists (a sign the above completed successfully) before continuing
     if ls ${FILE}/flags_bk &> /dev/null; then
