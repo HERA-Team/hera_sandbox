@@ -95,6 +95,13 @@ for files in triplets(args):
     # XXX rereading files 3x (for each position in triplet) is inefficient
     print '    Reading files'
     times, dat, flg = C.arp.get_dict_of_uv_data(files, opts.ant, opts.pol, verbose=False)
+    uv1 = a.miriad.UV(files[1]); uv2 = a.miriad.UV(files[2])
+    t1,t2 = uv1.read()[0][-1], uv2.read()[0][-1]
+    del(uv1); del(uv2)
+    times0 = times[n.where(times < t1)]
+    times1 = times[n.where(n.logical_and(times < t2, times >= t1))]
+    times2 = times[n.where(times >= t2)]
+    print len(times0), len(times1), len(times2)
     # Variables: ufng (upper fringe rate), nfng (negative fringe rate)
     ufng,nfng = sky_fng_thresh(maxbl, inttime, len(times), fqs.max(), opts.lat*a.img.deg2rad)
     # Make fringe filter width divisible by 3 so that decimation pattern is periodic across files
