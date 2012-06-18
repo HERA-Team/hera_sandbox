@@ -3,10 +3,54 @@ import aipy as a, numpy as n, os, sys
 
 aa = a.phs.ArrayLocation(('-30:43:17.5', '21:25:41.9')) # Karoo, ZAR, GPS. #elevation=1085m
 
-#rewire = { 0:49,1:10,2:9,3:22,4:29,5:24,6:17,7:5,
-#           8:47,9:25,10:1,11:35,12:34,13:27,14:56,15:30,
-#           16:41,17:3,18:58,19:61,20:28,21:55,22:13,23:32,
-#           24:19,25:48,26:4,27:18,28:51,29:57,30:59,31:23}
+cabling = {
+	0  : 60 ,
+	1  : 61 ,
+	2  : 62 ,
+	3  : 63 ,
+	4  : 56 ,
+	5  : 57 , 
+	6  : 58 ,
+	7  : 59 ,
+	8  : 52 ,
+	9  : 53 ,
+	10 : 54 ,
+	11 : 55 , 
+	12 : 48 ,
+	13 : 49 ,
+	14 : 50 ,
+	15 : 51 ,
+    16 : 44 ,
+    17 : 45 ,
+    18 : 46 ,
+    19 : 47 ,
+    20 : 40 ,
+    21 : 41 ,
+    22 : 42 ,
+    23 : 43 ,
+    24 : 36 ,
+    25 : 37 ,
+    26 : 38 ,
+    27 : 39 ,
+    28 : 11 ,
+    29 : 33 ,
+    30 : 34 ,
+    31 : 35
+    }
+
+mistakes = {
+    40 : {'x': (40,'y'), 'y': (40,'x')}, 
+    55 : {'x': (55,'y'), 'y': (55,'x')}
+}
+
+badants = [11]
+badbls = [a.miriad.ij2bl(58,63),a.miriad.ij2bl(58,61),a.miriad.ij2bl(56,59)]
+
+apply_bp = 12250000.
+
+rfi_chans  = '0_36,49_60,78_83,86_90,102_110,114'
+rfi_chans += ',121_134,168_171,187_188,341,648_649,759_776,1144'
+rfi_chans += ',1540,1700_1708,1795,1826_1829,1865_1871'
 
 for filename in sys.argv[1:]:
     print filename, '->', filename+'c'
@@ -19,25 +63,45 @@ for filename in sys.argv[1:]:
     def mfunc(uv, p, d, f):
         global curtime
         crd,t,(i,j) = p
-        p1,p2 = a.miriad.pol2str[uv['pol']]
-        # XXX for the time being, going to throw away all but 'xx' pol
-        if p1 != 'x' or p2 != 'x': return p, None, None
-        # prevent multiple entries arising from xy and yx on autocorrelations
-        if i == j and (p1,p2) == ('y','x'): return p, None, None
+        pi,pj = a.miriad.pol2str[uv['pol']]
+        ## Toss bad baselines
+        bl = a.miriad.ij2bl(i,j)
+        
+        #t -= 2.0/24 # Recorded jultimes are 2hrs ahead?
+       	#Perform the rewire
+        i,j = cabling[i],cabling[j]
+        if i in mistakes.keys():
+            ii = i
+            i = mistakes[ii][pi][0]
+            pi = mistakes[ii][pi][1]
+        if j in mistakes.keys():
+            jj = j
+            j = mistakes[jj][pj][0]
+            pj = mistakes[jj][pj][1]
+        uvo['pol'] = a.miriad.str2pol[pi+pj]
 
-        #i,j = pol2to1[i][p1], pol2to1[j][p2]
-        #i,j = rewire[i],rewire[j]
-        if i > j: i,j,d = j,i,n.conjugate(d)
-        if i == 8: d = -d  # I think the dipole for this antenna is rotated 180 deg
-        if j == 8: d = -d
+        if i > j: 
+            i,j = j,i
+            d = n.conjugate(d)
+        
+        if i == j: return None,None,None
+        if i in badants: return None,None,None
+        if j in badants: return None,None,None
+        if a.miriad.ij2bl(i,j) in badbls: return None,None,None
+
+        d *= apply_bp
+        chans = a.scripting.parse_chans(rfi_chans,uv['nchan'])
+        f[chans] = 1
 
         if t != curtime:
             aa.set_jultime(t)
-            uvo['lst'] = uvo['ra'] = uvo['obsra'] = aa.sidereal_time()
+            uvo['lst'] = aa.sidereal_time()
+            uvo['ra'] = aa.sidereal_time()
+            uvo['obsra'] = aa.sidereal_time()
             curtime = t
         
         return (crd,t,(i,j)),d,f
-
+            
     override = {
         'lst': aa.sidereal_time(),
         'ra': aa.sidereal_time(),
@@ -50,11 +114,10 @@ for filename in sys.argv[1:]:
         #'sfreq': sfreq,
         #'freq': sfreq,
         #'inttime': 5.37,
-        'nchan': 1024,
+        'nchan': 2048,
         'nants': 64,
         'ngains': 128,
-        'nspect0': 64,
-        #'pol':a.miriad.str2pol['xx'],
+        'nspect0': 32,
         'telescop':'PAPER',
         #'bandpass': n.ones((33,1024), dtype=n.complex64).flatten(),
         'antpos': n.transpose(n.array([
@@ -90,42 +153,10 @@ for filename in sys.argv[1:]:
             [0., 0., 0.], #29
             [0., 0., 0.], #30
             [0., 0., 0.], #31
-            [0., 0., 0.], #32
-            [0., 0., 0.], #33
-            [0., 0., 0.], #34
-            [0., 0., 0.], #35
-            [0., 0., 0.], #36
-            [0., 0., 0.], #37
-            [0., 0., 0.], #38
-            [0., 0., 0.], #39
-            [0., 0., 0.], #40
-            [0., 0., 0.], #41
-            [0., 0., 0.], #42
-            [0., 0., 0.], #43
-            [0., 0., 0.], #44
-            [0., 0., 0.], #45
-            [0., 0., 0.], #46
-            [0., 0., 0.], #47
-            [0., 0., 0.], #48
-            [0., 0., 0.], #49
-            [0., 0., 0.], #50
-            [0., 0., 0.], #51
-            [0., 0., 0.], #52
-            [0., 0., 0.], #53
-            [0., 0., 0.], #54
-            [0., 0., 0.], #55
-            [0., 0., 0.], #56
-            [0., 0., 0.], #57
-            [0., 0., 0.], #58
-            [0., 0., 0.], #59
-            [0., 0., 0.], #60
-            [0., 0., 0.], #61
-            [0., 0., 0.], #62
-            [0., 0., 0.], #63
         ])).flatten(),
     }
 
     uvo.init_from_uv(uvi, override=override)
     uvo.pipe(uvi, mfunc=mfunc, raw=True,
-        append2hist='\nCORRECT: '+' '.join(sys.argv)+'\n')
+        append2hist='CORRECT: '+' '.join(sys.argv)+'\n')
     del(uvo)
