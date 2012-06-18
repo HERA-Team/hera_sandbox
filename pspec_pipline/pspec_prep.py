@@ -41,6 +41,8 @@ o.add_option('--model', dest='model', action='store_true',
     help='Return the foreground model as well as the residuals')
 o.add_option('--nolstbin', dest='nolstbin', action='store_true',
     help='Phase to lst of 1 integration, not a 2hr bin.')
+o.add_option('--nohorizon', dest='nohorizon', action='store_true',
+    help='Allow clean components across all of delay space.')
 opts, args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
@@ -103,6 +105,7 @@ for uvfile in args:
         uthresh,lthresh = filters[bl]
         area = n.ones(_d.size, dtype=n.int)
         area[uthresh:lthresh] = 0
+        if opts.nohorizon: area = None
         _d_cl, info = a.deconv.clean(_d, _w, tol=opts.clean, area=area, stop_if_div=False, maxiter=100)
         d_mdl = n.fft.fft(_d_cl)
         d_res = d - d_mdl * w
