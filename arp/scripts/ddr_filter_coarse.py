@@ -93,6 +93,7 @@ for files in triplets(args):
     match_tdec = {}
 
     # XXX rereading files 3x (for each position in triplet) is inefficient
+    # XXX also, this process fails if not all files are the same size...
     print '    Reading files'
     times, dat, flg = C.arp.get_dict_of_uv_data(files, opts.ant, opts.pol, verbose=False)
     uv1 = a.miriad.UV(files[1]); uv2 = a.miriad.UV(files[2])
@@ -117,13 +118,16 @@ for files in triplets(args):
     window_fng_dec.shape = window_fng_dec.shape + (1,)
     window = window_fng * window_dly
     # Create times_dec
-    inttime_dec = inttime * window_fng.size / window_fng_dec.size
     start_jd = times[0]
     nints = times.size
     nints_dec = window_fng_dec.size
     delta_jd = n.average(times[1:] - times[:-1])
-    if DECIMATE: times_dec = start_jd + n.arange(nints_dec,dtype=n.float) * delta_jd * nints / nints_dec
-    else: times_dec = times
+    if DECIMATE:
+        times_dec = start_jd + n.arange(nints_dec,dtype=n.float) * delta_jd * nints / nints_dec
+        inttime_dec = inttime * nints / nints_dec
+    else:
+        times_dec = times
+        inttime_dec = inttime
     # Match each dec time to a single original time for use in mfunc later
     #print nints, nints_dec
     for cnt,tdec in enumerate(times_dec):
@@ -213,7 +217,7 @@ for files in triplets(args):
                         wgts_dly[bl][pol][ti] = wgts_dly[bl][pol].get(ti, 0) + (wi * fi)**2
                 if FNG:
                     d_fng = n.fft.fft2(_r * area_fng * n.logical_not(area))
-                    f_fng = n.fft.fft2(n.fft.ifft2(w) * area_fng); f_dly = n.where(f_fng > .75, f_fng, 0)
+                    f_fng = n.fft.fft2(n.fft.ifft2(w) * area_fng); f_fng = n.where(f_fng > .75, f_fng, 0)
                     for cnt,(ti,di,wi,fi) in enumerate(zip(times, d_fng, window, f_fng)):
                         # Only process the center file (simpler when decimating)
                         if cnt < times.size / 3 or cnt >= 2 * times.size / 3: continue
