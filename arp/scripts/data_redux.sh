@@ -1,14 +1,14 @@
 #! /bin/bash
 
-UV=$*
-for FILE in $UV; do
-    correct_psa898.py $FILE
-    xrfi_simple.py -a all -c 0_130,755_777,1540,1704,1827,1868,1885_2047 --df=6 ${FILE}c
-    rm -rf ${FILE}c
-done
-
-UVCR=`python -c "print ' '.join([f+'cR' for f in '${UVC}'.split()])"`
-#UVCR=$*
+#UV=$*
+#for FILE in $UV; do
+#    correct_psa898.py $FILE
+#    xrfi_simple.py -a all -c 0_130,755_777,1540,1704,1827,1868,1885_2047 --df=6 ${FILE}c
+#    rm -rf ${FILE}c
+#done
+#
+#UVCR=`python -c "print ' '.join([f+'cR' for f in '${UVC}'.split()])"`
+UVCR=$*
 # XXX is the "pol" argument in ddr_filter_coarse necessary?
 for FILE in $UVCR; do
     echo -------------------------------------

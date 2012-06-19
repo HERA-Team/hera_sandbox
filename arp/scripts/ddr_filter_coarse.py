@@ -97,7 +97,7 @@ for files in triplets(args):
     print '    Reading files'
     times, dat, flg = C.arp.get_dict_of_uv_data(files, opts.ant, opts.pol, verbose=False)
     uv1 = a.miriad.UV(files[1]); uv2 = a.miriad.UV(files[2])
-    t1,t2 = uv1.read()[0][-1], uv2.read()[0][-1]
+    t1,t2 = uv1.read()[0][1], uv2.read()[0][1]
     del(uv1); del(uv2)
     times0 = times[n.where(times < t1)]
     times1 = times[n.where(n.logical_and(times < t2, times >= t1))]
@@ -230,7 +230,8 @@ for files in triplets(args):
                     d_ddr = n.fft.fft2(_d) * window * f_ddr + n.fft.fft2(_r * area)
                     for cnt,(ti,di,wi,fi) in enumerate(zip(times, d_ddr, window, f_ddr)):
                         # Only process the center file (simpler when decimating)
-                        if cnt < times.size / 3 or cnt >= 2 * times.size / 3: continue
+                        #if cnt < times.size / 3 or cnt >= 2 * times.size / 3: continue
+                        if ti < t1 or ti >= t2: continue
                         data_ddr[bl][pol][ti] = data_ddr[bl][pol].get(ti, 0) + di * wi * fi
                         wgts_ddr[bl][pol][ti] = wgts_ddr[bl][pol].get(ti, 0) + (wi * fi)**2
     def mfunc_dly(uv, p, d, f):
