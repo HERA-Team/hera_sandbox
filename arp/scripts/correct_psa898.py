@@ -3,6 +3,8 @@ import aipy as a, numpy as n, os, sys
 
 aa = a.phs.ArrayLocation(('-30:43:17.5', '21:25:41.9')) # Karoo, ZAR, GPS. #elevation=1085m
 
+# XXX need to fold in temperature data from /data3/paper/psa/psalive
+
 #rewire = { 0:49,1:10,2:9,3:22,4:29,5:24,6:17,7:5,
 #           8:47,9:25,10:1,11:35,12:34,13:27,14:56,15:30,
 #           16:41,17:3,18:58,19:61,20:28,21:55,22:13,23:32,
