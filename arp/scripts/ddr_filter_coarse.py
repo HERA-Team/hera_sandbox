@@ -7,8 +7,17 @@ Smoothness is determined by the fringe-rate and delay corresponding to the maxim
 ..."F" for smooth-in-time components (fringe-rate-filtered)
 """
 
+import os
+pid = os.getpid()
+def get_mem():
+    lines = open('/proc/%d/status' % pid).readlines()
+    print '\n'.join([L for L in lines if L.find('VmSize') != -1])
+get_mem()
+
 import aipy as a, numpy as n, sys, os, optparse
 import capo as C
+
+get_mem()
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True)
@@ -111,12 +120,13 @@ for files in triplets(args):
     #times, dat, flg = C.arp.get_dict_of_uv_data(files, opts.ant, opts.pol, verbose=False)
     for section in range(opts.nsections):
         print '    Reading section %d/%d' % (section+1, opts.nsections)
+        get_mem()
         slen = int(n.ceil(float(len(blpols)) / opts.nsections))
         ants = ','.join(blpols[section*slen:(section+1)*slen])
         if len(ants) == 0: continue
         print ants
-        times, dat, flg = C.arp.get_dict_of_uv_data(files, ants, -1, verbose=False)
-        for bl in dat: print a.miriad.bl2ij(bl), dat[bl].keys()
+        #times, dat, flg = C.arp.get_dict_of_uv_data(files, ants, -1, verbose=False)
+        times, dat, flg = C.arp.get_dict_of_uv_data(files, ants, -1, verbose=False, recast_as_array=False)
 
         if len(match_tdec) == 0:
             uv1 = a.miriad.UV(files[1]); uv2 = a.miriad.UV(files[2])
@@ -140,6 +150,7 @@ for files in triplets(args):
             window_fng.shape = window_fng.shape + (1,)
             window_fng_dec.shape = window_fng_dec.shape + (1,)
             window = window_fng * window_dly
+            #window = (window_fng * window_dly).astype(n.float32)
             # Create times_dec
             start_jd = times[0]
             nints = times.size
@@ -165,7 +176,10 @@ for files in triplets(args):
             area = area_dly * area_fng
             #print (ufng,nfng,udly,ndly)
         print '    Processing data'
+        get_mem()
         for bl in dat:
+            print bl,
+            get_mem()
             if not data_ddr.has_key(bl):
                 data_ddr[bl],wgts_ddr[bl] = {}, {}
                 data_fng[bl],wgts_fng[bl] = {}, {}
@@ -177,15 +191,18 @@ for files in triplets(args):
                     data_dly[bl][pol],wgts_dly[bl][pol] = {}, {}
                 d = n.where(flg[bl][pol], 0, dat[bl][pol])
                 del(dat[bl][pol]); del(flg[bl][pol]) # We're done with the raw data, so free up RAM
-                w = n.where(n.abs(d) == 0, 0., 1.)
+                w = n.where(n.abs(d) == 0, 0., 1.)#.astype(n.float32)
                 _d,_w = n.fft.ifft2(d*window), n.fft.ifft2(w*window)
+                #_d,_w = _d.astype(n.complex64),_w.astype(n.complex64)
                 gain = n.abs(_w[0,0])
                 if gain == 0: continue
                 _d,info = a.deconv.clean(_d,_w, area=area, tol=opts.clean, stop_if_div=False, maxiter=100)
                 _r = info['res']
+                #print _d.dtype, _w.dtype, _r.dtype
 
                 if DECIMATE:
                     _f = n.fft.ifft2(w)
+                    #_f = _f.astype(n.complex64)
                     # Filter and decimate for dly, fng, and ddr datasets
                     data_L,wgts_L,t_L,d_L,w_L,f_L = [],[],[],[],[],[]
 
@@ -231,8 +248,8 @@ for files in triplets(args):
                         for cnt,(ti,di,wi,fi) in enumerate(zip(t_dat, d_dat, w_dat, f_dat)):
                             # Only process the center file (simpler when decimating)
                             if cnt < t_dat.size / 3 or cnt >= 2 * t_dat.size / 3: continue
-                            data_dat[bl][pol][ti] = data_dat[bl][pol].get(ti, 0) + di * wi * fi
-                            wgts_dat[bl][pol][ti] = wgts_dat[bl][pol].get(ti, 0) + (wi * fi)**2
+                            data_dat[bl][pol][ti] = data_dat[bl][pol].get(ti, 0) + (di * wi * fi).astype(n.complex64)
+                            wgts_dat[bl][pol][ti] = wgts_dat[bl][pol].get(ti, 0) + ((wi * fi)**2).astype(n.float32)
 
                 else: # Don't decimate (this will use a ton of RAM)
 
