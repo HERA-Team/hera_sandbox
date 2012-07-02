@@ -1,9 +1,48 @@
 #! /usr/bin/env python
-import aipy as a, numpy as n, os, sys
+import aipy as a, numpy as n, os, sys, glob
+
+def grid_jd(jds, temps, binsize=120):
+    jdbin = binsize * a.ephem.second
+    nbins = int((jds[-1] - jds[0]) / jdbin)
+    wgts,bins = n.histogram(jds, bins=nbins)
+    dats,bins = n.histogram(jds, weights=temps, bins=nbins)
+    return dats / wgts, bins
+
+def conv_tempfilename(f):
+    f = os.path.basename(f)
+    ftime = '%s/%s/%s %s:%s' % (f[:4],f[4:6],f[6:8],f[9:11],f[11:13])
+    return a.phs.ephem2juldate(a.ephem.date(ftime))
+
+def filter_files(filenames, start_jd, end_jd):
+    jds = [conv_tempfilename(f) for f in filenames]
+    return [f for f,jd in zip(filenames,jds) if jd >= start_jd and jd <= end_jd]
+
+def get_temps(tempdir, file_jd, uv_filetime=600, temp_filetime=3600,
+        t_offset=-2*a.ephem.hour):
+    print '    Folding in temp data from', tempdir
+    RECVR,ANT58,GOM_E = 0,1,2
+    files = glob.glob(tempdir + '/201*.txt'); files.sort()
+    start_jd = file_jd - a.ephem.second * (uv_filetime + temp_filetime) - t_offset
+    end_jd = file_jd + a.ephem.second * (uv_filetime + temp_filetime) - t_offset
+    files = filter_files(files, start_jd, end_jd)
+    lines = [L.split() for f in files for L in open(f).readlines()]
+    jds = n.array([a.phs.ephem2juldate(a.ephem.date(' '.join(L[:2]))) for L in lines])
+    jds += t_offset # Adjust for local time being 2 hrs ahead of UTC
+    dat = n.array([map(float,L[2:]) for L in lines])
+    T_r, bins = grid_jd(jds, dat[:,RECVR])
+    T_c, bins = grid_jd(jds, dat[:,ANT58])
+    T_b, bins = grid_jd(jds, dat[:,ANT58])
+    T_l, bins = grid_jd(jds, dat[:,GOM_E])
+    return bins, (T_r,T_c,T_b,T_l)
+    
+
+import optparse
+o = optparse.OptionParser()
+o.add_option('-t', '--tempdir', default='/data3/paper/psa/psalive',
+    help='Directory containing temperature data from the (labjack) gainometer.')
+opts,args = o.parse_args(sys.argv[1:])
 
 aa = a.phs.ArrayLocation(('-30:43:17.5', '21:25:41.9')) # Karoo, ZAR, GPS. #elevation=1085m
-
-# XXX need to fold in temperature data from /data3/paper/psa/psalive
 
 #rewire = { 0:49,1:10,2:9,3:22,4:29,5:24,6:17,7:5,
 #           8:47,9:25,10:1,11:35,12:34,13:27,14:56,15:30,
@@ -15,15 +54,16 @@ for filename in sys.argv[1:]:
     if os.path.exists(filename+'c'):
         print '    File exists... skipping.'
         continue
+    file_jd = float('.'.join(filename.split('.')[1:-1]))
+    if opts.tempdir != None:
+        bins, (T_r,T_c,T_b,T_l) = get_temps(opts.tempdir, file_jd)
     uvi = a.miriad.UV(filename)
     uvo = a.miriad.UV(filename+'c', status='new')
     curtime = 0
-    def mfunc(uv, p, d, f):
+    def _mfunc(uv, p, d, f):
         global curtime
         crd,t,(i,j) = p
         p1,p2 = a.miriad.pol2str[uv['pol']]
-        # XXX for the time being, going to throw away all but 'xx' pol
-        if p1 != 'x' or p2 != 'x': return p, None, None
         # prevent multiple entries arising from xy and yx on autocorrelations
         if i == j and (p1,p2) == ('y','x'): return p, None, None
 
@@ -128,6 +168,27 @@ for filename in sys.argv[1:]:
     }
 
     uvo.init_from_uv(uvi, override=override)
+
+    # Add GoM information
+    uvo.add_var('t_recvr', 'r')
+    uvo.add_var('t_cable', 'r')
+    uvo.add_var('t_balun', 'r')
+    uvo.add_var('t_load', 'r')
+    if opts.tempdir != None:
+        curtime = None
+        def mfunc(uv, p, d, f):
+            global curtime, uvo
+            (crd, t, (i,j)) = p
+            if curtime != t:
+                curtime = t
+                b = int(n.floor((t - bins[0]) / (bins[1] - bins[0])))
+                if not n.isnan(T_r[b]): uvo['t_recvr'] = T_r[b]
+                if not n.isnan(T_c[b]): uvo['t_cable'] = T_c[b]
+                if not n.isnan(T_b[b]): uvo['t_balun'] = T_b[b]
+                if not n.isnan(T_l[b]): uvo['t_load']  = T_l[b]
+            return _mfunc(uv, p, d, f)
+    else: mfunc = _mfunc
+
     uvo.pipe(uvi, mfunc=mfunc, raw=True,
         append2hist='\nCORRECT: '+' '.join(sys.argv)+'\n')
     del(uvo)
