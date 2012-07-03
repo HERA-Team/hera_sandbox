@@ -1,7 +1,7 @@
 import aipy as a, numpy as n, pylab as P
 import sys, scipy
 
-def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose=False):
+def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose=False, recast_as_array=True):
     times, dat, flg = [], {}, {}
     if type(filenames) == 'str': filenames = [filenames]
     for filename in filenames:
@@ -10,17 +10,22 @@ def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose
         a.scripting.uv_selector(uv, antstr, polstr)
         if decimate > 1: uv.select('decimate', decimate, decphs)
         for (crd,t,(i,j)),d,f in uv.all(raw=True):
-            if len(times) == 0 or t != times[-1]:
-                times.append(t)
+            if len(times) == 0 or t != times[-1]: times.append(t)
             bl = a.miriad.ij2bl(i,j)
             if not dat.has_key(bl): dat[bl],flg[bl] = {},{}
             pol = a.miriad.pol2str[uv['pol']]
-            dat[bl][pol] = dat[bl].get(pol,[]) + [d]
-            flg[bl][pol] = flg[bl].get(pol,[]) + [f]
-    for bl in dat:
-      for pol in dat[bl]:
-        dat[bl][pol] = n.array(dat[bl][pol])
-        flg[bl][pol] = n.array(flg[bl][pol])
+            if not dat[bl].has_key(pol):
+                dat[bl][pol],flg[bl][pol] = [],[]
+            dat[bl][pol].append(d)
+            flg[bl][pol].append(f)
+    if recast_as_array:
+        # This option helps reduce memory footprint, but it shouldn't
+        # be necessary: the replace below should free RAM as quickly
+        # as it is allocated.  Unfortunately, it doesn't seem to...
+        for bl in dat.keys():
+          for pol in dat[bl].keys():
+            dat[bl][pol] = n.array(dat[bl][pol])
+            flg[bl][pol] = n.array(flg[bl][pol])
     return n.array(times), dat, flg
 
 def clean_transform(d, w=None, f=None, clean=1e-3, window='blackman-harris'):
