@@ -33,6 +33,7 @@ for npzfile in args:
         #if i != 49 and j != 49: continue
         if i == 40 or j == 40: continue
         if i == 55 or j == 55: continue
+        #if i == 59 or j == 59: continue
         crd = aa.get_baseline(i,j)*fq
         umag = (crd[0]**2 + crd[1]**2)**.5
         #pick predominantly east-west baselines

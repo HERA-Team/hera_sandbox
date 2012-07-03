@@ -12,11 +12,13 @@ aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
 del(uv)
 
 fq = .16
+z = C.pspec.f2z(fq)
 cen_fqs = n.array([fq])
 B = .07
 WINDOW = 'blackman-harris'
 kwargs = {'cen_fqs':cen_fqs,'B':B, 'ntaps':1, 'window':WINDOW, 'bm_fqs':freqs.clip(.120,.190)}
 
+bm = n.polyval(C.pspec.DEFAULT_BEAM_POLY,fq)
 
 #XXX these dictionaries will one day need polarization keys
 Dat,Wgt = {},{}
@@ -24,7 +26,7 @@ tdat = {}
 curtime, zen = None, None
 for filename in args:
     print 'Reading', filename
-    ofile = filename+'.nored.npz'
+    ofile = filename+'.%s.nored.npz' % str(B)
     if os.path.exists(ofile):
         print ofile, 'exists.  Skipping...'
         continue
@@ -36,9 +38,10 @@ for filename in args:
         #delay transform one sample at a time
         _d,ks =  C.pspec.Trms_vs_fq(freqs,d,**kwargs)
         _d,ks = _d[fq],ks[fq]
+        scalar = C.pspec.X2Y(z) * bm * B
         try:
             #multiply adjacent time samples in delay space (leave out bias)
-            Dat[bl] = Dat.get(bl,0) + tdat[bl]*_d.conj()
+            Dat[bl] = Dat.get(bl,0) + scalar * tdat[bl]*_d.conj()
             Dat[wbl] = Dat.get(wbl,0) + 1.
         except(KeyError): pass
         tdat[bl] = _d

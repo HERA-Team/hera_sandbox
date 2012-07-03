@@ -57,9 +57,9 @@ for uvfile in args:
         continue
     uvi = a.miriad.UV(uvfile)
     a.scripting.uv_selector(uvi,ants=opts.ant)
-    uvB = a.miriad.UV(uvBfile, status='new')
-    uvB.init_from_uv(uvi)
-    uvB.add_var('bin','d')
+    #uvB = a.miriad.UV(uvBfile, status='new')
+    #uvB.init_from_uv(uvi)
+    #uvB.add_var('bin','d')
 
     if opts.model:
         uvFfile = uvfile + 'F'
@@ -143,13 +143,14 @@ for uvfile in args:
         uthresh,lthresh = filters[bl]
         area = n.ones(_d.size, dtype=n.int)
         area[uthresh:lthresh] = 0
+        if opts.nohorizon: area = None
         _d_cl, info = a.deconv.clean(_d, _w, tol=opts.clean, area=area, stop_if_div=False, maxiter=100)
         d_mdl = n.fft.fft(_d_cl)
         f = n.zeros_like(d_mdl)
         return p, d_mdl, f
  
     # Apply the pipe to the data
-    uvB.pipe(uvi, mfunc=res_mfunc, raw=True, append2hist=' '.join(sys.argv)+'\n')
+    #uvB.pipe(uvi, mfunc=res_mfunc, raw=True, append2hist=' '.join(sys.argv)+'\n')
     if opts.model:
-        uvi.rewind()
+    #   uvi.rewind()
         uvF.pipe(uvi, mfunc=fg_mfunc, raw=True, append2hist=' '.join(sys.argv)+'\n')

@@ -81,8 +81,8 @@ for slice in slices:
 
 xplots = n.ceil(n.sqrt(len(slices)))
 yplots = n.floor(n.sqrt(len(slices)))
-vmax = [7.,5.,5.,5.]
-vmin = [4.,0.,0.,0.]
+vmax = [17.,15.,15.,15.]
+vmin = [13.,9.,9.,9.]
 for plot,slice in enumerate(slices):
     uvplane[slice] /= uvplane_wgt[slice].clip(1.,n.Inf)
     p.subplot(xplots,yplots,plot+1)
@@ -90,5 +90,5 @@ for plot,slice in enumerate(slices):
     #p.imshow(n.log10(uvplane[slice].clip(1.,n.Inf)),interpolation='nearest',vmax=vmax[plot],vmin=vmin[plot])
     p.imshow(n.log10(n.abs(uvplane[slice])),interpolation='nearest',vmax=vmax[plot],vmin=vmin[plot])
     #p.imshow(uvplane_wgt[slice].clip(0.,1.),interpolation='nearest')
-    #p.colorbar()
+    p.colorbar()
 p.show()

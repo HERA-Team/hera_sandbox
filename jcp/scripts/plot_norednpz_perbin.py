@@ -56,11 +56,11 @@ for ind,umag in enumerate(keys):
     p.loglog(n.abs(kpl),f*noise,color='k',lw=3)
     #fg = n.array([C.pspec.dk_du(C.pspec.f2z(fq)) * n.float(umag),C.pspec.dk_du(C.pspec.f2z(fq)) * n.float(umag)])
     fg = n.array([C.pspec.dk_deta(C.pspec.f2z(fq))*n.float(umag)/fq,C.pspec.dk_deta(C.pspec.f2z(fq))*n.float(umag)/fq])
-    yfg = n.array([1e-5,1e9])
+    yfg = n.array([1e-5,1e15])
     label = str(umag)
     p.loglog(fg,yfg,color='r',lw=3)
     p.loglog(n.abs(kpl),f*n.abs(n.real(uDat[umag])),label=label,color='b') 
-    p.ylim(1e-1,1e7)
+    p.ylim(1e4,1e16)
     p.legend()
 p.show()
 
