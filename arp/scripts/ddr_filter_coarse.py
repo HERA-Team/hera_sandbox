@@ -10,8 +10,9 @@ Smoothness is determined by the fringe-rate and delay corresponding to the maxim
 import os
 pid = os.getpid()
 def get_mem():
-    lines = open('/proc/%d/status' % pid).readlines()
-    print '\n'.join([L for L in lines if L.find('VmSize') != -1])
+    #lines = open('/proc/%d/status' % pid).readlines()
+    #print '\n'.join([L for L in lines if L.find('VmSize') != -1])
+    pass
 get_mem()
 
 import aipy as a, numpy as n, sys, os, optparse
@@ -196,7 +197,8 @@ for files in triplets(args):
                 #_d,_w = _d.astype(n.complex64),_w.astype(n.complex64)
                 gain = n.abs(_w[0,0])
                 if gain == 0: continue
-                _d,info = a.deconv.clean(_d,_w, area=area, tol=opts.clean, stop_if_div=False, maxiter=100)
+                _d,info = a.deconv.clean(_d,_w, area=area, tol=opts.clean, stop_if_div=False, maxiter=100, gain=.9)
+                #_d,info = a.deconv.lsq(_d,_w, tol=opts.clean, maxiter=30, gain=.2, verbose=True)
                 _r = info['res']
                 #print _d.dtype, _w.dtype, _r.dtype
 
