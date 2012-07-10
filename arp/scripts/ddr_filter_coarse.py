@@ -193,6 +193,7 @@ for files in triplets(args):
                 d = n.where(flg[bl][pol], 0, dat[bl][pol])
                 del(dat[bl][pol]); del(flg[bl][pol]) # We're done with the raw data, so free up RAM
                 w = n.where(n.abs(d) == 0, 0., 1.)#.astype(n.float32)
+                #print d.shape, w.shape, window.shape
                 _d,_w = n.fft.ifft2(d*window), n.fft.ifft2(w*window)
                 #_d,_w = _d.astype(n.complex64),_w.astype(n.complex64)
                 gain = n.abs(_w[0,0])
