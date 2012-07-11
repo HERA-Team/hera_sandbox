@@ -28,6 +28,6 @@ for FILE in $UVCR; do
         xrfi_simple.py -a all --combine -t 20 ${FILE} --from_npz=${FILE}E.npz
     fi
     if ls ${FILE}R &> /dev/null; then
-        ddr_filter_coarse.py -a all --clean=1e-4 --maxbl=300 --nsections=40 $TRIPLETR
+        ddr_filter_coarse.py -a all --clean=1e-4 --maxbl=300 --nsections=10 $TRIPLETR
     fi
 done
