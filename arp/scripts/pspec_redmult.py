@@ -5,9 +5,11 @@ import optparse, sys, os
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, dec=True)
+o.add_option('-b', '--bandwidth', type='float', default=0.008,
+    help='Bandwidth to use in the delay transform.  Default 0.008 (GHz)')
 opts,args = o.parse_args(sys.argv[1:])
 
-B = 0.008
+B = opts.bandwidth
 #B = 0.04 / 3.
 NTAPS = 3
 WINDOW = 'blackman-harris'

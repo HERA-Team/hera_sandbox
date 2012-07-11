@@ -24,6 +24,7 @@ for filename in args:
     dsum, dwgt = {},{}
     curtime = None
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
+        #if not '%d_%d' % (i,j) in opts.ant: continue # uv.select balks at large numbers of selections...
         if t != curtime:
             print curtime, dsum.keys()
             for fq in dsum:
