@@ -72,7 +72,7 @@ for uvfile in args:
             curtime = t
             print t
         pol = a.miriad.pol2str(uv['pol'])
-        #aa.set_active_pol(pol)
+        aa.set_active_pol(pol)
         u,v,w = aa.gen_uvw(i,j, src=zen)
         u,v = u.flatten()[-1], v.flatten()[-1]
         conj = False

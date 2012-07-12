@@ -105,6 +105,7 @@ filename = 'lst.%7.5f.uv' % jd_start
 print 'Writing to', filename
 uvo = a.miriad.UV(filename, status='new')
 uvo.init_from_uv(uvi)
+# XXX could think about adding a variable that keeps track of how many integrations went into a bin
 
 for lst in lsts:
     t = jd_start + (lst - lst_start) * djd_dlst
