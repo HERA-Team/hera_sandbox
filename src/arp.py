@@ -153,6 +153,33 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     if use_offset: return gain, (tau,off), info
     else: return gain, tau, info
 
+def selfcal_diff(m_bl, r_ant, r_wgt=1e6):
+    ants = {}
+    for bl in m_bl:
+        i,j = a.miriad.bl2ij(bl)
+        ants[i] = ants[j] = None
+    ants = ants.keys(); ants.sort()
+    def antind(ant): return ants.index(ant)
+    NANT = len(ants)
+    NMEAS = len(m_bl) + len(r_ant)
+    P = n.zeros((NMEAS, NANT), dtype=n.double)
+    M = n.zeros((NMEAS, 1), dtype=n.double)
+    # Put in reference information (i.e. assumptions)
+    for cnt1,(i,val) in enumerate(r_ant.items()):
+        P[cnt1,antind(i)] = r_wgt
+        M[cnt1,0] = r_wgt * val
+    cnt1 += 1 # Set cnt1 to point to the next slot
+    # Add in measurements
+    for cnt2,(bl,val) in enumerate(m_bl.items()):
+        i,j = a.miriad.bl2ij(bl)
+        P[cnt1+cnt2,antind(j)] = 1; P[cnt1+cnt2,antind(i)] = -1
+        M[cnt1+cnt2,0] = val
+    # Now that information is in matrix form, solve it
+    Pinv = n.linalg.pinv(P) # this succeeds where lstsq fails, for some reason
+    C = n.dot(Pinv, M)
+    return dict(zip(ants,C))
+    
+
 def sinuspike(d, fqs, f=None, clean=1e-3, maxiter=100, nsig=3, window='blackman-harris'):
     d = d * (fqs/.150)**2.5 # Flatten noise assuming synchrotron spectral index
     sig = n.sqrt(n.median(n.abs(d)**2))
