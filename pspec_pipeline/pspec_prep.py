@@ -24,9 +24,9 @@ def gen_skypass_delay(aa, sdf, nchan, max_bl_frac=1.):
     return filters
 
 o = optparse.OptionParser()
-o.set_usage('filter_sky.py [options] *.uv')
+o.set_usage('pspec_prep.py [options] *.uv')
 o.set_description(__doc__)
-a.scripting.add_standard_options(o, cal=True,ant=True)
+a.scripting.add_standard_options(o, cal=True, ant=True, pol=True)
 o.add_option('--nophs', dest='nophs', action='store_true',
     help='Do not phase to zenith bin.')
 o.add_option('--nogain', dest='nogain', action='store_true',
@@ -53,7 +53,7 @@ for uvfile in args:
         print uvofile, 'exists, skipping.'
         continue
     uvi = a.miriad.UV(uvfile)
-    a.scripting.uv_selector(uvi,ants=opts.ant)
+    a.scripting.uv_selector(uvi, opts.ant, opts.pol)
     uvo = a.miriad.UV(uvofile, status='new')
     uvo.init_from_uv(uvi)
     uvo.add_var('bin','d')
@@ -71,11 +71,14 @@ for uvfile in args:
             zen.compute(aa)
             curtime = t
             print t
+        pol = a.miriad.pol2str(uv['pol'])
+        #aa.set_active_pol(pol)
         u,v,w = aa.gen_uvw(i,j, src=zen)
         u,v = u.flatten()[-1], v.flatten()[-1]
+        conj = False
         if u < 0: 
             u,v = -u, -v
-            if not opts.nophs: d = n.conj(d)
+            if not opts.nophs: conj = True
         uvo['bin'] = n.float(C.pspec.uv2bin(u, v, aa.sidereal_time()))
         if i == j: return p, d, f
         bl = a.miriad.ij2bl(i,j)
@@ -83,6 +86,7 @@ for uvfile in args:
         if n.average(w) < .5: return p, n.zeros_like(d), n.ones_like(f)
         if not opts.nophs: d = aa.phs2src(d, zen, i, j)
         if not opts.nogain: d /= aa.passband(i,j)
+        if conj: d = n.conj(d)
         d *= w
         _d = n.fft.ifft(d * window)
         _w = n.fft.ifft(w * window)
