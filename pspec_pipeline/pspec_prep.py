@@ -71,7 +71,7 @@ for uvfile in args:
             zen.compute(aa)
             curtime = t
             print t
-        pol = a.miriad.pol2str(uv['pol'])
+        pol = a.miriad.pol2str[uv['pol']]
         aa.set_active_pol(pol)
         u,v,w = aa.gen_uvw(i,j, src=zen)
         u,v = u.flatten()[-1], v.flatten()[-1]
