@@ -60,14 +60,6 @@ for f in args:
         # Never bail if both wrap...
     nargs.append(f)
 
-def ijp2blp(i,j,pol):
-    return a.miriad.ij2bl(i,j) * 16 + (pol + 9)
-
-def blp2ijp(blp):
-    bl,pol = int(blp) / 16, (blp % 16) - 9
-    i,j = a.miriad.bl2ij(bl)
-    return i,j,pol
-
 jds = {}
 for f in nargs:
     uv = a.miriad.UV(f)
@@ -89,7 +81,7 @@ for f in nargs:
             if dat.has_key(lst): jds[lst] = min(jds.get(lst,n.Inf), t)
         # Only take this LST if we have a bin for it already allocated
         if not dat.has_key(lst): continue
-        blp = ijp2blp(i,j,uv['pol'])
+        blp = a.pol.ijp2blp(i,j,uv['pol'])
         crds[blp] = uvw
         dat[lst][blp] = dat[lst].get(blp,0) + n.where(f,0,d)
         cnt[lst][blp] = cnt[lst].get(blp,0) + n.logical_not(f).astype(n.int)
@@ -113,7 +105,7 @@ for lst in lsts:
     sys.stdout.flush()
     uvo['lst'], uvo['ra'], uvo['obsra'] = lst, lst, lst
     for blp in dat[lst]:
-        i,j,uvo['pol'] = blp2ijp(blp)
+        i,j,uvo['pol'] = a.pol.blp2ijp(blp)
         preamble = (crds[blp], t, (i,j))
         cmax = n.max(cnt[lst][blp])
         d = dat[lst][blp] / cnt[lst][blp].clip(1, n.Inf)
