@@ -4,7 +4,8 @@ import sys, os, glob
 try: f = sys.argv[1]
 except(IndexError): sys.exit(0)
 path = os.path.dirname(f)
-filelist = glob.glob(path+'/*.'+f.split('.')[-1])
+if len(path.strip()) != 0: filelist = glob.glob(path+'/*.'+f.split('.')[-1])
+else: filelist = glob.glob('*.'+f.split('.')[-1])
 filelist.sort()
 try: i = filelist.index(f)
 except(ValueError): sys.exit(0)
