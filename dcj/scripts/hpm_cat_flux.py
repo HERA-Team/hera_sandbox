@@ -83,13 +83,9 @@ for file in args:
 #        print "masking %3.1f of the data where weights are below %f"%(len(WCDF[WCDF<wcut/100.]),wcutval)
 #        Weight = n.ma.masked_where(Weight<B[wcutval],Weight)
         sky /= Weight 
-<<<<<<< HEAD
-    except(IndexError): print "No weights found"
-=======
     except(IndexError): 
         print "No weights found"
         Weight = n.ones_like(sky)
->>>>>>> b0ddfc5bcc04943dcd0263788e1031c580bc93f2
 #    #get the analysis subregion
 #    sky_an = n.zeros_like(sky)
 #    print "getting the analysis subregion"
@@ -100,11 +96,7 @@ for file in args:
     print "extracting %d sources from %d catalog sources"%(len(okpx),len(ccat))
     head='\t'.join(('srcpx','_Ra','_Dec',
         'Name','S_nu_','nu','rms','DR',
-<<<<<<< HEAD
-        'catpx','dist','_Ra_cat','_Dec_cat','S_nu_cat_'))
-=======
         'catpx','dist','_Ra_cat','_Dec_cat','S_nu_cat_','weight'))
->>>>>>> b0ddfc5bcc04943dcd0263788e1031c580bc93f2
     print head
     if not opts.outfile is None:
             outfile = open(opts.outfile,'w')
@@ -145,11 +137,7 @@ for file in args:
         line=(srcpx,R(pos[0]),R(pos[1]),
          srcname,R(sky[srcpx]),0.15,
         R(n.ma.std(sky[annulus_pix])),R(sky[srcpx]/n.ma.std(sky[annulus_pix])),
-<<<<<<< HEAD
-        catpx,R(pixsep(nside,srcpx,catpx)*a.img.rad2deg),R(src.ra*a.img.rad2deg),R(src.dec*a.img.rad2deg),R(src.jys.squeeze()))
-=======
         catpx,R(pixsep(nside,srcpx,catpx)*a.img.rad2deg),R(src.ra*a.img.rad2deg),R(src.dec*a.img.rad2deg),R(src.jys.squeeze()),n.round(Weight[srcpx],4))
->>>>>>> b0ddfc5bcc04943dcd0263788e1031c580bc93f2
         print '\t'.join(map(str,line))
         if not opts.outfile is None:
             outfile.write('\t'.join(map(str,line))+'\n')
