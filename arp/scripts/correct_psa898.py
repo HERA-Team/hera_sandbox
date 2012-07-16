@@ -20,6 +20,8 @@ for filename in sys.argv[1:]:
         global curtime
         crd,t,(i,j) = p
         p1,p2 = a.miriad.pol2str[uv['pol']]
+        # XXX for the time being, going to throw away all but 'xx' pol
+        if p1 != 'x' or p2 != 'x': return p, None, None
         # prevent multiple entries arising from xy and yx on autocorrelations
         if i == j and (p1,p2) == ('y','x'): return p, None, None
 

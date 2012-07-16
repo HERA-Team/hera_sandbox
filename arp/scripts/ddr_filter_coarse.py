@@ -22,6 +22,8 @@ o.add_option('--corrmode', default='j',
     help='Data type ("r" for float32, "j" for shared exponent int16) of dly/fng output files.  Default is "j".')
 o.add_option('--invert', action='store_true',
     help='Invert each filter.')
+o.add_option('--outputs', default='ddr,dly,fng',
+    help='Comma-delimited list of output file types (ddr, dly, fng).  Default ddr,dly,fng (i.e. all of them)')
 o.add_option('--no_decimate', action='store_true',
     help='Instead of decimating, match output file size to input file size.')
 o.set_usage('ddr_filter_coarse.py [options] *.uv')
@@ -69,6 +71,10 @@ window_dly_dec.shape = (1,) + window_dly_dec.shape
 del(uv)
 
 DECIMATE = not (opts.no_decimate or opts.invert)
+opts.outputs = opts.outputs.split(',')
+DDR = 'ddr' in opts.outputs
+DLY = 'dly' in opts.outputs
+FNG = 'fng' in opts.outputs
 
 for files in triplets(args):
     print '(%s) %s (%s) ->' % (files[0], files[1], files[2])
@@ -76,7 +82,9 @@ for files in triplets(args):
     outfile_dly = filename+'D'
     outfile_fng = filename+'F'
     outfile_ddr = filename+'E'
-    if os.path.exists(outfile_dly) and os.path.exists(outfile_fng) and os.path.exists(outfile_ddr):
+    if (not DLY or os.path.exists(outfile_dly)) and \
+            (not FNG or os.path.exists(outfile_fng)) and \
+            (not DDR or os.path.exists(outfile_ddr)):
         print '    All output files exist.  Skipping...'
         continue
     data_ddr, wgts_ddr = {}, {}
@@ -84,6 +92,8 @@ for files in triplets(args):
     data_fng, wgts_fng = {}, {}
     match_tdec = {}
 
+    # XXX rereading files 3x (for each position in triplet) is inefficient
+    print '    Reading files'
     times, dat, flg = C.arp.get_dict_of_uv_data(files, opts.ant, opts.pol, verbose=False)
     # Variables: ufng (upper fringe rate), nfng (negative fringe rate)
     ufng,nfng = sky_fng_thresh(maxbl, inttime, len(times), fqs.max(), opts.lat*a.img.deg2rad)
@@ -120,17 +130,20 @@ for files in triplets(args):
     area_fng[ufng:nfng,:] = 0
     area = area_dly * area_fng
     #print (ufng,nfng,udly,ndly)
+    print '    Processing data'
     for bl in dat:
         if not data_ddr.has_key(bl):
+            # XXX the memory footprint of all these copies of data is high.  need to reduce
             data_ddr[bl],wgts_ddr[bl] = {}, {}
             data_fng[bl],wgts_fng[bl] = {}, {}
             data_dly[bl],wgts_dly[bl] = {}, {}
-        for pol in dat[bl]:
+        for pol in dat[bl].keys():
             if not data_ddr[bl].has_key(pol):
                 data_ddr[bl][pol],wgts_ddr[bl][pol] = {}, {}
                 data_fng[bl][pol],wgts_fng[bl][pol] = {}, {}
                 data_dly[bl][pol],wgts_dly[bl][pol] = {}, {}
             d = n.where(flg[bl][pol], 0, dat[bl][pol])
+            del(dat[bl][pol]); del(flg[bl][pol]) # We're done with the raw data
             w = n.where(n.abs(d) == 0, 0., 1.)
             _d,_w = n.fft.ifft2(d*window), n.fft.ifft2(w*window)
             gain = n.abs(_w[0,0])
@@ -140,54 +153,75 @@ for files in triplets(args):
             if DECIMATE:
                 _f = n.fft.ifft2(w)
                 # Filter and decimate for dly, fng, and ddr datasets
-                _d_ddr = n.concatenate([_d[:ufng], _d[nfng:]])
-                _d_ddr = n.concatenate([_d_ddr[:,:udly], _d_ddr[:,ndly:]], axis=1)
-                _r_ddr = n.concatenate([_r[:ufng], _r[nfng:]])
-                _r_ddr = n.concatenate([_r_ddr[:,:udly], _r_ddr[:,ndly:]], axis=1)
-                _f_ddr = n.concatenate([_f[:ufng], _f[nfng:]])
-                _f_ddr = n.concatenate([_f_ddr[:,:udly], _f_ddr[:,ndly:]], axis=1)
+                data_L,wgts_L,t_L,d_L,w_L,f_L = [],[],[],[],[],[]
+                if DDR:
+                    _d_ddr = n.concatenate([_d[:ufng], _d[nfng:]])
+                    _d_ddr = n.concatenate([_d_ddr[:,:udly], _d_ddr[:,ndly:]], axis=1)
+                    _r_ddr = n.concatenate([_r[:ufng], _r[nfng:]])
+                    _r_ddr = n.concatenate([_r_ddr[:,:udly], _r_ddr[:,ndly:]], axis=1)
+                    _f_ddr = n.concatenate([_f[:ufng], _f[nfng:]])
+                    _f_ddr = n.concatenate([_f_ddr[:,:udly], _f_ddr[:,ndly:]], axis=1)
                 _r *= n.logical_not(area) # Remove the part that went in the DDR file from all the rest
-                _r_fng = n.concatenate([_r[:ufng], _r[nfng:]])
-                _f_fng = n.concatenate([_f[:ufng], _f[nfng:]])
-                _r_dly = n.concatenate([_r[:,:udly], _r[:,ndly:]], axis=1)
-                _f_dly = n.concatenate([_f[:,:udly], _f[:,ndly:]], axis=1)
-                d_fng = n.fft.fft2(_r_fng)
-                w_fng = window_fng_dec * window_dly
-                f_fng = n.fft.fft2(_f_fng); f_fng = n.where(f_fng > .75, f_fng, 0)
-                t_fng = times_dec
-                d_dly = n.fft.fft2(_r_dly)
-                w_dly = window_fng * window_dly_dec
-                f_dly = n.fft.fft2(_f_dly); f_dly = n.where(f_dly > .75, f_dly, 0)
-                t_dly = times
-                #d_ddr = n.fft.fft2(_d_ddr) * (window_fng_dec * window_dly_dec) + n.fft.fft2(_r_ddr)
-                w_ddr = window_fng_dec * window_dly_dec
-                f_ddr = n.fft.fft2(_f_ddr); f_ddr = n.where(f_ddr > .75, f_ddr, 0)
-                d_ddr = n.fft.fft2(_d_ddr) * w_ddr * f_ddr + n.fft.fft2(_r_ddr)
-                t_ddr = times_dec
+                if FNG:
+                    _r_fng = n.concatenate([_r[:ufng], _r[nfng:]])
+                    _f_fng = n.concatenate([_f[:ufng], _f[nfng:]])
+                    d_fng = n.fft.fft2(_r_fng)
+                    w_fng = window_fng_dec * window_dly
+                    f_fng = n.fft.fft2(_f_fng); f_fng = n.where(f_fng > .75, f_fng, 0)
+                    t_fng = times_dec
+                    data_L.append(data_fng); wgts_L.append(wgts_fng)
+                    t_L.append(t_fng); d_L.append(d_fng); w_L.append(w_fng); f_L.append(f_fng)
+                if DLY:
+                    _r_dly = n.concatenate([_r[:,:udly], _r[:,ndly:]], axis=1)
+                    _f_dly = n.concatenate([_f[:,:udly], _f[:,ndly:]], axis=1)
+                    d_dly = n.fft.fft2(_r_dly)
+                    w_dly = window_fng * window_dly_dec
+                    f_dly = n.fft.fft2(_f_dly); f_dly = n.where(f_dly > .75, f_dly, 0)
+                    t_dly = times
+                    data_L.append(data_dly); wgts_L.append(wgts_dly)
+                    t_L.append(t_dly); d_L.append(d_dly); w_L.append(w_dly); f_L.append(f_dly)
+                if DDR:
+                    #d_ddr = n.fft.fft2(_d_ddr) * (window_fng_dec * window_dly_dec) + n.fft.fft2(_r_ddr)
+                    w_ddr = window_fng_dec * window_dly_dec
+                    f_ddr = n.fft.fft2(_f_ddr); f_ddr = n.where(f_ddr > .75, f_ddr, 0)
+                    d_ddr = n.fft.fft2(_d_ddr) * w_ddr * f_ddr + n.fft.fft2(_r_ddr)
+                    t_ddr = times_dec
+                    data_L.append(data_ddr); wgts_L.append(wgts_ddr)
+                    t_L.append(t_ddr); d_L.append(d_ddr); w_L.append(w_ddr); f_L.append(f_ddr)
+                # Whichever it was (decimate or not) collect the data into dictionaries
+                for data_dat, wgts_dat, t_dat, d_dat, w_dat, f_dat in zip(data_L, wgts_L, t_L, d_L, w_L, f_L):
+                    for cnt,(ti,di,wi,fi) in enumerate(zip(t_dat, d_dat, w_dat, f_dat)):
+                        # Only process the center file (simpler when decimating)
+                        if cnt < t_dat.size / 3 or cnt >= 2 * t_dat.size / 3: continue
+                        data_dat[bl][pol][ti] = data_dat[bl][pol].get(ti, 0) + di * wi * fi
+                        wgts_dat[bl][pol][ti] = wgts_dat[bl][pol].get(ti, 0) + (wi * fi)**2
             else: # Don't decimate
-                d_dly = n.fft.fft2(_r * area_dly * n.logical_not(area))
-                w_dly = window
-                f_dly = n.fft.fft2(n.fft.ifft2(w) * area_dly); f_dly = n.where(f_dly > .75, f_dly, 0)
-                t_dly = times
-                d_fng = n.fft.fft2(_r * area_fng * n.logical_not(area))
-                w_fng = window
-                f_fng = n.fft.fft2(n.fft.ifft2(w) * area_fng); f_dly = n.where(f_fng > .75, f_fng, 0)
-                t_fng = times
-                #d_ddr = n.fft.fft2(_d) * window + n.fft.fft2(_r * area)
-                #w_ddr = n.fft.fft2(_w * area)
-                w_ddr = window
-                f_ddr = n.fft.fft2(n.fft.ifft2(w) * area); f_ddr = n.where(f_ddr > .75, f_ddr, 0)
-                d_ddr = n.fft.fft2(_d) * w_ddr * f_ddr + n.fft.fft2(_r * area)
-                t_ddr = times
-            # Whichever it was (decimate or not) collect the data into dictionaries
-            for data_dat, wgts_dat, t_dat, d_dat, w_dat, f_dat in zip([data_ddr,data_dly,data_fng],
-                    [wgts_ddr, wgts_dly,wgts_fng], [t_ddr,t_dly,t_fng], 
-                    [d_ddr,d_dly,d_fng], [w_ddr,w_dly,w_fng], [f_ddr,f_dly,f_fng]):
-                for cnt,(ti,di,wi,fi) in enumerate(zip(t_dat, d_dat, w_dat, f_dat)):
-                    # Only process the center file (simpler when decimating)
-                    if cnt < t_dat.size / 3 or cnt >= 2 * t_dat.size / 3: continue
-                    data_dat[bl][pol][ti] = data_dat[bl][pol].get(ti, 0) + di * wi * fi
-                    wgts_dat[bl][pol][ti] = wgts_dat[bl][pol].get(ti, 0) + (wi * fi)**2
+                if DLY:
+                    d_dly = n.fft.fft2(_r * area_dly * n.logical_not(area))
+                    f_dly = n.fft.fft2(n.fft.ifft2(w) * area_dly); f_dly = n.where(f_dly > .75, f_dly, 0)
+                    for cnt,(ti,di,wi,fi) in enumerate(zip(times, d_dly, window, f_dly)):
+                        # Only process the center file (simpler when decimating)
+                        if cnt < times.size / 3 or cnt >= 2 * times.size / 3: continue
+                        data_dly[bl][pol][ti] = data_dly[bl][pol].get(ti, 0) + di * wi * fi
+                        wgts_dly[bl][pol][ti] = wgts_dly[bl][pol].get(ti, 0) + (wi * fi)**2
+                if FNG:
+                    d_fng = n.fft.fft2(_r * area_fng * n.logical_not(area))
+                    f_fng = n.fft.fft2(n.fft.ifft2(w) * area_fng); f_dly = n.where(f_fng > .75, f_fng, 0)
+                    for cnt,(ti,di,wi,fi) in enumerate(zip(times, d_fng, window, f_fng)):
+                        # Only process the center file (simpler when decimating)
+                        if cnt < times.size / 3 or cnt >= 2 * times.size / 3: continue
+                        data_fng[bl][pol][ti] = data_fng[bl][pol].get(ti, 0) + di * wi * fi
+                        wgts_fng[bl][pol][ti] = wgts_fng[bl][pol].get(ti, 0) + (wi * fi)**2
+                if DDR:
+                    #d_ddr = n.fft.fft2(_d) * window + n.fft.fft2(_r * area)
+                    #w_ddr = n.fft.fft2(_w * area)
+                    f_ddr = n.fft.fft2(n.fft.ifft2(w) * area); f_ddr = n.where(f_ddr > .75, f_ddr, 0)
+                    d_ddr = n.fft.fft2(_d) * window * f_ddr + n.fft.fft2(_r * area)
+                    for cnt,(ti,di,wi,fi) in enumerate(zip(times, d_ddr, window, f_ddr)):
+                        # Only process the center file (simpler when decimating)
+                        if cnt < times.size / 3 or cnt >= 2 * times.size / 3: continue
+                        data_ddr[bl][pol][ti] = data_ddr[bl][pol].get(ti, 0) + di * wi * fi
+                        wgts_ddr[bl][pol][ti] = wgts_ddr[bl][pol].get(ti, 0) + (wi * fi)**2
     def mfunc_dly(uv, p, d, f):
         uvw,t,(i,j) = p
         p = uvw,t,(i,j)
@@ -230,30 +264,36 @@ for files in triplets(args):
         else: return p, d_, f_
     uvi = a.miriad.UV(filename)
 
-    if not os.path.exists(outfile_dly):
-        print '   ', outfile_dly
-        # For noise-like files (delay, fringe filter), usually use data type 'j' for enhanced compression.
-        uvo_dly = a.miriad.UV(outfile_dly, corrmode=opts.corrmode, status='new')
-        if DECIMATE: uvo_dly.init_from_uv(uvi, override={'sdf':sdf_dec, 'sfreq':sfreq_dec, 'nchan':nchan_dec})
-        else: uvo_dly.init_from_uv(uvi)
-        uvo_dly.pipe(uvi, mfunc=mfunc_dly, append2hist='DDR FILTER, DLY:'+' '.join(sys.argv)+'\n', raw=True)
-    else: print '   ', outfile_dly, 'exists.  Skipping...'
-    uvi.rewind()
+    if DLY:
+        if not os.path.exists(outfile_dly):
+            print '   ', outfile_dly
+            # For noise-like files (delay, fringe filter), usually use data type 'j' for enhanced compression.
+            uvo = a.miriad.UV(outfile_dly, corrmode=opts.corrmode, status='new')
+            if DECIMATE: uvo.init_from_uv(uvi, override={'sdf':sdf_dec, 'sfreq':sfreq_dec, 'nchan':nchan_dec})
+            else: uvo.init_from_uv(uvi)
+            uvo.pipe(uvi, mfunc=mfunc_dly, append2hist='DDR FILTER, DLY:'+' '.join(sys.argv)+'\n', raw=True)
+            del(uvo)
+        else: print '   ', outfile_dly, 'exists.  Skipping...'
+        uvi.rewind()
 
-    if not os.path.exists(outfile_fng):
-        print '   ', outfile_fng
-        # For noise-like files (delay, fringe filter), usually use data type 'j' for enhanced compression.
-        uvo_fng = a.miriad.UV(outfile_fng, corrmode=opts.corrmode, status='new')
-        if DECIMATE: uvo_fng.init_from_uv(uvi, override={'sdf':sdf_dec, 'sfreq':sfreq_dec, 'inttime':inttime_dec})
-        else: uvo_fng.init_from_uv(uvi)
-        uvo_fng.pipe(uvi, mfunc=mfunc_fng, append2hist='DDR FILTER, FNG:'+' '.join(sys.argv)+'\n', raw=True)
-    else: print '   ', outfile_fng, 'exists.  Skipping...'
-    uvi.rewind()
+    if FNG:
+        if not os.path.exists(outfile_fng):
+            print '   ', outfile_fng
+            # For noise-like files (delay, fringe filter), usually use data type 'j' for enhanced compression.
+            uvo = a.miriad.UV(outfile_fng, corrmode=opts.corrmode, status='new')
+            if DECIMATE: uvo.init_from_uv(uvi, override={'sdf':sdf_dec, 'sfreq':sfreq_dec, 'inttime':inttime_dec})
+            else: uvo.init_from_uv(uvi)
+            uvo.pipe(uvi, mfunc=mfunc_fng, append2hist='DDR FILTER, FNG:'+' '.join(sys.argv)+'\n', raw=True)
+            del(uvo)
+        else: print '   ', outfile_fng, 'exists.  Skipping...'
+        uvi.rewind()
 
-    if not os.path.exists(outfile_ddr):
-        print '   ', outfile_ddr
-        uvo_ddr = a.miriad.UV(outfile_ddr, status='new')
-        if DECIMATE: uvo_ddr.init_from_uv(uvi, override={'sdf':sdf_dec, 'sfreq':sfreq_dec, 'nchan':nchan_dec, 'inttime':inttime_dec})
-        else: uvo_ddr.init_from_uv(uvi)
-        uvo_ddr.pipe(uvi, mfunc=mfunc_ddr, append2hist='DDR FILTER, DDR:'+' '.join(sys.argv)+'\n', raw=True)
-    else: print '   ', outfile_ddr, 'exists.  Skipping...'
+    if DDR:
+        if not os.path.exists(outfile_ddr):
+            print '   ', outfile_ddr
+            uvo = a.miriad.UV(outfile_ddr, status='new')
+            if DECIMATE: uvo.init_from_uv(uvi, override={'sdf':sdf_dec, 'sfreq':sfreq_dec, 'nchan':nchan_dec, 'inttime':inttime_dec})
+            else: uvo.init_from_uv(uvi)
+            uvo.pipe(uvi, mfunc=mfunc_ddr, append2hist='DDR FILTER, DDR:'+' '.join(sys.argv)+'\n', raw=True)
+            del(uvo)
+        else: print '   ', outfile_ddr, 'exists.  Skipping...'
