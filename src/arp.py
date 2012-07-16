@@ -13,26 +13,36 @@ def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose
             if len(times) == 0 or t != times[-1]:
                 times.append(t)
             bl = a.miriad.ij2bl(i,j)
-            dat[bl] = dat.get(bl,[]) + [d]
-            flg[bl] = flg.get(bl,[]) + [f]
+            if not dat.has_key(bl): dat[bl],flg[bl] = {},{}
+            pol = a.miriad.pol2str[uv['pol']]
+            dat[bl][pol] = dat[bl].get(pol,[]) + [d]
+            flg[bl][pol] = flg[bl].get(pol,[]) + [f]
     for bl in dat:
-        dat[bl] = n.array(dat[bl])
-        flg[bl] = n.array(flg[bl])
+      for pol in dat[bl]:
+        dat[bl][pol] = n.array(dat[bl][pol])
+        flg[bl][pol] = n.array(flg[bl][pol])
     return n.array(times), dat, flg
 
-def clean_transform(d, f, clean=1e-3, axis=0):
+def clean_transform(d, w=None, f=None, clean=1e-3, window='blackman-harris'):
     #d = d.swapaxes(0, axis)
     #f = n.logical_not(f.swapaxes(0, axis))
-    f = n.logical_not(f)
-    _d = n.fft.ifft(n.where(f,d,0), axis=1)
-    if True:
-        _f = n.fft.ifft(f, axis=1)
-        for i in range(_d.shape[0]):
-            g = n.sqrt(n.average(f[i]**2))
+    if w is None and not f is None: w = n.logical_not(f)
+    elif w is None: w = n.ones(d.shape, dtype=n.float)
+    window = a.dsp.gen_window(d.shape[-1], window=window)
+    _d = n.fft.ifft(d*window, axis=-1)
+    _w = n.fft.ifft(w*window, axis=-1)
+    if _d.ndim == 2:
+        for i in range(_d.shape[0]): # XXX would be nice to make this work on any shape of d
+            g = n.sqrt(n.average(w[i]**2))
             if g == 0: continue
-            _d[i],info = a.deconv.clean(_d[i], _f[i], tol=clean)
+            _d[i],info = a.deconv.clean(_d[i], _w[i], tol=clean)
             _d[i] += info['res'] / g
-        #_d = _d.swapaxes(0, axis)
+    else: 
+        g = n.sqrt(n.average(w**2))
+        if g != 0:
+            _d,info = a.deconv.clean(_d, _w, tol=clean)
+            _d += info['res'] / g
+    #_d = _d.swapaxes(0, axis)
     return _d
 
 def gen_ddr_filter(shape, dw, drw, ratio=.25, invert=False):
@@ -82,6 +92,7 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     # Compute measured values
     dtau,doff,mx = 0,0,0
     d12 = d2 * n.conj(d1)
+    # For 2D arrays, assume first axis is time and integrate over it
     if d12.ndim > 1: d12_sum,d12_wgt = n.sum(d12,axis=0), n.sum(w1*w2,axis=0)
     else: d12_sum,d12_wgt = d12, w1*w2
     if n.all(d12_wgt == 0): return n.zeros_like(d12_sum), 0.
@@ -103,6 +114,7 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
         mx = n.argmax(_phs)
         if j > maxiter/2 and mx == 0: # Fine-tune calibration with linear fit
             valid = n.where(d12_wgt > d12_wgt.max()/2, 1, 0)
+            valid *= n.where(n.abs(d12_sum) > 0, 1, 0) # Throw out zeros, which NaN in the log below
             fqs_val = fqs.compress(valid)
             dly = n.real(n.log(d12_sum.compress(valid))/(2j*n.pi)) # This doesn't weight data
             wgt = d12_wgt.compress(valid); wgt.shape = (wgt.size,1)
@@ -125,17 +137,36 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
         #P.subplot(211); P.plot(n.fft.fftshift(dlys), n.fft.fftshift(_phs)); P.xlim(-200,200)
         #P.subplot(212); P.plot(fqs, n.angle(d12_sum))
         #P.show()
+    #P.subplot(211); P.plot(n.fft.fftshift(dlys), n.fft.fftshift(_phs)); P.xlim(-200,200)
+    #P.subplot(212); P.plot(fqs, n.angle(d12_sum))
+    #P.show()
     off %= 1
-    #if True:
-    #    _phs = n.fft.fft(window*d12_sum)
-    #    _wgt = n.fft.fft(window*d12_wgt)
-    #    _phs,info = a.deconv.clean(_phs, _wgt, tol=clean)
-    #    print a.img.beam_gain(_wgt)
-    #    _phs += info['res'] / a.img.beam_gain(_wgt)
-    #    _phs = n.abs(_phs)
-    #    P.plot(n.fft.fftshift(dlys), n.fft.fftshift(_phs))
-    #    P.show()
     info = {'dtau':dtau, 'doff':doff, 'mx':mx} # Some information about last step, useful for detecting screwups
-    gain = (d12_sum / d12_wgt.clip(1,n.Inf)) / (d11_sum / d11_wgt.clip(1,n.Inf))
+    g12 = d12_sum / d12_wgt.clip(1,n.Inf)
+    g11 = d11_sum / d11_wgt.clip(1,n.Inf)
+    gain = n.where(g11 != 0, g12/g11, 0)
     if use_offset: return gain, (tau,off), info
     else: return gain, tau, info
+
+def sinuspike(d, fqs, f=None, clean=1e-3, maxiter=100, nsig=3, window='blackman-harris'):
+    d = d * (fqs/.150)**2.5 # Flatten noise assuming synchrotron spectral index
+    sig = n.sqrt(n.median(n.abs(d)**2))
+    if sig == 0: return
+    _mdl = n.zeros_like(d)
+    if not f is None: w = n.logical_not(f).astype(n.float)
+    else: w = n.ones(d.shape, dtype=n.float)
+    for i in range(maxiter):
+        di = d - w*n.fft.fft(_mdl)
+        sig = n.sqrt(n.median(n.abs(di)**2))
+        #_di = clean_transform(di, w=w, clean=clean, window=window)
+        _di = n.fft.ifft(di)
+        _sig = n.sqrt(n.median(n.abs(_di)**2))
+        adi,_adi = n.abs(di), n.abs(_di)
+        amx, _amx = n.argmax(adi), n.argmax(_adi)
+        mx,_mx = adi[amx]/sig, _adi[_amx]/_sig
+        if mx < nsig and _mx < nsig: break
+        if mx > _mx: d[amx],w[amx] = 0, 0
+        else: _mdl[_amx] += .3 * _di[_amx]
+    f = n.logical_not(w).astype(n.int)
+    mdl = n.fft.fft(_mdl) * (fqs/.150)**-2.5
+    return mdl, f

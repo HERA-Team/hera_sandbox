@@ -64,12 +64,12 @@ def query_disc(proj,pos,r):
 #    S = n.sqrt(dR**2 + dD**2)
     pix = n.array(zip(R[S<r],D[S<r]))
     #only return pixels that are within the image
-    print len(n.logical_and(pix[:,0]<proj.naxis[0],pix[:,1]<proj.naxis[1]))
+    #print len(n.logical_and(pix[:,0]<proj.naxis[0],pix[:,1]<proj.naxis[1]))
     return pix[n.logical_and(pix[:,0]<proj.naxis[0],pix[:,1]<proj.naxis[1])]
     #return S,R,D
 
 clist,ccoff,ccats = a.scripting.parse_srcs(opts.src,opts.cat)
-print clist,ccoff,ccats
+#print clist,ccoff,ccats
 if not opts.cal is None:
     print "cal"
     ccat = a.cal.get_catalog(opts.cal,srcs=clist,cutoff=ccoff,catalogs=ccats)
@@ -106,22 +106,30 @@ for infile in args:
             #print "source not in image"
             continue
         pmax = pix[image[pix[:,1],pix[:,0]].argmax(),:]
+        #check that the pixel is on the image
+        #print pmax
+        if n.any(pmax<0):
+            #print "not in image"
+            continue
         try:
             RA,DEC = proj.toworld(pmax)
         except:
             continue
         print "looking for ",srcname,"@",srcpos
         Flux = image[pix[:,1],pix[:,0]].max()
-
         #get the pixels inside the surrounding annulus        
         doughpix = query_disc(proj,srcpos,outer_radius)
         holepix = query_disc(proj,srcpos,inner_radius)
         donutpix = n.array([px for px in doughpix if px not in holepix])
         RMS = n.std(image[donutpix[:,1],donutpix[:,0]])
 
-        #record all the results
-        results[srcname] = [RA,DEC,Flux,RMS]
-        print n.array([RA,DEC,Flux,RMS])
+        #compute the pixel number (raveled index for the facet image instead of healpix index) 
+        srcpx = n.ravel_multi_index(pmax,dims=image.shape)
+        #record all the results  
+        if n.any(n.isnan([Flux,RMS])):continue
+        results[srcname] = [RA,DEC,Flux,RMS,srcpx]
+        
+        print n.array([RA,DEC,Flux,RMS,srcpx])
 
 #        cpix = proj.topixel(srcpos)
 #        I = 20
@@ -136,15 +144,18 @@ for infile in args:
 #        show()
         #find the peak
         #return the coordinates of the peak
-    outfile = '.'.join(infile.split('.')[:-1]+['vot'])
+    if opts.outfile is None: outfile = '.'.join(infile.split('.')[:-1]+['vot'])
+    else: outfile = opts.outfile
     names = results.keys()
+    t.add_column('srcpx',[results[name][4] for name in names],dtype='i8',
+            description='pixel number of peak.  do numpy.unravel_index(srcpx,dims=image.shape) to get pixel coords')
     t.add_column('Name',names,dtype='S14',
             description='Name of source in finder catalog')
     t.add_column('RA',[results[name][0] for name in names],dtype='<f8',
             unit='deg',description='RA of peak')
     t.add_column('DEC',[results[name][1] for name in names],dtype='<f8',
             unit='deg',description='Dec of peak')
-    t.add_column('Flux',[results[name][2] for name in names],dtype='<f8',
+    t.add_column('S_nu_',[results[name][2] for name in names],dtype='<f8',
             unit='Jy',description='Magnitude of peak')
     t.add_column('RMS',[results[name][3] for name in names],dtype='<f8',
             unit='Jy',
