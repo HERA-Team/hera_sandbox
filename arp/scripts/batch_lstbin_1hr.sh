@@ -1,4 +1,6 @@
 #$ -S /bin/bash
+#$ -V
+#$ -cwd
 LSTS=`python -c "import numpy as n; hr = n.pi/12; print ' '.join(['%f_%f' % (d,d+hr) for d in n.arange(0,24*hr,hr)])"`
 MY_LSTS=`pull_args.py $LSTS`
 
