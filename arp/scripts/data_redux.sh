@@ -16,6 +16,7 @@ for FILE in $UVCR; do
     echo Working on $FILE
     TRIPLET=`get_uv_neighbor.py $FILE`
     TRIP_LEN=`python -c "print len('${TRIPLET}'.split())"`
+    echo Using files: $TRIPLET
     if [ $TRIP_LEN -lt 3 ] ; then 
         echo No adjacent files to use.  Skipping...
         continue
@@ -28,6 +29,6 @@ for FILE in $UVCR; do
         xrfi_simple.py -a all --combine -t 20 ${FILE} --from_npz=${FILE}E.npz
     fi
     if ls ${FILE}R &> /dev/null; then
-        ddr_filter_coarse.py -a all --clean=1e-4 --maxbl=300 --nsections=40 $TRIPLETR
+        ddr_filter_coarse.py -a all --clean=1e-4 --maxbl=300 --nsections=10 $TRIPLETR
     fi
 done

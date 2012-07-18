@@ -6,7 +6,7 @@ Filter visibilites per-baseline using a delay transform.
 import aipy as a, numpy as n, os, sys, optparse 
 import capo as C
 
-def gen_skypass_delay(aa, sdf, nchan, max_bl_frac=1.):
+def gen_skypass_delay(aa, sdf, nchan, max_bl_add=0.):
     bin_dly = 1. / (sdf * nchan)
     filters = {}
     for i in range(len(aa.ants)):
@@ -15,7 +15,7 @@ def gen_skypass_delay(aa, sdf, nchan, max_bl_frac=1.):
         bl = aa.ij2bl(i,j)
         max_bl = aa.get_baseline(i,j)
         #print (i,j), max_bl,
-        max_bl = max_bl_frac * n.sqrt(n.dot(max_bl, max_bl))
+        max_bl = max_bl_add + n.sqrt(n.dot(max_bl, max_bl))
         uthresh, lthresh = max_bl/bin_dly + 1.5, -max_bl/bin_dly - 0.5
         uthresh, lthresh = int(n.ceil(uthresh)), int(n.floor(lthresh))
         #print max_bl, uthresh, lthresh
@@ -24,17 +24,17 @@ def gen_skypass_delay(aa, sdf, nchan, max_bl_frac=1.):
     return filters
 
 o = optparse.OptionParser()
-o.set_usage('filter_sky.py [options] *.uv')
+o.set_usage('pspec_prep.py [options] *.uv')
 o.set_description(__doc__)
-a.scripting.add_standard_options(o, cal=True,ant=True)
+a.scripting.add_standard_options(o, cal=True, ant=True, pol=True)
 o.add_option('--nophs', dest='nophs', action='store_true',
     help='Do not phase to zenith bin.')
 o.add_option('--nogain', dest='nogain', action='store_true',
     help='Do not normalize gain.')
 o.add_option('--window', dest='window', default='none',
     help='DSP window to use.  Default: none')
-o.add_option('--horizon', dest='horizon', type=float, default=1.,
-    help='The additional scalar applied to the baseline length to determine horizon cutoff.  Default is 1.')
+o.add_option('--horizon', dest='horizon', type=float, default=0.,
+    help='An additional additive term (in ns) applied to the baseline length to determine horizon cutoff.  Default is 0.')
 o.add_option('--clean', dest='clean', type='float', default=1e-5,
     help='Deconvolve delay-domain data by the response that results from flagged data.  Specify a tolerance for termination.  Default 1e-5')
 o.add_option('--model', dest='model', action='store_true',
@@ -49,7 +49,7 @@ opts, args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
 aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
-filters = gen_skypass_delay(aa, uv['sdf'], uv['nchan'], max_bl_frac=opts.horizon)
+filters = gen_skypass_delay(aa, uv['sdf'], uv['nchan'], max_bl_add=opts.horizon)
 
 for uvfile in args:
     uvBfile = uvfile + 'B'
@@ -58,7 +58,7 @@ for uvfile in args:
         print uvBfile, 'exists, skipping.'
         continue
     uvi = a.miriad.UV(uvfile)
-    a.scripting.uv_selector(uvi,ants=opts.ant)
+    a.scripting.uv_selector(uvi, opts.ant, opts.pol)
     uvB = a.miriad.UV(uvBfile, status='new')
     uvB.init_from_uv(uvi)
     uvB.add_var('bin','d')
@@ -90,7 +90,9 @@ for uvfile in args:
                 zen = a.phs.RadioFixedBody(lstbin, aa.lat)
             zen.compute(aa)
             curtime = t
-            #print t
+            print t
+        pol = a.miriad.pol2str[uv['pol']]
+        aa.set_active_pol(pol)
         u,v,w = aa.gen_uvw(i,j, src=zen)
         u,v = u.flatten()[-1], v.flatten()[-1]
         conj = False
@@ -132,7 +134,9 @@ for uvfile in args:
                 zen = a.phs.RadioFixedBody(lstbin, aa.lat)
             zen.compute(aa)
             curtime = t
-            #print t
+            print t
+        pol = a.miriad.pol2str[uv['pol']]
+        aa.set_active_pol(pol)
         u,v,w = aa.gen_uvw(i,j, src=zen)
         u,v = u.flatten()[-1], v.flatten()[-1]
         conj = False

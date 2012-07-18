@@ -141,6 +141,7 @@ for files in triplets(args):
     uvo = a.miriad.UV(outfile, status='new')
     uvo.init_from_uv(uvi)
     uvo.pipe(uvi, mfunc=mfunc, append2hist=' '.join(sys.argv)+'\n', raw=True)
+    del(uvo) # helps the file be available for reading sooner
 
 for filename in files[1:]:
     outfile = filename+'F'

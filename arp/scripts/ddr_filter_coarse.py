@@ -10,8 +10,9 @@ Smoothness is determined by the fringe-rate and delay corresponding to the maxim
 import os
 pid = os.getpid()
 def get_mem():
-    lines = open('/proc/%d/status' % pid).readlines()
-    print '\n'.join([L for L in lines if L.find('VmSize') != -1])
+    #lines = open('/proc/%d/status' % pid).readlines()
+    #print '\n'.join([L for L in lines if L.find('VmSize') != -1])
+    pass
 get_mem()
 
 import aipy as a, numpy as n, sys, os, optparse
@@ -192,12 +193,34 @@ for files in triplets(args):
                 d = n.where(flg[bl][pol], 0, dat[bl][pol])
                 del(dat[bl][pol]); del(flg[bl][pol]) # We're done with the raw data, so free up RAM
                 w = n.where(n.abs(d) == 0, 0., 1.)#.astype(n.float32)
+                #print d.shape, w.shape, window.shape
                 _d,_w = n.fft.ifft2(d*window), n.fft.ifft2(w*window)
                 #_d,_w = _d.astype(n.complex64),_w.astype(n.complex64)
                 gain = n.abs(_w[0,0])
                 if gain == 0: continue
-                _d,info = a.deconv.clean(_d,_w, area=area, tol=opts.clean, stop_if_div=False, maxiter=100)
-                _r = info['res']
+                if True:
+                    # Deconvolve the interior part where signal is, first.  Much more efficient.
+                    _d_mini = n.concatenate([_d[:ufng],_d[nfng:]], axis=0)
+                    _d_mini = n.concatenate([_d_mini[:,:udly],_d_mini[:,ndly:]], axis=1)
+                    _w_mini = n.concatenate([_w[:ufng],_w[nfng:]], axis=0)
+                    _w_mini = n.concatenate([_w_mini[:,:udly],_w_mini[:,ndly:]], axis=1)
+                    _d_mini,info = a.deconv.clean(_d_mini,_w_mini, tol=opts.clean, stop_if_div=False, maxiter=100, gain=.9)
+                    _d_mdl = n.zeros_like(_d)
+                    _d_mdl[:ufng,:udly] = _d_mini[:ufng,:udly]
+                    _d_mdl[nfng:,:udly] = _d_mini[nfng:,:udly]
+                    _d_mdl[:ufng,ndly:] = _d_mini[:ufng,ndly:]
+                    _d_mdl[nfng:,ndly:] = _d_mini[nfng:,ndly:]
+                    #_r = _d - n.fft.ifft2(n.fft.fft2(_d_mdl) * n.fft.fft2(_w))
+                    #print info['iter'], n.sqrt(n.average(n.abs(_r)**2))
+
+                    _d,info = a.deconv.clean(_d,_w, mdl=_d_mdl, area=area, tol=opts.clean, stop_if_div=True, maxiter=10, gain=.9)
+                    _r = info['res']
+                    #print info['iter'], n.sqrt(n.average(n.abs(_r)**2))
+                else:
+                    # THIS IS WHERE ~50% OF CPU TIME IS SPENT!
+                    _d,info = a.deconv.clean(_d,_w, area=area, tol=opts.clean, stop_if_div=False, maxiter=100, gain=.9)
+                    _r = info['res']
+                    #print info['iter'], n.sqrt(n.average(n.abs(_r)**2))
                 #print _d.dtype, _w.dtype, _r.dtype
 
                 if DECIMATE:
