@@ -14,9 +14,9 @@ del(uv)
 fq = .16
 z = C.pspec.f2z(fq)
 cen_fqs = n.array([fq])
-B = .07
+B = .01
 WINDOW = 'blackman-harris'
-kwargs = {'cen_fqs':cen_fqs,'B':B, 'ntaps':1, 'window':WINDOW, 'bm_fqs':freqs.clip(.120,.190)}
+kwargs = {'cen_fqs':cen_fqs,'B':B, 'ntaps':3, 'window':WINDOW, 'bm_fqs':freqs.clip(.120,.190)}
 
 bm = n.polyval(C.pspec.DEFAULT_BEAM_POLY,fq)
 

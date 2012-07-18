@@ -41,6 +41,8 @@ o.add_option('--model', dest='model', action='store_true',
     help='Return the foreground model as well as the residuals')
 o.add_option('--nolstbin', dest='nolstbin', action='store_true',
     help='Phase to lst of 1 integration, not a 2hr bin.')
+o.add_option('--lstcenter', dest='lstcenter', type='string', default=None,
+    help='String of RA <XX:XX:XX> to phase entire run of data to.')
 o.add_option('--nohorizon', dest='nohorizon', action='store_true',
     help='Allow clean components across all of delay space.')
 opts, args = o.parse_args(sys.argv[1:])
@@ -57,9 +59,9 @@ for uvfile in args:
         continue
     uvi = a.miriad.UV(uvfile)
     a.scripting.uv_selector(uvi,ants=opts.ant)
-    #uvB = a.miriad.UV(uvBfile, status='new')
-    #uvB.init_from_uv(uvi)
-    #uvB.add_var('bin','d')
+    uvB = a.miriad.UV(uvBfile, status='new')
+    uvB.init_from_uv(uvi)
+    uvB.add_var('bin','d')
 
     if opts.model:
         uvFfile = uvfile + 'F'
@@ -82,6 +84,8 @@ for uvfile in args:
             ubin,vbin,lstbin = C.pspec.bin2uv(C.pspec.uv2bin(0,0,lst))
             if opts.nolstbin:
                 zen = a.phs.RadioFixedBody(lst, aa.lat)
+            elif opts.lstcenter:
+                zen = a.phs.RadioFixedBody(opts.lstcenter, aa.lat)
             else:
                 zen = a.phs.RadioFixedBody(lstbin, aa.lat)
             zen.compute(aa)
@@ -89,9 +93,10 @@ for uvfile in args:
             #print t
         u,v,w = aa.gen_uvw(i,j, src=zen)
         u,v = u.flatten()[-1], v.flatten()[-1]
+        conj = False
         if u < 0: 
             u,v = -u, -v
-            if not opts.nophs: d = n.conj(d)
+            if not opts.nophs: conj = True
         uvB['bin'] = n.float(C.pspec.uv2bin(u, v, aa.sidereal_time()))
         if i == j: return p, d, f
         bl = a.miriad.ij2bl(i,j)
@@ -99,6 +104,7 @@ for uvfile in args:
         if n.average(w) < .5: return p, n.zeros_like(d), n.ones_like(f)
         if not opts.nophs: d = aa.phs2src(d, zen, i, j)
         if not opts.nogain: d /= aa.passband(i,j)
+        if conj: d = n.conj(d)
         d *= w
         _d = n.fft.ifft(d * window)
         _w = n.fft.ifft(w * window)
@@ -120,6 +126,8 @@ for uvfile in args:
             ubin,vbin,lstbin = C.pspec.bin2uv(C.pspec.uv2bin(0,0,lst))
             if opts.nolstbin:
                 zen = a.phs.RadioFixedBody(lst, aa.lat)
+            elif opts.lstcenter:
+                zen = a.phs.RadioFixedBody(opts.lstcenter, aa.lat)
             else:
                 zen = a.phs.RadioFixedBody(lstbin, aa.lat)
             zen.compute(aa)
@@ -127,9 +135,10 @@ for uvfile in args:
             #print t
         u,v,w = aa.gen_uvw(i,j, src=zen)
         u,v = u.flatten()[-1], v.flatten()[-1]
+        conj = False
         if u < 0: 
             u,v = -u, -v
-            if not opts.nophs: d = n.conj(d)
+            if not opts.nophs: conj = True
         uvF['bin'] = n.float(C.pspec.uv2bin(u, v, aa.sidereal_time()))
         if i == j: return p, d, f
         bl = a.miriad.ij2bl(i,j)
@@ -137,6 +146,7 @@ for uvfile in args:
         if n.average(w) < .5: return p, n.zeros_like(d), n.ones_like(f)
         if not opts.nophs: d = aa.phs2src(d, zen, i, j)
         if not opts.nogain: d /= aa.passband(i,j)
+        if conj: d = n.conj(d)
         d *= w
         _d = n.fft.ifft(d * window)
         _w = n.fft.ifft(w * window)
@@ -150,7 +160,7 @@ for uvfile in args:
         return p, d_mdl, f
  
     # Apply the pipe to the data
-    #uvB.pipe(uvi, mfunc=res_mfunc, raw=True, append2hist=' '.join(sys.argv)+'\n')
+    uvB.pipe(uvi, mfunc=res_mfunc, raw=True, append2hist=' '.join(sys.argv)+'\n')
     if opts.model:
-    #   uvi.rewind()
+        uvi.rewind()
         uvF.pipe(uvi, mfunc=fg_mfunc, raw=True, append2hist=' '.join(sys.argv)+'\n')

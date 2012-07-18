@@ -57,6 +57,7 @@ for umag in keys:
     if opts.nobin: label = str(a.miriad.bl2ij(umag))
     else: label = str(umag)
     p.loglog(n.abs(kpl),f*n.abs(n.real(uDat[umag])),label=label)
+    #p.loglog(n.abs(kpl),f*n.abs(n.imag(uDat[umag])),label=label)
 
 p.legend()
 p.show()
