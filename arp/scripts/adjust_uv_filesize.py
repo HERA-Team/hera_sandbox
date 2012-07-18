@@ -35,5 +35,6 @@ for uvfile in args:
             times = []
         if len(times) == 0 or times[-1] != t: times.append(t)
         uvo.copyvr(uvi)
+        uvo['pol'] = uvi['pol']
         uvo.write(p,d,f)
 del(uvo) 
