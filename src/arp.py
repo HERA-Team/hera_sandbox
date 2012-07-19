@@ -1,7 +1,7 @@
 import aipy as a, numpy as n, pylab as P
 import sys, scipy
 
-def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose=False):
+def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose=False, recast_as_array=True):
     times, dat, flg = [], {}, {}
     if type(filenames) == 'str': filenames = [filenames]
     for filename in filenames:
@@ -10,17 +10,22 @@ def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose
         a.scripting.uv_selector(uv, antstr, polstr)
         if decimate > 1: uv.select('decimate', decimate, decphs)
         for (crd,t,(i,j)),d,f in uv.all(raw=True):
-            if len(times) == 0 or t != times[-1]:
-                times.append(t)
+            if len(times) == 0 or t != times[-1]: times.append(t)
             bl = a.miriad.ij2bl(i,j)
             if not dat.has_key(bl): dat[bl],flg[bl] = {},{}
             pol = a.miriad.pol2str[uv['pol']]
-            dat[bl][pol] = dat[bl].get(pol,[]) + [d]
-            flg[bl][pol] = flg[bl].get(pol,[]) + [f]
-    for bl in dat:
-      for pol in dat[bl]:
-        dat[bl][pol] = n.array(dat[bl][pol])
-        flg[bl][pol] = n.array(flg[bl][pol])
+            if not dat[bl].has_key(pol):
+                dat[bl][pol],flg[bl][pol] = [],[]
+            dat[bl][pol].append(d)
+            flg[bl][pol].append(f)
+    if recast_as_array:
+        # This option helps reduce memory footprint, but it shouldn't
+        # be necessary: the replace below should free RAM as quickly
+        # as it is allocated.  Unfortunately, it doesn't seem to...
+        for bl in dat.keys():
+          for pol in dat[bl].keys():
+            dat[bl][pol] = n.array(dat[bl][pol])
+            flg[bl][pol] = n.array(flg[bl][pol])
     return n.array(times), dat, flg
 
 def clean_transform(d, w=None, f=None, clean=1e-3, window='blackman-harris'):
@@ -147,6 +152,33 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     gain = n.where(g11 != 0, g12/g11, 0)
     if use_offset: return gain, (tau,off), info
     else: return gain, tau, info
+
+def selfcal_diff(m_bl, r_ant, r_wgt=1e6):
+    ants = {}
+    for bl in m_bl:
+        i,j = a.miriad.bl2ij(bl)
+        ants[i] = ants[j] = None
+    ants = ants.keys(); ants.sort()
+    def antind(ant): return ants.index(ant)
+    NANT = len(ants)
+    NMEAS = len(m_bl) + len(r_ant)
+    P = n.zeros((NMEAS, NANT), dtype=n.double)
+    M = n.zeros((NMEAS, 1), dtype=n.double)
+    # Put in reference information (i.e. assumptions)
+    for cnt1,(i,val) in enumerate(r_ant.items()):
+        P[cnt1,antind(i)] = r_wgt
+        M[cnt1,0] = r_wgt * val
+    cnt1 += 1 # Set cnt1 to point to the next slot
+    # Add in measurements
+    for cnt2,(bl,val) in enumerate(m_bl.items()):
+        i,j = a.miriad.bl2ij(bl)
+        P[cnt1+cnt2,antind(j)] = 1; P[cnt1+cnt2,antind(i)] = -1
+        M[cnt1+cnt2,0] = val
+    # Now that information is in matrix form, solve it
+    Pinv = n.linalg.pinv(P) # this succeeds where lstsq fails, for some reason
+    C = n.dot(Pinv, M)
+    return dict(zip(ants,C))
+    
 
 def sinuspike(d, fqs, f=None, clean=1e-3, maxiter=100, nsig=3, window='blackman-harris'):
     d = d * (fqs/.150)**2.5 # Flatten noise assuming synchrotron spectral index
