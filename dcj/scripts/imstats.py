@@ -45,12 +45,13 @@ def query_disc(proj,pos,r):
     return pix[n.logical_and(pix[:,0]<proj.naxis[0],pix[:,1]<proj.naxis[1])]
 
 aa = a.scripting.get_null_aa()
+print "#filename pointingRA pointingDEC peakRA peakDEC peakFlux centralRMS DR"
 for file in args:
     print "%s"%file,
     hdulist = pf.open(file)
     header = hdulist[0].header
     proj = wcs.Projection(header)
-    image = n.ma.masked_invalid(hdulist[0].data)    
+    image = n.ma.masked_invalid(hdulist[0].data.T)    
     try:
         map = proj.sub((proj.lonaxnum,proj.lataxnum))
     except:
@@ -60,10 +61,11 @@ for file in args:
     F = image.max()
     RA,DEC = proj.toworld(maxpx)
     srcpos = n.array([RA,DEC])
-    print RA,DEC,
+    print proj.crval[0],proj.crval[1],RA,DEC,
     #get the pixels inside the surrounding annulus        
+    center = n.array(image.shape).astype(int)/2
     doughpix = query_disc(proj,srcpos,opts.radius)
-    holepix = query_disc(proj,srcpos,1.)
-    donutpix = n.array([px for px in doughpix if px not in holepix])
-    RMS = n.std(image[donutpix[:,1],donutpix[:,0]])   
+    #holepix = query_disc(proj,srcpos,1.)
+    #donutpix = n.array([px for px in doughpix if px not in holepix])
+    RMS = n.std(image[doughpix[:,1],doughpix[:,0]])   
     print F,RMS,F/RMS
