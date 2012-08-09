@@ -8,67 +8,6 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger('psa743_v004_gc')
 
-class Antenna(a.pol.Antenna):
-    def __init__(self,*args,**kwargs):
-        a.pol.Antenna.__init__(self,*args,**kwargs)
-        self.dpos = kwargs['dpos']
-        self._pos = self.pos.copy()
-        self.update()
-    def update(self):
-        a.pol.Antenna.update(self)
-        self.pos = self._pos + self.dpos
-        self._bm_gain = a.pol.Antenna.bm_response(self,(0,0,1),pol=self.pol)[0,0]
-    def bm_response(self,*args,**kwargs):
-        return a.pol.Antenna.bm_response(self,*args,**kwargs)/self._bm_gain
-    def get_params(self, prm_list=['*']):
-        """Return all fitable parameters in a dictionary."""
-        x,y,z = self._pos
-        aprms = {'x':x, 'y':y, 'z':z, 'dly':self._phsoff[-2],
-            'off':self._phsoff[-1], 'phsoff':self._phsoff}
-        aprms['dx'] = self.dpos[0]
-        aprms['dy'] = self.dpos[1]
-        aprms['dz'] = self.dpos[2]
-        aprms['bp_r'] = list(self.bp_r)
-        aprms['bp_i'] = list(self.bp_i)
-        aprms['amp'] = self.amp
-        aprms.update(self.beam.get_params(prm_list))
-        prms = {}
-        for p in prm_list:
-            if p.startswith('*'): return aprms
-            try: prms[p] = aprms[p]
-            except(KeyError): pass
-        return prms
-    def set_params(self, prms):
-        """Set all parameters from a dictionary."""
-        changed = False
-        self.beam.set_params(prms)
-        try: self._pos[0], changed = prms['x'], True
-        except(KeyError): pass
-        try: self._pos[1], changed = prms['y'], True
-        except(KeyError): pass
-        try: self._pos[2], changed = prms['z'], True
-        except(KeyError): pass
-        try: self.dpos[0], changed = prms['dx'], True
-        except(KeyError): pass
-        try: self.dpos[1], changed = prms['dy'], True
-        except(KeyError): pass
-        try: self.dpos[2], changed = prms['dz'], True
-        except(KeyError): pass
-        try: self._phsoff[-2], changed = prms['dly'], True
-        except(KeyError): pass
-        try: self._phsoff[-1], changed = prms['off'], True
-        except(KeyError): pass
-        try: self._phsoff, changed = prms['phsoff'], True
-        except(KeyError): pass
-        try: self.bp_r, changed = prms['bp_r'], True
-        except(KeyError): pass
-        try: self.bp_i, changed = prms['bp_i'], True
-        except(KeyError): pass
-        try: self.amp, changed = prms['amp'], True
-        except(KeyError): pass
-        if changed: self.update()
-        return changed
-
 prms = {
     'loc': ('-30:43:17.5', '21:25:41.9'), # KAT, SA (GPS)
     'antpos':{
@@ -152,8 +91,6 @@ prms = {
         62:[-161.608043,226.512058,-277.243397],
         63:[170.275635,-299.764724,293.554481],
     }, 
-    'dpos':{
-        },
     'delays': {
 	 0 : {'x':-0.323347002962, 'y': 0.514709128944}, 
      1 : {'x':-0.435716868684, 'y': -3.05313559537},  
@@ -233,26 +170,22 @@ def get_aa(freqs):
     location = prms['loc']
     antennas = []
     nants = len(prms['antpos'])
-    for pi in ('x','y'):
-        for i in prms['antpos'].keys():
-            beam = bm.prms['beam'](freqs,nside=32,lmax=20,mmax=20,deg=7)
-            try: beam.set_params(bm.prms['bm_prms'])
-            except(AttributeError): pass
-            pos = prms['antpos'][i]
-            if i > 31: pos += prms['32_64_pos_offset'] 
-            try: dly = prms['delays'][i][pi]
-            except(KeyError): dly = 0.
-            try: off = prms['off'][i][pi]
-            except(KeyError): off = 0.
-            bp_r = prms['bp_r']
-            try: amp = prms['amps'][i][pi]
-            except(KeyError): amp = 1.
-            try: dpos = prms['dpos'][i]
-            except(KeyError): dpos = n.array([0.,0.,0.,])
-            antennas.append(
-                Antenna(pos[0],pos[1],pos[2], beam, dpos=dpos, num=i, pol=pi, phsoff=[dly,off], amp=amp, bp_r = bp_r, lat=prms['loc'][0] )
+    for i in prms['delays'].keys():
+        beam = bm.prms['beam'](freqs,nside=32,lmax=20,mmax=20,deg=7)
+        try: beam.set_params(bm.prms['bm_prms'])
+        except(AttributeError): pass
+        pos = prms['antpos'][i]
+        if i > 31: pos += prms['32_64_pos_offset'] 
+        try: dly = [prms['delays'][i]['x'],prms['delays'][i]['y']]
+        except(KeyError): dly = 0.
+        bp_r = prms['bp_r']
+        try: amp = [prms['amps'][i]['x'],prms['amps'][i]['y']]
+        except(KeyError): amp = 1.
+        phsoff = [[dly[0],0.],[dly[1],0.]]
+        antennas.append(
+                a.fit.Antenna(pos[0],pos[1],pos[2], beam, dp=True, phsoff=phsoff, amp=amp, bp_r=bp_r, lat=prms['loc'][0] )
                 )
-    aa = a.pol.AntennaArray(prms['loc'], antennas)
+    aa = a.fit.AntennaArray(prms['loc'], antennas)
     return aa
 
 src_prms = {
