@@ -1,5 +1,6 @@
 import numpy as np
 from aipy import dsp,deconv
+from scipy.special import erf
 from pylab import *
 
 c = 0.3 #m/ns
@@ -194,6 +195,41 @@ def RMclean2(fq, QiU, gain=0.1, tol=1e-2, stop_if_div=True,window='hamming'):
         print i,rm,dl,score
         i += 1
     return mod,spec
+
+#  _                    _
+# | |    ___  _ __ ___ | |__
+# | |   / _ \| '_ ' _ \|  _ \  
+# | |__| (_) | | | | | | |_)|
+# |____ \___/|_| |_| |_|_,__/
+#
+
+def LSP(d,nu):
+    N = float(len(d))
+    l2 = better_guess_l2(nu)
+    RMS = gen_rm_samples(nu)
+    dr,di = d.real,d.imag
+    Rf = np.zeros(N)
+    If = np.zeros(N)
+    Cf = np.zeros(N)
+    Sf = np.zeros(N)
+    for i,rm in enumerate(RMs):
+        cl2 = np.cos(2.*l2*rm)
+        sl2 = np.sin(2.*l2*rm)
+
+        Rf[i] = np.sum(dr*cl2) - np.sum(di*sl2)
+        If[i] = np.sum(dr*sl2) + np.sum(di*ci2)
+        #With equally spaced data, these are just N
+        Cf[i] = N#np.sum(cl2**2 + sl2**2)
+        Sf[i] = N#np.sum(cl2**2 + sl2**2)
+    return ((Rf**2/Cf) + (If**2/Sf))/N 
+
+def LPSsig(d,Nsig):
+    dr,di,N = d.real,d.imag,float(len(d))
+    alpha = erf(Nsig/np.sqrt(2))
+    d2 = (np.sum(dr**2)+np.sum(di**2))/(N-1)
+    d2 -= np.abs(np.mean(d))**2
+    return -1.*np.log(1.-alpha**(1./N))*(d2/N)
+    
 
 #  _   __  ____
 # | | | _ \  __|
