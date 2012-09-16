@@ -23,6 +23,7 @@ for file in args:
     hdu.data.field('signal')[:] = hdu.data.field('signal')[:]/hdu.data.field('weights')[:].clip(1,1000000)
     hdu.header['TTYPE1']='TEMPERATURE'
     hdu.header['TTYPE2']='N_OBS'
+    hdu.header.update('COORDSYS','C')
     hdulist[1] = hdu
 
     hdulist.writeto(outfile,clobber=True)
