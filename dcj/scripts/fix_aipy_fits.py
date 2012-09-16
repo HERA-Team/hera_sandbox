@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 #
-#  fix_healpy_fits.py
+#  fix_aipy_fits.py
 #  
 #
-#  Created by Danny Jacobs on 9/8/10.
+#  Created by Danny Jacobs on 18 July 2012
 #  PAPER Project
 #
 
@@ -19,15 +19,8 @@ for file in args:
     outfile = '.'.join(file.split('.')[:-1])+'c.fits'
     print file + " > " + outfile
     hdulist = pf.open(file)
-    hdu = hdulist[1]
-    data = hdu.data.field('signal')[:]
-    w = hdu.data.field('weights')[:]
-    w = n.where(w>0,w,1)
-    hdu.data.field('signal')[:] = data/w
-    hdu.data.field('weights')[:] = n.ones_like(data)
-    hdu.header['TTYPE1']='TEMPERATURE'
-    hdu.header['TTYPE2']='N_OBS'
-    hdu.header.update('COORDSYS','C')
-    hdulist[1] = hdu
+    hdu = hdulist[0]
+    hdu.header['CTYPE1']='RA---SIN'
+    hdulist[0] = hdu
 
     hdulist.writeto(outfile,clobber=True)
