@@ -7,8 +7,17 @@ o.add_option('-t', type='str',
     help='Same as -t qsub. ex -t 1:10 Use if you want to multitask without grid engine. Must specifiy task_id as well.')
 o.add_option('--taskid',type=int,default=1,
     help='current taskid. Use in conjunction with -t for non-gridengine list splitting mode.')
+o.add_option('-f',action='store_true',
+    help='look in the input files for args instead [default = false]')
 opts,args = o.parse_args(sys.argv[1:])
 
+if opts.f:
+    fileargs = []
+    for file in args:
+        lines = open(file).readlines()
+        for line in lines:
+            fileargs.append(line)
+    args  = fileargs
 if not opts.t is None:
     n = int(opts.t.split(':')[0])
     m = int(opts.t.split(':')[1])
