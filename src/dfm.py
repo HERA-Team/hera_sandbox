@@ -1,5 +1,9 @@
 import numpy as np
+import aipy as a
 
+def bit_flip(f): return np.where(f==1,0,1)
+
+ij2bl,bl2ij = a.miriad.ij2bl,a.miriad.bl2ij
 def grid2ij(GRID):
     bls,conj = {},{}
     for row_i in range(GRID.shape[1]):
