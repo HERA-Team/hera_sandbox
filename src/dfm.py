@@ -29,3 +29,10 @@ def grid2ij(GRID):
         bls[sep] = bl_list
         bl_str[sep] = ','.join(bl_str[sep])
     return bl_str,bl_conj
+
+def lst2bin(lst,bin_width=30.):  
+    bin_width *= 2.*np.pi / a.const.sidereal_day
+    return np.round(lst / bin_width)
+
+def bin2lst(bin,bin_width):
+    return bin * bin_width * a.const.sidereal_day / (2.*np.pi)
