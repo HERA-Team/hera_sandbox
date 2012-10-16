@@ -87,8 +87,7 @@ for of in outfiles:
         lstbins.sort()
         for l in lstbins:
             uvo['lst'],uvo['ra'],uvo['obsra'] = lst,lst,lst
-            t = dfm.bin2lst(l,bin_width=opts.dlst)
-            preamble = (crds[blp],t,(i,j))
+            preamble = (crds[blp],l,(i,j))
             uvo.write(preamble,data[blp][l],np.zeros(data[blp][l].shape))
 
 if DEBUG:
