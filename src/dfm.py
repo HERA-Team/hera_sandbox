@@ -33,7 +33,7 @@ def grid2ij(GRID):
 def lst2bin(lst,bin_width=30.):  
     bin_width *= 2.*np.pi / a.const.sidereal_day
     return np.round(lst / bin_width)
-def bin2lst(bin,bin_width):
+def bin2lst(bin,bin_width=30.):
     return bin * bin_width * a.const.sidereal_day / (2.*np.pi)
 
 def lst2jd(lst,jd_start=2455903):

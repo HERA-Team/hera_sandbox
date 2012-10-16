@@ -55,7 +55,7 @@ for file in nargs:
         aa.set_jultime(t)
         jd = int(t)
         lst = aa.sidereal_time()
-        bin = dfm.lst2bin(lst)
+        bin = dfm.lst2bin(lst,bin_width=opts.dlst)
         if not in_lst_range(lst): continue
         blp = a.pol.ijp2blp(i,j,uv['pol'])
         if not blp in Sx1.keys():
@@ -87,7 +87,7 @@ for of in outfiles:
         lstbins.sort()
         for l in lstbins:
             uvo['lst'],uvo['ra'],uvo['obsra'] = lst,lst,lst
-            t = dfm.lst2jd(dfm.bin2lst(l))
+            t = dfm.lst2jd(dfm.bin2lst(lbin_width=opts.dlst))
             preamble = (crds[blp],t,(i,j))
             uvo.write(preamble,data[blp][l],np.zeros(data[blp][l].shape))
 
