@@ -36,11 +36,3 @@ def lst2bin(lst,bin_width=30.):
 def bin2lst(bin,bin_width=30.):
     return bin * bin_width * a.const.sidereal_day / (2.*np.pi)
 
-def lst2jd(lst,jd_start=2455903):
-    #This function defines the convention for measuring time.
-    djd_dlst = a.const.sidereal_day / (2.*np.pi)*a.ephem.second
-    return jd_start + lst*djd_dlst
-def jd2lst(jd):
-    djd_dlst = 2.*np.pi*a.ephem.second / a.const.sidereal_day
-    return (jd - np.round(jd)) / djd_dlst
-
