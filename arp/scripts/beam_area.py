@@ -18,11 +18,21 @@ freqs = n.array([float(re_freq.search(f).groups()[0]) / 1e3 for f in args])
 for i, filename in enumerate(args):
     print 'Reading', filename
     m = a.healpix.HealpixMap(fromfits=filename)
+    #m2 = a.healpix.HealpixMap(fromfits=filename, nside=64)
+    #m = a.healpix.HealpixMap(nside=64)
+    #m.from_hpm(m2)
+    #print m.nside()
     m.map = (m.map / m[0,0,1]).clip(0,1)
     x,y,z = m.px2crd(n.arange(m.map.size), ncrd=3)
     v = n.where(z > 0, 1, 0)
     data = m.map.compress(v)
-    print n.sum(data**2) * 4 * n.pi / m.npix()
+    beam = data**2
+    noise_beam = n.sum(beam) * 4 * n.pi / m.npix()
+    eor_beam = n.sum(beam**2)/n.sum(beam)**2 * m.npix() / (4*n.pi)
+    print 'Noise Beam:', noise_beam
+    print 'EoR Beam:', eor_beam
+    print 'Effective Omega:', noise_beam**2 / eor_beam
+    
     #x = x.compress(v)
     #y = y.compress(v)
     #z = z.compress(v)
