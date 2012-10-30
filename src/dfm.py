@@ -1,5 +1,6 @@
 import numpy as np
 import aipy as a
+import ephem
 from scipy.special import fdtri as Finv
 
 def bit_flip(f): return np.where(f==1,0,1)
@@ -39,9 +40,20 @@ def lst2bin(lst,bin_width=30.):
 def bin2lst(bin,bin_width=30.):
     return bin / (bin_width * rad_per_s)
 
+def which_lst_files(lst_in,FileDict,tfile=600.): 
+    lstout = lst_in + tfile * (2.*np.pi / a.const.sidereal_day)
+    outfiles = ['sum','sumsq','wgt']
+    _ts = {'sum':[],'sumsq':[],'wgt':[]}
+    for i,file in enumerate(FileDict['sum']):
+        RAin,RAout = map(ephem.hours,(file.split('.')[-2]).split('_'))
+        if lstout < RAin or lst_in > RAout: continue
+        if not file in _ts['sum']: 
+            for o in outfiles: _ts[o].append(TS[o][i]) 
+    return _ts
+
 def flag_F(_d,d1,d2,w,f,alpha = 0.99):
     mean = d1/w
     Svar = (d2/w) - np.abs(mean)**2
-    _F = (w/(w+1.))*(np.abs(d - mean)**2/Svar)
+    _F = (w/(w+1.))*(np.abs(_d - mean)**2/Svar)
     _Flim = np.array([Finv(2,int(2*(_w-1)),alpha) for _w in w])     
     return _F <= _Flim
