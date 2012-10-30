@@ -1,5 +1,6 @@
 import numpy as np
 import aipy as a
+from scipy.special import fdtri as Finv
 
 def bit_flip(f): return np.where(f==1,0,1)
 
@@ -30,9 +31,17 @@ def grid2ij(GRID):
         bl_str[sep] = ','.join(bl_str[sep])
     return bl_str,bl_conj
 
+rad_per_s = 2.*np.pi / a.const.sidereal_day
+
 def lst2bin(lst,bin_width=30.):  
-    bin_width *= 2.*np.pi / a.const.sidereal_day
+    bin_width *= rad_per_s 
     return np.round(lst / bin_width)
 def bin2lst(bin,bin_width=30.):
-    return bin * bin_width * a.const.sidereal_day / (2.*np.pi)
+    return bin / (bin_width * rad_per_s)
 
+def flag_F(_d,d1,d2,w,f,alpha = 0.99):
+    mean = d1/w
+    Svar = (d2/w) - np.abs(mean)**2
+    _F = (w/(w+1.))*(np.abs(d - mean)**2/Svar)
+    _Flim = np.array([Finv(2,int(2*(_w-1)),alpha) for _w in w])     
+    return _F <= _Flim
