@@ -20,16 +20,20 @@ if not opts.quiet:
     if opts.batch: import matplotlib; matplotlib.use('Agg')
     import pylab as p
 
-srclist,cutoff,catalogs, = a.scripting.parse_srcs(opts.src, opts.cat)
-calsrc = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs=catalogs)
-calsrc = calsrc.values()[0]
+if opts.src != None:
+    srclist,cutoff,catalogs, = a.scripting.parse_srcs(opts.src, opts.cat)
+    calsrc = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs=catalogs)
+    calsrc = calsrc.values()[0]
+else:
+    calsrc = None
 srclist = [f.split('_')[0] for f in args]
-assert(calsrc.src_name in srclist)
+if not calsrc is None: assert(calsrc.src_name in srclist)
 srclist,cutoff,catalogs, = a.scripting.parse_srcs(','.join(srclist), opts.cat)
 cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs=catalogs)
 
 filetypes = {}
 for src in [calsrc] + cat.values():
+    if src is None: continue
     for filename in [f for f in args if f.startswith(src.src_name)]:
         print src.src_name, filename, filename[len(src.src_name):]
         filetypes[filename[len(src.src_name):]] = None
@@ -43,6 +47,7 @@ print colors.keys()
 
 bp_cal = {}
 for src in [calsrc] + cat.values():
+    if src is None: continue
     srcfiles = [f for f in args if f.startswith(src.src_name)]
     for cnt, filename in enumerate(srcfiles):
         filetype = filename[len(src.src_name):]
@@ -54,17 +59,19 @@ for src in [calsrc] + cat.values():
         _f.close()
         #dspec = spec - a.rfi.remove_spikes(spec, order=8)
         #sig = n.std(dspec)
-        #valid = n.where(n.abs(dspec) < 2*sig, 1, 0)
-        #vspec = spec.compress(valid)
-        #afreqs = afreqs.compress(valid)
+        if True:
+            valid = n.where(n.logical_and(afreqs > .120, afreqs < 0.170), 1, 0)
+            spec = spec.compress(valid)
+            afreqs = afreqs.compress(valid)
         src.update_jys(afreqs)
         bp = n.sqrt(spec / src.jys)
         bp_poly = n.polyfit(afreqs, bp, deg=opts.deg)
-        if src.src_name == calsrc.src_name:
+        if not calsrc is None and src.src_name == calsrc.src_name:
             print 'Calibrating to', src.src_name
             bp_cal[filetype] = bp_poly
-        #bp_fit = n.polyval(bp_poly, afreqs).clip(.5,2)**2
-        bp_fit = n.polyval(bp_cal[filetype], afreqs).clip(.1,10)**2
+        if opts.src is None:
+            bp_fit = 1.
+        else: bp_fit = n.polyval(bp_cal[filetype], afreqs).clip(.1,10)**2
         spec /= bp_fit
         
         src_poly = n.polyfit(n.log10(afreqs/src.mfreq), n.log10(spec), deg=1)
@@ -79,7 +86,7 @@ for src in [calsrc] + cat.values():
             p.loglog(afreqs, 10**n.polyval(src_poly, n.log10(afreqs/src.mfreq)), color+'-', 
                 label='Fit Power Law')
     if not opts.quiet:
-        p.loglog(afreqs, src.jys, color+':', label='%f, %s' % (src._jys, str(src.index)))
+        #p.loglog(afreqs, src.jys, color+':', label='%f, %s' % (src._jys, str(src.index)))
         p.xticks(n.arange(.1,.2,.02), ['100','120','140','160','180'])
         p.xlim(afreqs[0], afreqs[-1])
         p.ylim(3,3e3)
@@ -95,5 +102,6 @@ for src in [calsrc] + cat.values():
             outfile = open(outfile,'w')
             p.savefig(outfile)
             outfile.close()
-        else: p.show()
-        p.clf()
+        #else: p.show()
+        #p.clf()
+p.show()

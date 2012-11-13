@@ -26,7 +26,7 @@ def gen_skypass_delay(aa, sdf, nchan, max_bl_add=0.):
 o = optparse.OptionParser()
 o.set_usage('pspec_prep.py [options] *.uv')
 o.set_description(__doc__)
-a.scripting.add_standard_options(o, cal=True, ant=True, pol=True)
+a.scripting.add_standard_options(o, cal=True, ant=True, pol=True, chan=True)
 o.add_option('--nophs', dest='nophs', action='store_true',
     help='Do not phase to zenith bin.')
 o.add_option('--nogain', dest='nogain', action='store_true',
@@ -44,6 +44,7 @@ opts, args = o.parse_args(sys.argv[1:])
 uv = a.miriad.UV(args[0])
 aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
 filters = gen_skypass_delay(aa, uv['sdf'], uv['nchan'], max_bl_add=opts.horizon)
+bridge_chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 
 for uvfile in args:
     if opts.model: uvofile = uvfile + 'F'
@@ -59,6 +60,9 @@ for uvfile in args:
     uvo.add_var('bin','d')
 
     window = a.dsp.gen_window(uvi['nchan'], window=opts.window)
+    anti_window = a.dsp.gen_window(bridge_chans.size, window=opts.window)
+    window[bridge_chans] *= (1-anti_window) 
+    #window[bridge_chans] = 0 # Remove a band from the deconvolution to avoid removing the EoR modes therein.
     curtime, zen = None, None
     def mfunc(uv, p, d, f):
         global curtime,zen

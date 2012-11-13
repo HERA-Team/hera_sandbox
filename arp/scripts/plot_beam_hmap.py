@@ -7,8 +7,23 @@ o = optparse.OptionParser()
 o.set_usage('plot_beam.py [options] mapfile')
 o.set_description(__doc__)
 a.scripting.add_standard_options(o, cmap=True, max=True, drng=True,cal=True)
+o.add_option('-m', '--mode', dest='mode', default='log',
+    help='Plot mode can be log (logrithmic), lin (linear), phs (phase), real, or imag.')
 o.add_option('--res', dest='res', type='float', default=0.25,
     help="Resolution of plot (in degrees).  Default 0.25.")
+
+def data_mode(data, mode='abs'):
+    if mode.startswith('phs'): data = n.angle(data)
+    elif mode.startswith('lin'):
+        data = n.absolute(data)
+        data = n.masked_less_equal(data, 0)
+    elif mode.startswith('real'): data = data.real
+    elif mode.startswith('imag'): data = data.imag
+    elif mode.startswith('log'):
+        data = n.absolute(data)
+        data = n.log10(data)
+    else: raise ValueError('Unrecognized plot mode.')
+    return data
 
 opts,args = o.parse_args(sys.argv[1:])
 
@@ -30,6 +45,10 @@ ax,ay,az = a.coord.latlong2xyz(n.array([0,0]))
 try: data, indices = h[x,y,z]
 except(ValueError): data = h[x,y,z]
 data.shape = lats.shape
+data /= h[0,0,1]
+#data = data**2 # only if a voltage beam
+data = data_mode(data, opts.mode)
+
 
 map.drawmapboundary()
 map.drawmeridians(n.arange(0, 360, 30))

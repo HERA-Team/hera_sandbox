@@ -1,0 +1,49 @@
+#! /usr/bin/env python
+#from aipy.miriad import ij2bl
+import sys, numpy as n
+
+def bl_index(i,j):
+    return i * 32 + j
+
+A_ = [0,16,8,24,4,20,12,28]
+B_ = [i+1 for i in A_]
+C_ = [i+2 for i in A_]
+D_ = [i+3 for i in A_]
+ANTPOS = n.array([A_, B_, C_, D_])
+
+# Get a dict of all separations and the bls that contribute
+sep2bl = {}
+for ri in range(ANTPOS.shape[0]):
+    for ci in range(ANTPOS.shape[1]):
+        for rj in range(ANTPOS.shape[0]):
+            for cj in range(ci,ANTPOS.shape[1]):
+                if ri >= rj and ci == cj: continue # exclude repeat +/- listings of certain bls
+                sep = '%d,%d' % (rj-ri, cj-ci)
+                i,j = ANTPOS[ri,ci], ANTPOS[rj,cj]
+                if j < i: i,j = j,i
+                bl = bl_index(i,j)
+                sep2bl[sep] = sep2bl.get(sep,[]) + [bl]
+
+def bl4_to_index(bl4):
+    ants = map(int, bl4.split('_'))
+    return '%d_%d' % (bl_index(*ants[:2]), bl_index(*ants[2:]))
+
+def sep2index(sep):
+    rng = sep.split('/')[1:]
+    sep = sep.split('/')[0]
+    rv = []
+    for cnt, bl0 in enumerate(sep2bl[sep]):
+        for bl1 in sep2bl[sep][cnt+1:]:
+            if bl0 < bl1: rv.append('%d_%d' % (bl0,bl1))
+            else: rv.append('%d_%d' % (bl1,bl0))
+    if len(rng) > 0:
+        rng = rng[0]
+        r0,r1 = map(int, rng.split(','))
+        rv = rv[r0:r1]
+    return ','.join(rv)
+    
+def parseit(bl4):
+    if bl4.find('_') != -1: return bl4_to_index(bl4)
+    else: return sep2index(bl4)
+
+print ','.join(map(parseit, sys.argv[1:]))

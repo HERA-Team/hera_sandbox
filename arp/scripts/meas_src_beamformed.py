@@ -24,6 +24,7 @@ for filename in args:
     print 'Reading', filename
     uv = a.miriad.UV(filename)
     a.scripting.uv_selector(uv, opts.ant, opts.pol)
+    aa.set_active_pol(opts.pol)
     uv.select('decimate', opts.decimate, opts.decphs)
     curtime = None
     for (crd,t,(i,j)),d,f in uv.all(raw=True):
@@ -37,7 +38,7 @@ for filename in args:
         if src.alt < opts.altmin * a.img.deg2rad: continue
 
         d,f = d.take(chans), f.take(chans)
-        wgt = aa.bm_response(i,j,pol=opts.pol).squeeze()
+        wgt = aa.bm_response(i,j).squeeze()
         d = n.where(f, 0, d); wgt = n.where(f, 0, wgt)
         # Optimal SNR: down-weight beam-attenuated data 
         # by another factor of the beam response.

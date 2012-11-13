@@ -4,14 +4,14 @@ import capo as C
 import optparse, sys, os
 
 o = optparse.OptionParser()
-a.scripting.add_standard_options(o, ant=True, pol=True, dec=True)
-o.add_option('-b', '--bandwidth', type='float', default=0.008,
-    help='Bandwidth to use in the delay transform.  Default 0.008 (GHz)')
+a.scripting.add_standard_options(o, ant=True, pol=True, chan=True)
+o.add_option('-t', '--taps', type='int', default=1,
+    help='Taps to use in the PFB.  Default 1, which instead uses windowed FFT')
 opts,args = o.parse_args(sys.argv[1:])
 
-B = opts.bandwidth
-#B = 0.04 / 3.
-NTAPS = 3
+NTAPS = opts.taps
+if NTAPS > 1: PFB = True
+else: PFB = False
 WINDOW = 'blackman-harris'
 
 # XXX Currently hardcoded for PSA898
@@ -43,11 +43,26 @@ for ri in range(ANTPOS.shape[0]):
 
 uv = a.miriad.UV(args[0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
+sdf = uv['sdf']
+chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 del(uv)
 
+afreqs = freqs.take(chans)
+
+fq = n.average(afreqs)
+z = C.pspec.f2z(fq)
+if PFB:
+    # XXX unsure how much of a BW modification a windowed PFB needs.  I think not much...
+    B = sdf * afreqs.size / NTAPS
+else:
+    B = sdf * afreqs.size / C.pfb.NOISE_EQUIV_BW[WINDOW]
+bm = n.polyval(C.pspec.DEFAULT_BEAM_POLY, fq)
+scalar = C.pspec.X2Y(z) * bm * B
+print fq, z, B
+
 #cen_fqs = n.arange(.115,.190,.005)
-cen_fqs = n.array([.162])
-kwargs = {'cen_fqs':cen_fqs,'B':B, 'ntaps':NTAPS, 'window':WINDOW, 'bm_fqs':freqs.clip(.120,.190)}
+#cen_fqs = n.array([.150])
+#kwargs = {'cen_fqs':cen_fqs,'B':B, 'ntaps':NTAPS, 'window':WINDOW, 'bm_fqs':afreqs.clip(.120,.190)}
 #window = a.dsp.gen_window(freqs.size, window=WINDOW)
 
 for filename in args:
@@ -58,82 +73,62 @@ for filename in args:
         continue
     uvi = a.miriad.UV(filename)
     uvo = a.miriad.UV(outfile, status='new')
-    uvo.init_from_uv(uvi, override={'nchan':32}) # XXX
+    uvo.init_from_uv(uvi, override={'nchan':afreqs.size, 'sfreq':afreqs[0]})
     uvo._wrhd('history', uvi['history'] + 'PSPEC: ' + ' '.join(sys.argv) + '\n')
-    uvo.add_var('k3pk_fq', 'r')
-    uvo.add_var('k3pk_wgt', 'r')
+    #uvo.add_var('k3pk_fq', 'r')
+    #uvo.add_var('k3pk_wgt', 'r')
     
     a.scripting.uv_selector(uvi, opts.ant, opts.pol)
-    uvi.select('decimate', opts.decimate, opts.decphs)
 
-    Tlist,Wlist,curtime = {},{},None
-    klist = {}
+    _Tlist,_Wlist,curtime = {},{},None
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
-        # XXX Need to deal with polarization 
+        # XXX Need to deal with polarization ?
         if t != curtime:
+            print t
+            uvo.copyvr(uvi)
             for sep,bls in sep2bl.items():
-                if len(bls) < 2: continue
                 for cnt,bl0 in enumerate(bls):
-                    if not Tlist.has_key(bl0) or len(Tlist[bl0]) == 0: continue
-                    #i0,j0 = a.miriad.bl2ij(bl0)
-                    #if 16 in [i0,j0]: print a.miriad.bl2ij(bl0), 'check'
-                    #print sep, [bl for bl in bls if len(Tlist[bl]) > 0]
+                    if not _Tlist.has_key(bl0): continue
                     for bl1 in bls[cnt:]: # this includes "auto-pspecs"
-                        if len(Tlist[bl1]) == 0: continue
-                        for fq in Tlist[bl0]:
-                            _Tlist = [Tlist[bl0][fq], Tlist[bl1][fq]]
-                            _Wlist = [Wlist[bl0][fq], Wlist[bl1][fq]]
-                            D, wgt = C.pspec.k3pk_from_Trms(_Tlist, _Wlist, k=klist[bl0][fq][0], B=B, fq=fq)
-                            D,wgt = D[0], wgt[0]
-                            D /= wgt # Write everything to file in mk^2 units
-                            uvo['k3pk_fq'] = fq
-                            uvo['k3pk_wgt'] = wgt
-                            #uvo.copyvr(uvi)
-                            print a.miriad.bl2ij(bl0), a.miriad.bl2ij(bl1), t, wgt
-                            uvo.write((crd,curtime,(bl_index(bl0),bl_index(bl1))), D, n.zeros(D.shape, dtype=n.int))
+                        if not _Tlist.has_key(bl1): continue
+                        pk = scalar * _Tlist[bl0] * n.conj(_Tlist[bl1])
+                        uvo.write((crd,curtime,(bl_index(bl0),bl_index(bl1))), pk, n.zeros(pk.shape, dtype=n.int))
             # Clear the current pspec data and start a new integration
-            Tlist,Wlist = {},{}
-            for bl in bl2sep: Tlist[bl],Wlist[bl] = {},{}
+            _Tlist,_Wlist = {},{}
             curtime = t
 
         bl = a.miriad.ij2bl(i,j)
         sep = bl2sep[bl]
         if sep < 0: d,sep = n.conj(d),-sep
-        w = n.logical_not(f).astype(n.float)
-        Tres,ks = C.pspec.Trms_vs_fq(freqs, d, **kwargs)
-        W,ks = C.pspec.Trms_vs_fq(freqs, w, **kwargs)
 
-        for fq in Tres:
-            gain = n.abs(W[fq][0])
-            print fq, (i,j), sep, t, gain
-            T_cl, info = a.deconv.clean(Tres[fq], W[fq], tol=1e-9, maxiter=100, stop_if_div=False, verbose=False)
-            #print '   ', int(n.around(fq*1e3)), info['term']
-            T = T_cl + info['res'] / gain
-            Tlist[bl][fq] = Tlist[bl].get(fq,[]) + [T * gain]
-            Wlist[bl][fq] = Wlist[bl].get(fq,[]) + [gain]
-            klist[bl] = ks
-            #print fq, ks[fq][0]
+        d,f = d.take(chans), f.take(chans)
+        w = n.logical_not(f).astype(n.float)
+        Trms = d * C.pspec.jy2T(afreqs)
+        if PFB:
+            _Trms = C.pfb.pfb(Trms, window=WINDOW, taps=NTAPS, fft=n.fft.ifft)
+            _Wrms = C.pfb.pfb(w   , window=WINDOW, taps=NTAPS, fft=n.fft.ifft)
+        else:
+            window = a.dsp.gen_window(Trms.size, WINDOW)
+            _Trms = n.fft.ifft(window * Trms)
+            _Wrms = n.fft.ifft(window * w)
+        gain = n.abs(_Wrms[0])
+        if gain > 0:
+            _Tcln, info = a.deconv.clean(_Trms, _Wrms, tol=1e-9, maxiter=100, stop_if_div=False, verbose=False)
+            #_Tcln, info = a.deconv.clean(_Trms, _Wrms, tol=1e-9)
+            _Trms = _Tcln + info['res'] / gain
+        _Trms = n.fft.fftshift(_Trms)
+        _Wrms = n.fft.fftshift(_Wrms)
+
+        _Tlist[bl] = _Trms
+        _Wlist[bl] = _Wrms
 
     # Gotta do this one last time to catch the last integration.
     for sep,bls in sep2bl.items():
-        if len(bls) < 2: continue
         for cnt,bl0 in enumerate(bls):
-            if not Tlist.has_key(bl0) or len(Tlist[bl0]) == 0: continue
-            #i0,j0 = a.miriad.bl2ij(bl0)
-            #if 16 in [i0,j0]: print a.miriad.bl2ij(bl0), 'check'
-            #print sep, [bl for bl in bls if len(Tlist[bl]) > 0]
+            if not _Tlist.has_key(bl0): continue
             for bl1 in bls[cnt:]: # this includes "auto-pspecs"
-                if len(Tlist[bl1]) == 0: continue
-                for fq in Tlist[bl0]:
-                    _Tlist = [Tlist[bl0][fq], Tlist[bl1][fq]]
-                    _Wlist = [Wlist[bl0][fq], Wlist[bl1][fq]]
-                    D, wgt = C.pspec.k3pk_from_Trms(_Tlist, _Wlist, k=klist[bl0][fq][0], B=B, fq=fq)
-                    D,wgt = D[0], wgt[0]
-                    D /= wgt # Write everything to file in mk^2 units
-                    uvo['k3pk_fq'] = fq
-                    uvo['k3pk_wgt'] = wgt
-                    #uvo.copyvr(uvi)
-                    print a.miriad.bl2ij(bl0), a.miriad.bl2ij(bl1), t, wgt
-                    uvo.write((crd,curtime,(bl_index(bl0),bl_index(bl1))), D, n.zeros(D.shape, dtype=n.int))
-    
+                if not _Tlist.has_key(bl1): continue
+                pk = scalar * _Tlist[bl0] * n.conj(_Tlist[bl1])
+                uvo.write((crd,curtime,(bl_index(bl0),bl_index(bl1))), pk, n.zeros(pk.shape, dtype=n.int))
+    del(uvi); del(uvo)
 
