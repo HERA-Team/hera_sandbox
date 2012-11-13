@@ -8,7 +8,7 @@ a.scripting.add_standard_options(o, ant=True, pol=True, dec=True)
 opts,args = o.parse_args(sys.argv[1:])
 
 for filename in args:
-    outfile = filename + 'C'
+    outfile = filename + 'S'
     print filename,'->',outfile
     if os.path.exists(outfile):
         print '    File exists.  Skipping...'
@@ -23,26 +23,29 @@ for filename in args:
 
     dsum, dwgt = {},{}
     curtime = None
+    fq = .150
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
         #if not '%d_%d' % (i,j) in opts.ant: continue # uv.select balks at large numbers of selections...
         if t != curtime:
-            print curtime, dsum.keys()
+            #print curtime, dsum.keys()
             for fq in dsum:
-                uvo['k3pk_fq'] = fq
-                uvo['k3pk_wgt'] = dwgt[fq]
+                #uvo['k3pk_fq'] = fq
+                #uvo['k3pk_wgt'] = dwgt[fq]
                 d = dsum[fq] / dwgt[fq]
                 uvo.write((crd,curtime,(0,0)), d, f)
             dsum, dwgt = {}, {}
             curtime = t
-        fq = uvi['k3pk_fq']
-        wgt = uvi['k3pk_wgt']
+        #fq = uvi['k3pk_fq']
+        #wgt = uvi['k3pk_wgt']
+        wgt = 1.
         dsum[fq] = dsum.get(fq,0) + d * wgt
         dwgt[fq] = dwgt.get(fq,0) + wgt
 
     # Gotta do this one more time to catch the last integration
     print curtime, dsum.keys()
     for fq in dsum:
-        uvo['k3pk_fq'] = fq
-        uvo['k3pk_wgt'] = dwgt[fq]
+        #uvo['k3pk_fq'] = fq
+        #uvo['k3pk_wgt'] = dwgt[fq]
         d = dsum[fq] / dwgt[fq]
         uvo.write((crd,curtime,(0,0)), d, f)
+    del(uvi); del(uvo)

@@ -26,8 +26,9 @@ def dk_deta(z):
     '''2pi * [h Mpc^-1] / [GHz^-1]'''
     return 2*n.pi / dL_df(z) 
 def dk_du(z):
-    '''2pi * [h Mpc^-1] / [wavelengths]'''
-    return 2*n.pi / (dL_dth(z) * (n.pi / 2))
+    '''2pi * [h Mpc^-1] / [wavelengths], valid for u >> 1.'''
+    #return 2*n.pi / (dL_dth(z) * (n.pi / 2)) # this expression works only for u ~ 0.5
+    return 2*n.pi / dL_dth(z) # from du = 1/dth, which derives from du = d(sin(th)) using the small-angle approx
 def X2Y(z):
     '''[h^-3 Mpc^3] / [str * GHz] scalar conversion between observing and cosmological coordinates'''
     return dL_dth(z)**2 * dL_df(z)

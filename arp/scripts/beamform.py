@@ -30,6 +30,7 @@ for filename in args:
     print '    Summing baselines...'
     uvi = a.miriad.UV(filename)
     a.scripting.uv_selector(uvi, ants, opts.pol)
+    aa.set_active_pol(opts.pol)
     uvi.select('decimate', opts.decimate, opts.decphs)
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
         if t != curtime:
