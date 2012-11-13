@@ -92,8 +92,12 @@ class AntennaArray(a.pol.AntennaArray):
                         if i > j: i,j = j,i
                         bls[sep] = bls.get(sep,[]) + [(i,j)]
         rv = []
-        for sep in seps:
-            rv += [','.join(['%d_%d' % (i,j) for i,j in bls[sep]])]
+        if seps = 'all':
+            for sep in bls:
+                rv += [','.join(['%d_%d' % (i,j) for i,j in bls[sep]])]
+        else:
+            for sep in seps:
+                rv += [','.join(['%d_%d' % (i,j) for i,j in bls[sep]])]
         return ','.join([r for r in rv if len(r) > 0])
 
 prms = {
