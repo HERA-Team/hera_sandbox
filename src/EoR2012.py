@@ -76,7 +76,7 @@ class AntennaArray(a.pol.AntennaArray):
         except(KeyError): pass
         try: self.tau_ew,changed = prms['aa']['tau_ew'],1
         except(KeyError): pass
-        try: self.gain,changed = prms['aa']['tau_gain'],1
+        try: self.gain,changed = prms['aa']['gain'],1
         except(KeyError): pass
         if changed: self.update()
         return changed
