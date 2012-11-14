@@ -92,7 +92,7 @@ class AntennaArray(a.pol.AntennaArray):
                         if i > j: i,j = j,i
                         bls[sep] = bls.get(sep,[]) + [(i,j)]
         rv = []
-        if seps = 'all':
+        if seps == 'all':
             for sep in bls:
                 rv += [','.join(['%d_%d' % (i,j) for i,j in bls[sep]])]
         else:
