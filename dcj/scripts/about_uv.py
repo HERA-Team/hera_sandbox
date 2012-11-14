@@ -10,7 +10,7 @@
 Print a nice summary about a uv file.
 """
 
-import aipy as a, numpy as n,math as m
+import aipy as a, numpy as n,math as m,os,pickle
 import sys, optparse,ephem,pylab as p
 from types import *
 o = optparse.OptionParser()
@@ -40,40 +40,47 @@ if not opts.src is None:
     update_pos(cat)
 
 for file in args:
+    aboutfile=file+os.path.sep+'about'
     uv = a.miriad.UV(file)
     nchan = uv['nchan']
     aa = a.phs.AntennaArray((str(ephem.degrees(uv['latitud'])),
         str(ephem.degrees(uv['longitu']))),[])
     about = {'tmin':0,'tmax':0,'n_times':0,'ants':[],'pols':[]}
-    a.scripting.uv_selector(uv,ants='auto',pol_str="yy,xx,yx,xy")
-    about['tmin'] = 0
-    about['tmax'] = 0
-    about['n_times'] = 0
-    about['ants'] = []
-    about['pols'] = []
-    c_time = 0
     dec1,dec2 = ephem.degrees(uv['dec']-30*a.img.deg2rad),\
-        ephem.degrees(uv['dec']+30*a.img.deg2rad)
-    del(uv)
-    uv = a.miriad.UV(file)
-    if opts.corr_plot:
-        cmat = n.zeros([uv['nants']]*2)
-    lsts.append([])
-    for (uvw,t,(i,j)),d in uv.all():
-        aa.set_jultime(t)
-        lsts[-1].append(aa.sidereal_time())
-        if about['tmin']==0 or t<about['tmin']: about['tmin'] = t
-        if about['tmax']==0 or t>about['tmax']: about['tmax'] = t
-        if c_time != t:
-            c_time= t
-            about['n_times'] += 1
-        if not i in about['ants']:
-            about['ants'].append(i)
-        if a.miriad.pol2str[uv['pol']] not in about['pols']:
-            about['pols'].append(a.miriad.pol2str[uv['pol']].strip())
-        if opts.corr_plot and t==about['tmin']: 
-            dspec = d[nchan/3:nchan*2/3]
-            cmat[i,j] = n.ma.average(dspec*n.ma.conjugate(dspec))
+            ephem.degrees(uv['dec']+30*a.img.deg2rad)
+
+    if os.path.exists(aboutfile):
+        about = pickle.load(open(aboutfile))
+    else:
+        a.scripting.uv_selector(uv,ants='auto',pol_str="yy,xx,yx,xy")
+        about['tmin'] = 0
+        about['tmax'] = 0
+        about['n_times'] = 0
+        about['ants'] = []
+        about['pols'] = []
+        c_time = 0
+
+        del(uv)
+        uv = a.miriad.UV(file)
+        if opts.corr_plot:
+            cmat = n.zeros([uv['nants']]*2)
+        lsts.append([])
+        for (uvw,t,(i,j)),d in uv.all():
+            aa.set_jultime(t)
+            lsts[-1].append(aa.sidereal_time())
+            if about['tmin']==0 or t<about['tmin']: about['tmin'] = t
+            if about['tmax']==0 or t>about['tmax']: about['tmax'] = t
+            if c_time != t:
+                c_time= t
+                about['n_times'] += 1
+            if not i in about['ants']:
+                about['ants'].append(i)
+            if a.miriad.pol2str[uv['pol']] not in about['pols']:
+                about['pols'].append(a.miriad.pol2str[uv['pol']].strip())
+            if opts.corr_plot and t==about['tmin']: 
+                dspec = d[nchan/3:nchan*2/3]
+                cmat[i,j] = n.ma.average(dspec*n.ma.conjugate(dspec))
+        pickle.dump(about,open(aboutfile,'w'))
     print "-----------------------------------------"
     print file
     for k,v in about.iteritems():    

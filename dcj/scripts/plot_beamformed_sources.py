@@ -36,7 +36,7 @@ for srcname in cat:
     times = []
     spec,wgts = [],[]
     x,y,z = [],[],[]
-
+    lst,alt,az = [],[],[]
     srcfiles = []
     src = cat[srcname]
     #get a list of sources containing the current source
@@ -63,14 +63,19 @@ for srcname in cat:
                 d += src.jys.flatten() * bm.flatten()
             spec.append(n.sum(d))
             wgts.append(n.sum(w))
-    
+            alt.append(src.alt)
+            az.append(src.az)
+            lst.append(aa.sidereal_time())
     x,y,z = n.array(x), n.array(y), n.array(z)
     spec,wgts = n.array(spec), n.array(wgts)
+    az = n.array(az)
+    lst = n.array(lst)
     times = n.array(times)
     #print src.src_name,src.dec,repr(src.dec)
     if src.dec>(-30*n.pi/180): color='k'
     else: color='r'
-    plot(spec/wgts,color,label=srcname)
+    print "plotting"
+    plot(lst*12/n.pi,spec/wgts,color,label=srcname)
     draw()
 #legend()
 print "black: dec>-30, red:dec<-30"

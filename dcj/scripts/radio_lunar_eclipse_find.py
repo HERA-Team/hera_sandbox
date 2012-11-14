@@ -26,18 +26,20 @@ srcs,fluxes,catalogs = a.scripting.parse_srcs(opts.src,opts.cat)
 cat = a.cal.get_catalog(opts.cal,srcs,fluxes,catalogs)
 M = ephem.Moon()
 curt = 0
-septest=0.333*a.img.deg2rad#seperation to look for (degrees)
-for t in n.linspace(opts.t,opts.t+opts.dt,num=opts.dt):
+septest=0.5*a.img.deg2rad#seperation to look for (degrees)
+for t in n.linspace(opts.t,opts.t+opts.dt,num=opts.dt*1000):
     for src in cat:
         aa.set_jultime(t)
         cat[src].compute(aa)
         M.compute(aa)
-        if ephem.separation(cat[src],M)<septest:
-            print 'Date = ',aa.date,'\t',
-            print 'el = ', cat[src].alt,'\t',
-            print 'sep = ', ephem.separation(cat[src],M),'\t',
-            print 'name = ', cat[src].src_name,'\t',
-            print 'Transit =',cat[src].transit_time,
-            print aa.get_jultime(),'\t',
-            print "Flux = ",cat[src]._jys
+        try: 
+            if ephem.separation(cat[src],M)<septest:
+                print 'Date = ',aa.date,'\t',
+                print 'el = ', cat[src].alt,'\t',
+                print 'sep = ', ephem.separation(cat[src],M),'\t',
+                print 'name = ', cat[src].src_name,'\t',
+                print 'Transit =',cat[src].transit_time,
+                print aa.get_jultime(),'\t',
+                print "Flux = ",cat[src]._jys
+        except(TypeError):continue
         
