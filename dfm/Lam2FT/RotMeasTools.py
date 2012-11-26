@@ -137,6 +137,24 @@ def RMclean1(fq,spec,gain=0.1,tol=1e-3,stop_if_div=False,
 
     return mod_spec,res_spec
 
+def gen_RMtau_ker(nu,inv=None,window='hamming'):
+    N = len(nu)
+    rms = gen_rm_samples(nu)
+    wgt = dsp.gen_window(N,window)
+    mat = np.zeros((N,N**2),dtype=np.complex)
+    dly = np.fft.fftshift(np.fft.fftfreq(N,nu[1]-nu[0]))
+    RM,DLY =  np.zeros((N,N)),np.zeros((N,N))
+    for i in range(N):
+        RM[:,i] = rms[i]
+        DLY[i,:] = dly
+    RM = RM.flatten()
+    DLY=DLY.flatten()
+
+    for i in range(N**2):
+        mat[:,i] = np.conj(gen_rm_spec(nu,RM[i]))*np.exp(-2.j*np.pi*DLY[i]*nu)
+    if not inv is None: return np.conj(mat)
+    else: return mat/float(N)
+
 def gen_RMdly_mat(nu,spec,window='hamming'):
     N = len(nu)
     RMs = gen_rm_samples(nu)
