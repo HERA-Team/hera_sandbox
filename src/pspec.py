@@ -73,8 +73,8 @@ def k3pk_from_Trms(list_of_Trms, list_of_Twgt, k=.3, fq=.150, B=.001, bm_poly=DE
                 Trms2_wgt += Wa * n.conj(Wb)
     return scalar * Trms2_sum / Trms2_wgt, Trms2_wgt
 def k3pk_sense_vs_t(t, k=.3, fq=.150, B=.001, bm_poly=DEFAULT_BEAM_POLY, Tsys=500e3):
-    #Trms = Tsys / n.sqrt(2*(B*1e9)*t)
-    Trms = Tsys / n.sqrt((B*1e9)*t)
+    Trms = Tsys / n.sqrt(2*(B*1e9)*t) # This is the correct equation for a single-pol, cross-correlation measurement
+    #Trms = Tsys / n.sqrt((B*1e9)*t)
     return k3pk_from_Trms([Trms], [1.], k=k, fq=fq, B=B, bm_poly=bm_poly)[0]
 
 # Misc helper functions
