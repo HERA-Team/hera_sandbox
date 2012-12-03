@@ -90,7 +90,8 @@ def RMTmat(nu,window='hamming'):
     RMs = gen_rm_samples(nu)
     L2 = better_guess_l2(nu)
     L0 = l0(nu)
-    wgt = dsp.gen_window(N,window)
+    if window=='none': wgt = np.ones(N)
+    else: wgt = dsp.gen_window(N,window)
     W = np.exp(-2.j*RMs[W[1]]*(L2[W[0]]-L0)) * Lam2Measure(nu[W[0]],dnu) * wgt[W[0]] 
     return RMs,W.T
 
@@ -109,8 +110,10 @@ def iRMTmat(nu,window='hamming'):
     W = np.indices(np.array((N,N)))
     RMs = gen_rm_samples(nu)
     L2 = better_guess_l2(nu)
-    wgt = dsp.gen_window(N,window)
-    W = np.exp(2.j*RMs[W[0]]*(L2[W[1]]-L0)) / wgt[W[1]]
+    if window=='none': wgt = np.ones(N)
+    else: wgt = dsp.gen_window(N,window)
+    L0 = l0(nu)
+    W = np.exp(2.j*RMs[W[0]]*(L2[W[1]]-L0))
     W *= (RMs[-1]-RMs[0])/(np.pi*N)
     return W.T
 def iRMT(spec,W): return np.dot(W,spec)
@@ -146,7 +149,7 @@ def gen_RMtau_ker(nu,inv=None,window='hamming'):
     RM,DLY =  np.zeros((N,N)),np.zeros((N,N))
     for i in range(N):
         RM[:,i] = rms[i]
-        DLY[i,:] = dly
+        DLY[i,:] = dly[i]
     RM = RM.flatten()
     DLY=DLY.flatten()
 
@@ -248,7 +251,6 @@ def LPSsig(d,Nsig):
     d2 -= np.abs(np.mean(d))**2
     return -1.*np.log(1.-alpha**(1./N))*(d2/N)
     
-
 #  _   __  ____
 # | | | _ \  __|
 # | |_|  _/  _|
@@ -258,12 +260,10 @@ def LPSsig(d,Nsig):
 def LPF(fq,QiU,cutoff,window='hamming'):
     rms,W = RMTmat(fq,window=window)
     spec_rm = RMT(QiU,W)
-    
     filter = np.where(np.abs(rms) <= cutoff,1.,0.)
     spec_rm *= filter
-
-    W = iRMTmat(fq,window=window)
-    return iRMT(spec_rm,W)
+    Wi = iRMTmat(fq,window=window)
+    return iRMT(spec_rm,Wi)
 
 #   ___  _   _
 #  / _ \| |_| |__   ___ _ __
