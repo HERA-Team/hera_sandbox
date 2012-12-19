@@ -36,7 +36,7 @@ for filename in args:
 
     print '    Writing output file'
     uvo = a.miriad.UV(outfile, status='new')
-    uvo.init_from_uv(uvi)
+    uvo.init_from_uv(uvi, override={'pol':a.miriad.str2pol['I']})
     def mfunc(uv, p, d, f):
         uvw,t,(i,j) = p
         bl = a.miriad.ij2bl(i,j)
