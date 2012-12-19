@@ -1,16 +1,19 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n, pylab as p
 
-NBINS = 40
+FQ = .150
+BINWIDTH = 1. / 7200.
+bin_edges = n.arange(-.01+BINWIDTH/2,.01,BINWIDTH)
+NBINS = len(bin_edges)
 
 def mk_fng(bl, ex, ey, ez):
     #f = -(bl[0]*n.sin(lons) + bl[1]*n.cos(lons)) * n.cos(lats)
     return -2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey) * n.sqrt(1 - ez**2) # Hz
 
-aa = a.cal.get_aa('psa898_v002', n.array([.150]))
+aa = a.cal.get_aa('psa898_v002', n.array([FQ]))
+if False: aa.lat = '0:00'; aa.update()
 lat = aa.lat
 print lat
-#aa.lat = '0:00'; aa.update()
 h = a.healpix.HealpixMap(nside=64)
 DIM = 400
 RES = .5
@@ -45,11 +48,16 @@ def nos(dat, t):
 
 print beam_area(bm), beam_area(bm**2), nos(bm, 1.), nos(bm,1.) / n.sqrt(NBINS)
 
-bl = n.array([100, 0, 0])
+xyz = (xyz[1],xyz[0],xyz[2])
+#bl = n.array([100, 0, 0])
+#bl = aa.get_baseline(0,16,'r')
+bl = aa.get_baseline(0,1,'r') * FQ
+print 'Baseline:', bl
 fng = mk_fng(bl, *xyz)
 #print fng.max(), fng.min()
 
-hist, bin_edges = n.histogram(fng, range=(-.01,.01), bins=NBINS, weights=bm**2) # or bm**2?
+hist, bin_edges = n.histogram(fng, bins=bin_edges, weights=bm**2) # or bm**2?
+#hist, bin_edges = n.histogram(fng, range=(-.01,.01), bins=NBINS, weights=bm**2) # or bm**2?
 f = 0
 for cnt,b1 in enumerate(bin_edges[:-1]):
     b2 = bin_edges[cnt+1]
@@ -59,7 +67,8 @@ p.subplot(231)
 p.imshow(proj_hmap(bm,'e'), origin='lower')
 
 p.subplot(232)
-p.imshow(proj_hmap(fng,'e'), vmax=0, vmin=-.007, origin='lower')
+#p.imshow(proj_hmap(fng,'e'), vmax=0, vmin=-.007, origin='lower')
+p.imshow(proj_hmap(fng,'e'), origin='lower')
 
 p.subplot(233)
 p.imshow(proj_hmap(f*bm,'e'), origin='lower')
