@@ -4,7 +4,7 @@ import sys, optparse, ephem
 import capo as C
 
 o = optparse.OptionParser()
-a.scripting.add_standard_options(o, cal=True, ant=True, pol=True)
+a.scripting.add_standard_options(o, cal=True, ant=True, pol=True, src=True)
 o.add_option('--lst_res', type='float', default=10.,
     help='Resolution in seconds for binning in LST.  Default is 10.')
 o.add_option('--lst_rng', default='0_6.2832',
@@ -13,12 +13,20 @@ o.add_option('--flag_thresh', type='float', default=0.5,
     help='Fraction of data that must be unflagged a bin for the output to be unflagged.')
 o.add_option('--tfile', type='float', default=600,
     help='Length of time spanned by each input file.  Helps in filtering out files that are not needed for the lst range being processed.')
+o.add_option('--altmax', dest='altmax', type='float', default=0,
+    help="Maximum allowed altitude of source, in degrees, before data are omitted.  Default is 0.")
+
 opts, args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
 ants = a.scripting.parse_ants(opts.ant, uv['nants'])
 aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
 del(uv)
+src = None
+if not opts.src is None:
+    srclist,cutoff,catalog = a.scripting.parse_srcs(opts.src, opts.cat)
+    cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalog)
+    src = cat.values()[0]
 
 # Select only some of these LST bins to analyze
 opts.lst_rng = map(float, opts.lst_rng.split('_'))
@@ -46,8 +54,15 @@ for f in args:
     uv = a.miriad.UV(f)
     (crd,t,bl),_d,_f = uv.read(raw=True)
     aa.set_jultime(t)
+    if not src is None:
+        src.compute(aa)
+        src_alt_start = src.alt
     start_t = aa.sidereal_time()
     aa.set_jultime(t + opts.tfile * a.ephem.second)
+    if not src is None:
+        src.compute(aa)
+        src_alt_end = src.alt
+    start_t = aa.sidereal_time()
     end_t = aa.sidereal_time()
     if start_t < end_t:
         if opts.lst_rng[0] < opts.lst_rng[1]:
@@ -58,7 +73,8 @@ for f in args:
         if opts.lst_rng[0] < opts.lst_rng[1]:
             if start_t > opts.lst_rng[1] and end_t < opts.lst_rng[0]: continue
         # Never bail if both wrap...
-    nargs.append(f)
+    if src is None or (src_alt_start < opts.altmax or src_alt_end < opts.altmax):
+        nargs.append(f)
 
 jds = {}
 for f in nargs:
@@ -77,10 +93,13 @@ for f in nargs:
     for (uvw,t,(i,j)),d,f in uv.all(raw=True):
         if t != curtime:
             aa.set_jultime(t)
+            if not src is None: src.compute(aa); print src.alt
             lst = lstbin(aa.sidereal_time())
             if dat.has_key(lst): jds[lst] = min(jds.get(lst,n.Inf), t)
+            curtime = t
         # Only take this LST if we have a bin for it already allocated
         if not dat.has_key(lst): continue
+        if not src is None and src.alt >= opts.altmax: continue
         blp = a.pol.ijp2blp(i,j,uv['pol'])
         crds[blp] = uvw
         dat[lst][blp] = dat[lst].get(blp,0) + n.where(f,0,d)

@@ -19,7 +19,8 @@ G_ = [53,21,15,16,62,44, 0,26]
 H_ = [31,45, 8,11,36,60,39,46]
 ANTPOS_6240 = n.array([A_, B_, C_, D_,E_,F_,G_,H_])
 
-ANTPOS = ANTPOS_6240
+#ANTPOS = ANTPOS_6240
+ANTPOS = ANTPOS_5903
 
 bls = {}
 for ri in range(ANTPOS.shape[0]):
