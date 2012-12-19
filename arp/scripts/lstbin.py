@@ -88,6 +88,9 @@ for f in nargs:
 
 lsts = [lst for lst in dat if len(dat[lst]) > 0]
 lsts.sort()
+if len(lsts) == 0:
+    print 'No LST bins with data.  Exitting...'
+    sys.exit(0)
 lst_start = lsts[0]
 jd_start = jds[lst_start]
 djd_dlst = a.const.sidereal_day / (2*n.pi) * a.ephem.second
