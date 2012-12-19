@@ -2,36 +2,68 @@
 import aipy as a, numpy as n, pylab as p
 import optparse, sys
 
-p.ion()
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True)
 opts,args = o.parse_args(sys.argv)
 
-#aa = a.cal.get_aa(opts.cal, n.array([.150]))
-aa = a.cal.get_aa(opts.cal, n.array([.1738]))
+FQ = .160
+aa = a.cal.get_aa(opts.cal, n.array([FQ]))
+bl0 = aa.get_baseline(1,16,'r')
+bl1 = aa.get_baseline(1,17,'r')
+bl2 = aa.get_baseline(1,18,'r')
+bls = [bl0, bl1, bl2]
 
-h = a.healpix.HealpixMap(nside=64)
-#h = a.healpix.HealpixMap(nside=32)
-h.map = n.random.normal(size=h.map.size)
+h = a.healpix.HealpixMap(nside=256)
+heq = h.px2crd(n.arange(h.npix()))
+htp = n.dot(a.coord.eq2top_m(0., aa.lat), heq)
+hbm = aa[0].bm_response(htp, pol='y')**2
+hbm = n.where(htp[-1] > 0, hbm, 0)
+#fng = n.exp(-2j*n.pi*n.dot(bl1, heq)*FQ)
+fng = n.exp(-2j*n.pi*n.dot(bl0, heq)*FQ)
+h.map = (hbm * fng).squeeze()
 h.set_interpol(True)
 
-#im = a.img.Img(size=200, res=.5)
 SZ = 200
 im = a.img.Img(size=SZ, res=.5)
 tx,ty,tz = im.get_top()
+ex,ey,ez = im.get_eq(ra=0., dec=aa.lat)
 invalid = tx.mask.copy()
-tx = tx.filled(0).flatten()
-ty = ty.filled(0).flatten()
-tz = tz.filled(0).flatten()
-
+tx,ty,tz = tx.filled(0).flatten(), ty.filled(0).flatten(), tz.filled(0).flatten()
 resp = aa[0].bm_response((tx,ty,tz), pol='y')**2
 resp.shape = invalid.shape
 resp = n.where(invalid, 0, resp/resp[0,0])
+fng = {}
+p.ion()
+for cnt,bl in enumerate(bls):
+    fng[cnt] = n.exp(-2j*n.pi*(bl[0]*ex + bl[1]*ey + bl[2]*ez) * FQ) * resp
+    p.subplot(2,2,cnt+1)
+    plt_fng = n.fft.fftshift(n.real(fng[cnt]))
+    p.imshow(plt_fng, origin='lower')
 
+PLOT = None
+for ha in n.arange(-2*n.pi/12, n.pi/12, n.pi / (12*6*5)):
+    print ha
+    ex,ey,ez = im.get_eq(ra=ha, dec=aa.lat)
+    ex = ex.filled(0).flatten()
+    ey = ey.filled(0).flatten()
+    ez = ez.filled(1).flatten()
+    base_fng = h[ex,ey,ez]
+    base_fng.shape = invalid.shape
+    plt_fng = n.fft.fftshift(n.real(base_fng))
+    if PLOT is None:
+        p.subplot(2,2,4)
+        PLOT = p.imshow(plt_fng, origin='lower')
+    else: PLOT.set_data(plt_fng)
+    p.draw()
+    for cnt,bl in enumerate([bl0,bl1,bl2]):
+        corr = n.sum(fng[cnt] * n.conj(base_fng)) / n.sum(resp**2)
+        print cnt, n.abs(corr), n.angle(corr)
+p.ioff()
+p.show()
+sys.exit(0)
 lsts = []
 uvdata0,uvdata1,uvdata2,uvdata3 = [],[],[],[]
-PLOT = None
 for ha in n.arange(-n.pi/16, n.pi/16, 2*n.pi / (24*60)):
     print ha
     lsts.append(ha)
