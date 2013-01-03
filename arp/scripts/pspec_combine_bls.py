@@ -42,11 +42,14 @@ for filename in args:
         if t != curtime:
             curtime = t
             dsum[t], dwgt[t] = {}, {}
-        # XXX need to handle different polarizations
+        pol = uvi['pol']
+        if not dsum[t].has_key(pol):
+            dsum[t][pol] = {}
+            dwgt[t][pol] = {}
         bin = bl2bin[bl]
         #print (i,j),'->',a.miriad.bl2ij(bin)
-        dsum[t][bin] = dsum[t].get(bin, 0) + n.where(f, 0, d)
-        dwgt[t][bin] = dwgt[t].get(bin, 0) + n.logical_not(f).astype(n.int)
+        dsum[t][pol][bin] = dsum[t][pol].get(bin, 0) + n.where(f, 0, d)
+        dwgt[t][pol][bin] = dwgt[t][pol].get(bin, 0) + n.logical_not(f).astype(n.int)
     uvi.rewind()
 
     print '    Writing output file'
@@ -55,7 +58,8 @@ for filename in args:
     def mfunc(uv, p, d, f):
         uvw,t,(i,j) = p
         bl = a.miriad.ij2bl(i,j)
-        try: _dsum,_dwgt = dsum[t].pop(bl), dwgt[t].pop(bl)
+        pol = uv['pol']
+        try: _dsum,_dwgt = dsum[t][pol].pop(bl), dwgt[t][pol].pop(bl)
         except(KeyError): return p, None, None
         wgt = _dwgt.clip(1,n.Inf)
         f = n.where(_dwgt == 0, 1, 0)
