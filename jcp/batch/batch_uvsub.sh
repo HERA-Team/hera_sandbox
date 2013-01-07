@@ -3,12 +3,11 @@
 #$ -j y
 #$ -cwd
 #$ -o grid_output/
-#$ -N sub_Sun
-CAL=pgb322_v008_gc
+#$ -N uvadd
 
 ARGS=`pull_args.py $*`
 for FILE in ${ARGS}
 do 
-    echo uv_addsub.py --sub ${FILE} ${FILE}.e_Sun
-    uv_addsub.py --sub ${FILE} ${FILE}.e_Sun
+    uv_addsub_noflags.py ${FILE}F ${FILE}BF
+    uv_addsub_noflags.py ${FILE}Fa ${FILE}BB
 done

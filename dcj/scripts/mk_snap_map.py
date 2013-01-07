@@ -108,7 +108,7 @@ for i, filename in enumerate(args):
 #    print "new image weights:",n.sum(map_wgts)
 #    print "total image weights:",n.sum(skymap.wgt.map)
 #    print "Adding image"
-    skymap.add((ex,ey,ez), map_wgts, img*map_wgts) # down-weight by beam resp squared
+    skymap.add((ex,ey,ez), map_wgts, img) # down-weight by beam resp squared
 #    print "Total image power:", n.sum(skymap.map.map)
 #    print "Total image weights:", n.sum(skymap.wgt.map)
 hdulist = pf.open(filename)
