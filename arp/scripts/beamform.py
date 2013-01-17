@@ -4,12 +4,14 @@ import optparse, sys, os
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, cal=True, src=True, dec=True)
-o.add_option('-b', '--beam', dest='beam', action='store_true',
+o.add_option('-b', '--beam', action='store_true',
     help='Normalize by the primary beam response in the direction of the specified source.')
-o.add_option('-f', '--srcflux', dest='srcflux', action='store_true',
+o.add_option('-f', '--srcflux', action='store_true',
     help='Normalize by the spectrum of the specified source.')
-o.add_option('--minuv', dest='minuv', type='float', default=0,
+o.add_option('--minuv', type='float', default=0,
     help='Minimum uv length (in wavelengths) for a baseline to be included.')
+o.add_option('--maxuv', type='float', default=n.Inf,
+    help='Maximum uv length (in wavelengths) for a baseline to be included.')
 opts,args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
@@ -45,11 +47,13 @@ for filename in args:
             d = aa.phs2src(d, src, i, j)
             u,v,w = aa.gen_uvw(i, j, src)
             tooshort = n.where(n.sqrt(u**2+v**2) < opts.minuv, 1, 0).squeeze()
-            if n.all(tooshort):
+            toolong = n.where(n.sqrt(u**2+v**2) > opts.maxuv, 1, 0).squeeze()
+            dont_use = n.logical_or(tooshort, toolong)
+            if n.all(dont_use):
                 #print i,j, 'too short:',
                 #print n.average(n.sqrt(u**2+v**2)), '<', opts.minuv
                 continue
-            f = n.logical_or(f, tooshort)
+            f = n.logical_or(f, dont_use)
             gain = aa.passband(i,j)
             if opts.beam: gain *= aa.bm_response(i,j,pol=opts.pol).squeeze()
             if opts.srcflux: gain *= src_spec

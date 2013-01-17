@@ -13,8 +13,10 @@ o.add_option('--flag_thresh', type='float', default=0.5,
     help='Fraction of data that must be unflagged a bin for the output to be unflagged.')
 o.add_option('--tfile', type='float', default=600,
     help='Length of time spanned by each input file.  Helps in filtering out files that are not needed for the lst range being processed.')
-o.add_option('--altmax', dest='altmax', type='float', default=0,
-    help="Maximum allowed altitude of source, in degrees, before data are omitted.  Default is 0.")
+o.add_option('--altmax', type='float', default=0,
+    help="Maximum allowed altitude of source, in degrees, before data are omitted.  Handy for omitting Sun data.  Default is 0.")
+o.add_option('--nogaps', action='store_true',
+    help='Record a spectrum for every LST in the chosen range, even if a blank one must be created to fill a gap.')
 
 opts, args = o.parse_args(sys.argv[1:])
 
@@ -105,14 +107,30 @@ for f in nargs:
         dat[lst][blp] = dat[lst].get(blp,0) + n.where(f,0,d)
         cnt[lst][blp] = cnt[lst].get(blp,0) + n.logical_not(f).astype(n.int)
 
-lsts = [lst for lst in dat if len(dat[lst]) > 0]
+if opts.nogaps:
+    lsts = lstbins # record all bins
+else:
+    lsts = [lst for lst in dat if len(dat[lst]) > 0] # only record bins with data
 lsts.sort()
 if len(lsts) == 0:
     print 'No LST bins with data.  Exitting...'
     sys.exit(0)
-lst_start = lsts[0]
-jd_start = jds[lst_start]
+# Get list of all blps to record, just to make sure that each time has a record for each blp
+blps = {}
+for lst in dat:
+    for blp in dat[lst]:
+        blps[blp] = None
+blps = blps.keys()
+# Find a starting jd for recording in the file
+lst_start, jd_start = n.Inf, n.Inf
+for lst in jds:
+    if jds[lst] < jd_start:
+        lst_start, jd_start = lst, jds[lst]
 djd_dlst = a.const.sidereal_day / (2*n.pi) * a.ephem.second
+jd_start = jd_start + (lst_start - lsts[0]) * djd_dlst
+lst_start = lsts[0]
+#lst_start = lsts[0]
+#jd_start = jds[lst_start]
 
 uvi = a.miriad.UV(args[0])
 filename = 'lst.%7.5f.uv' % jd_start
@@ -121,17 +139,23 @@ uvo = a.miriad.UV(filename, status='new')
 uvo.init_from_uv(uvi)
 # XXX could think about adding a variable that keeps track of how many integrations went into a bin
 
+dzero = n.zeros(uvi['nchan'], dtype=n.complex64)
+fzero = n.ones(uvi['nchan'], dtype=n.int)
 for lst in lsts:
     t = jd_start + (lst - lst_start) * djd_dlst
     print 'LST:', a.ephem.hours(lst), '(%f)' % lst, ' -> JD:', t
     sys.stdout.flush()
     uvo['lst'], uvo['ra'], uvo['obsra'] = lst, lst, lst
-    for blp in dat[lst]:
+    #for blp in dat[lst]:
+    for blp in blps:
         i,j,uvo['pol'] = a.pol.blp2ijp(blp)
         preamble = (crds[blp], t, (i,j))
-        cmax = n.max(cnt[lst][blp])
-        d = dat[lst][blp] / cnt[lst][blp].clip(1, n.Inf)
-        f = n.where(cnt[lst][blp] < cmax * opts.flag_thresh, 1, 0)
+        try:
+            cmax = n.max(cnt[lst][blp])
+            d = dat[lst][blp] / cnt[lst][blp].clip(1, n.Inf)
+            f = n.where(cnt[lst][blp] < cmax * opts.flag_thresh, 1, 0)
+        except(KeyError): # This happens if we are missing data for a desired LST bin
+            d,f = dzero, fzero
         uvo.write(preamble, d, f)
 del(uvo)
 print 'Finished writing', filename
