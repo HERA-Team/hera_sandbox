@@ -11,12 +11,15 @@ o.add_option('-z',dest='z',default=10,type='float',
     help="""Plot height as circles multiplied by this factor""")
 o.add_option('-p',dest='p',action='store_true',
     help="""Plot phase as circles multiplied by this facter (override height).""")
-
+o.add_option('--print',dest='doprint',action='store_true',
+    help="""Print topographic coordinates in a nice tsv way""")
+o.add_option('-v',action='store_true',
+    help="Add more info")
 opts, args = o.parse_args(sys.argv[1:])
 
 if not opts.origin is None: origin = n.array(map(float,opts.origin.split(',')))
 else: origin = n.array([0,0,0])
-print "origin = ",origin
+if opts.v: print "origin = ",origin
 th = n.arange(0, 2*n.pi, .01)
 fmts = (('k.','k-'), ('r.','r-.'))
 
@@ -28,19 +31,20 @@ if len(aas)>1:
     for cnt, aa in enumerate(aas):
         antpos = [aa.get_baseline(0,i,src='z') for i in range(len(aa.ants))]
         antpos = n.array(antpos) * a.const.len_ns / 100.
-        print n.sum(origin)
+        if opts.v: print n.sum(origin)
         if n.sum(origin)== 0:
             origin = n.mean(antpos,axis=1)
             antpos -= origin
-            print "using origin = ",origin
+            if opts.v: print "using origin = ",origin
         x,y,z = antpos[:,0], antpos[:,1], antpos[:,2]
         all_antpos[:,:,cnt]=antpos
-        for l in antpos: print "[",l[0],",",l[1],",",l[2],"]"
+        if opts.v: 
+            for l in antpos: print "[",l[0],",",l[1],",",l[2],"]"
         def fitfunc(vec):
             r,cx, cy = vec
             return ((n.sqrt((x-cx)**2 + (y-cy)**2) - r)**2).sum()
         if cnt==0: r,cx,cy = a.optimize.fmin(fitfunc, n.array([200., 0, 0]))
-        print r, cx, cy
+        if opts.v: print r, cx, cy
         circ_x, circ_y = r*n.cos(th), r*n.sin(th)
         if cnt==1: 
            x_c =all_antpos[:,0,0] - cx
@@ -113,7 +117,7 @@ else:
     antpos /= 3.3356
     if opts.origin is None: origin = n.mean(antpos,axis=0)
     antpos -= origin
-    print antpos
+    if opts.v: print antpos
     fmt1,fmt2 = fmts[0 % len(fmts)]
     p.plot(antpos[:,0],antpos[:,1], fmt1)
     p.plot([0],[0],fmt1)
@@ -121,8 +125,12 @@ else:
     if not opts.p is None: 
         prms = aa.get_params()
         print "Circles are %f * dly"%(opts.z)
-    print "base1 relative sighting coords"
-    print "ant #\t distance [m]\t azimuth [deg]"
+    #print "base1 relative sighting coords"
+    #print "ant #\t distance [m]\t azimuth [deg]"
+    if opts.doprint:
+        print """#PAPER 32 antenna locations
+#locations of antennae in local topocentric coordinates
+#East, North, Height (units in Meters)"""
     for ant,(xa,ya,za) in enumerate(antpos):
         if not opts.p is None: 
             za=prms[str(ant)]['dly']
@@ -137,7 +145,9 @@ else:
         if xa<0 and ya>0: az += 360
         if xa>0 and ya<0: az += 180
         if az==n.NaN: az=0
-        print "%d\t%d\t%d"%(ant,n.round(n.sqrt(xa**2+ya**2)).astype(int), int(az))
+        #print "%d\t%d\t%d"%(ant,n.round(n.sqrt(xa**2+ya**2)).astype(int), int(az))
+        if opts.doprint: 
+            print "%i\t%7.2f\t%7.2f\t%7.2f\t"%(ant,xa,ya,za)
 #    p.axis('equal')
     p.grid()
     p.xlim([-150,150])
@@ -146,4 +156,4 @@ else:
     p.xlabel('E [m]')
 #    p.axis('square')
     p.subplots_adjust(left=0.15,right=0.95,bottom=0.15,top=0.95)
-    p.show()
+    if not opts.doprint: p.show()
