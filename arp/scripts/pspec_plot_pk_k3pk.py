@@ -105,7 +105,7 @@ for sep in RS_VS_KPL:
     #d *= 0.774 # Recalibrate to Pic A from Perley et al. 1997
     #d *= 1.125 # Recalibrate to Pic A from Slee 1995
     d *= .65 # current best guess by psa747 data
-    d *= 2.35 # Use power**2 beam
+    d *= 2.35 # Use power**2 beam, which is a 1.69/0.72=2.35 penalty factor
     #for _kpl,_pk,_nos in zip(kpl,d,nos): print _kpl, _pk, _nos
     print sep, colors[0]
     dual_plot(kpl, d, 2*nos, color=colors[0], bins=BINS) # 2-sigma error bars

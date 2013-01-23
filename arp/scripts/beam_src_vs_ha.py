@@ -52,10 +52,11 @@ for filename in args:
         f = n.where(n.isnan(d), 1, f)
         d = n.where(f, 0, d)
         w = n.logical_not(f)
-        if False and w.sum() > 0: # Do delay filtering
-            DLYWID = 5
-            dmdl,dres = C.dspec.wideband_dspec(d, w, DLYWID+1, -DLYWID, tol=1e-4, window='none')
-            d = dmdl * w
+        #if False and w.sum() > 0: # Do delay filtering
+        #    DLYWID = 5
+        #    dmdl,dres = C.dspec.wideband_dspec(d, w, DLYWID+1, -DLYWID, tol=1e-4, window='none')
+        #    dres[DLYWID+1:-DLYWID] = 0
+        #    d = (dmdl+dres) * w
         aa.set_jultime(t)
         src.compute(aa)
         src_xyz = src.get_crds('top')
@@ -119,9 +120,10 @@ for cnt,srcname in enumerate(tracks.keys()):
     mask_vs_fq = n.sum(mask, axis=0)
     valid = n.where(mask_vs_fq > mask_vs_fq.max() / n.sqrt(2), 1, 0)
     if True: # Do delay filtering on calsrc
-        DLYWID = 5
-        dmdl,dres = C.dspec.wideband_dspec(calest*valid, valid, DLYWID+1, -DLYWID, tol=1e-4, window='none')
-        sm_calest = dmdl
+        DLYWID = 10
+        dmdl,dres = C.dspec.wideband_dspec(calest*valid, valid, DLYWID+1, -DLYWID, tol=1e-10, window='none')
+        dres[DLYWID+1:-DLYWID] = 0
+        sm_calest = dmdl + dres
 
     srcest = srcest.compress(valid)
     calest = calest.compress(valid)
@@ -129,7 +131,11 @@ for cnt,srcname in enumerate(tracks.keys()):
     fq = aa.get_afreqs().compress(valid)
     #fq = aa.get_afreqs()
 
-    calsrc_spec = 93.7 * (fq/.150)**-0.82 
+    cal = {}
+    cal['1932-464'] = 93.7 * (fq/.150)**-0.82 
+    #cal['2331-416'] = 31.9 * (fq/.150)**-0.69
+    cal['2331-416'] = 33.9 * (fq/.150)**-0.76
+    calsrc_spec = cal[calsrc]
     #gain = calsrc_spec / calest
     sm_gain = calsrc_spec / sm_calest
     #sm_gain = n.polyfit(fq, gain, deg=7)
