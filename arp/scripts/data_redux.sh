@@ -16,6 +16,7 @@ for FILE in $UVCR; do
     echo Working on $FILE
     TRIPLET=`get_uv_neighbor.py $FILE`
     TRIP_LEN=`python -c "print len('${TRIPLET}'.split())"`
+    echo Using files: $TRIPLET
     if [ $TRIP_LEN -lt 3 ] ; then 
         echo No adjacent files to use.  Skipping...
         continue

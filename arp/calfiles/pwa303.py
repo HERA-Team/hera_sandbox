@@ -36,11 +36,11 @@ class AntennaArray(a.fit.AntennaArray):
         g = 1
         #g = self.bl_gain[bl]**2
         return a.fit.AntennaArray.passband(self, i, j) * self._passband * g
-    def bm_response(self, i, j, pol='xx'):
-        return a.fit.AntennaArray.bm_response(self,i,j,pol=pol)/self._beamgain
+    def bm_response(self, i, j):
+        return a.fit.AntennaArray.bm_response(self,i,j)/self._beamgain
 
 
-class BeamNoFlaps(a.ant.Beam):
+class BeamNoFlaps(a.amp.Beam):
     """A specific beam model for the PAPER experiment.  This model is for
     a single dipole element with no flaps."""
     def __init__(self, freqs, **kwargs):
@@ -70,7 +70,7 @@ class BeamNoFlaps(a.ant.Beam):
             [-3.4672940, 0.091929321,-0.00071502397, 1.7311496e-06],
             [ 3.4123240,-0.063083812, 0.00038093617,-7.5356570e-07],
         ])
-        a.ant.Beam.__init__(self, freqs)
+        a.amp.Beam.__init__(self, freqs)
         self._update_coeffs()
     def _update_coeffs(self):
         mhz_freqs = 1e3 * self.afreqs # GHz -> MHz
@@ -84,7 +84,7 @@ class BeamNoFlaps(a.ant.Beam):
         #self.BXo = n.dot(self.CsXo, mhz_freqs)
         self.BSd = n.dot(self.CsSd, mhz_freqs)
     def select_chans(self, active_chans):
-        a.ant.Beam.select_chans(self, active_chans)
+        a.amp.Beam.select_chans(self, active_chans)
         self._update_coeffs()
     def response(self, xyz):
         """Return the beam response across the active band for the specified
