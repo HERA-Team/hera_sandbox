@@ -55,7 +55,8 @@ for filename in args:
         pol = a.miriad.pol2str[uv['pol']]
         try:
             d_,w = data[bl][pol].pop(t), wgts[bl][pol].pop(t)
-            f_ = n.where(w < .75 * w.max(), 1, 0)
+            #f_ = n.where(w < .75 * w.max(), 1, 0)
+            f_ = f
             d_ /= n.where(f_, n.Inf, w)
         except(KeyError): return p, None, None
         return p, d_, f_

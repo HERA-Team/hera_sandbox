@@ -104,7 +104,7 @@ for sep in RS_VS_KPL:
     #d *= 1.448 # Recalibrate to new Pic A spec from Jacobs 12/21/12?  How well do we know this?
     #d *= 0.774 # Recalibrate to Pic A from Perley et al. 1997
     #d *= 1.125 # Recalibrate to Pic A from Slee 1995
-    d *= .65 # current best guess by psa747 data
+    d *= .66 # psa747 calibration of Pic A = 345.6 Jy @ 160 MHz
     d *= 2.35 # Use power**2 beam, which is a 1.69/0.72=2.35 penalty factor
     #for _kpl,_pk,_nos in zip(kpl,d,nos): print _kpl, _pk, _nos
     print sep, colors[0]
