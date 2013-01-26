@@ -75,7 +75,7 @@ for filename in args:
                 _d,_w = n.fft.ifft(d[:,ch]*window), n.fft.ifft(w[:,ch]*window)
                 gain = n.abs(_w[0])
                 #print ch, gain
-                if gain < .01: continue
+                if gain < .1: continue
                 area = n.ones(_d.shape, dtype=n.int)
                 # XXX would prefer to implement fr cuts as weights rather than bin ranges...
                 area[ufr+1:lfr] = 0
