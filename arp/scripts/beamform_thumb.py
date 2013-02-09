@@ -1,13 +1,12 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n
 import optparse, sys, os
+import scipy.interpolate
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, cal=True, src=True, dec=True)
-o.add_option('-b', '--beam', action='store_true',
-    help='Normalize by the primary beam response in the direction of the specified source.')
-o.add_option('-f', '--srcflux', action='store_true',
-    help='Normalize by the spectrum of the specified source.')
+o.add_option('--thumb', 
+    help='Thumbnail to use as the source model')
 o.add_option('--minuv', type='float', default=0,
     help='Minimum uv length (in wavelengths) for a baseline to be included.')
 o.add_option('--maxuv', type='float', default=n.Inf,
@@ -22,12 +21,25 @@ cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs)
 src = cat.values()[0]
 del(uv)
 
+npz = n.load(opts.thumb)
+srcmdl = npz['img']
+dra,ddec = npz['dra_ddec']
+srcuv = n.fft.fft(srcmdl); srcuv /= n.abs(srcuv).max()
+u = n.fft.fftfreq(srcmdl.shape[0], dra)
+v = n.fft.fftfreq(srcmdl.shape[1], ddec)
+srcuv = n.abs(srcuv)
+print srcuv.shape, u.shape, v.shape
+print 'Creating interpolation'
+uv_resp = scipy.interpolate.RectBivariateSpline(n.fft.fftshift(u),n.fft.fftshift(v),n.fft.fftshift(srcuv))
+print 'Done creating interpolation'
+
+
 for filename in args:
     print filename, '->', filename+'.bm_'+src.src_name
     if os.path.exists(filename+'.bm_'+src.src_name):
         print '    File exists, skipping.'
         continue
-    dbuf,cbuf = {}, {}
+    dbuf,wbuf = {}, {}
     curtime = None
     print '    Summing baselines...'
     uvi = a.miriad.UV(filename)
@@ -39,28 +51,22 @@ for filename in args:
             curtime = t
             aa.set_jultime(t)
             src.compute(aa)
-            if opts.srcflux: src_spec = src.get_jys()
-            if opts.beam: 
-                s_eq = cat.get_crds('eq', ncrd=3)
-                aa.sim_cache(s_eq)
         try:
             d = aa.phs2src(d, src, i, j)
             u,v,w = aa.gen_uvw(i, j, src)
             tooshort = n.where(n.sqrt(u**2+v**2) < opts.minuv, 1, 0).squeeze()
             toolong = n.where(n.sqrt(u**2+v**2) > opts.maxuv, 1, 0).squeeze()
             dont_use = n.logical_or(tooshort, toolong)
-            if n.all(dont_use):
-                #print i,j, 'too short:',
-                #print n.average(n.sqrt(u**2+v**2)), '<', opts.minuv
-                continue
-            f = n.logical_or(f, dont_use)
+            if n.all(dont_use): continue
+            u,v = u.flatten(), v.flatten()
+            w = n.array([uv_resp(u0,v0) for u0,v0 in zip(u,v)]).flatten()
+            #print u[u.size/2],v[u.size/2],w[u.size/2]
+            w = n.where(dont_use, 0, w*n.logical_not(f))
             gain = aa.passband(i,j)
-            if opts.beam: gain *= aa.bm_response(i,j,pol=opts.pol).squeeze()
-            if opts.srcflux: gain *= src_spec
             d /= gain
-        except(a.phs.PointingError): d *= 0
-        dbuf[t] = dbuf.get(t, 0) + n.where(f, 0, d)
-        cbuf[t] = cbuf.get(t, 0) + n.logical_not(f).astype(n.int)
+        except(a.phs.PointingError): w = n.zeros_like(f)
+        dbuf[t] = dbuf.get(t, 0) + d * n.conj(w)
+        wbuf[t] = wbuf.get(t, 0) + w * n.conj(w)
     uvi.rewind()
 
     print '    Writing output file'
@@ -70,16 +76,15 @@ for filename in args:
         uvw,t,(i,j) = p
         if t != curtime:
             curtime = t
-            cnt = cbuf[t].clip(1,n.Inf)
-            f = n.where(cbuf[t] == 0, 1, 0)
-            d = dbuf[t] / cnt
+            wgt = wbuf[t]
+            f = n.where(wbuf[t] == 0, 1, 0)
+            d = n.where(f, 0, dbuf[t] / wgt)
             return (uvw,t,(i,j)), d, f
         else: return (uvw,t,(1,1)), None, None
         
     uvo = a.miriad.UV(filename+'.bm_'+src.src_name, status='new')
     uvo.init_from_uv(uvi)
-    uvo.pipe(uvi, mfunc=mfunc, raw=True,
-        append2hist='BEAMFORM: src=%s ant=%s srcflux=%s minuv=%s\n' % (opts.src, opts.ant, opts.srcflux, opts.minuv))
+    uvo.pipe(uvi, mfunc=mfunc, raw=True, append2hist='BEAMFORM: ' + ' '.join(sys.argv))
     del(uvi); del(uvo)
     
     

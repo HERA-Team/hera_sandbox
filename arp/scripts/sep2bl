@@ -19,13 +19,14 @@ G_ = [53,21,15,16,62,44, 0,26]
 H_ = [31,45, 8,11,36,60,39,46]
 ANTPOS_6240 = n.array([A_, B_, C_, D_,E_,F_,G_,H_])
 
-ANTPOS = ANTPOS_6240
+#ANTPOS = ANTPOS_6240
+ANTPOS = ANTPOS_5903
 
 bls = {}
 for ri in range(ANTPOS.shape[0]):
     for ci in range(ANTPOS.shape[1]):
         for rj in range(ANTPOS.shape[0]):
-            for cj in range(ANTPOS.shape[1]):
+            for cj in range(ci,ANTPOS.shape[1]):
                 sep = '%d,%d' % (rj-ri, cj-ci)
                 i,j = ANTPOS[ri,ci], ANTPOS[rj,cj]
                 if i > j: i,j = j,i

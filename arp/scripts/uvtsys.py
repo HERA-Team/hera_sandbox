@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n, pylab as p
+import capo as C
 import optparse, sys
 
 o = optparse.OptionParser()
@@ -10,16 +11,8 @@ uv = a.miriad.UV(args[0])
 aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
 del(uv)
 
-pb_poly = [ -1.55740671e+09,  1.14162351e+09, -2.80887022e+08,  9.86929340e+06,
-    7.80672834e+06, -1.55085596e+06,  1.20087809e+05, -3.47520109e+03]
-
-def jy2T(freqs_in_GHz):
-    lam = a.const.c / (freqs_in_GHz * 1e9)
-    pb = n.polyval(pb_poly, freqs_in_GHz)
-    return 1e-23 * lam**2 / (2 * a.const.k * pb)
-
 freqs = aa.get_afreqs()
-jy2T = jy2T(freqs)
+jy2T = C.pspec.jy2T(freqs)
 
 _sum, _wgt = {}, {}
 for filename in args:

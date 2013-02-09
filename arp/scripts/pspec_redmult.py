@@ -13,6 +13,7 @@ NTAPS = opts.taps
 if NTAPS > 1: PFB = True
 else: PFB = False
 WINDOW = 'blackman-harris'
+#WINDOW = 'none'
 
 # XXX Currently hardcoded for PSA898
 A_ = [0,16,8,24,4,20,12,28]
@@ -82,9 +83,8 @@ for filename in args:
 
     _Tlist,_Wlist,curtime = {},{},None
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
-        # XXX Need to deal with polarization ?
         if t != curtime:
-            print t
+            #print t
             uvo.copyvr(uvi)
             for sep,bls in sep2bl.items():
                 for cnt,bl0 in enumerate(bls):
