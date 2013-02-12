@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n
-import pfits, sys, optparse, glob, ephem, os
+import sys, optparse, glob, ephem, os
 
 o = optparse.OptionParser()
 o.add_option('--H_balun',dest='H_balun', type='float', default=-0.024,

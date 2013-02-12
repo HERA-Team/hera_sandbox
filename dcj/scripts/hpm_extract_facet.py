@@ -58,7 +58,7 @@ def to_fits(filename,i,src,name,history=''):
         ra,dec = src._ra,src._dec
     elif opts.osys=='ga':
         axes = axes=('glon-sin','glat-sin')
-        ra,dec = src.long,src.lat
+        ra,dec = src.lon,src.lat
     a.img.to_fits(filename, i, clobber=True,
         object=name, 
         ra=ra*a.img.rad2deg, dec=dec*a.img.rad2deg, epoch=2000.,
@@ -152,7 +152,7 @@ for infile in args:
     for name,s in cat.iteritems():
         print "extracting: ",name
         if opts.osys=='ga':
-            print "l = %s, b = %s"%(s.long,s.lat)
+            print "l = %s, b = %s"%(s.lon,s.lat)
         else:
             print "RA = %s, DEC = %s"%(s._ra,s._dec)
         print opts.size,opts.res/60.
@@ -176,7 +176,7 @@ for infile in args:
 #                    ephem.Galactic(ephem.Equatorial(s._ra,s._dec)).lat
 #            print RA,DEC
         if opts.osys=='ga':
-            RA,DEC = s.long,s.lat
+            RA,DEC = s.lon,s.lat
         else: RA,DEC = s._ra,s._dec
         x,y,z = im.get_eq(RA,DEC, center=(DIM/2,DIM/2))
         crd = n.row_stack((x.ravel(),y.ravel(),z.ravel()))
@@ -184,7 +184,7 @@ for infile in args:
         m = a.coord.convert_m(opts.osys, opts.isys)
         print m.shape
         ex,ey,ez = n.dot(m, crd)
-        ex = ex.compress(valid); ey = ey.compress(valid); ez = ez.compress(valid)
+        #ex = ex.compress(valid); ey = ey.compress(valid); ez = ez.compress(valid)
         img = skymap[ex,ey,ez]
         if opts.output_weights: 
             wgt_img = skymap.wgt[ex,ey,ez]
