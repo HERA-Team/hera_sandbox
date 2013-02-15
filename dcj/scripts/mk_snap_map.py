@@ -51,7 +51,8 @@ for i, filename in enumerate(args):
     # each pixel.  This is because extrapolating pixel coords from the J2000 
     # center assumes the J2000 ra/dec axes, which may be tilted relative to
     # the ra/dec axes of the epoch of the image.
-    s = ephem.Equatorial(s, epoch=kwds['obs_date'])
+    try: s = ephem.Equatorial(s, epoch=kwds['obs_date'])
+    except:pass
     ra, dec = s.get()
     print '-----------------------------------------------------------'
     print 'Reading file %s (%d / %d)' % (filename, i + 1, len(args))
@@ -85,9 +86,13 @@ for i, filename in enumerate(args):
     ez = ez.flatten().compress(valid)
     # Precess the pixel coordinates to the (J2000) epoch of the map
     print 'Precessing coords'
-    m = a.coord.convert_m('eq','eq', 
-        iepoch=kwds['obs_date'], oepoch=ephem.J2000)
-    ex,ey,ez = n.dot(m, n.array([ex,ey,ez])) 
+    try:
+        m = a.coord.convert_m('eq','eq', 
+            iepoch=kwds['obs_date'], oepoch=ephem.J2000)
+        ex,ey,ez = n.dot(m, n.array([ex,ey,ez])) 
+    except:
+        print "date not understood: skipping precession"
+        pass
     #img = img.flatten().compress(valid) / bm_wgts_clip  # Remove beam response
     img = img.flatten().compress(valid) 
     if False: # Try to guess flux scale of image (doesn't work)
@@ -108,7 +113,7 @@ for i, filename in enumerate(args):
 #    print "new image weights:",n.sum(map_wgts)
 #    print "total image weights:",n.sum(skymap.wgt.map)
 #    print "Adding image"
-    skymap.add((ex,ey,ez), map_wgts, img*map_wgts) # down-weight by beam resp squared
+    skymap.add((ex,ey,ez), map_wgts, img) # down-weight by beam resp squared
 #    print "Total image power:", n.sum(skymap.map.map)
 #    print "Total image weights:", n.sum(skymap.wgt.map)
 hdulist = pf.open(filename)

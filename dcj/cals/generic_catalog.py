@@ -110,7 +110,7 @@ class GENERICCatalog(a.fit.SrcCatalog):
             try: name = rec[ucds["meta.id;meta.main"]]
             except(IndexError): name = pos2name(ra,dec)
             try: jys = rec[fluxname]*Jys
-            except(IndexError): print fluxname,'not found in ',rec.keys()
+            except(IndexError): print fluxname,'not found in ',rec.dtype.names
             try: e_S_nu = rec[ucds["stat.error"]]
             except(IndexError): e_S_nu = 0
             try: index = rec[ucds["spect.index"]]

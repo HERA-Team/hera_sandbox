@@ -4,7 +4,7 @@ import sys, optparse, ephem
 import capo as C
 
 o = optparse.OptionParser()
-a.scripting.add_standard_options(o, cal=True, ant=True, pol=True)
+a.scripting.add_standard_options(o, cal=True, ant=True, pol=True, src=True)
 o.add_option('--lst_res', type='float', default=10.,
     help='Resolution in seconds for binning in LST.  Default is 10.')
 o.add_option('--lst_rng', default='0_6.2832',
@@ -13,12 +13,22 @@ o.add_option('--flag_thresh', type='float', default=0.5,
     help='Fraction of data that must be unflagged a bin for the output to be unflagged.')
 o.add_option('--tfile', type='float', default=600,
     help='Length of time spanned by each input file.  Helps in filtering out files that are not needed for the lst range being processed.')
+o.add_option('--altmax', type='float', default=0,
+    help="Maximum allowed altitude of source, in degrees, before data are omitted.  Handy for omitting Sun data.  Default is 0.")
+o.add_option('--nogaps', action='store_true',
+    help='Record a spectrum for every LST in the chosen range, even if a blank one must be created to fill a gap.')
+
 opts, args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
 ants = a.scripting.parse_ants(opts.ant, uv['nants'])
 aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
 del(uv)
+src = None
+if not opts.src is None:
+    srclist,cutoff,catalog = a.scripting.parse_srcs(opts.src, opts.cat)
+    cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalog)
+    src = cat.values()[0]
 
 # Select only some of these LST bins to analyze
 opts.lst_rng = map(float, opts.lst_rng.split('_'))
@@ -46,8 +56,15 @@ for f in args:
     uv = a.miriad.UV(f)
     (crd,t,bl),_d,_f = uv.read(raw=True)
     aa.set_jultime(t)
+    if not src is None:
+        src.compute(aa)
+        src_alt_start = src.alt
     start_t = aa.sidereal_time()
     aa.set_jultime(t + opts.tfile * a.ephem.second)
+    if not src is None:
+        src.compute(aa)
+        src_alt_end = src.alt
+    start_t = aa.sidereal_time()
     end_t = aa.sidereal_time()
     if start_t < end_t:
         if opts.lst_rng[0] < opts.lst_rng[1]:
@@ -58,7 +75,8 @@ for f in args:
         if opts.lst_rng[0] < opts.lst_rng[1]:
             if start_t > opts.lst_rng[1] and end_t < opts.lst_rng[0]: continue
         # Never bail if both wrap...
-    nargs.append(f)
+    if src is None or (src_alt_start < opts.altmax or src_alt_end < opts.altmax):
+        nargs.append(f)
 
 jds = {}
 for f in nargs:
@@ -77,20 +95,42 @@ for f in nargs:
     for (uvw,t,(i,j)),d,f in uv.all(raw=True):
         if t != curtime:
             aa.set_jultime(t)
+            if not src is None: src.compute(aa); print src.alt
             lst = lstbin(aa.sidereal_time())
             if dat.has_key(lst): jds[lst] = min(jds.get(lst,n.Inf), t)
+            curtime = t
         # Only take this LST if we have a bin for it already allocated
         if not dat.has_key(lst): continue
+        if not src is None and src.alt >= opts.altmax: continue
         blp = a.pol.ijp2blp(i,j,uv['pol'])
         crds[blp] = uvw
         dat[lst][blp] = dat[lst].get(blp,0) + n.where(f,0,d)
         cnt[lst][blp] = cnt[lst].get(blp,0) + n.logical_not(f).astype(n.int)
 
-lsts = [lst for lst in dat if len(dat[lst]) > 0]
+if opts.nogaps:
+    lsts = lstbins # record all bins
+else:
+    lsts = [lst for lst in dat if len(dat[lst]) > 0] # only record bins with data
 lsts.sort()
-lst_start = lsts[0]
-jd_start = jds[lst_start]
+if len(lsts) == 0:
+    print 'No LST bins with data.  Exitting...'
+    sys.exit(0)
+# Get list of all blps to record, just to make sure that each time has a record for each blp
+blps = {}
+for lst in dat:
+    for blp in dat[lst]:
+        blps[blp] = None
+blps = blps.keys()
+# Find a starting jd for recording in the file
+lst_start, jd_start = n.Inf, n.Inf
+for lst in jds:
+    if jds[lst] < jd_start:
+        lst_start, jd_start = lst, jds[lst]
 djd_dlst = a.const.sidereal_day / (2*n.pi) * a.ephem.second
+jd_start = jd_start + (lst_start - lsts[0]) * djd_dlst
+lst_start = lsts[0]
+#lst_start = lsts[0]
+#jd_start = jds[lst_start]
 
 uvi = a.miriad.UV(args[0])
 filename = 'lst.%7.5f.uv' % jd_start
@@ -99,17 +139,23 @@ uvo = a.miriad.UV(filename, status='new')
 uvo.init_from_uv(uvi)
 # XXX could think about adding a variable that keeps track of how many integrations went into a bin
 
+dzero = n.zeros(uvi['nchan'], dtype=n.complex64)
+fzero = n.ones(uvi['nchan'], dtype=n.int)
 for lst in lsts:
     t = jd_start + (lst - lst_start) * djd_dlst
     print 'LST:', a.ephem.hours(lst), '(%f)' % lst, ' -> JD:', t
     sys.stdout.flush()
     uvo['lst'], uvo['ra'], uvo['obsra'] = lst, lst, lst
-    for blp in dat[lst]:
+    #for blp in dat[lst]:
+    for blp in blps:
         i,j,uvo['pol'] = a.pol.blp2ijp(blp)
         preamble = (crds[blp], t, (i,j))
-        cmax = n.max(cnt[lst][blp])
-        d = dat[lst][blp] / cnt[lst][blp].clip(1, n.Inf)
-        f = n.where(cnt[lst][blp] < cmax * opts.flag_thresh, 1, 0)
+        try:
+            cmax = n.max(cnt[lst][blp])
+            d = dat[lst][blp] / cnt[lst][blp].clip(1, n.Inf)
+            f = n.where(cnt[lst][blp] < cmax * opts.flag_thresh, 1, 0)
+        except(KeyError): # This happens if we are missing data for a desired LST bin
+            d,f = dzero, fzero
         uvo.write(preamble, d, f)
 del(uvo)
 print 'Finished writing', filename

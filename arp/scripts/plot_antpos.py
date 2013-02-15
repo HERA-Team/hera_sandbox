@@ -4,6 +4,7 @@ import sys, optparse
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True)
+o.add_option('--aspect_neq', action='store_true', help='Do not force equal aspect in x/y plot.')
 opts, args = o.parse_args(sys.argv[1:])
 
 th = n.arange(0, 2*n.pi, .01)
@@ -39,5 +40,5 @@ p.xlabel("East-West Antenna Position (m)")
 p.ylabel("North-South Antenna Position (m)")
 #p.ylim(-100,100)
 a = p.gca()
-a.set_aspect('equal')
+if not opts.aspect_neq: a.set_aspect('equal')
 p.show()

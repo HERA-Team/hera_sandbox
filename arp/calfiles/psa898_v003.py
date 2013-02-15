@@ -41,6 +41,7 @@ class AntennaArray(a.pol.AntennaArray):
                     elif val == 'gain': prms['aa']['gain'] = self.gain
             else:
                 try: top_pos = n.dot(self._eq2zen, self[int(k)].pos)
+                # XXX should multiply this by len_ns to match set_params.
                 except(ValueError): continue
                 if ant_prms[k] == '*':
                     prms[k].update({'top_x':top_pos[0], 'top_y':top_pos[1], 'top_z':top_pos[2]})

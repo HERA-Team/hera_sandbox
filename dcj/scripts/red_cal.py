@@ -38,6 +38,13 @@ for filename in args:
                 for cj in range(ci,ANTPOS.shape[1]):
                     sep = '%d,%d' % (rj-ri, cj-ci)
                     bls[sep] = bls.get(sep,[]) + [(ANTPOS[ri,ci],ANTPOS[rj,cj])]
+                    #add the BL to TR reflection
+                    if n.abs(ri -rj)<=ri and rj!=ri: 
+                        #if the distance UP the column is smaller than the position in the column,
+                        #include the reflection
+                        #don't include flat baselines
+                        sep = '%d,%d' % (ri - rj, cj - ci)
+                        bls[sep] = bls.get(sep,[]) + [(ANTPOS[ri,ci],ANTPOS[ri-n.abs(ri -rj),cj])]
     for sep in bls.keys():
         if sep == '0,0' or len(bls[sep]) < 2: del(bls[sep])
     for sep in bls:
@@ -88,11 +95,17 @@ for filename in args:
     NANT = ANTPOS.size
     ANTIND = dict(zip(ANTPOS.flatten(), n.arange(ANTPOS.size)))
     
-    calrow,calcol = 0,0
+    #calrow,calcol = 0,0
+    calrow,calcol = map(int,opts.refant.split(','))
     calant = ANTPOS[calrow,calcol]
     cal_bl = {}
-    for sep in seps: cal_bl[sep] = [bl for bl in bls[sep] if bl2ij(bl)[0] == ANTPOS[calrow,calcol]][0]
-    
+    print "!!!!!!!!!!!!!"
+    for sep in seps: 
+        #print sep,bl2ij([bl for bl in bls[sep] if ANTPOS[calrow,calcol]== bl2ij(bl)[0]][0])
+        try: 
+            cal_bl[sep] = [bl for bl in bls[sep] if ANTPOS[calrow,calcol]==bl2ij(bl)[0]][0]
+        except(IndexError):
+            pass
     P = n.zeros((3,NANT), dtype=n.float)
     M = n.zeros((3,1), dtype=n.float)
     P[0,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M[0] = 0
@@ -102,8 +115,8 @@ for filename in args:
     P_gain = n.zeros((1,NANT), dtype=n.float)
     M_gain = n.zeros((1,1), dtype=n.float)
     P_gain[0,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M_gain[0] = 0
-        
-    for sep in seps:
+    print cal_bl.keys()    
+    for sep in cal_bl.keys():
         cbl = cal_bl[sep]
         i0,j0 = bl2ij(cbl)
         if conj_bl.has_key(cbl) and conj_bl[cbl]: i0,j0 = j0,i0
@@ -123,7 +136,7 @@ for filename in args:
             g,tau,info = C.arp.redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False)
             #Debugging using locally defined function version
             #g,tau,info = redundant_bl_cal(d[cbl],w[cbl],d[bl],w[bl],fqs,use_offset=False)
-            if n.isnan(g).sum()!=312: print bl, n.isnan(g).sum()
+            #if n.isnan(g).sum()!=312: print bl, n.isnan(g).sum()
             gain = n.ma.log10(n.ma.median(n.ma.abs(n.ma.masked_invalid(g))))
             Mline[0,0] = tau
             M_gain_line[0,0] = gain

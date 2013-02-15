@@ -28,15 +28,27 @@ o.add_option('--maxiter', type='int', default=10,
 #    help="Choose antenna in zero referenced grid matrix location <row>,<col>. Don't pick bottom row or rightmost column.")
 opts, args = o.parse_args(sys.argv[1:])
 
+# PSA-64, JD2455903...
+A_ = [0,16,8,24,4,20,12,28]
+B_ = [i+1 for i in A_]
+C_ = [i+2 for i in A_]
+D_ = [i+3 for i in A_]
+ANTPOS_5903 = n.array([A_, B_, C_, D_])
+
+# PSA-128, JD2456240...
+A_ = [49,41,47,19,29,28,34,51]
+B_ = [10, 3,25,48,24,55,27,57]
+C_ = [ 9,58, 1, 4,17,13,56,59]
+D_ = [22,61,35,18, 5,32,30,23]
+E_ = [20,63,42,37,40,14,54,50]
+F_ = [43, 2,33, 6,52, 7,12,38]
+G_ = [53,21,15,16,62,44, 0,26]
+H_ = [31,45, 8,11,36,60,39,46]
+ANTPOS_6240 = n.array([A_, B_, C_, D_,E_,F_,G_,H_])
+
+ANTPOS = ANTPOS_6240
 
 for filename in args:
-    # XXX Currently hardcoded for PSA898
-    A_ = [0,16,8,24,4,20,12,28]
-    B_ = [i+1 for i in A_]
-    C_ = [i+2 for i in A_]
-    D_ = [i+3 for i in A_]
-    ANTPOS = n.array([A_, B_, C_, D_])
-    
     bls = {}
     conj = {}
     for ri in range(ANTPOS.shape[0]):
@@ -72,10 +84,11 @@ for filename in args:
     fqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
     del(uv)
     
-    seps = ['0,1','1,1','-1,1']
+    seps = ['0,1','1,1','-1,1'] #+ ['2,1', '-2,1'] + ['0,2','1,2','-1,2']
     #seps = bls.keys()
     strbls = ','.join([strbls[sep] for sep in seps])
     pols = ['xx','yy']
+    #pols = ['xx']
     NPOL = len(pols)
     if opts.verbose:
         print '-'*70
@@ -87,7 +100,7 @@ for filename in args:
         i,j = bl2ij(bl)
         for pol in d[bl]:
             if conj_bl.has_key(bl) and conj_bl[bl]: d[bl][pol] = n.conj(d[bl][pol])
-            if i == 8 or j == 8: d[bl][pol] = -d[bl][pol]  # XXX remove this line once correct script is run
+            #if i == 8 or j == 8: d[bl][pol] = -d[bl][pol]  # XXX remove this line once correct script is run
     
     w = {}
     for bl in f:

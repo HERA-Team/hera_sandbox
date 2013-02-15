@@ -20,9 +20,14 @@ for file in args:
     print file + " > " + outfile
     hdulist = pf.open(file)
     hdu = hdulist[1]
-    hdu.data.field('signal')[:] = hdu.data.field('signal')[:]/hdu.data.field('weights')[:].clip(1,1000000)
+    data = hdu.data.field('signal')[:]
+    w = hdu.data.field('weights')[:]
+    w = n.where(w>0,w,1)
+    hdu.data.field('signal')[:] = data/w
+    hdu.data.field('weights')[:] = n.ones_like(data)
     hdu.header['TTYPE1']='TEMPERATURE'
     hdu.header['TTYPE2']='N_OBS'
+    hdu.header.update('COORDSYS','C')
     hdulist[1] = hdu
 
     hdulist.writeto(outfile,clobber=True)
