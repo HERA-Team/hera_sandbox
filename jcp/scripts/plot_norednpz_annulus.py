@@ -88,7 +88,7 @@ for plot,slice in enumerate(slices):
     p.subplot(xplots,yplots,plot+1)
     p.title(slice)
     #p.imshow(n.log10(uvplane[slice].clip(1.,n.Inf)),interpolation='nearest',vmax=vmax[plot],vmin=vmin[plot])
-    p.imshow(n.log10(n.abs(uvplane[slice])),interpolation='nearest',vmax=vmax[plot],vmin=vmin[plot])
+    p.imshow(n.log10(n.abs(uvplane[slice].T)),interpolation='nearest',vmax=vmax[plot],vmin=vmin[plot])
     #p.imshow(uvplane_wgt[slice].clip(0.,1.),interpolation='nearest')
     p.colorbar()
 p.show()

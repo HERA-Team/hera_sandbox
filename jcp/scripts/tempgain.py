@@ -13,7 +13,8 @@ o.add_option('--T0',dest='T0', type='float', default=300,
     help='Temperature where gain should be 1, in Kelvin.  Default 300')
 opts,args = o.parse_args(sys.argv[1:])
 
-goms = map(int, opts.gom.split(','))
+if opts.gom == '': goms = []
+else: goms = map(int, opts.gom.split(','))
 
 def gain(H, T): return 10**(H*(T - opts.T0)/10)
 

@@ -49,9 +49,13 @@ for npzfile in args:
 keys = uDat.keys()
 for umag in keys:
     uDat[umag] /= uWgt[umag]
-    
+
+keys = n.array(keys).astype(float)    
+keys.sort()
 
 for umag in keys:
+    umag = str(umag).split('.')[0]
+    if umag == '1': continue #CLUDGE!
     if opts.k3pk: f = n.abs(kpl)**3*(2*n.pi**2)**-1
     else: f = 1.
     if opts.nobin: label = str(a.miriad.bl2ij(umag))

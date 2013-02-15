@@ -52,7 +52,7 @@ aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
 filters = gen_skypass_delay(aa, uv['sdf'], uv['nchan'], max_bl_add=opts.horizon)
 
 for uvfile in args:
-    uvBfile = uvfile + 'B'
+    uvBfile = uvfile + 'N'
     print uvfile,'->',uvBfile
     if os.path.exists(uvBfile):
         print uvBfile, 'exists, skipping.'
@@ -111,10 +111,13 @@ for uvfile in args:
         _d = n.fft.ifft(d * window)
         _w = n.fft.ifft(w * window)
         uthresh,lthresh = filters[bl]
+        #area = n.ones_like(_d)
         area = n.ones(_d.size, dtype=n.int)
         area[uthresh:lthresh] = 0
+        area[uthresh+2:lthresh-2] = 1
         if opts.nohorizon: area = None
-        _d_cl, info = a.deconv.clean(_d, _w, tol=opts.clean, area=area, stop_if_div=False, maxiter=100)
+        #_d_cl, info = a.deconv.clean(_d, _w, tol=opts.clean, area=area, stop_if_div=False, maxiter=100)
+        _d_cl = n.where(area == 1,_d,0)
         d_mdl = n.fft.fft(_d_cl)
         d_res = d - d_mdl * w
         return p, d_res, f

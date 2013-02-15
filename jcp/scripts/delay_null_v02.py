@@ -4,7 +4,7 @@ Filter visibilites per-baseline using a delay transform.
 """
 
 import aipy as a, numpy as n, os, sys, optparse 
-import capo as C
+import capo as C, pylab as pl
 
 def gen_skypass_delay(aa, sdf, nchan, max_bl_add=0.):
     bin_dly = 1. / (sdf * nchan)
@@ -48,11 +48,14 @@ o.add_option('--nohorizon', dest='nohorizon', action='store_true',
 opts, args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
-aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
-filters = gen_skypass_delay(aa, uv['sdf'], uv['nchan'], max_bl_add=opts.horizon)
+sfreq = .140
+nchan = 512
+aa = a.cal.get_aa(opts.cal, uv['sdf'], sfreq, nchan)
+filters = gen_skypass_delay(aa, uv['sdf'], nchan, max_bl_add=opts.horizon)
+del(uv)
 
 for uvfile in args:
-    uvBfile = uvfile + 'B'
+    uvBfile = uvfile + 'N'
     print uvfile,'->',uvBfile
     if os.path.exists(uvBfile):
         print uvBfile, 'exists, skipping.'
@@ -73,7 +76,7 @@ for uvfile in args:
         uvF.init_from_uv(uvi)
         uvF.add_var('bin','d')
 
-    window = a.dsp.gen_window(uvi['nchan'], window=opts.window)
+    window = a.dsp.gen_window(nchan, window=opts.window)
     curtime, zen = None, None
     def res_mfunc(uv, p, d, f):
         global curtime,zen
@@ -100,6 +103,8 @@ for uvfile in args:
         #    u,v = -u, -v
         #    if not opts.nophs: conj = True
         uvB['bin'] = n.float(C.pspec.uv2bin(u, v, aa.sidereal_time()))
+        d = d[819:819+nchan]
+        f = f[819:819+nchan]
         if i == j: return p, d, f
         bl = a.miriad.ij2bl(i,j)
         w = n.logical_not(f).astype(n.float)
@@ -111,10 +116,14 @@ for uvfile in args:
         _d = n.fft.ifft(d * window)
         _w = n.fft.ifft(w * window)
         uthresh,lthresh = filters[bl]
+        #area = n.ones_like(_d)
         area = n.ones(_d.size, dtype=n.int)
-        area[uthresh:lthresh] = 0
+	area[uthresh:lthresh] = 0
+        area[uthresh+1:lthresh-1] = 1
+        #pl.plot(area); pl.show()
         if opts.nohorizon: area = None
-        _d_cl, info = a.deconv.clean(_d, _w, tol=opts.clean, area=area, stop_if_div=False, maxiter=100)
+        #_d_cl, info = a.deconv.clean(_d, _w, tol=opts.clean, area=area, stop_if_div=False, maxiter=100)
+        _d_cl = n.where(area == 1,_d,0)
         d_mdl = n.fft.fft(_d_cl)
         d_res = d - d_mdl * w
         return p, d_res, f
