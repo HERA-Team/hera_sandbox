@@ -67,6 +67,28 @@ print fq, z, B, scalar
 #kwargs = {'cen_fqs':cen_fqs,'B':B, 'ntaps':NTAPS, 'window':WINDOW, 'bm_fqs':afreqs.clip(.120,.190)}
 #window = a.dsp.gen_window(freqs.size, window=WINDOW)
 
+cov = {}
+times,dat,flg = C.arp.get_dict_of_uv_data(args, antstr=opts.ant, polstr=opts.pol)
+for bl in dat:
+  cov[bl] = {}
+  for pol in dat[bl]:
+    d,w = dat[bl][pol].take(chans, axis=-1), n.logical_not(flg[bl][pol].take(chans,axis=-1)).astype(n.float)
+    Trms = d * C.pspec.jy2T(afreqs)
+    window = a.dsp.gen_window(Trms.shape[-1], WINDOW); window.shape = (1, window.size)
+    _Trms = n.fft.ifft(window * Trms, axis=-1)
+    _Wrms = n.fft.ifft(window * w, axis=-1)
+    gain = n.abs(_Wrms[:,0:1])
+    _Trms /= gain
+    _Trms = n.fft.fftshift(_Trms)
+    cov[bl][pol] = n.linalg.inv(n.corrcoef(_Trms, rowvar=False))
+    #cov[bl][pol] = n.linalg.inv(n.cov(_Trms, rowvar=False))
+    import pylab as p
+    p.subplot(131); C.arp.waterfall(_Trms, mode='log', drng=2)
+    #p.subplot(132); C.arp.waterfall(cov[bl][pol], mode='log', drng=2)
+    p.subplot(132); C.arp.waterfall(n.corrcoef(_Trms,rowvar=False), mode='log', drng=2)
+    p.subplot(133); C.arp.waterfall(n.dot(cov[bl][pol],_Trms.T).T, mode='log', drng=2)
+    p.show()
+
 for filename in args:
     outfile = filename + '.pspec'
     print filename,'->',outfile
@@ -99,6 +121,7 @@ for filename in args:
             curtime = t
 
         bl = a.miriad.ij2bl(i,j)
+        pol = a.miriad.pol2str[uvi['pol']]
         sep = bl2sep[bl]
         if sep < 0:
             #print 'Conj:', a.miriad.bl2ij(bl)
@@ -116,7 +139,7 @@ for filename in args:
             _Wrms = n.fft.ifft(window * w)
         gain = n.abs(_Wrms[0])
         #print 'Gain:', gain
-        if True: # we think clean messes up noise statistics.  Do we need it? (Yes)
+        if False: # we think clean messes up noise statistics.  Do we need it? (Yes)
             if gain > 0:
                 #_Tcln, info = a.deconv.clean(_Trms, _Wrms, tol=1e-9, maxiter=100, stop_if_div=False, verbose=False)
                 #_Tcln, info = a.deconv.clean(_Trms, _Wrms, tol=1e-9)
@@ -128,7 +151,7 @@ for filename in args:
         _Trms = n.fft.fftshift(_Trms)
         _Wrms = n.fft.fftshift(_Wrms)
 
-        _Tlist[bl] = _Trms
+        _Tlist[bl] = n.dot(cov[bl][pol],_Trms)
         _Wlist[bl] = _Wrms
 
     # Gotta do this one last time to catch the last integration.

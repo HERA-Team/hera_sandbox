@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import aipy as a, numpy as n
+import aipy as a, numpy as n, pylab as p
 import optparse, sys, scipy.optimize
 import capo as C
 
@@ -60,6 +60,7 @@ for filename in args:
         aa.set_jultime(t)
         src.compute(aa)
         src_xyz = src.get_crds('top')
+        #print t, aa.sidereal_time(), src.alt, src.get_crds('top')
         tracks[srcname]['top'].append(src_xyz)
         bmi = aa[i].bm_response(src_xyz, pol=opts.pol[0])
         bmj = aa[j].bm_response(src_xyz, pol=opts.pol[-1])
@@ -67,6 +68,15 @@ for filename in args:
         #print src.src_name, src.ra, src.dec, src_xyz#, bm[-1]
         tracks[srcname]['dat'].append(d)
         tracks[srcname]['wgt'].append(w)
+
+#for srcname in tracks:
+#    x = n.array(tracks[srcname]['top'])[:,0]
+#    d = n.sum(tracks[srcname]['dat'], axis=1) / n.sum(tracks[srcname]['wgt'], axis=1)
+#    #b = n.sum(tracks[srcname]['bm'], axis=1) / n.sum(tracks[srcname]['wgt'], axis=1) * 40
+#    #print b.shape
+#    p.plot(x,d, label=srcname)
+#    #p.plot(x,b)
+#p.show()
 
 calsrc = calsrc.src_name
 
@@ -95,7 +105,6 @@ def fit_pwrlaw(fqs, dat, err, flx, ind, mfreq=.150):
     return rv
 
 
-import pylab as p
 for cnt,srcname in enumerate(tracks.keys()):
     color = 'krbgcm'[cnt % 6]
     x = n.array(tracks[srcname]['top'])[:,0]

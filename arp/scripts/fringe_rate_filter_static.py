@@ -56,7 +56,7 @@ for filename in args:
         try:
             d_,w = data[bl][pol].pop(t), wgts[bl][pol].pop(t)
             #f_ = n.where(w < .75 * w.max(), 1, 0)
-            f_ = f
+            f_ = n.logical_or(f, n.abs(d) == 0)
             d_ /= n.where(f_, n.Inf, w)
         except(KeyError): return p, None, None
         return p, d_, f_
@@ -76,7 +76,8 @@ for filename in args:
                 _d,_w = n.fft.ifft(d[:,ch]*window), n.fft.ifft(w[:,ch]*window)
                 gain = n.abs(_w[0])
                 #print ch, gain
-                if gain < .01: continue
+                print gain
+                if gain < .3: continue
                 area = n.ones(_d.shape, dtype=n.int)
                 # XXX would prefer to implement fr cuts as weights rather than bin ranges...
                 area[ufr+1:lfr] = 0
