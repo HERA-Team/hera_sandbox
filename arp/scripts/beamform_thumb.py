@@ -24,7 +24,7 @@ del(uv)
 npz = n.load(opts.thumb)
 srcmdl = npz['img']
 dra,ddec = npz['dra_ddec']
-srcuv = n.fft.fft(srcmdl); srcuv /= n.abs(srcuv).max()
+srcuv = n.fft.fft2(srcmdl); srcuv /= n.abs(srcuv).max()
 u = n.fft.fftfreq(srcmdl.shape[0], dra)
 v = n.fft.fftfreq(srcmdl.shape[1], ddec)
 srcuv = n.abs(srcuv)
