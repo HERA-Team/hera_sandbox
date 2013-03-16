@@ -9,7 +9,6 @@
 
 
 import aipy as a, numpy as n, math as m, ephem, sys,optparse, pyfits as pf
-from kapteyn import wcs
 from pylab import *
 import atpy
 
