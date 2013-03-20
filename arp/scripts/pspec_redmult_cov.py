@@ -155,6 +155,17 @@ def cov(m):
     fact = float(N - 1)
     return (n.dot(X, X.T.conj()) / fact).squeeze()
 
+def cov2(m1,m2):
+    '''Because numpy.cov is stupid and casts as float.'''
+    #return n.cov(m)
+    X1 = n.array(m1, ndmin=2, dtype=n.complex)
+    X2 = n.array(m2, ndmin=2, dtype=n.complex)
+    X1 -= X1.mean(axis=1)[(slice(None),n.newaxis)]
+    X2 -= X2.mean(axis=1)[(slice(None),n.newaxis)]
+    N = X1.shape[1]
+    fact = float(N - 1)
+    return (n.dot(X1, X2.T.conj()) / fact).squeeze()
+
 class CoV:
     def __init__(self, X, bls):
         self.bls = bls
@@ -196,7 +207,7 @@ if False:
 
 print ' '.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in bls])
 C = CoV(Ts, bls)
-capo.arp.waterfall(C.C, mode='log', drng=2); p.show()
+#capo.arp.waterfall(C.C, mode='log', drng=2); p.show()
 
 Q = {}
 for k in range(n_k): Q[k] = gen_Q(k,n_k)
@@ -207,195 +218,73 @@ for cnt,bl1 in enumerate(bls):
         if bl2 == bl1: continue # skip auto-products
         print a.miriad.bl2ij(bl1), a.miriad.bl2ij(bl2)
 
-        x1 = C.get_x(bl1)
-        x2 = C.get_x(bl2)
-        C1 = C.get_C(bl1)
-        C2 = C.get_C(bl2)
-        if True:
-            d = n.diag(C1)
-            C1 /= n.sqrt(n.multiply.outer(d,d)) * 2
-            d = n.diag(C2)
-            C2 /= n.sqrt(n.multiply.outer(d,d)) * 2
-        SZ = C1.shape[0]
+        x1,x2 = C.get_x(bl1), C.get_x(bl2)
+        SZ = x1.shape[0]
+        #n1 = n.random.normal(size=SZ) * n.exp(2j*n.pi*n.random.uniform(size=SZ))
+        n1 = n.exp(2j*n.pi*n.random.uniform(size=SZ)); n1.shape = (SZ,1)
+        n2 = n.exp(2j*n.pi*n.random.uniform(size=SZ)); n2.shape = (SZ,1)
+        _C1tot,_C2tot = n.eye(SZ), n.eye(SZ) # these aren't actually the inverses, just for norm purposes
+        for i in xrange(8):
+            X = n.concatenate([x1,x2], axis=0)
+            #p.subplot(3,3,i+1); capo.arp.waterfall(cov(X), mode='log', mx=0, drng=2)
+            p.subplot(3,3,i+1); capo.arp.waterfall(cov(X), mode='log', drng=2)
+            C1,C2 = cov(x1), cov(x2)
+            C12,C21 = cov2(x1,x2), cov2(x2,x1)
+            #C1,C2 = C.get_C(bl1), C.get_C(bl2)
+            if True:
+                d1 = n.diag(C1); d1.shape = (1,SZ)
+                C1 /= n.sqrt(d1) * 2
+                d2 = n.diag(C2); d2.shape = (1,SZ)
+                C2 /= n.sqrt(d2) * 2
+                C12 /= n.sqrt(d2) * 2
+                C21 /= n.sqrt(d1) * 2
 
-        if False: # Artificially diagonalize covariance matrix
-            mask = n.eye(SZ)
-            #mask[1:] += n.eye(SZ)[:-1]
-            #mask[:-1] += n.eye(SZ)[1:]
-            #mask[2:] += n.eye(SZ)[:-2]
-            #mask[:-2] += n.eye(SZ)[2:]
-            mask[17] = 1
-            mask[:,17] = 1
-            C1 *= mask
-            C2 *= mask
+            if False: _C1,_C2 = n.linalg.inv(C1), n.linalg.inv(C2)
+            else:
+                _C1,_C2 = -C1,-C2
+                _C12,_C21 = -C12,-C21
+                #_C1,_C2 = n.zeros_like(C1), n.zeros_like(C2)
+                #_C12,_C21 = n.zeros_like(C12), n.zeros_like(C21)
+                ind = n.arange(SZ)
+                _C1[ind,ind] = _C2[ind,ind] = 1
+                _C12[ind,ind] = _C21[ind,ind] = 0
 
-        _C1 = n.linalg.inv(C1)
-        _C2 = n.linalg.inv(C2)
+            x1_,x2_ = n.dot(_C1,x1), n.dot(_C2,x2)
+            x1__,x2__ = n.dot(_C12,x2), n.dot(_C21,x1)
+            x1,x2 = x1_+x1__, x2_+x2__
+            n1_,n2_ = n.dot(_C1,n1), n.dot(_C2,n2)
+            n1__,n2__ = n.dot(_C12,n2), n.dot(_C21,n1)
+            n1,n2 = n1_+n1__, n2_+n2__
+            _C1tot,_C2tot = n.dot(_C1+_C12, _C1tot), n.dot(_C2+_C21, _C2tot)
+        norm1 = n.sqrt(n.sum(n.abs(_C1tot)**2, axis=1)); norm1.shape = (norm1.size,1)
+        norm2 = n.sqrt(n.sum(n.abs(_C2tot)**2, axis=1)); norm2.shape = (norm2.size,1)
+        x1 /= norm1; x2 /= norm2
+        n1 /= norm1; n2 /= norm2
+        print n.abs(n1).flatten()
+        print n.abs(n2).flatten()
+        #print norm1.flatten()
+        #print norm2.flatten()
+        X = n.concatenate([x1,x2], axis=0)
+        p.subplot(3,3,i+2); capo.arp.waterfall(cov(X), mode='log', mx=0, drng=2)
+        p.show()
+        pk_avg = scalar * n.average(x1 * x2.conj(), axis=1)
 
-        #norm = n.sum(_C1, axis=-1); norm.shape = (norm.size,1)
-        norm = n.sum(_C1, axis=0); norm.shape = (1,norm.size)
-        p.subplot(121); capo.arp.waterfall(_C1, mode='log', drng=2)
-        _C1 /= norm
-        p.subplot(122); capo.arp.waterfall(_C1, mode='log', drng=2); p.show()
-        z1 = n.dot(_C1, x1)
-        z2 = n.dot(_C2, x2)
-        F1 = _C1
-        F2 = _C2
-
-        if False:
-            w,v = n.linalg.eig(n.linalg.inv(F1))
-            M1 = n.dot(v, n.dot(n.diagflat(n.sqrt(w)), v.T))
-            w,v = n.linalg.eig(n.linalg.inv(F2))
-            M2 = n.dot(v, n.dot(n.diagflat(n.sqrt(w)), v.T))
-        else:
-            #M1 = n.linalg.inv(F1)
-            #M2 = n.linalg.inv(F2)
-            M1 = n.eye(F1.shape[0])
-            M2 = n.eye(F2.shape[0])
-        
-        W1 = n.dot(M1,F1)
-        #W1 = n.dot(M1,n.abs(F1)**2)
-        norm = n.sum(W1, axis=-1); norm.shape = (norm.size,1)
-        #norm = n.sum(W1, axis=0); norm.shape = (1,norm.size)
-        M1 /= norm
-        W1 = n.dot(M1,F1)
-        W2 = n.dot(M2,F2)
-        #W2 = n.dot(M2,n.abs(F2)**2)
-        norm = n.sum(W2, axis=-1); norm.shape = (norm.size,1)
-        #norm = n.sum(W2, axis=0); norm.shape = (1,norm.size)
-        M2 /= norm
-        W2 = n.dot(M2,F2)
-
-        p1 = n.dot(M1, z1)
-        p2 = n.dot(M2, z2)
-
-
-        x1_,x2_ = x1.copy(),x2.copy()
-        #for k in xrange(17,24):
-        for k in xrange(40):
-        #for k in [17,23]:
-            c1 = C1[:,k:k+1].copy(); c1[k] = 0
-            c2 = C2[:,k:k+1].copy(); c2[k] = 0
-            #p.plot(n.average(x1_*x1_.conj(), axis=1), 'k')
-            x1__ = x1[k:k+1] * c1
-            x2__ = x2[k:k+1] * c2
-            #x1__ = x1[k:k+1] * c1 / n.sqrt(n.diag(C1) * C1[k,k])
-            #p.plot(n.average(x1__ * x1__.conj(), axis=1), 'g')
-            x1_ -= x1__
-            #p.plot(n.average(x1_*x1_.conj(), axis=1), 'r')
-            #p.show()
-            x2_ -= x2__
+        x1orig,x2orig = C.get_x(bl1), C.get_x(bl2)
         p.subplot(131)
-        p.plot(scalar*n.average(x1_*x1_.conj(), axis=1).real, 'k')
-        p.plot(scalar*n.average(x1*x1.conj(), axis=1).real, 'r')
-        p.plot(scalar*n.average(z1*z1.conj(), axis=1).real, 'g')
+        p.plot(scalar*n.average(x1*x1.conj(), axis=1).real, 'k')
+        p.plot(scalar*n.average(x1orig*x1orig.conj(), axis=1).real, 'r')
         p.subplot(132)
-        p.plot(scalar*n.average(x2_*x2_.conj(), axis=1).real, 'k')
-        p.plot(scalar*n.average(x2*x2.conj(), axis=1).real, 'r')
-        p.plot(scalar*n.average(p2*p2.conj(), axis=1).real, 'g')
+        p.plot(scalar*n.average(x2*x2.conj(), axis=1).real, 'k')
+        p.plot(scalar*n.average(x2orig*x2orig.conj(), axis=1).real, 'r')
         p.subplot(133)
-        p.plot(scalar*n.average(x1_*x2_.conj(), axis=1).real, 'k')
-        p.plot(scalar*n.average(x1*x2.conj(), axis=1).real, 'r')
-        p.plot(scalar*n.average(p1*p2.conj(), axis=1).real, 'g')
+        p.plot(scalar*n.average(x1*x2.conj(), axis=1).real, 'k')
+        p.plot(scalar*n.average(x1orig*x2orig.conj(), axis=1).real, 'r')
         p.show()
-        continue
-        #p.subplot(231); capo.arp.waterfall(x1, mode='log', mx=.5, drng=2); p.colorbar(shrink=.5)
-        #p.subplot(232); capo.arp.waterfall(x1-x1[17:18,:]*C1[:,17:18], mode='log', mx=.5, drng=2)
-        #p.subplot(233); capo.arp.waterfall(x1-x1[17:18,:]*C1[:,17:18].conj(), mode='log', mx=.5, drng=2)
-        #p.subplot(234); capo.arp.waterfall(x2, mode='log', drng=2), p.colorbar(shrink=.5)
-        #p.subplot(235); capo.arp.waterfall(x2-x2[17:18,:]*C2[:,17:18], mode='log', mx=.5, drng=2)
-        #p.subplot(236); capo.arp.waterfall(x2-x2[17:18,:]*C2[:,17:18].conj(), mode='log', mx=.5, drng=2)
-        #p.show()
-        #w,v = n.linalg.eig(C21)
-        #print n.abs(w)
-
-        p.subplot(221); capo.arp.waterfall(C21, mode='log', drng=2); p.colorbar(shrink=.5)
-        p.subplot(222); capo.arp.waterfall(C12, mode='log', drng=2); p.colorbar(shrink=.5)
-        p.subplot(223); capo.arp.waterfall(_C21, mode='log', drng=2); p.colorbar(shrink=.5)
-        p.subplot(224); capo.arp.waterfall(_C12, mode='log', drng=2); p.colorbar(shrink=.5)
-        p.show()
-    
-        #p.subplot(131); capo.arp.waterfall(C21, mode='log', drng=3); p.colorbar(shrink=.5)
-        #p.subplot(132); capo.arp.waterfall(_C21, mode='log', drng=3); p.colorbar(shrink=.5)
-        #p.subplot(133); capo.arp.waterfall(_C21T, mode='log', drng=3); p.colorbar(shrink=.5)
-        #p.show()
-
-        #print n.all(_C21 == _C12)
-    
-        p.subplot(241); capo.arp.waterfall(x1, mode='log', drng=2)
-        p.subplot(242); capo.arp.waterfall(_C21, mode='log', drng=2)
-        p.subplot(243); capo.arp.waterfall(z1, mode='log', drng=2)
-        p.subplot(244); capo.arp.waterfall(p1, mode='log', drng=2)
-        p.subplot(245); capo.arp.waterfall(x2, mode='log', drng=2)
-        p.subplot(246); capo.arp.waterfall(_C12, mode='log', drng=2)
-        p.subplot(247); capo.arp.waterfall(z2, mode='log', drng=2)
-        p.subplot(248); capo.arp.waterfall(p2, mode='log', drng=2)
-        p.show()
-
-        p.plot(scalar*n.average(p1*p2.conj(), axis=1).real, 'k')
-        p.plot(scalar*n.average(x1*x2.conj(), axis=1).real, 'r')
-        p.show()
-
-        print 'Making Fisher/Gisher Matrix'
-        F,G = n.zeros((n_k,n_k), dtype=n.complex), n.zeros((n_k,n_k), dtype=n.complex)
-
-        q, Q_C = [], {}
-        Q_C12,Q_C21 = {},{}
-        for k in range(n_k):
-            q.append(0.5 * quick_diag_dot(z1.T.conj(), n.dot(Q[k], z2)))
-            Q_C[k] = n.dot(Q[k], _C12)
-            Q_C12[k] = n.dot(Q[k], _C12)
-            Q_C21[k] = n.dot(Q[k], _C21)
-        q = n.array(q)
-        #p.subplot(131); capo.arp.waterfall(x1, mode='log', drng=2)
-        #p.subplot(132); capo.arp.waterfall(z1, mode='log', drng=2)
-        #p.subplot(133); capo.arp.waterfall(q, mode='log', drng=2)
-        #p.show()
-        if True:
-            for k1 in range(n_k):
-                for k2 in range(n_k):
-                    #F[k1,k2] = 0.5 * quick_trace_dot(Q_C[k1],Q_C[k2])
-                    F[k1,k2] = 0.5 * quick_trace_dot(Q_C21[k1],Q_C12[k2])
-                    #F[k1,k2] = 0.5 * quick_trace_dot(Q_C21[k2],Q_C12[k1])
-                    #F[k1,k2] = 0.5 * quick_trace_dot(Q_C12[k1],Q_C21[k2])
-                    #F[k1,k2] = 0.5 * quick_trace_dot(Q_C12[k2],Q_C21[k1])
-        else:
-            F = cov(q)
-        G = cov(q)
-
-        print 'Making Normalization/Windowing'
-        #_G = n.linalg.inv(G)
-        _G = n.linalg.inv(F)
-        if True:# Set M = G^-1/2
-            w,v = n.linalg.eig(_G)
-            M = n.dot(v, n.dot(n.diagflat(n.sqrt(w)), v.T))
-        else:
-            M = _G
-        # Normalize M s.t. rows of W sum to 1
-        W = n.dot(M,F)
-        norm = n.sum(W, axis=-1); norm.shape = (norm.size,1)
-        M /= norm
-        #print n.diag(M)
-        #capo.arp.waterfall(_G, mode='log', drng=4); p.show()
-        W = n.dot(M,F)
-        #print 'Wdiag', W.diagonal()
-        #p.subplot(111); capo.arp.waterfall(W, mode='log', drng=2); p.show()
-        pk = scalar * n.dot(M,q)
-        p.subplot(131); capo.arp.waterfall(q, mode='real'); p.colorbar(shrink=.5)
-        p.subplot(132); capo.arp.waterfall(M, mode='log', drng=2)
-        p.subplot(133); capo.arp.waterfall(pk, mode='real'); p.colorbar(shrink=.5)
-        p.show()
-        
-        pk_avg = n.average(pk, axis=1)
         pspecs.append(pk_avg)
-        p.plot(pk_avg.real, 'k')
-        p.plot(scalar*n.average(x1*x2.conj(), axis=1).real, 'r')
-        # XXX still have to get Sigma
-        p.show()
 pspecs = n.array(pspecs)
 avg_1d = n.average(pspecs, axis=0)
-#std_1d = n.std(pspecs, axis=0) / n.sqrt(pspecs.shape[0])
-std_1d = n.ones_like(avg_1d)
+std_1d = n.std(pspecs, axis=0) / n.sqrt(pspecs.shape[0])
+#std_1d = n.ones_like(avg_1d)
 
 print 'Writing pspec.npz'
 n.savez('pspec.npz', kpl=kpl, pk=avg_1d, err=std_1d)
