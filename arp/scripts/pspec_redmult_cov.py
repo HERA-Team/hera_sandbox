@@ -4,12 +4,6 @@ import pylab as p
 import capo
 import optparse, sys, os
 
-def quick_diag_dot(A, B):
-    return n.array([n.dot(A[...,i,:], B[...,:,i]) for i in range(A.shape[-2])])
-def quick_trace_dot(A, B):
-    return quick_diag_dot(A,B).sum()
-
-
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True)
 o.add_option('-t', '--taps', type='int', default=1,
@@ -29,9 +23,38 @@ C_ = [i+2 for i in A_]
 D_ = [i+3 for i in A_]
 ANTPOS = n.array([A_, B_, C_, D_])
 
+class CoV:
+    def __init__(self, X, bls):
+        self.bls = bls
+        self.X = X
+        self.nprms = X.shape[0] / len(bls)
+        self.C = cov(X)
+    def get_C(self, bl1, bl2=None):
+        if bl2 is None: bl2 = bl1
+        i,j = self.bls.index(bl1), self.bls.index(bl2)
+        return self.C[i*self.nprms:(i+1)*self.nprms, j*self.nprms:(j+1)*self.nprms].copy()
+    def get_Cinv(self, bl1, bl2=None):
+        if bl2 is None: bl2 = bl1
+        return n.linalg.inv(self.get_C(bl1,bl2))
+    def get_x(self, bl):
+        i = self.bls.index(bl)
+        return self.X[i*self.nprms:(i+1)*self.nprms].copy()
+    def get_Ck(self, k):
+        inds = n.arange(len(self.bls)) * self.nprms + k
+        return self.C.take(inds,axis=0).take(inds,axis=1)
+
 def bl_index(bl):
     i,j = a.miriad.bl2ij(bl)
     return i * 32 + j
+
+def cov(m):
+    '''Because numpy.cov is stupid and casts as float.'''
+    #return n.cov(m)
+    X = n.array(m, ndmin=2, dtype=n.complex)
+    X -= X.mean(axis=1)[(slice(None),n.newaxis)]
+    N = X.shape[1]
+    fact = float(N - 1)
+    return (n.dot(X, X.T.conj()) / fact).squeeze()
 
 # Get a dict of all separations and the bls that contribute
 bl2sep = {}
@@ -81,7 +104,7 @@ print 'scalar:', scalar
 #kwargs = {'cen_fqs':cen_fqs,'B':B, 'ntaps':NTAPS, 'window':WINDOW, 'bm_fqs':afreqs.clip(.120,.190)}
 #window = a.dsp.gen_window(freqs.size, window=WINDOW)
 
-T, N, W = {}, {}, {}
+T, N = {}, {}
 times = []
 for filename in args:
     uvi = a.miriad.UV(filename)
@@ -113,8 +136,6 @@ for filename in args:
                     Trms_ *= TSYS / n.sqrt(B * T_INT * NDAY * NBL * NPOL)
                     #Trms_ *= n.sqrt(n.sqrt(351./43)) # penalize for oversampling fr-filtered data
                     Trms_ *= 1.14 # adjust to suboptimal flux calibration
-            #g = 1.
-            #Trms = g*Trms + (1-g)*Trms_
             Nrms  = Trms_ * w
     
         if PFB:
@@ -129,208 +150,83 @@ for filename in args:
         gain = n.abs(_Wrms[0])
         #print 'Gain:', gain
         if gain > 0:
-            if False:
-                _Tcln, info = a.deconv.clean(_Trms, _Wrms, tol=1e-2)
-                #_Tcln, info = a.deconv.clean(_Trms, _Wrms, tol=1e-9)
-                _Trms = _Tcln + info['res'] / gain
-            else:
-                _Trms.shape = (_Trms.size,1)
-                C = n.zeros((_Trms.size, _Trms.size), dtype=n.complex)
-                for k1 in xrange(_Wrms.size):
-                  for k2 in xrange(_Wrms.size):
-                    #C[k1,k2] = _Wrms[k2-k1]
-                    C[k1,k2] = _Wrms[k1-k2]
-                _C = n.linalg.inv(C)
-                _Trms = n.dot(_C, _Trms).squeeze()
-                _Nrms = n.dot(_C, _Nrms).squeeze()
+            _Trms.shape = (_Trms.size,1)
+            C = n.zeros((_Trms.size, _Trms.size), dtype=n.complex)
+            for k1 in xrange(_Wrms.size):
+              for k2 in xrange(_Wrms.size):
+                #C[k1,k2] = _Wrms[k2-k1]
+                C[k1,k2] = _Wrms[k1-k2]
+            _C = n.linalg.inv(C)
+            _Trms = n.dot(_C, _Trms).squeeze()
+            _Nrms = n.dot(_C, _Nrms).squeeze()
         _Trms = n.fft.fftshift(_Trms)
         _Nrms = n.fft.fftshift(_Nrms)
-        _Wrms = n.fft.fftshift(_Wrms)
         if False: # swap in a simulated signal post delay transform
             _Trms = n.random.normal(size=_Trms.size) * n.exp(2j*n.pi*n.random.uniform(size=_Trms.size))
             #_Trms[26] += 2 * n.exp(100j*t)
         T[bl] = T.get(bl, []) + [_Trms]
         N[bl] = N.get(bl, []) + [_Nrms]
-        W[bl] = W.get(bl, []) + [_Wrms]
-
-
-def cov(m):
-    '''Because numpy.cov is stupid and casts as float.'''
-    #return n.cov(m)
-    X = n.array(m, ndmin=2, dtype=n.complex)
-    X -= X.mean(axis=1)[(slice(None),n.newaxis)]
-    N = X.shape[1]
-    fact = float(N - 1)
-    return (n.dot(X, X.T.conj()) / fact).squeeze()
-
-def cov2(m1,m2):
-    '''Because numpy.cov is stupid and casts as float.'''
-    #return n.cov(m)
-    X1 = n.array(m1, ndmin=2, dtype=n.complex)
-    X2 = n.array(m2, ndmin=2, dtype=n.complex)
-    X1 -= X1.mean(axis=1)[(slice(None),n.newaxis)]
-    X2 -= X2.mean(axis=1)[(slice(None),n.newaxis)]
-    N = X1.shape[1]
-    fact = float(N - 1)
-    return (n.dot(X1, X2.T.conj()) / fact).squeeze()
-
-class CoV:
-    def __init__(self, X, bls):
-        self.bls = bls
-        self.X = X
-        self.nprms = X.shape[0] / len(bls)
-        self.C = cov(X)
-    def get_C(self, bl1, bl2=None):
-        if bl2 is None: bl2 = bl1
-        i,j = self.bls.index(bl1), self.bls.index(bl2)
-        return self.C[i*self.nprms:(i+1)*self.nprms, j*self.nprms:(j+1)*self.nprms].copy()
-    def get_Cinv(self, bl1, bl2=None):
-        if bl2 is None: bl2 = bl1
-        return n.linalg.inv(self.get_C(bl1,bl2))
-    def get_x(self, bl):
-        i = self.bls.index(bl)
-        return self.X[i*self.nprms:(i+1)*self.nprms].copy()
-    def get_Ck(self, k):
-        inds = n.arange(len(self.bls)) * self.nprms + k
-        return self.C.take(inds,axis=0).take(inds,axis=1)
 
 n_k = chans.size
 bls = T.keys()
 Ts = n.concatenate([T[bl] for bl in bls], axis=-1).T
 Ns = n.concatenate([N[bl] for bl in bls], axis=-1).T
 print Ts.shape
-if False:
-    p.subplot(221); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
-    p.subplot(222); capo.arp.waterfall(Ns, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
-    p.subplot(223); capo.arp.waterfall(n.fft.ifft(Ts,axis=1), mode='log', mx=0,drng=2); p.colorbar(shrink=.5)
-    p.subplot(224); capo.arp.waterfall(n.fft.ifft(Ns,axis=1), mode='log', mx=0,drng=2); p.colorbar(shrink=.5)
-    p.show()
-
 print ' '.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in bls])
-C = CoV(Ts, bls)
-Cn = CoV(Ns, bls)
-capo.arp.waterfall(C.C, mode='log', drng=2); p.show()
+#capo.arp.waterfall(cov(Ts), mode='log', drng=2); p.show()
 
 X = Ts.copy()
-N1 = Ns.copy()
-N2 = Ns.copy()
-PLT1,PLT2 = 3,3
+N1 = Ns.copy() # this noise copy processed like the data
+N2 = Ns.copy() # this noise copy processed as if it were the data
+PLT1,PLT2 = 4,4
 for cnt in xrange(PLT1*PLT2-1):
-    p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(X), mode='log', mx=0, drng=2)
+    p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(X), mode='log', mx=0, drng=3)
     #p.subplot(PLT1,PLT2,i+1); capo.arp.waterfall(cov(N2), mode='log', mx=0, drng=2)
     SZ = X.shape[0]
-    ints = n.arange(X.shape[1])
-    #DEC = 8, 10, 20, 5
-    #DEC = 8
-    DEC = 1
-    seta = n.array([xi for xi in ints if (xi/DEC)%2 == 0])
-    setb = n.array([xi for xi in ints if (xi/DEC)%2 == 1])
-    xa,xb = X[:,seta],X[:,setb]
-    n1a,n1b = N1[:,seta],N1[:,setb]
-    n2a,n2b = N2[:,seta],N2[:,setb]
-    Ca,Cb = cov(xa), cov(xb)
-    Cna,Cnb = cov(n2a), cov(n2b)
-
-    # Normalize covariance matrices
-    for c in [Ca,Cb,Cna,Cnb]:
+    Cx,Cn = cov(X), cov(N2)
+    for c in [Cx,Cn]: # Normalize covariance matrices
         d = n.diag(c); d.shape = (1,SZ)
         c /= n.sqrt(d) * 2
-
-    #gain1,gain2 = 1,1
-    #gain1 = .1
-    gain1 = 1. / len(bls)
-    #gain1 = .5 / len(bls)
-    #gain1,gain2 = .3, .1
-    _Ca = -gain1*Ca
-    _Cb = -gain1*Cb
-    _Cna = -gain1*Cna
-    _Cnb = -gain1*Cnb
-    #_C1,_C2 = n.zeros_like(C1), n.zeros_like(C2) # don't diagonalize auto-products
-    #_C12,_C21 = n.zeros_like(C12), n.zeros_like(C21) # don't diagonalize cross-products
+    g = 1. / len(bls)
+    _Cx,_Cn = -g*Cx, -g*Cn
     ind = n.arange(SZ)
-    # zero out redundant off-diagonals
-    for b in xrange(len(bls)):
+    for b in xrange(len(bls)): # zero out redundant off-diagonals
         indb = ind[:-b*n_k]
-        _Ca[indb,indb+b*n_k] = 0
-        _Ca[indb+b*n_k,indb] = 0
-        _Cna[indb,indb+b*n_k] = 0
-        _Cna[indb+b*n_k,indb] = 0
-        _Cb[indb,indb+b*n_k] = 0
-        _Cb[indb+b*n_k,indb] = 0
-        _Cnb[indb,indb+b*n_k] = 0
-        _Cnb[indb+b*n_k,indb] = 0
-        if False: # only subtract modes near the horizon
-            for c in xrange(len(bls)):
-                h1,h2 = 12,29
-                _Ca[n_k*b:n_k*b+h1,n_k*c:n_k*c+h1] = 0
-                _Ca[n_k*b:n_k*b+h1,n_k*c+h2:n_k*(c+1)] = 0
-                _Ca[n_k*b+h2:n_k*(b+1),n_k*c:n_k*c+h1] = 0
-                _Ca[n_k*b+h2:n_k*(b+1),n_k*c+h2:n_k*(c+1)] = 0
-                _Cb[n_k*b:n_k*b+h1,n_k*c:n_k*c+h1] = 0
-                _Cb[n_k*b:n_k*b+h1,n_k*c+h2:n_k*(c+1)] = 0
-                _Cb[n_k*b+h2:n_k*(b+1),n_k*c:n_k*c+h1] = 0
-                _Cb[n_k*b+h2:n_k*(b+1),n_k*c+h2:n_k*(c+1)] = 0
-                _Cna[n_k*b:n_k*b+h1,n_k*c:n_k*c+h1] = 0
-                _Cna[n_k*b:n_k*b+h1,n_k*c+h2:n_k*(c+1)] = 0
-                _Cna[n_k*b+h2:n_k*(b+1),n_k*c:n_k*c+h1] = 0
-                _Cna[n_k*b+h2:n_k*(b+1),n_k*c+h2:n_k*(c+1)] = 0
-                _Cnb[n_k*b:n_k*b+h1,n_k*c:n_k*c+h1] = 0
-                _Cnb[n_k*b:n_k*b+h1,n_k*c+h2:n_k*(c+1)] = 0
-                _Cnb[n_k*b+h2:n_k*(b+1),n_k*c:n_k*c+h1] = 0
-                _Cnb[n_k*b+h2:n_k*(b+1),n_k*c+h2:n_k*(c+1)] = 0
-    if True: # subtract off covariances common to all baselines pairs
-        _Ca[ind,ind] = _Cb[ind,ind] = 0
-        _Cna[ind,ind] = _Cnb[ind,ind] = 0
-        for _C in [_Ca,_Cb,_Cna,_Cnb]:
-            _C.shape = (len(bls),n_k,len(bls),n_k)
-            sub_C = n.zeros_like(_C)
-            for i in xrange(len(bls)):
-                for j in xrange(len(bls)):
-                    not_ij = n.array([bl for bl in xrange(len(bls)) if not bl in [i,j]])
-                    _C_avg = n.mean(n.mean(_C.take(not_ij,axis=0).take(not_ij,axis=2), axis=2), axis=0)
-                    sub_C[i,:,j,:] = _C_avg
-            _C.shape = (len(bls)*n_k,len(bls)*n_k)
-            sub_C.shape = (len(bls)*n_k,len(bls)*n_k)
-            #p.clf()
-            #p.subplot(131); capo.arp.waterfall(sub_C, mode='log', drng=2)
-            #p.subplot(132); capo.arp.waterfall(_C, mode='log', drng=2)
-            #p.subplot(133); capo.arp.waterfall(_C - sub_C, mode='log', drng=2)
-            #p.show()
-            _C -= sub_C
-            
-    _Ca[ind,ind] = _Cb[ind,ind] = 1
-    _Cna[ind,ind] = _Cnb[ind,ind] = 1
-    #p.clf(); capo.arp.waterfall(_Ca, mode='log', drng=2); p.show()
-    
-    # Use covariance of first half of data to correct second half & vice versa
-    xa,xb = n.dot(_Cb,xa), n.dot(_Ca,xb)
-    n1a,n1b = n.dot(_Cb,n1a), n.dot(_Cb,n1b)
-    n2a,n2b = n.dot(_Cnb,n2a), n.dot(_Cnb,n2b)
-    X[:,seta],X[:,setb] = xa,xb
-    N1[:,seta],N1[:,setb] = n1a,n1b
-    N2[:,seta],N2[:,setb] = n2a,n2b
+        _Cx[indb,indb+b*n_k] = _Cx[indb+b*n_k,indb] = 0
+        _Cn[indb,indb+b*n_k] = _Cn[indb+b*n_k,indb] = 0
+    _Cx[ind,ind] = _Cn[ind,ind] = 0
+    for _C in [_Cx,_Cn]: # subtract off covariances common to all baselines pairs
+        # XXX this loop is introducing a small noise bias by injecting a common component in each
+        # square of the covariance matrix, and then subtracting this common cov * same baseline
+        _C.shape = (len(bls),n_k,len(bls),n_k)
+        sub_C = n.zeros_like(_C)
+        for i in xrange(len(bls)):
+            for j in xrange(len(bls)):
+                not_ij = n.array([bl for bl in xrange(len(bls)) if not bl in [i,j]])
+                _C_avg = n.mean(n.mean(_C.take(not_ij,axis=0).take(not_ij,axis=2), axis=2), axis=0)
+                sub_C[i,:,j,:] = _C_avg
+        _C.shape = (len(bls)*n_k,len(bls)*n_k)
+        sub_C.shape = (len(bls)*n_k,len(bls)*n_k)
+        _C -= sub_C
+    _Cx[ind,ind] = _Cn[ind,ind] = 1
+    X,N1,N2 = n.dot(_Cx,X), n.dot(_Cx,N1), n.dot(_Cn,N2)
 ## Normalize to maintain amplitude assuming all k modes are independent & same amplitude
 #norm1 = n.sqrt(n.sum(n.abs(_C1tot)**2, axis=1)); norm1.shape = (norm1.size,1)
-#norm2 = n.sqrt(n.sum(n.abs(_C2tot)**2, axis=1)); norm2.shape = (norm2.size,1)
 #x1 /= norm1; x2 /= norm2
-#n1 /= norm1; n2 /= norm2
-#p.subplot(121); capo.arp.waterfall(_C1tot/norm1, mode='lin', drng=1, mx=1); p.colorbar(shrink=.5)
-#p.subplot(122); capo.arp.waterfall(_C2tot/norm2, mode='lin', drng=1, mx=1); p.colorbar(shrink=.5)
-#p.show()
-p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(X), mode='log', mx=0, drng=2)
+p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(X), mode='log', mx=0, drng=3)
 #p.subplot(PLT1,PLT2,i+2); capo.arp.waterfall(cov(N2), mode='log', mx=0, drng=2)
 p.show()
 
 pspecs = []
-C_ = CoV(X, bls)
-Cn1_ = CoV(N1, bls)
-Cn2_ = CoV(N2, bls)
+Cx,Cn = CoV(Ts, bls), CoV(Ns, bls)
+Cx_ = CoV(X, bls)
+Cn1_,Cn2_ = CoV(N1, bls), CoV(N2, bls)
 for cnt,bli in enumerate(bls):
     for blj in bls[cnt:]:
         if bli == blj: continue
         print a.miriad.bl2ij(bli), a.miriad.bl2ij(blj)
-        xi,xj = C.get_x(bli), C.get_x(blj)
-        xi_,xj_ = C_.get_x(bli), C_.get_x(blj)
+        xi,xj = Cx.get_x(bli), Cx.get_x(blj)
+        xi_,xj_ = Cx_.get_x(bli), Cx_.get_x(blj)
         ni,nj = Cn.get_x(bli), Cn.get_x(blj)
         n1i_,n1j_ = Cn1_.get_x(bli), Cn1_.get_x(blj)
         n2i_,n2j_ = Cn2_.get_x(bli), Cn2_.get_x(blj)
@@ -370,7 +266,6 @@ pspecs = n.array(pspecs)
 avg_1d = n.average(pspecs, axis=0)
 #std_1d = n.std(pspecs, axis=0) / n.sqrt(pspecs.shape[0])
 std_1d = n.std(pspecs, axis=0) # in new noise subtraction, this remaining dither is essentially a bootstrap error, but with 5/7 of the data
-#std_1d = n.ones_like(avg_1d)
 
 print 'Writing pspec.npz'
 n.savez('pspec.npz', kpl=kpl, pk=avg_1d, err=std_1d)
