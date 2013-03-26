@@ -56,6 +56,21 @@ def cov(m):
     fact = float(N - 1)
     return (n.dot(X, X.T.conj()) / fact).squeeze()
 
+def gen_Q(knum, n_k, dim):
+    Q = n.zeros((dim,dim), dtype=n.float)
+    for i in n.arange(0,Q.shape[0],n_k):
+        for j in n.arange(0,Q.shape[1],n_k):
+            Q[i+knum,j+knum] = 1
+    if False: # Remove auto-products from estimator to avoid +noise bias
+        Q[n.arange(Q.shape[0]),n.arange(Q.shape[1])] = 0
+    return Q
+
+def quick_diag_dot(A, B):
+    return n.array([n.dot(A[...,i,:], B[...,:,i]) for i in range(A.shape[-2])])
+def quick_trace_dot(A, B):
+    return quick_diag_dot(A,B).sum()
+
+
 # Get a dict of all separations and the bls that contribute
 bl2sep = {}
 sep2bl = {}
@@ -117,7 +132,6 @@ for filename in args:
         if sep < 0:
             #print 'Conj:', a.miriad.bl2ij(bl)
             d,sep = n.conj(d),-sep
-
         d,f = d.take(chans), f.take(chans)
         w = n.logical_not(f).astype(n.float)
         Trms = d * capo.pspec.jy2T(afreqs)
@@ -137,7 +151,6 @@ for filename in args:
                     #Trms_ *= n.sqrt(n.sqrt(351./43)) # penalize for oversampling fr-filtered data
                     Trms_ *= 1.14 # adjust to suboptimal flux calibration
             Nrms  = Trms_ * w
-    
         if PFB:
             _Trms = capo.pfb.pfb(Trms, window=WINDOW, taps=NTAPS, fft=n.fft.ifft)
             _Nrms = capo.pfb.pfb(Nrms, window=WINDOW, taps=NTAPS, fft=n.fft.ifft)
@@ -163,7 +176,6 @@ for filename in args:
         _Nrms = n.fft.fftshift(_Nrms)
         if False: # swap in a simulated signal post delay transform
             _Trms = n.random.normal(size=_Trms.size) * n.exp(2j*n.pi*n.random.uniform(size=_Trms.size))
-            #_Trms[26] += 2 * n.exp(100j*t)
         T[bl] = T.get(bl, []) + [_Trms]
         N[bl] = N.get(bl, []) + [_Nrms]
 
@@ -176,27 +188,29 @@ print ' '.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in bls])
 #capo.arp.waterfall(cov(Ts), mode='log', drng=2); p.show()
 
 X = Ts.copy()
-N1 = Ns.copy() # this noise copy processed like the data
-N2 = Ns.copy() # this noise copy processed as if it were the data
-PLT1,PLT2 = 4,4
+N = Ns.copy() # this noise copy processed as if it were the data
+_Cxtot,_Cntot = 1., 1
+PLT1,PLT2 = 3,3
 for cnt in xrange(PLT1*PLT2-1):
+    print cnt, '/', PLT1*PLT2-1
     p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(X), mode='log', mx=0, drng=3)
     #p.subplot(PLT1,PLT2,i+1); capo.arp.waterfall(cov(N2), mode='log', mx=0, drng=2)
     SZ = X.shape[0]
-    Cx,Cn = cov(X), cov(N2)
+    Cx,Cn = cov(X), cov(N)
     for c in [Cx,Cn]: # Normalize covariance matrices
         d = n.diag(c); d.shape = (1,SZ)
         c /= n.sqrt(d) * 2
-    g = 1. / len(bls)
+    #g = 1. / len(bls)
+    g = 1
     _Cx,_Cn = -g*Cx, -g*Cn
     ind = n.arange(SZ)
     for b in xrange(len(bls)): # zero out redundant off-diagonals
         indb = ind[:-b*n_k]
         _Cx[indb,indb+b*n_k] = _Cx[indb+b*n_k,indb] = 0
         _Cn[indb,indb+b*n_k] = _Cn[indb+b*n_k,indb] = 0
-    _Cx[ind,ind] = _Cn[ind,ind] = 0
+    _Cx[ind,ind] = _Cn[ind,ind] = 0 # set these to zero temporarily to avoid noise bias into cross terms
     for _C in [_Cx,_Cn]: # subtract off covariances common to all baselines pairs
-        # XXX this loop is introducing a small noise bias by injecting a common component in each
+        # XXX this loop may be introducing a small noise bias by injecting a common component in each
         # square of the covariance matrix, and then subtracting this common cov * same baseline
         _C.shape = (len(bls),n_k,len(bls),n_k)
         sub_C = n.zeros_like(_C)
@@ -209,12 +223,75 @@ for cnt in xrange(PLT1*PLT2-1):
         sub_C.shape = (len(bls)*n_k,len(bls)*n_k)
         _C -= sub_C
     _Cx[ind,ind] = _Cn[ind,ind] = 1
-    X,N1,N2 = n.dot(_Cx,X), n.dot(_Cx,N1), n.dot(_Cn,N2)
+    if True: # for first cycles, only use auto-products to avoid noise contamination that causes bias
+        _Cx.shape = _Cn.shape = (len(bls),n_k,len(bls),n_k)
+        for i in xrange(len(bls)):
+            for j in xrange(len(bls)):
+                # XXX need to make this symmetric for baselines at beginning and end.
+                if abs(i - j) <= cnt: continue
+                _Cx[i,:,j,:] = _Cn[i,:,j,:] = 0
+        _Cx.shape = _Cn.shape = (len(bls)*n_k,len(bls)*n_k)
+    X,N = n.dot(_Cx,X), n.dot(_Cx,N)
+    _Cxtot,_Cntot = n.dot(_Cx,_Cxtot), n.dot(_Cn,_Cntot)
 ## Normalize to maintain amplitude assuming all k modes are independent & same amplitude
 #norm1 = n.sqrt(n.sum(n.abs(_C1tot)**2, axis=1)); norm1.shape = (norm1.size,1)
 #x1 /= norm1; x2 /= norm2
 p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(X), mode='log', mx=0, drng=3)
 #p.subplot(PLT1,PLT2,i+2); capo.arp.waterfall(cov(N2), mode='log', mx=0, drng=2)
+p.show()
+
+p.subplot(221); capo.arp.waterfall(_Cxtot, mode='log', drng=2)
+p.subplot(222); capo.arp.waterfall(cov(Ts), mode='log', drng=2)
+p.subplot(223); capo.arp.waterfall(cov(n.dot(_Cxtot,Ts)), mode='log', drng=2)
+p.subplot(224); capo.arp.waterfall(cov(X), mode='log', drng=2)
+p.show()
+
+print 'Making Fisher Matrix'
+Qs,Q_C = {}, {}
+for k in range(n_k):
+    Qs[k] = gen_Q(k,n_k,_Cxtot.shape[0])
+    Q_C[k] = n.dot(Qs[k], _Cxtot)
+F = n.zeros((40,40), dtype=n.complex)
+
+for k1 in range(n_k):
+  for k2 in range(n_k):
+    F[k1,k2] = 0.5 * quick_trace_dot(Q_C[k1],Q_C[k2])
+_F = n.linalg.inv(F)
+
+print 'Making Normalization/Windowing'
+# Set M = F^-1/2
+w,v = n.linalg.eig(_F)
+M = n.dot(v, n.dot(n.diagflat(n.sqrt(w)), v.T))
+# Normalize M s.t. rows of W sum to 1
+W = n.dot(M,F)
+norm = n.sum(W, axis=-1); norm.shape = (norm.size,1)
+M /= norm
+W = n.dot(M,F) # this is just to prove normalization
+
+p.subplot(221); capo.arp.waterfall(F, mode='log', drng=2)
+p.subplot(222); capo.arp.waterfall(_F, mode='log', drng=2)
+p.subplot(223); capo.arp.waterfall(M, mode='log', drng=2)
+p.subplot(224); capo.arp.waterfall(W, mode='log', drng=2)
+p.show()
+
+print 'Minding ps and qs'
+qs = []
+for k in range(n_k):
+    print k
+    _CQ_C = n.dot(_Cxtot, Q_C[k])
+    qs.append(0.5 * quick_diag_dot(Ts.T.conj(), n.dot(_CQ_C, Ts)))
+qs = n.array(qs)
+print qs.shape, M.shape
+ps = n.dot(M,qs)
+covp = n.dot(W,M.T)
+
+p.subplot(131); capo.arp.waterfall(qs, mode='log', drng=2)
+p.subplot(132); capo.arp.waterfall(ps, mode='log', drng=2)
+p.subplot(133); capo.arp.waterfall(covp, mode='log', drng=2); p.colorbar(shrink=.5)
+p.show()
+
+p.subplot(121); p.plot(scalar * n.average(qs, axis=1))
+p.subplot(122); p.plot(scalar * n.average(ps, axis=1))
 p.show()
 
 pspecs = []
