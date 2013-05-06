@@ -1,7 +1,10 @@
 #! /usr/bin/env python
+import matplotlib
+matplotlib.use('Agg')
 import aipy as a, numpy as n
 import optparse, sys, scipy.optimize
 import capo as C
+import pylab as p
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, chan=True, pol=True)
@@ -9,6 +12,8 @@ o.add_option('-s', '--src', dest='src', type='str',
     help='Source to use for calibration.')
 o.add_option('--cat', dest='cat', type='str', default='helm,misc',
     help='A comma-delimited list of catalogs from which sources are to be drawn.  Default is "helm,misc".  Other available catalogs are listed under aipy._src.  Some catalogs may require a separate data file to be downloaded and installed.')
+o.add_option('--plot_src_track',action='store_true',
+    help='Does what it says.')
 opts,args = o.parse_args(sys.argv[1:])
 
 def filename2src(f):
@@ -43,6 +48,7 @@ for filename in args:
         tracks[srcname]['bm'] = []
         tracks[srcname]['dat'] = []
         tracks[srcname]['wgt'] = []
+        tracks[srcname]['altaz'] = []
     src = cat[srcname]
     uv = a.miriad.UV(filename)
     a.scripting.uv_selector(uv, 'cross', opts.pol)
@@ -61,12 +67,36 @@ for filename in args:
         src.compute(aa)
         src_xyz = src.get_crds('top')
         tracks[srcname]['top'].append(src_xyz)
+        src_altaz = src.get_crds('top',ncrd=2)
+        tracks[srcname]['altaz'].append(src_altaz)
         bmi = aa[i].bm_response(src_xyz, pol=opts.pol[0])
         bmj = aa[j].bm_response(src_xyz, pol=opts.pol[-1])
         tracks[srcname]['bm'].append(bmi * n.conj(bmj))
         #print src.src_name, src.ra, src.dec, src_xyz#, bm[-1]
         tracks[srcname]['dat'].append(d)
         tracks[srcname]['wgt'].append(w)
+if opts.plot_src_track:
+    try:
+        from mpl_toolkits.basemap import Basemap
+    except(ImportError):
+        from matplotlib.toolkits.basemap import Basemap
+        #if its not here, I die
+    map = Basemap(projection='ortho',lat_0=-30,lon_0=0,rsphere=1.,anchor='N')
+    p.figure()
+    map.drawmapboundary()
+    map.drawparallels(n.arange(-90,90,30)[1:], labels=[0,1,0,0], labelstyle='+/-')
+    map.drawmeridians(n.arange(-180, 180, 30))
+    print "plotting source tracks"
+    for srcname in tracks:
+        altaz = n.array(tracks[srcname]['altaz'])
+        print altaz[0,:]
+        sx,sy = map(altaz[:,0],altaz[:,1])
+        print sx[0]
+        map.scatter(sx,sy,label=srcname)
+    #p.legend(loc='upper center',numpoints=1)
+    p.savefig("%s_srctrack.png"%'-'.join(tracks.keys()))
+
+
 
 calsrc = calsrc.src_name
 
@@ -184,7 +214,8 @@ for cnt,srcname in enumerate(tracks.keys()):
     
 p.subplot(212)
 p.legend()
-p.show()
+p.savefig(srcname+'_spec.png')
+#p.show()
 sys.exit(0)
 
 bp_cal = {}

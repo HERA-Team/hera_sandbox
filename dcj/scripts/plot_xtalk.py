@@ -1,6 +1,12 @@
+
+#! /usr/bin/env python
+
+from pylab import *
+import sys
+import numpy as n 
 SIGMAS = []
 AVGS = []
-for file in files:
+for file in sys.argv[1:]:
     A = n.load(file)
     SIGMAS.append(A['SIGMA'])
     AVGS.append(A['AVG'])
@@ -26,3 +32,4 @@ ylabel('$\mathcal{R}e(V_{8,12})$  [counts]')
 xlabel('frequency [MHz]')
 legend(loc='lower right',ncol=4,columnspacing=0.5,numpoints=4,prop={'size':10})
 subplots_adjust(left=0.15,bottom=0.15)
+show()

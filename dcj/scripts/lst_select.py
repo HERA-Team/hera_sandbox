@@ -3,7 +3,7 @@
 Read in a list of files and outputs file list with LSTs within RA range.
 """
 
-import aipy as a, sys, optparse, ephem,string,numpy as n,logging
+import aipy as a, sys, optparse, ephem,string,numpy as n,logging,os
 
 o = optparse.OptionParser()
 o.set_usage('lst_select [options] <files>')
@@ -52,7 +52,7 @@ active=0
 is_listed = False
 pad=ephem.hours(opts.lst_pad*a.img.deg2rad)
 for s in args:
-    jd = float(string.join(s.split('.')[1:3],'.'))
+    jd = float(string.join(os.path.basename(s).split('.')[1:3],'.'))
     aa.set_jultime(jd)
     #print s,aa.sidereal_time(),repr(aa.sidereal_time())
     sun.compute(aa)
