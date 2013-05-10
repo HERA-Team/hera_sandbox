@@ -42,7 +42,7 @@ for i, filename in enumerate(args):
     img, kwds = a.img.from_fits(filename)
     img = n.ma.masked_invalid(img.squeeze()).filled(0)
     # Read ra/dec of image center, which are stored in J2000
-    assert(kwds['epoch'] == 2000)
+    #assert(kwds['epoch'] == 2000)
     s = ephem.Equatorial(kwds['ra']*a.img.deg2rad, kwds['dec']*a.img.deg2rad, 
         epoch=ephem.J2000)
     # To precess the entire image to J2000, we actually need to precess the

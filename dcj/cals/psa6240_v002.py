@@ -26,11 +26,11 @@ prms = {
 #    'tau_ew': 2.71,
 #     'tau_ew': -4.84,#41_49 (0,1)
 #     'tau_ew':-4.837, #1st row (0,1)
-     'tau_ew':2.28, #good on 41_49,47_49 ~0.66
+     'tau_ew':2.222, #good on 41_49,47_49 0.66, bls 0,4 like at 0.64
 #    'tau_ew':-5.26, #preferrerd for (0,4)
 #     'tau_ns': -3.56,#default
 #     'tau_ns':-2.554,#49_58
-     'tau_ns':0.9305, #49_58 0.73!!, also good on 3_49, 0.73 on col1
+     'tau_ns':0.944, #49_58 0.82
 #      'tau_ns':-6.094, #preferred by 3_49
 #    'gain': .0036096,
     'gain':0.0658,
