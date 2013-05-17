@@ -235,11 +235,7 @@ for srcname in sort(PAPERcatalog.keys()):
                     cat_freq.shape,cat_flux.shape,cat_err.shape = (1,)*3
                 else:
                     cat_freq = cat_freq.squeeze()
-<<<<<<< HEAD:dcj/scripts/SED_fit.py
                 print "folding in %d data points from catalog"%cat_flux.size 
-=======
-                print "folding in %d data points from specfind catalog"%cat_flux.size 
->>>>>>> arp/master:dcj/scripts/SED_fit.py
                 print cat_freq,cat_flux,cat_err
                 freqs =  n.concatenate((freqs,cat_freq))
                 fluxes = n.concatenate((fluxes,cat_flux)) 
