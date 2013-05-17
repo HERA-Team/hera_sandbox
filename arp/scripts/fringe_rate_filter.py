@@ -12,10 +12,12 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, ant=True, pol=True)
 o.add_option('--clean', dest='clean', type='float', default=1e-3,
     help='Deconvolve delay-domain data by the "beam response" that results from flagged data.  Specify a tolerance for termination (usually 1e-2 or 1e-3).')
-o.add_option('--minfr', dest='minfr', type='float', default=6e-5,
-    help='Minimum fringe rate (in Hz) to allow.  Anything varying slower than this is considered crosstalk.  A negative value indicates nothing should be considered crosstalk.  Default 6e-5')
-o.add_option('--fr_frac', type='float', default=1.,
+o.add_option('--xtalk', type='float', default=-1,
+    help='Minimum fringe rate (in Hz) to allow.  Anything varying slower than this is considered crosstalk.  A negative value indicates nothing should be considered crosstalk.  Default is -1.  A typical value for PAPER is 6e-5.')
+o.add_option('--max_fr_frac', type='float', default=1.,
     help='Fractional width of the fringe-rate filter range to extract.  Default 1.')
+o.add_option('--min_fr_frac', type='float', default=-.3,
+    help='Fractional width of the fringe-rate filter range to extract.  Default -.3')
 o.add_option('--rmsky', action='store_true',
     help='Instead of retaining the data corresponding to the sky, remove it.')
 o.set_usage('fringe_rate_filter.py [options] *.uv')
@@ -32,19 +34,21 @@ def triplets(seq):
     for i in range(1,len(seq)-1): yield seq[i-1:i+2]
     return
 
-def sky_fng_thresh(bl_ew_len, inttime, nints, freq, min_fr=6e-5, neg_fr=-2e-4, max_fr_frac=1.):
+def sky_fng_thresh(bl_ew_len, inttime, nints, freq, min_fr_frac=-.3, xtalk=-1, max_fr_frac=1.):
     '''For bl_ew_len (the east/west projection) in ns, return the (upper,negative,lower) fringe rate bins 
     that geometrically correspond to the sky.'''
     bin_fr = 1. / (inttime * nints)
     max_bl = bl_ew_len * max_fr_frac
+    min_bl = bl_ew_len * min_fr_frac
     max_fr = freq * max_bl * 2*n.pi / a.const.sidereal_day
-    lthr = min_fr / bin_fr
-    nthr = neg_fr / bin_fr
+    min_fr = freq * min_bl * 2*n.pi / a.const.sidereal_day
+    lthr = xtalk / bin_fr
     uthr = max_fr / bin_fr
-    uthr, nthr, lthr = n.ceil(uthr).astype(n.int), int(n.floor(nthr)), int(n.floor(lthr))
+    nthr = min_fr / bin_fr
+    uthr, nthr, lthr = n.ceil(uthr).astype(n.int), n.ceil(nthr).astype(n.int), int(n.floor(lthr))
     return (uthr,nthr,lthr)
 
-def all_sky_fng_thresh(aa, inttime, nints, min_fr=6e-5, neg_fr=-2e-4, max_fr_frac=1.):
+def all_sky_fng_thresh(aa, inttime, nints, min_fr_frac=-.3, xtalk=-1, max_fr_frac=1.):
     '''Return a dictionary, indexed by baseline, of the (upper,lower) fringe rate
     bins that geometrically correspond to the sky.'''
     filters = {}
@@ -54,9 +58,10 @@ def all_sky_fng_thresh(aa, inttime, nints, min_fr=6e-5, neg_fr=-2e-4, max_fr_fra
         bl = aa.ij2bl(i,j)
         bl_len = aa.get_baseline(i,j)
         #print i,j, bl_len
-        bl_ew_len = n.sqrt(n.dot(bl_len[:2], bl_len[:2]))
+        #bl_ew_len = n.sqrt(n.dot(bl_len[:2], bl_len[:2]))
+        bl_ew_len = bl_len[0] # XXX this assumes the ey component of the bl is ~0
         filters[bl] = sky_fng_thresh(bl_ew_len, inttime, nints, aa.get_afreqs(), 
-            min_fr=min_fr, neg_fr=neg_fr, max_fr_frac=max_fr_frac)
+            min_fr_frac=min_fr_frac, xtalk=xtalk, max_fr_frac=max_fr_frac)
     return filters
 
 data,wgts = {}, {}
@@ -92,7 +97,8 @@ for files in triplets(args):
     times1 = times[n.where(n.logical_and(times < t2, times >= t1))]
     times2 = times[n.where(times >= t2)]
     #print len(times0), len(times1), len(times2)
-    max_fr = all_sky_fng_thresh(aa, inttime, times.size, min_fr=opts.minfr, max_fr_frac=opts.fr_frac)
+    max_fr = all_sky_fng_thresh(aa, inttime, times.size, 
+            min_fr_frac=opts.min_fr_frac, xtalk=opts.xtalk, max_fr_frac=opts.max_fr_frac)
 
     window = a.dsp.gen_window(times.shape[0], 'blackman-harris')
 
@@ -110,17 +116,40 @@ for files in triplets(args):
                 #print ch, lfr, nfr, ufr[ch], gain
                 if gain == 0: continue
                 area = n.ones(_d.shape, dtype=n.int)
+                warea = n.ones_like(area)
                 # XXX would prefer to implement fr cuts as weights rather than bin ranges...
-                area[ufr[ch]+1:nfr] = 0
-                _d,info = a.deconv.clean(_d,_w, area=area, tol=opts.clean, stop_if_div=False, maxiter=100)
+                if ufr[ch] >= 0:
+                    if nfr[ch] < 0:
+                        area[ufr[ch]+1:nfr[ch]] = 0
+                        warea[ufr[ch]+1:nfr[ch]] = 0
+                    else:
+                        area[:nfr[ch]] = 0
+                        area[ufr[ch]+1:] = 0
+                        warea[ufr[ch]+1-nfr[ch]:] = 0 # Same width but includes DC term for flagging purposes
+                else:
+                    if nfr[ch] < 0:
+                        area[nfr[ch]:] = 0
+                        area[:ufr[ch]] = 0
+                        warea[-nfr[ch]-ufr[ch]:] = 0 # Same width but includes DC term for flagging purposes
+                    else:
+                        area[nfr[ch]+1:ufr[ch]] = 0
+                        warea[nfr[ch]+1:ufr[ch]] = 0
+                if ch == 130 and bl in [a.miriad.ij2bl(0,16), a.miriad.ij2bl(8,16)]: print ufr[ch], nfr[ch]
+                #if bl == a.miriad.ij2bl(0,16): print ch, area.size, area.sum()
+                #_d,info = a.deconv.clean(_d,_w, area=area, tol=opts.clean, stop_if_div=False, maxiter=100)
+                _d,info = a.deconv.clean(_d,_w, area=area, tol=opts.clean)
+                # XXX hack to do "beam weighting" of selecting, assuming 1hr files = bins 
+                #mask = n.zeros_like(area); mask[8:11] = 1; area *= mask; _d *= mask
                 _r = info['res'] * area
-                if opts.minfr >= 0:
+                if opts.xtalk >= 0:
                     _d[:lfr+1] = 0
                     _r[:lfr+1] = 0
                     if lfr > 0:
                         _d[-lfr:] = 0
                         _r[-lfr:] = 0
-                w_ch = n.fft.fft(n.fft.ifft(w[:,ch]) * area)#; w_ch = n.where(w_ch > .75, w_ch, 0)
+                #w_ch = n.fft.fft(n.fft.ifft(w[:,ch]) * area)#; w_ch = n.where(w_ch > .75, w_ch, 0)
+                # use warea instead of area to include DC term
+                w_ch = n.fft.fft(n.fft.ifft(w[:,ch]) * warea)
                 d_ch = n.fft.fft(_d) * window * w_ch + n.fft.fft(_r)
                 d[:,ch] = d_ch
                 w[:,ch] = w_ch

@@ -58,7 +58,7 @@ for filename in args:
             if opts.beam: gain *= aa.bm_response(i,j,pol=opts.pol).squeeze()
             if opts.srcflux: gain *= src_spec
             d /= gain
-        except(a.phs.PointingError): d *= 0
+        except(a.phs.PointingError): f = n.ones_like(f)
         dbuf[t] = dbuf.get(t, 0) + n.where(f, 0, d)
         cbuf[t] = cbuf.get(t, 0) + n.logical_not(f).astype(n.int)
     uvi.rewind()

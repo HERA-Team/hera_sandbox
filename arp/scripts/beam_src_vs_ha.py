@@ -66,6 +66,7 @@ for filename in args:
         aa.set_jultime(t)
         src.compute(aa)
         src_xyz = src.get_crds('top')
+        #print t, aa.sidereal_time(), src.alt, src.get_crds('top')
         tracks[srcname]['top'].append(src_xyz)
         src_altaz = src.get_crds('top',ncrd=2)
         tracks[srcname]['altaz'].append(src_altaz)
@@ -98,6 +99,15 @@ if opts.plot_src_track:
 
 
 
+#for srcname in tracks:
+#    x = n.array(tracks[srcname]['top'])[:,0]
+#    d = n.sum(tracks[srcname]['dat'], axis=1) / n.sum(tracks[srcname]['wgt'], axis=1)
+#    #b = n.sum(tracks[srcname]['bm'], axis=1) / n.sum(tracks[srcname]['wgt'], axis=1) * 40
+#    #print b.shape
+#    p.plot(x,d, label=srcname)
+#    #p.plot(x,b)
+#p.show()
+
 calsrc = calsrc.src_name
 
 calsrc_x   = n.array(tracks[calsrc]['top'])[:,0]
@@ -125,7 +135,6 @@ def fit_pwrlaw(fqs, dat, err, flx, ind, mfreq=.150):
     return rv
 
 
-import pylab as p
 for cnt,srcname in enumerate(tracks.keys()):
     color = 'krbgcm'[cnt % 6]
     x = n.array(tracks[srcname]['top'])[:,0]
