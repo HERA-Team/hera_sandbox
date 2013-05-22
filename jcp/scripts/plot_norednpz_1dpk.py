@@ -56,13 +56,15 @@ keys = n.array(keys).astype(float)
 keys.sort()
 
 colors = ['k','k','blue','green','red','cyan','purple','k']
+labels = ['k','k','4-8','8-16','16-32','32-64','64-128','k']
 for color,umag in enumerate(keys):
     umag = str(umag).split('.')[0]
     if umag in ['1','2','4','256']: continue #CLUDGE!
     #f = n.abs(kpl)**3*(2*n.pi**2)**-1
     f = 1. 
     if opts.nobin: label = str(a.miriad.bl2ij(umag))
-    else: label = str(umag)
+    #else: label = str(umag)
+    else: label = labels[color]
     #log-bin in k
     if True:
         #binstart = 0.454
@@ -122,10 +124,10 @@ for ind, ks, fqs, specs in zip(inds, npz['ks'], npz['fqs'], npz['spec']):
     #p.loglog(ks, 1000*specs,lw=2,marker='o',color=colors[ind])
 
 #p.xlim(.04,10)
-#p.xlim(.02,10)
+p.xlim(.018,7)
 #p.ylim(1e6,1e11)
 #p.ylabel(r'$\Delta^2(k)\ [{\rm mK}^2]$')
-p.ylabel(r'$\P(k)\ [{\rm mK}^2]$')
+p.ylabel(r'$P(k)\ [{\rm mK}^2 (h^{-1}\rm{Mpc})^3]$')
 p.xlabel(r'$k_{\parallel}\ [h{\rm Mpc}^{-1}]$')
 params = {'legend.fontsize' : 12}
 p.rcParams.update(params)
