@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n, pylab as p
 
-FQ = .150
+FQ = .164
 #BINWIDTH = 1. / 7200. # Hz
 BINWIDTH = 1. / 3600. # Hz
 bin_edges = n.arange(-.01+BINWIDTH/2,.01,BINWIDTH)
@@ -11,7 +11,7 @@ def mk_fng(bl, ex, ey, ez):
     #f = -(bl[0]*n.sin(lons) + bl[1]*n.cos(lons)) * n.cos(lats)
     return -2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey) * n.sqrt(1 - ez**2) # Hz
 
-aa = a.cal.get_aa('psa898_v002', n.array([FQ]))
+aa = a.cal.get_aa('psa898_v003', n.array([FQ]))
 if False:
     for ant in aa: ant.set_pointing(twist=n.pi/4)
 if False: aa.lat = '0:00'; aa.update()
@@ -41,8 +41,9 @@ def beam_area(dat):
 
 xyz = h.px2crd(n.arange(h.map.size), ncrd=3)
 tx,ty,tz = n.dot(aa._eq2zen, xyz)
-aa[0].set_pointing(twist=0)
-aa[28].set_pointing(twist=n.pi/4)
+if False:
+    aa[0].set_pointing(twist=0)
+    aa[28].set_pointing(twist=n.pi/4)
 _bmx = aa[0].bm_response((tx,ty,tz),pol='x')[0]
 _bmy = aa[0].bm_response((tx,ty,tz),pol='y')[0]
 _bma = aa[28].bm_response((tx,ty,tz),pol='x')[0]
@@ -51,7 +52,8 @@ _bmb = aa[28].bm_response((tx,ty,tz),pol='y')[0]
 #bmy = aa[0].bm_response((tx,ty,tz),pol='y')[0]**2
 #bm = bmx - bmy
 #bm = _bmx * _bmb #+ _bmy * _bma
-bm = _bmy * _bma
+#bm = _bmy * _bma
+bm = 0.5 * (_bmx**2 + _bmy**2)
 bm = n.where(tz > 0, bm, 0)
 
 def nos(dat, t):
@@ -63,8 +65,8 @@ def nos(dat, t):
 
 xyz = (xyz[1],xyz[0],xyz[2])
 #bl = n.array([100, 0, 0])
-#bl = aa.get_baseline(0,16,'r') * FQ
-bl = aa.get_baseline(0,28,'r') * FQ
+bl = aa.get_baseline(0,16,'r') * FQ
+#bl = aa.get_baseline(0,28,'r') * FQ
 #bl = aa.get_baseline(0,3,'r') * 10 * FQ
 print 'Baseline:', bl
 fng = mk_fng(bl, *xyz)
@@ -113,6 +115,11 @@ wgts = n.array(wgts)
 
 p.plot(bins, wgts/wgts.max())
 
+fng_amp = bm * f
+print fng_amp.max()
+fng_amp /= fng_amp.max()
+print 'Whole beam area:', beam_area(bm), beam_area(bm**2)
+print 'Filtered beam area:', beam_area(fng_amp), beam_area(fng_amp**2)
 print n.sqrt(noise_sum) / noise_wgt
 
 print 'Improvement:', (n.sqrt(noise_sum)/noise_wgt) / (nos(bm,1.) / n.sqrt(NBINS))
@@ -121,7 +128,6 @@ p.subplot(235)
 p.imshow(proj_hmap(f,'e'), origin='lower')
 
 p.subplot(236)
-fng_amp = bm * f
 p.imshow(proj_hmap(fng_amp,'e'), origin='lower')
 
 p.show()

@@ -30,7 +30,7 @@ def query_disc(proj,pos,r):
     cpix = proj.topixel(pos)
     #the number of pixels to look at
     # = number spanned by the search area x pi
-    pshape = (r/n.abs(proj.cdelt)*n.pi).astype(int)
+    pshape = (r/n.abs(proj.cdelt[:2])*n.pi).astype(int)
     #form up the RA,DEC pixel positions in this area
     D,R = n.indices(pshape)
     S = n.sqrt((D - pshape[0]/2.)**2*n.abs(proj.cdelt[0])\
@@ -59,13 +59,18 @@ for file in args:
         raise
     maxpx = n.argwhere(image==image.max()).squeeze()
     F = image.max()
-    RA,DEC = proj.toworld(maxpx)
-    srcpos = n.array([RA,DEC])
-    print proj.crval[0],proj.crval[1],RA,DEC,
+    pos = proj.toworld(maxpx)
+    print proj.crval[0],proj.crval[1],maxpx,pos[0],pos[1],    
     #get the pixels inside the surrounding annulus        
     center = n.array(image.shape).astype(int)/2
-    doughpix = query_disc(proj,srcpos,opts.radius)
+    if maxpx[0]<image.shape[0]/3 or maxpx[0]>image.shape[0]*2/3\
+        or maxpx[1]<image.shape[1]/3 or maxpx[1]>image.shape[1]*2/3:
+        maxpx[0] = int(image.shape[0]/2.)
+        maxpx[1] = int(image.shape[1]/2.)
+    pos = proj.toworld(maxpx)
+    doughpix = query_disc(proj,pos,opts.radius)
     #holepix = query_disc(proj,srcpos,1.)
     #donutpix = n.array([px for px in doughpix if px not in holepix])
     RMS = n.std(image[doughpix[:,1],doughpix[:,0]])   
-    print F,RMS,F/RMS
+    print F,RMS,n.std(image[image.shape[0]/3:image.shape[0]*2/3,
+                        image.shape[1]/3:image.shape[1]*2/3])
