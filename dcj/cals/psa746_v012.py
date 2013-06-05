@@ -9,10 +9,9 @@ v007: Put in spectra from 747-uvcbRmtsFFFFF beam-forming run
 v008: Put in spectra003b from 747-uvcbRmtsFFFFFs beam-forming
 v009: Replaced all spectra with unique list regenerated from srcspec003a,b
 v010: Updated overall gain calibration to match spectra derived above
-    v012: Adding overall gain parameter like in psa898_v003
 """
 import aipy as a, numpy as n,glob,ephem
-import generic_catalog
+#import generic_catalog
 import logging
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger('psa331_v009_gc')
@@ -27,13 +26,6 @@ class Antenna(a.fit.Antenna):
         self.lat = ephem.degrees(kwargs['lat'])
         self._eq2zen = a.coord.eq2top_m(0., self.lat)
         self.top_pos = n.dot(self._eq2zen,self.pos)
-        self.gain = kwargs.pop('gain')
-        self.update_gains()
-    def update_gains(self):
-        gains = self.gain * self.amp_coeffs
-        for i,gain in zip(self.ant_layout.flatten(), gains.flatten()):
-            self[i].set_params({'amp_x':gain})
-            self[i].set_params({'amp_y':gain})        
     def _update_phsoff(self):
         self.phsoff = n.polyval(self._phsoff + self.dphsoff, self.beam.afreqs)
     def update(self):
@@ -45,26 +37,26 @@ class Antenna(a.fit.Antenna):
     def bm_response(self, *args, **kwargs):
         #print '(', self._bm_gain, ')',
         return a.fit.Antenna.bm_response(self,*args,**kwargs) / self._bm_gain
-#    def get_params(self, prm_list=['*']):
-#        """Return all fitable parameters in a dictionary."""
-#        x,y,z = self._pos
-#        aprms = {'x':x, 'y':y, 'z':z, 'dly':self._phsoff[-2],
-#            'off':self._phsoff[-1], 'phsoff':self._phsoff}
-#        aprms['ddly'] = self.dphsoff[-2]
-#        aprms['doff'] = self.dphsoff[-1]
-#        aprms['dx'] = self.dpos[0]
-#        aprms['dy'] = self.dpos[1]
-#        aprms['dz'] = self.dpos[2]
-#        aprms['bp_r'] = list(self.bp_r)
-#        aprms['bp_i'] = list(self.bp_i)
-#        aprms['amp'] = self.amp
-#        aprms.update(self.beam.get_params(prm_list))
-#        prms = {}
-#        for p in prm_list:
-#            if p.startswith('*'): return aprms
-#            try: prms[p] = aprms[p]
-#            except(KeyError): pass
-#        return prms
+    def get_params(self, prm_list=['*']):
+        """Return all fitable parameters in a dictionary."""
+        x,y,z = self._pos
+        aprms = {'x':x, 'y':y, 'z':z, 'dly':self._phsoff[-2],
+            'off':self._phsoff[-1], 'phsoff':self._phsoff}
+        aprms['ddly'] = self.dphsoff[-2]
+        aprms['doff'] = self.dphsoff[-1]
+        aprms['dx'] = self.dpos[0]
+        aprms['dy'] = self.dpos[1]
+        aprms['dz'] = self.dpos[2]
+        aprms['bp_r'] = list(self.bp_r)
+        aprms['bp_i'] = list(self.bp_i)
+        aprms['amp'] = self.amp
+        aprms.update(self.beam.get_params(prm_list))
+        prms = {}
+        for p in prm_list:
+            if p.startswith('*'): return aprms
+            try: prms[p] = aprms[p]
+            except(KeyError): pass
+        return prms
     def set_params(self, prms):
         """Set all parameters from a dictionary."""
         changed = False
@@ -275,10 +267,13 @@ prms = {
  60:0.00382425542649, 61:0.00336631508857, 62:0.00388450863696, 63:0.00370594585437,
     },
 
-
     #'bp_r': n.array([[-546778459030.53168, 664643788581.23596, -352000715429.32422, 106069000024.00294, -19886868672.0816, 2375187771.2150121, -176441928.4305163, 7452103.7565970663, -136981.43950786022]] * 64), # from J2214-170 in Helmboldt
     #'bp_r': n.array([[-546778459030.53168, 664643788581.23596, -352000715429.32422, 106069000024.00294, -19886868672.0816, 2375187771.2150121, -176441928.4305163, 7452103.7565970663, -136981.43950786022]] * 64) * 1.0178**0.5, # from J2214-170 in Helmboldt, with adjustment for tempgain.py gain adjustment
-    'bp_r': n.array([[-167333390752.98276, 198581623581.65594, -102487141227.4993, 30027423590.548084, -5459067124.669095, 630132740.98792362, -45056600.848056234, 1822654.0034047314, -31892.9279846797]] * 64) * 1.0178**0.5, # from J2214-170 in Helmboldt, with adjustment for tempgain.py gain adjustment, then renormalized post-beamform to J2214-170 again,  poly is the product of previous bp_r and [193546064213.89413, -237715087605.97723, 127252227822.95598, -38776645160.640396, 7356414439.0182276, -889674290.93449306, 66979793.474958092, -2869901.2171315835, 53580.480200223508]
+   # 'bp_r': n.array([[-167333390752.98276, 198581623581.65594, -102487141227.4993, 30027423590.548084, -5459067124.669095, 630132740.98792362, -45056600.848056234, 1822654.0034047314, -31892.9279846797]] * 64) * 1.0178**0.5, # from J2214-170 in Helmboldt, with adjustment for tempgain.py gain adjustment, then renormalized post-beamform to J2214-170 again,  poly is the product of previous bp_r and [193546064213.89413, -237715087605.97723, 127252227822.95598, -38776645160.640396, 7356414439.0182276, -889674290.93449306, 66979793.474958092, -2869901.2171315835, 53580.480200223508]
+    'bp_r': n.array([[ -1.40152497e+12+0.j,   1.87688648e+12+0.j,  -1.10924496e+12+0.j,
+         3.79618728e+11+0.j,  -8.28853139e+10+0.j,   1.19702307e+10+0.j,
+        -1.14322183e+09+0.j,   6.96143014e+07+0.j,  -2.45225907e+06+0.j,
+         3.80746980e+04+0.j]] * 64),
     'bp_i': n.array([[0., 0., 0.]] * 64),
     'beam': a.fit.BeamAlm,
    'twist': n.array([0]*64),#n.array([.1746] * 32),
@@ -339,48 +334,18 @@ def get_aa(freqs):
     aa = AntennaArray(prms['loc'], antennas)
     return aa
 
-from srcspec009 import src_params
-# These params were used to subtract uvcbRmt to get uvcbRmts
-#src_params = {
+#from srcspec009 import src_params
+src_params = {
 #    'cen':{ 'jys':10**3.282102, 'index':  0.235166 , },
 #    'cyg':{ 'jys':10**3.566410, 'index':  -0.266315 , },
 #    #'for':{ 'jys':10**2.285001, 'index':  -2.786408 , },
 #    'hyd':{ 'jys':10**2.448816, 'index':  -0.866462 , },
-#    'pic':{ 'jys':10**2.714456, 'index':  -0.436361 , },
+    'pic':{ 'jys':10**2.714456, 'index':  -0.436361 , },
 #    'vir':{ 'jys':10**2.200725, 'index':  0.202425 , },
 #    'Sun': {'a1': 0.00644, 'index': 1.471, 'a2': 0.00586, 'jys': 55701.96, 'th': -0.000512},
 #    'for': {'a1': 0.00851, 'a2': 0.00413, 'jys': 907.09, 'th': 0.230},
-#}
-def get_catalog(srcs=None, cutoff=None, catalogs=['helm','misc']):
-    '''Return a catalog containing the listed sources.'''
-#    custom_srcs = ['J1615-605','J1935-461','J2154-692','J2358-605']
-    log.info("get_catalog")
-    specials = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter',
-    'Saturn', 'Uranus', 'Neptune']
-    srclist =[]
-    for c in catalogs:
-        log.info("looking for %s in a local file"%(c,))
-        this_srcs = generic_catalog.get_srcs(srcs=srcs,
-              cutoff=cutoff,catalogs=[c])
-        if len(this_srcs)==0:
-            log.warning("no sources found with genericfile, trying built in catalog")
-            tcat = a.src.get_catalog(srcs=srcs, 
-                   cutoff=cutoff, catalogs=[c])
-            srclist += [tcat[src] for src in tcat]
-        else: srclist += this_srcs
-    #test bit. make all source indexes 0
-    #for i in range(len(srclist)):
-    #    srclist[i].index=0
-    
-    cat = a.fit.SrcCatalog(srclist)
-    #Add specials.  All fixed radio sources must be in catalog, for completeness
-#    if not srcs is None:
-#        for src in srcs:
-#            if src in src_prms.keys():
-#                if src in specials:
-#                    cat[src] = a.fit.RadioSpecial(src,**src_prms[src])
-    return cat
-"""
+}
+
 def get_catalog(srcs=None, cutoff=None, catalogs=['helm','misc']):
     '''Return a catalog containing the listed sources.'''
     custom_srcs = []
@@ -393,7 +358,7 @@ def get_catalog(srcs=None, cutoff=None, catalogs=['helm','misc']):
             cat[src] = a.fit.RadioFixedBody(0., 0., janskies=0., mfreq=.15, name=src)
     cat.set_params(src_params)
     return cat
-"""
+
 if __name__=='__main__':
     import sys, numpy as n
     if len(sys.argv)>1:
