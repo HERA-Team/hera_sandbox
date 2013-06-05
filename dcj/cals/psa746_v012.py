@@ -14,9 +14,10 @@ v012: calibrated to psa852 and brought back generic_catalog
 import aipy as a, numpy as n,glob,ephem
 import generic_catalog
 import logging
-logging.basicConfig(level=logging.DEBUG)
-log = logging.getLogger('psa331_v009_gc')
-
+loglevel = logging.CRITICAL
+logging.basicConfig(level=loglevel)
+log = logging.getLogger('psa748_v012')
+log.setLevel(loglevel)
 class Antenna(a.fit.Antenna):
     def __init__(self, *args, **kwargs):
         self.dphsoff = n.array([0., 0.])
