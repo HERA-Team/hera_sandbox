@@ -9,9 +9,10 @@ v007: Put in spectra from 747-uvcbRmtsFFFFF beam-forming run
 v008: Put in spectra003b from 747-uvcbRmtsFFFFFs beam-forming
 v009: Replaced all spectra with unique list regenerated from srcspec003a,b
 v010: Updated overall gain calibration to match spectra derived above
+v012: calibrated to psa852 and brought back generic_catalog
 """
 import aipy as a, numpy as n,glob,ephem
-#import generic_catalog
+import generic_catalog
 import logging
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger('psa331_v009_gc')
@@ -248,23 +249,70 @@ prms = {
     },
     'offsets': { },
     'amps': {
-  0:0.00339455692388,  1:0.00370372788408,  2:0.00376527818632,  3:0.00387665,
-  4:0.00396057349076,  5:0.00410252231494,  6:0.00348871724217,  7:0.00392404211306,
-  8:0.00375883047688,  9:0.00334462819991, 10:0.00337093254841, 11:0.00341326452831,
- 12:0.00442460216876, 13:0.00389868,       14:0.00354483945983, 15:0.00407328010273,
- 16:0.00403397,       17:0.00439585577112, 18:0.00431250874167, 19:0.00404608945244,
- 20:0.00413586961583, 21:0.00403113024808, 22:0.00359282557633, 23:0.00394237335571,
- 24:0.00366244535577, 25:0.00380304422308, 26:0.00326923586611, 27:0.00287590169933,
- 28:0.00403816252674, 29:0.00401518091533, 30:0.00409408588555, 31:0.00359266622740,
-
- 32:0.00382517,       33:0.00403864141466, 34:0.00358246,       35:0.00342863956488,
- 36:0.00448295132661, 37:0.00372165748921, 38:0.00442515606401, 39:0.00435455776743,
- 40:0.003,            41:0.00369075183672, 42:0.00357438,       43:0.00420578225324,
- 44:0.00382302025597, 45:0.00367334705810, 46:0.00380154752356, 47:0.00333605,
- 48:0.00375050553983, 49:0.00362668689090, 50:0.00390042932903, 51:0.00343844386287,
- 52:0.00331377056150, 53:0.00391876407669, 54:0.00427390096123, 55:0.003,
- 56:0.00392878,       57:0.00379400167760, 58:0.00356638,       59:0.00387608,
- 60:0.00382425542649, 61:0.00336631508857, 62:0.00388450863696, 63:0.00370594585437,
+0:0.00317, # (calibrated to 2455852, a -6.66% correction)
+1:0.00358, # (calibrated to 2455852, a -3.43% correction)
+2:0.00351, # (calibrated to 2455852, a -6.70% correction)
+3:0.00362, # (calibrated to 2455852, a -6.64% correction)
+4:0.00370, # (calibrated to 2455852, a -6.68% correction)
+5:0.00383, # (calibrated to 2455852, a -6.56% correction)
+6:0.00326, # (calibrated to 2455852, a -6.44% correction)
+7:0.00371, # (calibrated to 2455852, a -5.48% correction)
+8:0.00347, # (calibrated to 2455852, a -7.65% correction)
+9:0.00310, # (calibrated to 2455852, a -7.41% correction)
+10:0.00313, # (calibrated to 2455852, a -7.09% correction)
+11:0.00316, # (calibrated to 2455852, a -7.30% correction)
+12:0.00412, # (calibrated to 2455852, a -6.97% correction)
+13:0.00363, # (calibrated to 2455852, a -6.87% correction)
+14:0.00307, # (calibrated to 2455852, a -13.30% correction)
+15:0.00378, # (calibrated to 2455852, a -7.21% correction)
+16:0.00376, # (calibrated to 2455852, a -6.72% correction)
+17:0.00408, # (calibrated to 2455852, a -7.08% correction)
+18:0.00400, # (calibrated to 2455852, a -7.20% correction)
+19:0.00378, # (calibrated to 2455852, a -6.55% correction)
+20:0.00589, # (calibrated to 2455852, a 42.33% correction)
+21:0.00379, # (calibrated to 2455852, a -5.90% correction)
+22:0.00339, # (calibrated to 2455852, a -5.62% correction)
+23:0.00372, # (calibrated to 2455852, a -5.65% correction)
+24:0.00342, # (calibrated to 2455852, a -6.61% correction)
+25:0.00358, # (calibrated to 2455852, a -5.81% correction)
+26:0.00311, # (calibrated to 2455852, a -4.92% correction)
+27:0.00212, # (calibrated to 2455852, a -26.33% correction)
+28:0.00606, # (calibrated to 2455852, a 49.98% correction)
+29:0.00384, # (calibrated to 2455852, a -4.25% correction)
+30:0.00392, # (calibrated to 2455852, a -4.18% correction)
+31:0.00346, # (calibrated to 2455852, a -3.64% correction)
+32:0.00360, # (calibrated to 2455852, a -5.79% correction)
+33:0.00380, # (calibrated to 2455852, a -5.80% correction)
+34:0.00340, # (calibrated to 2455852, a -5.01% correction)
+35:0.00325, # (calibrated to 2455852, a -5.09% correction)
+36:0.00425, # (calibrated to 2455852, a -5.13% correction)
+37:0.00355, # (calibrated to 2455852, a -4.71% correction)
+38:0.00417, # (calibrated to 2455852, a -5.85% correction)
+39:0.00416, # (calibrated to 2455852, a -4.42% correction)
+40:0.00282, # (calibrated to 2455852, a -6.03% correction)
+41:0.00346, # (calibrated to 2455852, a -6.30% correction)
+42:0.00337, # (calibrated to 2455852, a -5.81% correction)
+43:0.00396, # (calibrated to 2455852, a -5.90% correction)
+44:0.00361, # (calibrated to 2455852, a -5.60% correction)
+45:0.00344, # (calibrated to 2455852, a -6.25% correction)
+46:0.00358, # (calibrated to 2455852, a -5.74% correction)
+47:0.00314, # (calibrated to 2455852, a -5.74% correction)
+48:0.00348, # (calibrated to 2455852, a -7.12% correction)
+49:0.00337, # (calibrated to 2455852, a -7.16% correction)
+50:0.00328, # (calibrated to 2455852, a -5.98% correction)
+51:0.00320, # (calibrated to 2455852, a -6.95% correction)
+52:0.00310, # (calibrated to 2455852, a -6.58% correction)
+53:0.00358, # (calibrated to 2455852, a -8.69% correction)
+54:0.00398, # (calibrated to 2455852, a -6.78% correction)
+55:0.00278, # (calibrated to 2455852, a -7.28% correction)
+56:0.00357, # (calibrated to 2455852, a -9.14% correction)
+57:0.00346, # (calibrated to 2455852, a -8.90% correction)
+58:0.00326, # (calibrated to 2455852, a -8.72% correction)
+59:0.00351, # (calibrated to 2455852, a -9.48% correction)
+60:0.00348, # (calibrated to 2455852, a -9.01% correction)
+61:0.00284, # (calibrated to 2455852, a -15.59% correction)
+62:0.00354, # (calibrated to 2455852, a -8.82% correction)
+63:0.00343, # (calibrated to 2455852, a -7.56% correction)
     },
 
     #'bp_r': n.array([[-546778459030.53168, 664643788581.23596, -352000715429.32422, 106069000024.00294, -19886868672.0816, 2375187771.2150121, -176441928.4305163, 7452103.7565970663, -136981.43950786022]] * 64), # from J2214-170 in Helmboldt
@@ -334,30 +382,42 @@ def get_aa(freqs):
     aa = AntennaArray(prms['loc'], antennas)
     return aa
 
-#from srcspec009 import src_params
-src_params = {
-#    'cen':{ 'jys':10**3.282102, 'index':  0.235166 , },
-#    'cyg':{ 'jys':10**3.566410, 'index':  -0.266315 , },
-#    #'for':{ 'jys':10**2.285001, 'index':  -2.786408 , },
-#    'hyd':{ 'jys':10**2.448816, 'index':  -0.866462 , },
-    'pic':{ 'jys':10**2.714456, 'index':  -0.436361 , },
-#    'vir':{ 'jys':10**2.200725, 'index':  0.202425 , },
-#    'Sun': {'a1': 0.00644, 'index': 1.471, 'a2': 0.00586, 'jys': 55701.96, 'th': -0.000512},
-#    'for': {'a1': 0.00851, 'a2': 0.00413, 'jys': 907.09, 'th': 0.230},
+src_prms = {
+'cen':{ 'jys':10**3.282102, 'index':  0.235166 , },
+'cyg':{ 'jys':10**3.566410, 'index':  -0.266315 , },
+'hyd':{ 'jys':10**2.448816, 'index':  -0.866462 , },
+#'pic':{ 'jys':10**2.714456, 'index':  -0.436361 , },
+'pic':{'jys':450, 'index':-1.},
+'for':{'jys':267,'index':-1.15},#score=0.70
+#{'jys':447,'index':-1.15},#old value
+'vir':{ 'jys':10**2.200725, 'index':  0.202425 , },
+'Sun': {'a1': 0.00644, 'index': 1.471, 'a2': 0.00586, 'jys': 55701.96, 'th': -0.000512},
+#'for': {'a1': 0.00851, 'a2': 0.00413, 'jys': 907.09, 'th': 0.230},
 }
 
 def get_catalog(srcs=None, cutoff=None, catalogs=['helm','misc']):
     '''Return a catalog containing the listed sources.'''
-    custom_srcs = []
-    if srcs is None:
-        cat = a.src.get_catalog(srcs=srcs, cutoff=cutoff, catalogs=catalogs)
-    else:
-        cat = a.src.get_catalog(srcs=[s for s in srcs if not s in custom_srcs],
-            cutoff=cutoff, catalogs=catalogs)
-        for src in [s for s in srcs if s in custom_srcs]:
-            cat[src] = a.fit.RadioFixedBody(0., 0., janskies=0., mfreq=.15, name=src)
-    cat.set_params(src_params)
-    return cat
+    custom_srcs = ['J1347-603','J1615-610', 'J1336-340', 'J1248-412', 'J1531-423', 'J1359-415']
+    srclist =[]
+    for c in catalogs:
+        log.info("looking for %s in a local file"%(c,))
+        this_srcs = generic_catalog.get_srcs(srcs=srcs,
+              cutoff=cutoff,catalogs=[c],loglevel=loglevel)
+        if len(this_srcs)==0:
+            log.warning("no sources found with genericfile, trying built in catalog")
+            tcat = a.src.get_catalog(srcs=srcs, 
+                   cutoff=cutoff, catalogs=[c])
+            srclist += [tcat[src] for src in tcat]
+        else: srclist += this_srcs    
+    cat = a.fit.SrcCatalog(srclist)
+    #Add specials.  All fixed radio sources must be in catalog, for completeness
+    if not srcs is None:
+        for src in srcs:
+            if src in src_prms.keys():
+                if src in custom_srcs:
+                    cat[src] = a.fit.RadioSpecial(src,**src_prms[src])
+    return cat    
+
 
 if __name__=='__main__':
     import sys, numpy as n
