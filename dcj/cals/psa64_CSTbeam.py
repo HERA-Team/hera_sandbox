@@ -118,7 +118,7 @@ def get_aa(freqs):
             twist = prms['twist'][i]
             #if pi == 'y': twist += n.pi/2.
             antennas.append(
-                a.pol.Antenna(pos[0],pos[1],pos[2],  beam, num=i, pol=pi,phsoff=[dly,off],
+                a.fit.Antenna(pos[0],pos[1],pos[2],  beam, num=i, pol=pi,phsoff=[dly,off],
                 amp=amp, bp_r=bp_r, bp_i=bp_i, pointing=(0.,n.pi/2,twist),
                 lat=prms['loc'][0])
             )
