@@ -186,6 +186,7 @@ for infile in args:
         ex,ey,ez = n.dot(m, crd)
         #ex = ex.compress(valid); ey = ey.compress(valid); ez = ez.compress(valid)
         img = skymap[ex,ey,ez]
+        img[tz.mask.ravel()>0] = 0
         if opts.output_weights: 
             wgt_img = skymap.wgt[ex,ey,ez]
             wgt_img.shape = im.shape

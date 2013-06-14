@@ -34,7 +34,8 @@ for ri in range(ANTPOS.shape[0]):
         for rj in range(ANTPOS.shape[0]):
             for cj in range(ci,ANTPOS.shape[1]):
                 if ri >= rj and ci == cj: continue # exclude repeat +/- listings of certain bls
-                sep = a.miriad.ij2bl(rj-ri, cj-ci)
+                #sep = a.miriad.ij2bl(rj-ri, cj-ci)
+                sep = a.miriad.ij2bl(cj-ci, rj-ri) # prefer to have column as leading term to orient E/W baselines
                 i,j = ANTPOS[ri,ci], ANTPOS[rj,cj]
                 bl = a.miriad.ij2bl(i,j)
                 if i > j: i,j,sep = j,i,-sep
@@ -59,7 +60,7 @@ else:
     B = sdf * afreqs.size / C.pfb.NOISE_EQUIV_BW[WINDOW]
 bm = n.polyval(C.pspec.DEFAULT_BEAM_POLY, fq)
 scalar = C.pspec.X2Y(z) * bm * B
-print fq, z, B
+print fq, z, B, scalar
 
 #cen_fqs = n.arange(.115,.190,.005)
 #cen_fqs = n.array([.150])
@@ -99,7 +100,9 @@ for filename in args:
 
         bl = a.miriad.ij2bl(i,j)
         sep = bl2sep[bl]
-        if sep < 0: d,sep = n.conj(d),-sep
+        if sep < 0:
+            #print 'Conj:', a.miriad.bl2ij(bl)
+            d,sep = n.conj(d),-sep
 
         d,f = d.take(chans), f.take(chans)
         w = n.logical_not(f).astype(n.float)
@@ -112,10 +115,16 @@ for filename in args:
             _Trms = n.fft.ifft(window * Trms)
             _Wrms = n.fft.ifft(window * w)
         gain = n.abs(_Wrms[0])
-        if gain > 0:
-            _Tcln, info = a.deconv.clean(_Trms, _Wrms, tol=1e-9, maxiter=100, stop_if_div=False, verbose=False)
-            #_Tcln, info = a.deconv.clean(_Trms, _Wrms, tol=1e-9)
-            _Trms = _Tcln + info['res'] / gain
+        #print 'Gain:', gain
+        if True: # we think clean messes up noise statistics.  Do we need it? (Yes)
+            if gain > 0:
+                #_Tcln, info = a.deconv.clean(_Trms, _Wrms, tol=1e-9, maxiter=100, stop_if_div=False, verbose=False)
+                #_Tcln, info = a.deconv.clean(_Trms, _Wrms, tol=1e-9)
+                _Tcln, info = a.deconv.clean(_Trms, _Wrms, tol=1e-2)
+                #print info['term']
+                #_Tcln, info = a.deconv.clean(_Trms, _Wrms, tol=1e-9)
+                _Trms = _Tcln + info['res'] / gain
+        else: _Trms /= gain
         _Trms = n.fft.fftshift(_Trms)
         _Wrms = n.fft.fftshift(_Wrms)
 

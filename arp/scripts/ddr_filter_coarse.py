@@ -53,7 +53,8 @@ def sky_fng_thresh(bl_len, inttime, nints, freq, lat):
     that geometrically correspond to the sky.'''
     bin_fr = 1. / (inttime * nints)
     max_fr = freq * bl_len * 2*n.pi / a.const.sidereal_day
-    neg_fr = max_fr * n.cos(n.pi/2 + n.abs(lat))
+    #neg_fr = max_fr * n.cos(n.pi/2 + n.abs(lat))
+    neg_fr = -max_fr # For West-East baselines, max_fr is negative
     nfng = neg_fr / bin_fr
     ufng = max_fr / bin_fr
     ufng, nfng = n.ceil(ufng).astype(n.int), int(n.floor(nfng))

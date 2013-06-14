@@ -5,13 +5,22 @@ import aipy as a, numpy as n
 import optparse, sys, scipy.optimize
 import capo as C
 import pylab as p
-
+import ipdb
+from pyslalib import slalib
+def sky_sep(A,B):
+    #compute distance on sphere
+    #using input vectors in xyz
+    (theta1,phi1) = slalib.sla_cc2s(A)
+    (theta2,phi2) = slalib.sla_cc2s(B)
+    return slalib.sla_sep(theta1,phi1,theta2,phi2)
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, chan=True, pol=True)
 o.add_option('-s', '--src', dest='src', type='str', 
     help='Source to use for calibration.')
 o.add_option('--cat', dest='cat', type='str', default='helm,misc',
     help='A comma-delimited list of catalogs from which sources are to be drawn.  Default is "helm,misc".  Other available catalogs are listed under aipy._src.  Some catalogs may require a separate data file to be downloaded and installed.')
+o.add_option('--sep_min',default=2,type='float',
+    help="maximum allowed calibrator distance in degrees default=2")
 o.add_option('--plot_src_track',action='store_true',
     help='Does what it says.')
 opts,args = o.parse_args(sys.argv[1:])
@@ -32,7 +41,8 @@ if opts.src != None:
 else:
     calsrc = None
 srclist = [filename2src(f) for f in args]
-print srclist
+
+#load a catalog of the sources found in the file
 if not calsrc is None: assert(calsrc.src_name in srclist)
 srclist,cutoff,catalogs, = a.scripting.parse_srcs(','.join(srclist), opts.cat)
 cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs=catalogs)
@@ -48,7 +58,7 @@ for filename in args:
         tracks[srcname]['bm'] = []
         tracks[srcname]['dat'] = []
         tracks[srcname]['wgt'] = []
-        tracks[srcname]['altaz'] = []
+        tracks[srcname]['azalt'] = []
     src = cat[srcname]
     uv = a.miriad.UV(filename)
     a.scripting.uv_selector(uv, 'cross', opts.pol)
@@ -66,47 +76,17 @@ for filename in args:
         aa.set_jultime(t)
         src.compute(aa)
         src_xyz = src.get_crds('top')
-        #print t, aa.sidereal_time(), src.alt, src.get_crds('top')
         tracks[srcname]['top'].append(src_xyz)
-        src_altaz = src.get_crds('top',ncrd=2)
-        tracks[srcname]['altaz'].append(src_altaz)
+        src_azalt = src.get_crds('top',ncrd=2)
+        tracks[srcname]['azalt'].append(src_azalt)
         bmi = aa[i].bm_response(src_xyz, pol=opts.pol[0])
         bmj = aa[j].bm_response(src_xyz, pol=opts.pol[-1])
         tracks[srcname]['bm'].append(bmi * n.conj(bmj))
         #print src.src_name, src.ra, src.dec, src_xyz#, bm[-1]
         tracks[srcname]['dat'].append(d)
         tracks[srcname]['wgt'].append(w)
-if opts.plot_src_track:
-    try:
-        from mpl_toolkits.basemap import Basemap
-    except(ImportError):
-        from matplotlib.toolkits.basemap import Basemap
-        #if its not here, I die
-    map = Basemap(projection='ortho',lat_0=-30,lon_0=0,rsphere=1.,anchor='N')
-    p.figure()
-    map.drawmapboundary()
-    map.drawparallels(n.arange(-90,90,30)[1:], labels=[0,1,0,0], labelstyle='+/-')
-    map.drawmeridians(n.arange(-180, 180, 30))
-    print "plotting source tracks"
-    for srcname in tracks:
-        altaz = n.array(tracks[srcname]['altaz'])
-        print altaz[0,:]
-        sx,sy = map(altaz[:,0],altaz[:,1])
-        print sx[0]
-        map.scatter(sx,sy,label=srcname)
-    #p.legend(loc='upper center',numpoints=1)
-    p.savefig("%s_srctrack.png"%'-'.join(tracks.keys()))
 
 
-
-#for srcname in tracks:
-#    x = n.array(tracks[srcname]['top'])[:,0]
-#    d = n.sum(tracks[srcname]['dat'], axis=1) / n.sum(tracks[srcname]['wgt'], axis=1)
-#    #b = n.sum(tracks[srcname]['bm'], axis=1) / n.sum(tracks[srcname]['wgt'], axis=1) * 40
-#    #print b.shape
-#    p.plot(x,d, label=srcname)
-#    #p.plot(x,b)
-#p.show()
 
 calsrc = calsrc.src_name
 
@@ -134,41 +114,77 @@ def fit_pwrlaw(fqs, dat, err, flx, ind, mfreq=.150):
     #print flx, ind, rv
     return rv
 
-
+calxyz = n.array(tracks[calsrc]['top'])
+badsrc = []
+import pylab as p
 for cnt,srcname in enumerate(tracks.keys()):
     color = 'krbgcm'[cnt % 6]
     x = n.array(tracks[srcname]['top'])[:,0]
+    alt = n.array(tracks[srcname]['azalt'])[:,1]
+    xyz = n.array(tracks[srcname]['top'])
+    ha = n.array(tracks[srcname]['azalt'])[:,0]
     _cbm, _cd, _cw = [], [], []
-    for _x in x: # Find closest point bin the beam between two tracks
-        m = n.argmin(n.abs(calsrc_x - _x))
+    _cdist = []
+    _too_far = []
+    print "working on ",srcname
+    print "finding overlap with calibrator",calsrc
+    for i,_x in enumerate(x): # Find closest point bin the beam between two tracks
+        skyseps = n.array([sky_sep(xyz[i],cxyz) for cxyz in calxyz])
+        m = n.argmin(skyseps)
+        _m = n.argmin(n.abs(calsrc_x - _x))
         _cbm.append(calsrc_bm[m])
         _cd.append(calsrc_dat[m])
         _cw.append(calsrc_wgt[m])
-        if n.abs(calsrc_x[m] - _x) >= .005: # XXX this depends on time step
+        _cdist.append(skyseps[m])
+        #if n.abs(calsrc_x[m] - _x) >= .005 or \
+        if skyseps[m]> (opts.sep_min*n.pi/180) or \
+            alt[i]<0: # XXX this depends on time step
             _cw[-1] *= 0
+        #if skyseps[m]>(opts.sep_min*n.pi/180):_too_far.append(skyseps[m])
+        if n.abs(calsrc_x[_m] - _x) >= 0.005: _too_far.append(skyseps[m])
+    if n.sum(_cw)==0:
+        print "zero(!) calibrator overlap for %s"%(srcname)
+        badsrc.append(srcname)
+        continue
     mask = n.array(_cw) * n.array(tracks[srcname]['wgt']) # flag data that are flagged for either source
+    _cdist = n.ma.masked_where(n.mean(_cw,axis=1)>0,_cdist)*180/n.pi
+    print "hour angles:",set(n.ceil(ha[n.mean(_cw,axis=1)>0]*12/n.pi)-12)
+    print "range of distances",_cdist.min(),_cdist.max()
+    print "threw out %d data points for not having cal overlap"%len(_too_far)
+    print _too_far
+    #print "_cw.shape",n.array(_cw).shape
+    tracks[srcname]['include'] = n.mean(_cw,axis=1)
     cbm = n.array(_cbm) * mask
     cd = n.array(_cd) * mask
-    bm = n.array(tracks[srcname]['bm'])[...,0] * mask
+    bm = n.array(tracks[srcname]['bm'])[...,0] 
     d = n.array(tracks[srcname]['dat']) * mask
-    sum_w2 = n.sum(bm**2, axis=0); sum_w2 = n.where(sum_w2 == 0, 1, sum_w2)
+    sum_w2 = n.sum((mask*bm)**2, axis=0); sum_w2 = n.where(sum_w2 == 0, 1, sum_w2)
     sum_cw2 = n.sum(cbm**2, axis=0); sum_cw2 = n.where(sum_cw2 == 0, 1, sum_cw2)
     srcest = n.sum(d * bm, axis=0) / sum_w2
     calest = n.sum(cd * cbm, axis=0) / sum_cw2
-
+    #perform a beam-weighted rms on the residuals
+    #errest = n.sqrt(n.sum(bm * ( bm * srcest - d ) * n.conj(bm * srcest -d),axis=0)/n.sum(bm,axis=0))
+    _cc = n.argwhere(n.abs(ha-n.pi)<(10*n.pi/180))
+    p.figure()
+    p.plot(ha,(bm[:,100]*srcest[100] - d[:,100])/n.abs(d[:,100]))
+    p.ylim([-1,1])
+    p.savefig('beamslice_residual.png')
+    errest = n.sqrt(n.sum(bm*(bm[_cc,:] * srcest - d[_cc,:])*n.conj(bm[_cc,:] * srcest - d[_cc,:]),axis=0)/sum_w2)
     mask_vs_fq = n.sum(mask, axis=0)
     valid = n.where(mask_vs_fq > mask_vs_fq.max() / n.sqrt(2), 1, 0)
+    print "cleaning calibrator"
+    print n.sum(n.isnan(calest)),n.sum(n.isnan(valid))
     if True: # Do delay filtering on calsrc
         DLYWID = 10
         dmdl,dres = C.dspec.wideband_dspec(calest*valid, valid, DLYWID+1, -DLYWID, tol=1e-10, window='none')
         dres[DLYWID+1:-DLYWID] = 0
         sm_calest = dmdl + dres
-
+    
     srcest = srcest.compress(valid)
     calest = calest.compress(valid)
     sm_calest = sm_calest.compress(valid)
+    errest = errest.compress(valid)
     fq = aa.get_afreqs().compress(valid)
-    #fq = aa.get_afreqs()
 
     cal = {}
     cal['1932-464'] = 93.7 * (fq/.150)**-0.82 
@@ -187,7 +203,7 @@ for cnt,srcname in enumerate(tracks.keys()):
     #err = n.ones_like(jy_src)
 
     print 'Writing', srcname+'_spec.npz'
-    n.savez(srcname+'_spec.npz', freq=fq, spec=jy_src)
+    n.savez(srcname+'_spec.npz', freq=fq, spec=jy_src,res=errest,gain=sm_gain)
 
         
     p.subplot(211)
@@ -218,7 +234,41 @@ for cnt,srcname in enumerate(tracks.keys()):
 
         #src_amp_vs_fq = spec * sm_gain
         
-        
+if opts.plot_src_track:
+    try:
+        from mpl_toolkits.basemap import Basemap
+    except(ImportError):
+        from matplotlib.toolkits.basemap import Basemap
+        #if its not here, I die
+    try:
+        map = Basemap(projection='ortho',lat_0=90,lon_0=180)
+        radec_map = Basemap(projection='ortho',lat_0=-30,lon_0=0)
+        p.figure()
+        map.drawmapboundary()
+        radec_map.drawparallels(n.arange(-90,90,30)[1:])
+        radec_map.drawmeridians(n.arange(-180, 180, 30))
+        print "plotting source tracks"
+        for srcname in tracks:
+            if srcname in badsrc:continue
+            print srcname,
+            azalt = n.array(tracks[srcname]['azalt'])*a.img.rad2deg
+            include = n.array(tracks[srcname]['include'])
+            print "masking %d/%d non-overlapping points"%(n.sum(include==0),include.size)
+            lon = azalt[:,0]
+            lat = azalt[:,1]
+            sx,sy = map(lon,lat)
+            if srcname == calsrc:
+                map.plot(sx[include>0],sy[include>0],',k',label=srcname+'*')
+            else:
+                map.plot(sx[include>0],sy[include>0],',',label=srcname)
+        if len(tracks)<10: p.legend(loc='upper right',numpoints=1,ncol=2)
+    except:
+        ipdb.set_trace()
+    #ipdb.set_trace()
+    try:
+        p.savefig("%s_srctrack.png"%'_'.join(tracks.keys()))
+    except(IOError):
+        p.savefig("many_sources_srctrack.png")
         
     
 p.subplot(212)

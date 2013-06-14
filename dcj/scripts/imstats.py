@@ -65,8 +65,14 @@ for file in args:
     print proj.crval[0],proj.crval[1],RA,DEC,
     #get the pixels inside the surrounding annulus        
     center = n.array(image.shape).astype(int)/2
-    doughpix = query_disc(proj,srcpos,opts.radius)
+    if maxpx[0]<image.shape[0]/3 or maxpx[0]>image.shape[0]*2/3\
+        or maxpx[1]<image.shape[1]/3 or maxpx[1]>image.shape[1]*2/3:
+        maxpx[0] = int(image.shape[0]/2.)
+        maxpx[1] = int(image.shape[1]/2.)
+    pos = proj.toworld(maxpx)
+    doughpix = query_disc(proj,pos,opts.radius)
     #holepix = query_disc(proj,srcpos,1.)
     #donutpix = n.array([px for px in doughpix if px not in holepix])
     RMS = n.std(image[doughpix[:,1],doughpix[:,0]])   
-    print F,RMS,F/RMS
+    print F,RMS,n.std(image[image.shape[0]/3:image.shape[0]*2/3,
+                        image.shape[1]/3:image.shape[1]*2/3])
