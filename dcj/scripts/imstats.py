@@ -30,7 +30,7 @@ def query_disc(proj,pos,r):
     cpix = proj.topixel(pos)
     #the number of pixels to look at
     # = number spanned by the search area x pi
-    pshape = (r/n.abs(proj.cdelt)*n.pi).astype(int)
+    pshape = (r/n.abs(proj.cdelt[:2])*n.pi).astype(int)
     #form up the RA,DEC pixel positions in this area
     D,R = n.indices(pshape)
     S = n.sqrt((D - pshape[0]/2.)**2*n.abs(proj.cdelt[0])\
@@ -59,8 +59,9 @@ for file in args:
         raise
     maxpx = n.argwhere(image==image.max()).squeeze()
     F = image.max()
-    RA,DEC = proj.toworld(maxpx)
-    srcpos = n.array([RA,DEC])
+    
+    srcpos = proj.toworld(maxpx)
+    RA,DEC = srcpos[:2]
     print proj.crval[0],proj.crval[1],RA,DEC,
     #get the pixels inside the surrounding annulus        
     center = n.array(image.shape).astype(int)/2
