@@ -21,10 +21,21 @@ cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs)
 src = cat.values()[0]
 del(uv)
 
-npz = n.load(opts.thumb)
-srcmdl = npz['img']
-dra,ddec = npz['dra_ddec']
-srcuv = n.fft.fft(srcmdl); srcuv /= n.abs(srcuv).max()
+if opts.thumb.endswith('.npz'):
+    npz = n.load(opts.thumb)
+    srcmdl = npz['img']
+    dra,ddec = npz['dra_ddec']
+elif opts.thumb.endswith('fits'):
+    import pyfits
+    from kapteyn import wcs
+    hdulist = pyfits.open(opts.thumb)
+    proj = wcs.Projection(hdulist[0].header)
+    srcmdl = hdulist[0].data.squeeze()
+    dra,ddec = proj.cdelt[0]*n.pi/180,proj.cdelt[1]*n.pi/180
+    if dra<0: 
+        srcmdl = n.fliplr(srcmdl)
+        dra = n.abs(dra)
+srcuv = n.fft.fft2(srcmdl); srcuv /= n.abs(srcuv).max()
 u = n.fft.fftfreq(srcmdl.shape[0], dra)
 v = n.fft.fftfreq(srcmdl.shape[1], ddec)
 srcuv = n.abs(srcuv)
@@ -46,7 +57,9 @@ for filename in args:
     a.scripting.uv_selector(uvi, ants, opts.pol)
     aa.set_active_pol(opts.pol)
     uvi.select('decimate', opts.decimate, opts.decphs)
+    weights = {}
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
+        if i==j:continue
         if t != curtime:
             curtime = t
             aa.set_jultime(t)
@@ -61,14 +74,26 @@ for filename in args:
             u,v = u.flatten(), v.flatten()
             w = n.array([uv_resp(u0,v0) for u0,v0 in zip(u,v)]).flatten()
             #print u[u.size/2],v[u.size/2],w[u.size/2]
+            try:
+                weights[n.sqrt(u[0]**2 + v[0]**2)] += w[0]
+            except(KeyError):
+                weights[n.sqrt(u[0]**2 + v[0]**2)] = w[0]
             w = n.where(dont_use, 0, w*n.logical_not(f))
             gain = aa.passband(i,j)
             d /= gain
         except(a.phs.PointingError): w = n.zeros_like(f)
+        #print n.median(w)
         dbuf[t] = dbuf.get(t, 0) + d * n.conj(w)
         wbuf[t] = wbuf.get(t, 0) + w * n.conj(w)
     uvi.rewind()
-
+    bls = n.sort(weights.keys())
+    try:
+        weights = n.array([weights[bl]/len(wbuf) for bl in bls])
+        print "weights in image:",opts.thumb
+        print "\t max weight = %7.4f on bl length (%7.4f lambda) "%(weights.max(),bls[weights.argmax()])
+        print "\t min weight = %7.4f on bl length (%7.4f lambda) "%(weights.min(),bls[weights.argmin()])
+    except(ValueError):
+        pass
     print '    Writing output file'
     curtime = None
     def mfunc(uv, p, d, f):

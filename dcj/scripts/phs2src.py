@@ -34,6 +34,8 @@ curtime = None
 def phs(uv, p, d, f):
     global curtime
     uvw, t, (i,j) = p
+    aa.set_active_pol(a.miriad.pol2str[uv['pol']])
+    uvo.write_pol(a.miriad.pol2str[uv['pol']])
     if curtime != t:
         curtime = t
         aa.set_jultime(t)
@@ -63,8 +65,8 @@ for filename in args:
     if os.path.exists(uvofile):
         print 'File exists: skipping'
         continue
-    uvi = a.miriad.UV(filename)
-    uvo = a.miriad.UV(uvofile, status='new')
+    uvi = a.pol.UV(filename)
+    uvo = a.pol.UV(uvofile, status='new')
     uvo.init_from_uv(uvi)
     if not src is None and not type(src) == str: 
         uvo['ra']=src.ra
