@@ -5,7 +5,7 @@ Calculate antenna-based corrections to co-align redundant array data.
 
 import aipy as a, numpy as n, capo
 import pylab
-import sys, optparse, os
+import sys, optparse, os, time
 
 ij2bl,bl2ij = a.miriad.ij2bl,a.miriad.bl2ij
 
@@ -46,8 +46,16 @@ G_ = [53,21,15,16,62,44, 0,26]
 H_ = [31,45, 8,11,36,60,39,46]
 ANTPOS_6240 = n.array([A_, B_, C_, D_,E_,F_,G_,H_])
 
+#PSA-128-SUB, JD2456240...
+#A_ = [49,41,47,19]
+#B_ = [10, 3,25,48]
+#C_ = [ 9,58, 1, 4]
+#ANTPOS_6240_SUB = n.array([A_,B_,C_])
+
 ANTPOS = ANTPOS_6240
 
+#This loop separates out all the baselines. 
+#Saves different separation baselines as lists in bls.
 for filename in args:
     bls = {}
     conj = {}
@@ -58,8 +66,11 @@ for filename in args:
                     if ri >= rj and ci == cj: continue # exclude repeat +/- listings of certain bls
                     sep = '%d,%d' % (rj-ri, cj-ci)
                     bls[sep] = bls.get(sep,[]) + [(ANTPOS[ri,ci],ANTPOS[rj,cj])]
+#Get rid of bls with 0 separation (autos) 
+#and bls with only one instance of that baseline.
     for sep in bls.keys():
         if sep == '0,0' or len(bls[sep]) < 2: del(bls[sep])
+#T/F if conjugation correct/incorrect. 
     for sep in bls:
         conj[sep] = [i>j for i,j in bls[sep]]
     
@@ -72,29 +83,35 @@ for filename in args:
             if c: i,j = j,i
             #valid = [0,1,2,3,16,17,18,19,8,9,10,11,24,25,26,27,4,5,6,7,20,21,22,23,12,13,14]
             #valid = [0,1,2,3,16,17,18,19,12,13,14,15,28,29,30,31]
+            #valid = [49,41,47,19,10,3,25,48,9,58,1,4]
             #if not i in valid or not j in valid: continue
+            #Add valid antennas to the bl_list. Default is all ants.
             bl_list.append(ij2bl(i,j))
             strbls[sep].append('%d_%d' % (i,j))
             conj_bl[ij2bl(i,j)] = c
+        #Replace bls with bl_list.
         bls[sep] = bl_list
         strbls[sep] = ','.join(strbls[sep])
         if opts.verbose: print sep, strbls[sep]
     
+    #Get the frequencies of the uvfiles
     uv = a.miriad.UV(sys.argv[-1])
     fqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
     del(uv)
     
     seps = ['0,1','1,1','-1,1'] #+ ['2,1', '-2,1'] + ['0,2','1,2','-1,2']
     #seps = bls.keys()
+    #Get the baselines that have separation in seps.
     strbls = ','.join([strbls[sep] for sep in seps])
-    pols = ['xx','yy']
-    #pols = ['xx']
+    #pols = ['xx','yy']
+    pols = ['xx']
     NPOL = len(pols)
     if opts.verbose:
         print '-'*70
         print strbls
         print '-'*70
     
+    #Get times, data, and flags from a given file of specified bls and pols.
     times, d, f = capo.arp.get_dict_of_uv_data([filename], strbls, ','.join(pols), verbose=True)
     for bl in d:
         i,j = bl2ij(bl)
@@ -150,6 +167,7 @@ for filename in args:
 
     outfile = filename+'_%s.npz' % (opts.name)
     dly0,gain0 = {}, {} # Starting point for searching for solution
+    #if .npz file exists it loads the starting points into dly0,gain0.
     if os.path.exists(outfile):
         print '      Input starting point from', outfile
         f = open(outfile)
@@ -186,6 +204,19 @@ for filename in args:
                     tau0 = (dly0[p][j] - dly0[p][i]) - (dly0[p0][j0] - dly0[p0][i0])
                     print (i,j),(i0,j0), pol, dly0[p][i], dly0[p][j], dly0[p0][i0], dly0[p0][j0]
                 except(KeyError): tau0 = 0
+                #print cbl,calpol,bl2ij(cbl),d[cbl][calpol]
+                #print '******'
+                #print bl,pol,bl2ij(bl),d[bl][pol]
+                #print d[bl][pol].shape
+                #print d[cbl][calpol].shape
+                #pylab.plot(d[cbl][calpol][0])
+                #pylab.plot(d[bl][pol][0])
+                #pylab.show()0
+                print len(fqs)
+                exit()
+                #Feed in data to the redundant basline calibration script.
+                #First give it the calibration baseline (with wgts) , then give 
+                #it all the other baselines (with wgts).
                 g,tau,info = capo.arp.redundant_bl_cal(d[cbl][calpol], w[cbl][calpol], d[bl][pol], w[bl][pol],
                     fqs, use_offset=False, tau=tau0, maxiter=opts.maxiter)
                 print (i,j),(i0,j0), tau, tau0
