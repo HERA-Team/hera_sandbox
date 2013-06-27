@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import aipy as a, numpy as n
+import aipy as a, numpy as n,os
 import sys, optparse, ephem
 import capo as C
 
@@ -133,8 +133,14 @@ lst_start = lsts[0]
 #jd_start = jds[lst_start]
 
 uvi = a.miriad.UV(args[0])
-filename = 'lst.%7.5f.uv' % jd_start
+filename=os.path.basename(args[0])
+if filename.split('.')[-1].startswith('bm'):
+    filename='lst.%7.5f.uv.%s' % (jd_start,filename.split('.')[-1])
+else:filename = 'lst.%7.5f.uv' % jd_start
 print 'Writing to', filename
+if os.path.exists(filename):
+    print filename,"exists"
+    sys.exit(1)
 uvo = a.miriad.UV(filename, status='new')
 uvo.init_from_uv(uvi)
 # XXX could think about adding a variable that keeps track of how many integrations went into a bin

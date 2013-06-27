@@ -2,13 +2,15 @@
 import aipy as a, numpy as n
 import pylab as p
 import capo
-import optparse, sys, os
+import optparse, sys, os, random
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True)
 o.add_option('-t', '--taps', type='int', default=1,
     help='Taps to use in the PFB.  Default 1, which instead uses windowed FFT')
 opts,args = o.parse_args(sys.argv[1:])
+
+PLOT = False
 
 NTAPS = opts.taps
 if NTAPS > 1: PFB = True
@@ -55,6 +57,17 @@ def cov(m):
     N = X.shape[1]
     fact = float(N - 1)
     return (n.dot(X, X.T.conj()) / fact).squeeze()
+
+def cov2(m1,m2):
+    '''Because numpy.cov is stupid and casts as float.'''
+    #return n.cov(m)
+    X1 = n.array(m1, ndmin=2, dtype=n.complex)
+    X2 = n.array(m2, ndmin=2, dtype=n.complex)
+    X1 -= X1.mean(axis=1)[(slice(None),n.newaxis)]
+    X2 -= X2.mean(axis=1)[(slice(None),n.newaxis)]
+    N = X1.shape[1]
+    fact = float(N - 1)
+    return (n.dot(X1, X2.T.conj()) / fact).squeeze()
 
 def gen_Q(knum, n_k, dim):
     Q = n.zeros((dim,dim), dtype=n.float)
@@ -121,12 +134,16 @@ print 'scalar:', scalar
 
 T, N = {}, {}
 times = []
+eor_mdl = {}
 for filename in args:
     uvi = a.miriad.UV(filename)
     a.scripting.uv_selector(uvi, opts.ant, opts.pol)
-    curtime = [None]
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
-        if len(times) == 0 or times[-1] != t: times.append(t)
+        if len(times) == 0 or times[-1] != t:
+            if len(times) % 8 == 0:
+                eor_mdl[t] = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size))
+            else: eor_mdl[t] = eor_mdl[times[-1]]
+            times.append(t)
         bl = a.miriad.ij2bl(i,j)
         sep = bl2sep[bl]
         if sep < 0:
@@ -143,13 +160,11 @@ for filename in args:
             NPOL = 2
             T_INT = 43. # for just compressed data
             #T_INT = 351. # for fringe-rate filtered data
-            if t != curtime[-1] or False: # Set to true for independent (i.e. thermal) noise for each bl
-                curtime.append(t)
-                if len(curtime) % 8 == 2 or False: # Set False for shared (i.e. eor) noise that matches fringe rate
-                    Trms_ = n.random.normal(size=Trms.size) * n.exp(2j*n.pi*n.random.uniform(size=Trms.size))
-                    Trms_ *= TSYS / n.sqrt(B * T_INT * NDAY * NBL * NPOL)
-                    #Trms_ *= n.sqrt(n.sqrt(351./43)) # penalize for oversampling fr-filtered data
-                    Trms_ *= 1.14 # adjust to suboptimal flux calibration
+            Trms_ = n.random.normal(size=Trms.size) * n.exp(2j*n.pi*n.random.uniform(size=Trms.size))
+            Trms_ *= TSYS / n.sqrt(B * T_INT * NDAY * NBL * NPOL)
+            #Trms_ *= n.sqrt(n.sqrt(351./43)) # penalize for oversampling fr-filtered data
+            Trms_ *= 1.14 # adjust to suboptimal flux calibration
+            #Trms_ += eor_mdl[t]
             Nrms  = Trms_ * w
         if PFB:
             _Trms = capo.pfb.pfb(Trms, window=WINDOW, taps=NTAPS, fft=n.fft.ifft)
@@ -176,76 +191,194 @@ for filename in args:
         _Nrms = n.fft.fftshift(_Nrms)
         if False: # swap in a simulated signal post delay transform
             _Trms = n.random.normal(size=_Trms.size) * n.exp(2j*n.pi*n.random.uniform(size=_Trms.size))
+            mask = n.ones(_Trms.size); mask[15:25] = 0
+            _Trms += .3*eor_mdl[times[-1]] * mask
         T[bl] = T.get(bl, []) + [_Trms]
         N[bl] = N.get(bl, []) + [_Nrms]
 
 n_k = chans.size
 bls = T.keys()
+for bl in bls: T[bl],N[bl] = n.array(T[bl]),n.array(N[bl])
+if False:
+    print 'Fringe-rate filtering the noise to match the data'
+    for bl in N:
+        _N = n.fft.ifft(N[bl], axis=0)
+        _N[23:] = 0 # This was calculated by hand for fr-filter with max_fr=1. and min_fr=0.
+        N[bl] = n.fft.fft(_N, axis=0)
+if False:
+    print 'Adding extra noise into the data'
+    for bl in bls: T[bl] += N[bl]
 Ts = n.concatenate([T[bl] for bl in bls], axis=-1).T
 Ns = n.concatenate([N[bl] for bl in bls], axis=-1).T
 print Ts.shape
 print ' '.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in bls])
 #capo.arp.waterfall(cov(Ts), mode='log', drng=2); p.show()
-
-X = Ts.copy()
-N = Ns.copy() # this noise copy processed as if it were the data
-_Cxtot,_Cntot = 1., 1
-PLT1,PLT2 = 3,3
-for cnt in xrange(PLT1*PLT2-1):
-    print cnt, '/', PLT1*PLT2-1
-    p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(X), mode='log', mx=0, drng=3)
-    #p.subplot(PLT1,PLT2,i+1); capo.arp.waterfall(cov(N2), mode='log', mx=0, drng=2)
-    SZ = X.shape[0]
-    Cx,Cn = cov(X), cov(N)
-    for c in [Cx,Cn]: # Normalize covariance matrices
-        d = n.diag(c); d.shape = (1,SZ)
-        c /= n.sqrt(d) * 2
-    #g = 1. / len(bls)
-    g = 1
-    _Cx,_Cn = -g*Cx, -g*Cn
-    ind = n.arange(SZ)
-    for b in xrange(len(bls)): # zero out redundant off-diagonals
-        indb = ind[:-b*n_k]
-        _Cx[indb,indb+b*n_k] = _Cx[indb+b*n_k,indb] = 0
-        _Cn[indb,indb+b*n_k] = _Cn[indb+b*n_k,indb] = 0
-    _Cx[ind,ind] = _Cn[ind,ind] = 0 # set these to zero temporarily to avoid noise bias into cross terms
-    for _C in [_Cx,_Cn]: # subtract off covariances common to all baselines pairs
-        # XXX this loop may be introducing a small noise bias by injecting a common component in each
-        # square of the covariance matrix, and then subtracting this common cov * same baseline
-        _C.shape = (len(bls),n_k,len(bls),n_k)
-        sub_C = n.zeros_like(_C)
-        for i in xrange(len(bls)):
-            for j in xrange(len(bls)):
-                not_ij = n.array([bl for bl in xrange(len(bls)) if not bl in [i,j]])
-                _C_avg = n.mean(n.mean(_C.take(not_ij,axis=0).take(not_ij,axis=2), axis=2), axis=0)
-                sub_C[i,:,j,:] = _C_avg
-        _C.shape = (len(bls)*n_k,len(bls)*n_k)
-        sub_C.shape = (len(bls)*n_k,len(bls)*n_k)
-        _C -= sub_C
-    _Cx[ind,ind] = _Cn[ind,ind] = 1
-    if True: # for first cycles, only use auto-products to avoid noise contamination that causes bias
-        _Cx.shape = _Cn.shape = (len(bls),n_k,len(bls),n_k)
-        for i in xrange(len(bls)):
-            for j in xrange(len(bls)):
-                # XXX need to make this symmetric for baselines at beginning and end.
-                if abs(i - j) <= cnt: continue
-                _Cx[i,:,j,:] = _Cn[i,:,j,:] = 0
-        _Cx.shape = _Cn.shape = (len(bls)*n_k,len(bls)*n_k)
-    X,N = n.dot(_Cx,X), n.dot(_Cx,N)
-    _Cxtot,_Cntot = n.dot(_Cx,_Cxtot), n.dot(_Cn,_Cntot)
-## Normalize to maintain amplitude assuming all k modes are independent & same amplitude
-#norm1 = n.sqrt(n.sum(n.abs(_C1tot)**2, axis=1)); norm1.shape = (norm1.size,1)
-#x1 /= norm1; x2 /= norm2
-p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(X), mode='log', mx=0, drng=3)
-#p.subplot(PLT1,PLT2,i+2); capo.arp.waterfall(cov(N2), mode='log', mx=0, drng=2)
+p.subplot(131); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
+p.subplot(132); capo.arp.waterfall(Ns, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
+p.subplot(133); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
 p.show()
 
-p.subplot(221); capo.arp.waterfall(_Cxtot, mode='log', drng=2)
-p.subplot(222); capo.arp.waterfall(cov(Ts), mode='log', drng=2)
-p.subplot(223); capo.arp.waterfall(cov(n.dot(_Cxtot,Ts)), mode='log', drng=2)
-p.subplot(224); capo.arp.waterfall(cov(X), mode='log', drng=2)
+if False:
+    print 'Switching sign of various baselines & modes to decorrelate sky'
+    for i in xrange(Ts.shape[0]):
+        if n.random.uniform() > .5:
+            Ts[i] *= -1
+            Ns[i] *= -1
+
+for boot in xrange(100):
+    print 'Bootstrap sample', boot
+    if True: # pick a sample of baselines with replacement
+        bls_ = [random.choice(bls) for bl in bls]
+    else:
+        bls_ = bls
+    Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
+    Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
+    L = len(bls_)
+        
+    _Cxtot,_Cntot = 1, 1
+    #PLT1,PLT2 = 3,3
+    #PLT1,PLT2 = 2,2
+    PLT1,PLT2 = 2,3
+    for cnt in xrange(PLT1*PLT2-1):
+        #print cnt, '/', PLT1*PLT2-1
+        if PLOT:
+            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log', mx=0, drng=3)
+            ##p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
+        SZ = Ts.shape[0]
+        Cx,Cn = cov(Ts), cov(Ns)
+        for c in [Cx,Cn]: # Normalize covariance matrices
+            d = n.diag(c); d.shape = (1,SZ)
+            c /= n.sqrt(d) * 2
+        g = .3
+        _Cx,_Cn = -g*Cx, -g*Cn
+        ind = n.arange(SZ)
+        for b in xrange(L): # zero out redundant off-diagonals
+            indb = ind[:-b*n_k]
+            _Cx[indb,indb+b*n_k] = _Cx[indb+b*n_k,indb] = 0
+            _Cn[indb,indb+b*n_k] = _Cn[indb+b*n_k,indb] = 0
+        _Cx[ind,ind] = _Cn[ind,ind] = 0 # set these to zero temporarily to avoid noise bias into cross terms
+        for _C in [_Cx,_Cn]: # subtract off covariances common to all baselines pairs
+            _C.shape = (L,n_k,L,n_k)
+            sub_C = n.zeros_like(_C)
+            for i in xrange(L):
+                for j in xrange(L):
+                    not_ij = n.array([bl for bl in xrange(L) if not bl in [i,j]])
+                    _C_avg = n.mean(n.mean(_C.take(not_ij,axis=0).take(not_ij,axis=2), axis=2), axis=0)
+                    sub_C[i,:,j,:] = _C_avg
+            _C.shape = sub_C.shape = (L*n_k,L*n_k)
+            #p.clf()
+            #p.subplot(131); capo.arp.waterfall(_C, mode='log', mx=0, drng=2)
+            #p.subplot(132); capo.arp.waterfall(sub_C, mode='log', mx=0, drng=2)
+            _C -= sub_C
+            #p.subplot(133); capo.arp.waterfall(_C, mode='log', mx=0, drng=2)
+            #p.show()
+        _Cx[ind,ind] = _Cn[ind,ind] = 1
+        Ts,Ns = n.dot(_Cx,Ts), n.dot(_Cn,Ns)
+        _Cxtot,_Cntot = n.dot(_Cx,_Cxtot), n.dot(_Cn,_Cntot)
+    if PLOT:
+        p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', mx=0, drng=3)
+        ##p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
+        p.show()
+
+    #p.subplot(221); capo.arp.waterfall(_Cxtot, mode='log', drng=2)
+    #p.subplot(222); capo.arp.waterfall(cov(Ts), mode='log', drng=2)
+    #p.subplot(223); capo.arp.waterfall(cov(n.dot(_Cxtot,Ts)), mode='log', drng=2)
+    #p.subplot(224); capo.arp.waterfall(cov(X), mode='log', drng=2)
+    #p.show()
+    Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
+    Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
+
+    pspecs,dspecs = [], []
+    Cx,Cn = CoV(Ts, bls_), CoV(Ns, bls_)
+    Cx_ = CoV(n.dot(_Cxtot,Ts), bls_)
+    Cn1_,Cn2_ = CoV(n.dot(_Cntot,Ns), bls_), CoV(n.dot(_Cxtot,Ns), bls_)
+    for cnt,bli in enumerate(bls_):
+        for blj in bls_[cnt:]:
+            if bli == blj: continue
+            print a.miriad.bl2ij(bli), a.miriad.bl2ij(blj)
+            xi,xj = Cx.get_x(bli), Cx.get_x(blj)
+            xi_,xj_ = Cx_.get_x(bli), Cx_.get_x(blj)
+            if True: # do an extra final removal of leakage from particular modes
+                Ts = n.concatenate([xi_,xj_], axis=0)
+                cx = cov(Ts)
+                if PLOT:
+                    p.clf()
+                    p.subplot(121); capo.arp.waterfall(cx, mode='log', mx=0, drng=3)
+                for cnt1 in xrange(9):
+                    d = n.diag(cx); d.shape = (1,d.size); cx /= n.sqrt(d) * 2
+                    g = .3
+                    _cx = -g*cx
+                    mask = n.zeros_like(cx)
+                    #for k in [16,17,23,24]:
+                    #for k in xrange(14,26):
+                    for k in xrange(17,24):
+                    #for k in [0,39]:
+                        mask[k] = mask[:,k] = 1
+                        mask[k+n_k] = mask[:,k+n_k] = 1
+                    ind = n.arange(n_k)
+                    #mask[ind,ind] = mask[ind+n_k,ind+n_k] = 1
+                    mask[ind,ind+n_k] = mask[ind+n_k,ind] = 0
+                    _cx *= mask
+                    _cx[ind,ind] = _cx[ind+n_k,ind+n_k] = 1
+                    #p.subplot(132); capo.arp.waterfall(_cx, mode='log', mx=0, drng=3)
+                    Ts = n.dot(_cx, Ts)
+                    cx = cov(Ts)
+                if PLOT:
+                    p.subplot(122); capo.arp.waterfall(cx, mode='log', mx=0, drng=3)
+                    p.show()
+                xi_,xj_ = Ts[:n_k],Ts[n_k:]
+            ni,nj = Cn.get_x(bli), Cn.get_x(blj)
+            n1i_,n1j_ = Cn1_.get_x(bli), Cn1_.get_x(blj)
+            n2i_,n2j_ = Cn2_.get_x(bli), Cn2_.get_x(blj)
+            nij = n.sqrt(n.mean(n.abs(ni*nj.conj())**2, axis=1))
+            n1ij_ = n.sqrt(n.mean(n.abs(n1i_*n1j_.conj())**2, axis=1))
+            n2ij_ = n.sqrt(n.mean(n.abs(n2i_*n2j_.conj())**2, axis=1))
+            f1 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n1ij_)**2))
+            f2 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n2ij_)**2))
+            print 'Rescale factor:', f1, f2
+            #fudge = max(f1,f2)
+            fudge = 1.
+
+            if False:
+                p.subplot(221)
+                p.plot(n.average(xi_*xi_.conj(), axis=1).real, 'k')
+                p.plot(n.average(xi*xi.conj(), axis=1).real, 'r')
+                p.subplot(222)
+                p.plot(n.average(xj_*xj_.conj(), axis=1).real, 'k')
+                p.plot(n.average(xj*xj.conj(), axis=1).real, 'r')
+                p.subplot(223)
+                p.plot(n.average(xi_*xj_.conj(), axis=1).real, 'k')
+                p.plot(n.average(xi*xj.conj(), axis=1).real, 'r')
+                p.plot(fudge*n.average(xi_*xj_.conj(), axis=1).real, 'g')
+                p.subplot(224)
+                p.plot(n.average(n1i_*n1i_.conj(), axis=1).real, 'k')
+                p.plot(n.average(n1j_*n1j_.conj(), axis=1).real, 'b')
+                p.plot(n.average(n1i_*n1j_.conj(), axis=1).real, 'g')
+                p.plot(n.average(ni*nj.conj(), axis=1).real, 'r')
+                p.plot(fudge*n.average(n1i_*n1j_.conj(), axis=1).real, 'c')
+                p.show()
+            elif False:
+                p.subplot(131); p.plot(n.average(xi*xj.conj(), axis=1).real)
+                p.subplot(132); p.plot(n.average(xi_*xj_.conj(), axis=1).real)
+            pk_avg = scalar * n.average(xi * xj.conj(), axis=1)
+            pk_avg_ = scalar * n.average(xi_ * xj_.conj(), axis=1) * fudge # XXX
+            dspecs.append(pk_avg)
+            pspecs.append(pk_avg_)
+    pspecs,dspecs = n.array(pspecs), n.array(dspecs)
+    avg_1d = n.average(pspecs, axis=0)
+    #avg_1d = n.average(dspecs, axis=0)
+    #p.subplot(133)
+    p.plot(avg_1d.real,'.')
+    #p.plot(n.average(dspecs, axis=0).real/scalar)
+    #p.show()
+    std_1d = n.std(pspecs, axis=0) / n.sqrt(pspecs.shape[0])
+    #std_1d = n.std(pspecs, axis=0) # in new noise subtraction, this remaining dither is essentially a bootstrap error, but with 5/7 of the data
+
+    print 'Writing pspec_boot%04d.npz' % boot
+    n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, pk=avg_1d, err=std_1d)
 p.show()
 
+import sys; sys.exit(0)
 print 'Making Fisher Matrix'
 Qs,Q_C = {}, {}
 for k in range(n_k):
@@ -292,59 +425,5 @@ p.show()
 
 p.subplot(121); p.plot(scalar * n.average(qs, axis=1))
 p.subplot(122); p.plot(scalar * n.average(ps, axis=1))
-p.show()
-
-pspecs = []
-Cx,Cn = CoV(Ts, bls), CoV(Ns, bls)
-Cx_ = CoV(X, bls)
-Cn1_,Cn2_ = CoV(N1, bls), CoV(N2, bls)
-for cnt,bli in enumerate(bls):
-    for blj in bls[cnt:]:
-        if bli == blj: continue
-        print a.miriad.bl2ij(bli), a.miriad.bl2ij(blj)
-        xi,xj = Cx.get_x(bli), Cx.get_x(blj)
-        xi_,xj_ = Cx_.get_x(bli), Cx_.get_x(blj)
-        ni,nj = Cn.get_x(bli), Cn.get_x(blj)
-        n1i_,n1j_ = Cn1_.get_x(bli), Cn1_.get_x(blj)
-        n2i_,n2j_ = Cn2_.get_x(bli), Cn2_.get_x(blj)
-        nij = n.sqrt(n.mean(n.abs(ni*nj.conj())**2, axis=1))
-        n1ij_ = n.sqrt(n.mean(n.abs(n1i_*n1j_.conj())**2, axis=1))
-        n2ij_ = n.sqrt(n.mean(n.abs(n2i_*n2j_.conj())**2, axis=1))
-        f1 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n1ij_)**2))
-        f2 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n2ij_)**2))
-        print 'Rescale factor:', f1, f2
-        fudge = max(f1,f2)
-
-        if False:
-            p.subplot(221)
-            p.plot(n.average(xi_*xi_.conj(), axis=1).real, 'k')
-            p.plot(n.average(xi*xi.conj(), axis=1).real, 'r')
-            p.subplot(222)
-            p.plot(n.average(xj_*xj_.conj(), axis=1).real, 'k')
-            p.plot(n.average(xj*xj.conj(), axis=1).real, 'r')
-            p.subplot(223)
-            p.plot(n.average(xi_*xj_.conj(), axis=1).real, 'k')
-            p.plot(n.average(xi*xj.conj(), axis=1).real, 'r')
-            p.plot(fudge*n.average(xi_*xj_.conj(), axis=1).real, 'g')
-            p.subplot(224)
-            p.plot(n.average(n2i_*n2i_.conj(), axis=1).real, 'k')
-            p.plot(n.average(n2j_*n2j_.conj(), axis=1).real, 'b')
-            p.plot(n.average(n2i_*n2j_.conj(), axis=1).real, 'g')
-            p.plot(n.average(ni*nj.conj(), axis=1).real, 'r')
-            p.plot(fudge*n.average(n2i_*n2j_.conj(), axis=1).real, 'c')
-            p.show()
-        elif True:
-            p.subplot(121); p.plot(n.average(xi*xj.conj(), axis=1).real)
-            p.subplot(122); p.plot(n.average(xi_*xj_.conj(), axis=1).real)
-        pk_avg = scalar * n.average(xi_ * xj_.conj(), axis=1) * fudge # XXX
-        pspecs.append(pk_avg)
-p.show()
-pspecs = n.array(pspecs)
-avg_1d = n.average(pspecs, axis=0)
-#std_1d = n.std(pspecs, axis=0) / n.sqrt(pspecs.shape[0])
-std_1d = n.std(pspecs, axis=0) # in new noise subtraction, this remaining dither is essentially a bootstrap error, but with 5/7 of the data
-
-print 'Writing pspec.npz'
-n.savez('pspec.npz', kpl=kpl, pk=avg_1d, err=std_1d)
 p.show()
 
