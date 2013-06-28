@@ -165,6 +165,7 @@ for filename in args:
             #Trms_ *= n.sqrt(n.sqrt(351./43)) # penalize for oversampling fr-filtered data
             Trms_ *= 1.14 # adjust to suboptimal flux calibration
             #Trms_ += eor_mdl[t]
+            Trms_ = eor_mdl[t]
             Nrms  = Trms_ * w
         if PFB:
             _Trms = capo.pfb.pfb(Trms, window=WINDOW, taps=NTAPS, fft=n.fft.ifft)
@@ -210,6 +211,20 @@ if False:
     for bl in bls: T[bl] += N[bl]
 Ts = n.concatenate([T[bl] for bl in bls], axis=-1).T
 Ns = n.concatenate([N[bl] for bl in bls], axis=-1).T
+if False:
+    print 'Switching sign of alternate integrations to decorrelate sky'
+    sign = 1
+    for i in xrange(Ts.shape[1]):
+        if i % 8 == 0: sign = -sign
+        Ts[:,i] *= sign
+        Ns[:,i] *= sign
+if False:
+    print 'Switching sign of various baselines & modes to decorrelate sky'
+    for i in xrange(Ts.shape[0]):
+        if n.random.uniform() > .5:
+            Ts[i] *= -1
+            Ns[i] *= -1
+
 print Ts.shape
 print ' '.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in bls])
 #capo.arp.waterfall(cov(Ts), mode='log', drng=2); p.show()
@@ -218,23 +233,24 @@ p.subplot(132); capo.arp.waterfall(Ns, mode='log', mx=1, drng=2); p.colorbar(shr
 p.subplot(133); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
 p.show()
 
-if False:
-    print 'Switching sign of various baselines & modes to decorrelate sky'
-    for i in xrange(Ts.shape[0]):
-        if n.random.uniform() > .5:
-            Ts[i] *= -1
-            Ns[i] *= -1
-
-for boot in xrange(100):
-    print 'Bootstrap sample', boot
+for boot in xrange(20):
     if True: # pick a sample of baselines with replacement
-        bls_ = [random.choice(bls) for bl in bls]
+        #bls_ = [random.choice(bls) for bl in bls]
+        bls_ = random.sample(bls, len(bls))
+        gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:] # ensure gp1 and gp2 can't share baselines
+        # ensure each group has at least 2 kinds of baselines
+        gp1 = random.sample(gp1, 2) + [random.choice(gp1) for bl in gp1[:len(gp1)-2]]
+        gp2 = random.sample(gp2, 2) + [random.choice(gp2) for bl in gp2[:len(gp2)-2]]
     else:
-        bls_ = bls
+        gp1,gp2 = bls[:len(bls)/2],bls[len(bls)/2:]
+    bls_ = gp1 + gp2
+    print 'Bootstrap sample %d:' % boot,
+    for gp in [gp1,gp2]: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
+    print
     Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
     Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
     L = len(bls_)
-        
+
     _Cxtot,_Cntot = 1, 1
     #PLT1,PLT2 = 3,3
     #PLT1,PLT2 = 2,2
@@ -251,27 +267,62 @@ for boot in xrange(100):
             c /= n.sqrt(d) * 2
         g = .3
         _Cx,_Cn = -g*Cx, -g*Cn
+        if False: # restrict to certain modes in the covariance diagonalization
+            mask = n.zeros_like(Cx)
+            for k in xrange(17,24):
+                for b in xrange(L):
+                    mask[b*n_k+k] = mask[:,b*n_k+k] = 1
+            _Cx *= mask; _Cn *= mask
         ind = n.arange(SZ)
         for b in xrange(L): # zero out redundant off-diagonals
             indb = ind[:-b*n_k]
             _Cx[indb,indb+b*n_k] = _Cx[indb+b*n_k,indb] = 0
             _Cn[indb,indb+b*n_k] = _Cn[indb+b*n_k,indb] = 0
         _Cx[ind,ind] = _Cn[ind,ind] = 0 # set these to zero temporarily to avoid noise bias into cross terms
-        for _C in [_Cx,_Cn]: # subtract off covariances common to all baselines pairs
-            _C.shape = (L,n_k,L,n_k)
-            sub_C = n.zeros_like(_C)
-            for i in xrange(L):
-                for j in xrange(L):
-                    not_ij = n.array([bl for bl in xrange(L) if not bl in [i,j]])
-                    _C_avg = n.mean(n.mean(_C.take(not_ij,axis=0).take(not_ij,axis=2), axis=2), axis=0)
-                    sub_C[i,:,j,:] = _C_avg
-            _C.shape = sub_C.shape = (L*n_k,L*n_k)
-            #p.clf()
-            #p.subplot(131); capo.arp.waterfall(_C, mode='log', mx=0, drng=2)
-            #p.subplot(132); capo.arp.waterfall(sub_C, mode='log', mx=0, drng=2)
-            _C -= sub_C
-            #p.subplot(133); capo.arp.waterfall(_C, mode='log', mx=0, drng=2)
-            #p.show()
+        if True: # remove covariances common to all bl pairs.  XXX This is responsible for >75% of noise bias
+            for _C in [_Cx,_Cn]:
+                _C.shape = (L,n_k,L,n_k)
+                sub_C = n.zeros_like(_C)
+                #for i in xrange(L):
+                #    for j in xrange(L):
+                #        not_ij = n.array([bl for bl in xrange(L) if not bl in [i,j]])
+                #        _C_avg = n.mean(n.mean(_C.take(not_ij,axis=0).take(not_ij,axis=2), axis=2), axis=0)
+                #        #capo.arp.waterfall(_C_avg, mode='log', drng=2); p.colorbar(shrink=.5); p.show()
+                #        sub_C[i,:,j,:] = _C_avg
+                for i in xrange(L):
+                    bli = bls_[i]
+                    for j in xrange(L):
+                        blj = bls_[j]
+                        if bli in gp1 and blj in gp1: gp = gp1
+                        elif bli in gp2 and blj in gp2: gp = gp2
+                        else: continue # make sure we only compute average using bls in same group
+                        _Csum,_Cwgt = 0,0
+                        # XXX as constructed, this will explode if a group consists entirely of one bl.
+                        for bli_ in gp:
+                            i_ = bls_.index(bli_)
+                            if i_ == i: continue
+                            for blj_ in gp:
+                                j_ = bls_.index(blj_)
+                                if j_ == j: continue
+                                _Csum += _C[i_,j_]
+                                _Cwgt += 1
+                        sub_C[i,j] = _Csum / _Cwgt # XXX careful if _Cwgt is 0
+                _C.shape = sub_C.shape = (L*n_k,L*n_k)
+                #p.clf()
+                #p.subplot(131); capo.arp.waterfall(_C, mode='log', mx=0, drng=2)
+                #p.subplot(132); capo.arp.waterfall(sub_C, mode='log', mx=0, drng=2)
+                _C -= sub_C
+                #p.subplot(133); capo.arp.waterfall(_C, mode='log', mx=0, drng=2)
+                #p.show()
+        if True: # divide baselines into two independent groups to avoid cross-contamination of noise
+            mask = n.ones_like(Cx)
+            for bl1 in xrange(len(gp1)):
+                for bl2 in xrange(len(gp2)):
+                    bl2 += len(gp1)
+                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            #capo.arp.waterfall(mask, mode='real'); p.show()
+            _Cx *= mask; _Cn *= mask
         _Cx[ind,ind] = _Cn[ind,ind] = 1
         Ts,Ns = n.dot(_Cx,Ts), n.dot(_Cn,Ns)
         _Cxtot,_Cntot = n.dot(_Cx,_Cxtot), n.dot(_Cn,_Cntot)
@@ -295,7 +346,10 @@ for boot in xrange(100):
     for cnt,bli in enumerate(bls_):
         for blj in bls_[cnt:]:
             if bli == blj: continue
+            if True: # exclude intra-group pairings
+                if (bli in gp1 and blj in gp1) or (bli in gp2 and blj in gp2): continue
             print a.miriad.bl2ij(bli), a.miriad.bl2ij(blj)
+            # XXX behavior here is poorly defined for repeat baselines in bootstrapping
             xi,xj = Cx.get_x(bli), Cx.get_x(blj)
             xi_,xj_ = Cx_.get_x(bli), Cx_.get_x(blj)
             if True: # do an extra final removal of leakage from particular modes
@@ -309,14 +363,11 @@ for boot in xrange(100):
                     g = .3
                     _cx = -g*cx
                     mask = n.zeros_like(cx)
-                    #for k in [16,17,23,24]:
-                    #for k in xrange(14,26):
                     for k in xrange(17,24):
-                    #for k in [0,39]:
                         mask[k] = mask[:,k] = 1
                         mask[k+n_k] = mask[:,k+n_k] = 1
                     ind = n.arange(n_k)
-                    #mask[ind,ind] = mask[ind+n_k,ind+n_k] = 1
+                    #mask[ind,ind] = mask[ind+n_k,ind+n_k] = 1 # don't need this b/c _cx gets set to 1 on diag
                     mask[ind,ind+n_k] = mask[ind+n_k,ind] = 0
                     _cx *= mask
                     _cx[ind,ind] = _cx[ind+n_k,ind+n_k] = 1
@@ -333,8 +384,10 @@ for boot in xrange(100):
             nij = n.sqrt(n.mean(n.abs(ni*nj.conj())**2, axis=1))
             n1ij_ = n.sqrt(n.mean(n.abs(n1i_*n1j_.conj())**2, axis=1))
             n2ij_ = n.sqrt(n.mean(n.abs(n2i_*n2j_.conj())**2, axis=1))
-            f1 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n1ij_)**2))
-            f2 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n2ij_)**2))
+            #f1 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n1ij_)**2))
+            #f2 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n2ij_)**2))
+            f1 = n.sqrt((n.abs(nij)**2)/(n.abs(n1ij_)**2))
+            f2 = n.sqrt((n.abs(nij)**2)/(n.abs(n2ij_)**2))
             print 'Rescale factor:', f1, f2
             #fudge = max(f1,f2)
             fudge = 1.
@@ -365,8 +418,8 @@ for boot in xrange(100):
             dspecs.append(pk_avg)
             pspecs.append(pk_avg_)
     pspecs,dspecs = n.array(pspecs), n.array(dspecs)
-    avg_1d = n.average(pspecs, axis=0)
-    #avg_1d = n.average(dspecs, axis=0)
+    #avg_1d = n.average(pspecs, axis=0)
+    avg_1d = n.average(dspecs, axis=0)
     #p.subplot(133)
     p.plot(avg_1d.real,'.')
     #p.plot(n.average(dspecs, axis=0).real/scalar)
