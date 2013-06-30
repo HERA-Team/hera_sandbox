@@ -55,6 +55,7 @@ o.add_option('--antpos',action='store_true',
     help='Plot positions of antennae')
 o.add_option('--exp',action='store_true',
     help='do a stupid experiment')
+o.add_option('--ls',default='-',help='linestyle')
 
 def convert_arg_range(arg):
     """Split apart command-line lists/ranges into a list of numbers."""
@@ -168,6 +169,7 @@ for uvfile in files:
     a.scripting.uv_selector(uv, opts.ant, opts.pol)
     # Read data from a single UV file
     for (uvw,t,(i,j)),d in uv.all():
+        aa.set_active_pol(opts.pol)
         bl = '%d,%d' % (i,j)
         selected_ants.append(i)
         selected_ants.append(j)
@@ -397,14 +399,14 @@ for cnt, bl in enumerate(bls):
         elif opts.time_axis == 'physical': plot_times = plot_t['jd']
         elif opts.time_axis == 'lst': plot_times = plot_t['lst']
         else: raise ValueError('Unrecognized time axis type.')
-        if opts.sum_chan: p.plot(plot_times, d, '-', label=label+'(+)')
+        if opts.sum_chan: p.plot(plot_times, d, opts.ls, label=label+'(+)')
         else:
             if opts.chan_axis == 'index': label += '#%d'
             else:
                 chans = freqs
                 label += '%f GHz'
             for c, chan in enumerate(chans):
-                p.plot(plot_times, d[:,c], '-', label=label % chan)
+                p.plot(plot_times, d[:,c],opts.ls, label=label % chan)
         if not opts.max is None: dmax = opts.max
         elif dmax is None: dmax = d.max()
         else: dmax = max(dmax,d.max())
