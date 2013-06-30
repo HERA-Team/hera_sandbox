@@ -46,8 +46,9 @@ print 'Done creating interpolation'
 
 
 for filename in args:
-    print filename, '->', filename+'.bm_'+src.src_name
-    if os.path.exists(filename+'.bm_'+src.src_name):
+    outfile = os.path.basename(filename)+'.tbm_'+src.src_name
+    print filename, '->', outfile
+    if os.path.exists(outfile):
         print '    File exists, skipping.'
         continue
     dbuf,wbuf = {}, {}
@@ -107,7 +108,7 @@ for filename in args:
             return (uvw,t,(i,j)), d, f
         else: return (uvw,t,(1,1)), None, None
         
-    uvo = a.miriad.UV(filename+'.bm_'+src.src_name, status='new')
+    uvo = a.miriad.UV(outfile, status='new')
     uvo.init_from_uv(uvi)
     uvo.pipe(uvi, mfunc=mfunc, raw=True, append2hist='BEAMFORM: ' + ' '.join(sys.argv))
     del(uvi); del(uvo)
