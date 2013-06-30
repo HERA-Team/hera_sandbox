@@ -18,7 +18,7 @@ o.add_option('-t', '--tempdir', dest='tempdir',
 opts,args = o.parse_args(sys.argv[1:])
 
 if opts.tempdir != None:
-    RECVR,ANT58,GOM_E = 0,1,2
+    RECVR,ANT58,GOM_E = 0,2,2 #the ANT58 sensor is broken during this time, use the gom probe
     files = glob.glob(opts.tempdir + '/2011*.txt'); files.sort()
     lines = [L.split() for f in files for L in open(f).readlines()]
     jds = n.array([a.phs.ephem2juldate(a.ephem.date(' '.join(L[:2]))) for L in lines])
