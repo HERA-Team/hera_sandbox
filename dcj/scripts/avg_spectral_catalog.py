@@ -33,7 +33,7 @@ def average_spectrum(x,y,bins,dy=None):
     if not dy is None:
         myerrors = []
         for i in range(1,len(bins)):
-            myerrors.append(n.sqrt(n.sum(dy[n.logical_and(x>bins[i-1],x<bins[i])]**2)))
+            myerrors.append(n.sqrt(n.mean(dy[n.logical_and(x>bins[i-1],x<bins[i])]**2)))
     myspectrum=n.array(myspectrum)
     myfreqs = n.array(myfreqs)
     myerrors = n.array(myerrors)

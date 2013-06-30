@@ -175,7 +175,7 @@ if CAT:
     else:
         print "loading specfind subset cache: ",specfind_cache_file
         specfind = load_table(specfind_cache_file)
-rows=5
+rows=8
 cols=4
 #load teh new points
 plot_seperate = ['pic','cen']
@@ -188,6 +188,7 @@ for src in skip:
 multifig = 1
 singlefig = 2
 i=0
+figure(multifig,figsize=(8,9))
 for srcname in sort(PAPERcatalog.keys()):
     if srcname in skip: continue
     print srcname,
@@ -276,11 +277,11 @@ for srcname in sort(PAPERcatalog.keys()):
 #    if not is_left(rows,cols,ind):#yticks([])    
 #    if not is_bottom(rows,cols,ind) and (len(PAPERcatalog)-i)>cols:
 #        xticks([])
-    subplots_adjust(wspace=0,hspace=0,bottom=0.15)
+    subplots_adjust(wspace=0,hspace=0,bottom=0.075,left=0.1,right=0.95,top=0.95)
     i += 1
 figure(multifig)
-figtext(0.44,0.04,'Frequency [MHz]')
-figtext(0.05,0.5,'Flux [Jy]',rotation='vertical')
+figtext(0.44,0.02,'Frequency [MHz]')
+figtext(0.025,0.5,'Flux [Jy]',rotation='vertical')
 savefig('srcfig_%d.png'%(fignum+1))
 #savefig('srcfig_%d.eps'%(fignum+1))
 

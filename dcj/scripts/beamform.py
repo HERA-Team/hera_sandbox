@@ -22,8 +22,9 @@ del(uv)
 for filename in args:
     for src_name in cat:
         src = cat[src_name]
-        print filename, '->', filename+'.bm_'+src.src_name
-        if os.path.exists(filename+'.bm_'+src.src_name):
+        outfile = filename+'.bm_'+src.src_name
+        print filename, '->', outfile
+        if os.path.exists(outfile):
             print '    File exists, skipping.'
             continue
         dbuf,cbuf = {}, {}
@@ -33,6 +34,7 @@ for filename in args:
         a.scripting.uv_selector(uvi, ants, opts.pol)
         uvi.select('decimate', opts.decimate, opts.decphs)
         for (crd,t,(i,j)),d,f in uvi.all(raw=True):
+            aa.set_active_pol(a.miriad.pol2str[uvi['pol']])
             if t != curtime:
                 curtime = t
                 aa.set_jultime(t)
@@ -72,7 +74,7 @@ for filename in args:
                 return (uvw,t,(i,j)), d, f
             else: return (uvw,t,(1,1)), None, None
             
-        uvo = a.miriad.UV(filename+'.bm_'+src.src_name, status='new')
+        uvo = a.miriad.UV(outfile, status='new')
         uvo.init_from_uv(uvi)
         uvo.pipe(uvi, mfunc=mfunc, raw=True,
             append2hist='BEAMFORM: src=%s ant=%s srcflux=%s minuv=%s\n' % (opts.src, opts.ant, opts.srcflux, opts.minuv))
