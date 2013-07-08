@@ -2,6 +2,9 @@
 #$ -V
 #$ -cwd
 
-ARGS=`pull_args.py $*`
-echo xtalk3.py  $ARGS 
-xtalk3.py  $ARGS 
+DIR=`pull_args.py $*`
+for dir in $DIR; do 
+    echo working on $dir 
+    echo xtalk3.py  $dir/*.uvcRREcAz
+    xtalk3.py  $dir/*.uvcRREcAz
+done;

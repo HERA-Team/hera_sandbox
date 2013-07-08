@@ -2,8 +2,13 @@
 #$ -V
 #$ -cwd
 
-ARGS=`pull_args.py $*`
+DIR=`pull_args.py $*`
 CORRECT=correct_psa6240.py
 
-echo $CORRECT $ARGS
-$CORRECT $ARGS
+echo $DIR
+
+for dir in $DIR; do
+    echo working on $dir
+    echo $CORRECT $ARGS
+    $CORRECT $dir/*.uvcRRE
+done;
