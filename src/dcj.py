@@ -3,6 +3,10 @@ import numpy as np
 """
 Codes from danny
 """
+def pol2ind(pol):
+    assert(pol<-4)
+    return pol+8
+
 def make_indexable(x):
     try: len(x)
     except(TypeError):x.shape = (1,)
