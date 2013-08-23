@@ -2,9 +2,8 @@ import numpy as np
 import os, sys, os.path
 import matplotlib.pyplot as plt
 import datetime, time
-from jd_cal import *
 
-
+d2m = 24.0*60.0
 class wf:
     """Generates waterfall plots using the PAPER flag files
           time1 = datetime of start
@@ -206,7 +205,6 @@ class wf:
         wftimes = self.wftimes
         wfplot = self.wfplot
         
-        d2m = 24.0*60.0
         if verbose:
             print 'Eventimes dial: %f, upper:  %f' % (dial,upper)
         interval = 0.0
@@ -217,7 +215,8 @@ class wf:
                 interval+=pint
                 nint+=1
         interval/=(nint)
-        print 'interval is ',interval*d2m
+        if verbose:
+            print 'interval is ',interval*d2m
         t = []
         wf = []
         addedInterval = 0
@@ -272,14 +271,14 @@ class wf:
         interval = self.evenTimes(dial=dial,upper=upper,plot=False,verbose=False)
         maxInterval = interval[2]
         aveInterval = interval[1]
-        print 'Starting intervals:  %.4f, %.4f, %.4f' % (interval[0],interval[1],interval[2])
+        print 'Starting intervals:  %.4f, %.4f, %.4f' % (d2m*interval[0],d2m*interval[1],d2m*interval[2])
         while maxInterval > aveInterval*dial:
-            interval = self.evenTimes(dial=dial,upper=upper,plot=1000,verbose=False)
+            interval = self.evenTimes(dial=dial,upper=upper,plot=False,verbose=False)
             maxInterval = interval[2]
             aveInterval = interval[1]
             self.wftimes = np.copy(self.t)
             self.wfplot = np.copy(self.wf)
-        print 'Ending intervals:  %.4f, %.4f, %.4f' % (interval[0],interval[1],interval[2])
+        print 'Ending intervals:  %.4f, %.4f, %.4f' % (d2m*interval[0],d2m*interval[1],d2m*interval[2])
         self.wftimes = np.copy(t_original)
         self.wfplot = np.copy(p_original)
         
@@ -288,11 +287,11 @@ class wf:
             self.t = (self.t - np.floor(self.t[0]))*24.0
         else:
             xl = 'Day of month'
-        plt.figure(2000)
+        plt.figure('timePlot')
         plt.title(self.periodName)
         plt.imshow(self.wf,origin='lower',extent=[100.0,200.0,self.t[0],self.t[-1]])
         plt.axis('normal')
-        plt.axis([self.freq[0],self.freq[-1],np.floor(self.t[0]),np.ceil(self.t[-1])])
+        plt.axis([self.freqs[0],self.freqs[-1],np.floor(self.t[0]),np.ceil(self.t[-1])])
         plt.xlabel('Frequency [MHz]')
         plt.ylabel(xl)
         plt.colorbar()
@@ -303,11 +302,11 @@ class wf:
     def scanPlot(self,dial=10.0,upper=15.0,save=True):
         """ plot "scan-based" waterfall and save=True/False.  Puts in gaps for long time gaps (ie day-time)"""
         interval = self.evenTimes(dial=dial,upper=upper,justNights=True,plot=False,verbose=False)
-        plt.figure(2001)
+        plt.figure('scanPlot')
         plt.title(self.periodName)
         plt.imshow(self.wf,origin='lower',extent=[100.0,200.0,0,len(self.t)])
         plt.axis('normal')
-        plt.axis([self.freq[0],self.freq[-1],0,len(self.t)])
+        plt.axis([self.freqs[0],self.freqs[-1],0,len(self.t)])
         plt.xlabel('Frequency [MHz]')
         plt.colorbar()
         plt.show()
@@ -322,5 +321,86 @@ class wf:
         plt.plot(self.wftimes,self.wftimes,'ro')
         plt.plot(t,t,'gx')
 
+
+###########Some methods###########
+
+def fmt_time(jd):
+    """Taken from damo"""
+    #get the y,m,d out of the jd
+    ymd = int(np.floor(jd))
+    #from aa.usno.navy.mil
+    l = ymd+68569
+    n = 4*l/146097
+    l = l - (146097*n+3)/4
+    i = 4000*(l+1)/1461001
+    l = l - 1461*i/4+31
+    j = 80*l/2447
+    k = l-2447*j/80
+    l = j/11
+    j = j+2-12*l
+    i = 100*(n-49)+i+l
+    Y,M,D = i,j,k
+
+    #get h,m,s out of the jd.
+    jd -= np.floor(jd)
+    jd = 24.*jd
+    h = np.floor(jd)
+    jd = 60.*(jd-h)
+    m = np.floor(jd)
+    s = np.floor(60.*(jd-m))
+
+    #format it
+    ifmt = '%Y/%m/%d %H:%M:%S'
+    tstr = '%d/%d/%d %d:%d:%d'%(Y,M,D,h,m,s)
+    t = time.strptime(tstr,ifmt)
+    return datetime.datetime(t.tm_year,t.tm_mon,t.tm_mday,t.tm_hour,t.tm_min,t.tm_sec)
+
+
+def get_caldat(jd):
+    """From Astronomy on a Personal Computer, Montenbruck and Pfleger"""
+    a = long(jd+0.5)
+    if a < 2299161:   ### Julian calendar
+        b = 0
+        c = a + 1524
+    else:               ### Gregorian
+        b = long((a-1867216.25)/365.25)
+        c = a + b - (b/4) + 1525
+    d = long( (c-122.1)/365.25 )
+    e = 365*d + d/4
+    f = long( (c-e)/30.6001 )
+    Day = c - e - int(30.6001*f)
+    Month = f - 1 - 12*(f/14)
+    Year = d - 4715 - ((7+Month)/10)
+    FracOfDay = jd+0.5 - np.floor(jd+0.5)
+    Hour = 24.0*FracOfDay
+    Minute = 60.0*(Hour - np.floor(Hour))
+    Hour = np.floor(Hour)
+    Second = 60.0*(Minute - np.floor(Minute))
+    Minute = np.floor(Minute)
+    Microsecond = 1000.0*(Second - np.floor(Second))
+    Second = np.floor(Second)
+    return datetime.datetime(Year,Month,Day,Hour,Minute,Second,Microsecond)
+
+def get_juldat(time):
+    """From Astronomy on a Personal Computer, Montenbruck and Pfleger"""
+    Year = time.year
+    Month = time.month
+    Day = time.day
+    Hour = time.hour
+    Minute = time.minute
+    Second = time.second
+    if Month <= 2:
+        Month+=12
+        Year-=1
+    if 10000*Year + 100*Month + Day <= 15821004:
+        b = -2 + ((Year+4716)/4) - 1179             ### Julian calendar
+    else:
+        b = (Year/400) - (Year/100) + (Year/4)      ### Gregorian calendar
+    MjdMidnight = 365*Year - 679004 + b + int(30.6001*(Month+1)) + Day
+    FracOfDay = (Hour + Minute/60.0 + Second/3600.0)/24.0
+
+    jd = 2400000.5 + MjdMidnight + FracOfDay
+
+    return jd
 
 
