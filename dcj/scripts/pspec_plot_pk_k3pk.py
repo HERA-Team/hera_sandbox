@@ -70,6 +70,8 @@ def dual_plot(kpl, pk, err, umag=16., f0=.164, color='', bins=None):
     for _k,_k3pk,_k3err in zip(kpl,k3pk,k3err):
         print '%6.3f, %9.5f (%9.5f +/- %9.5f)' % (_k, _k3pk+_k3err,_k3pk,_k3err)
     print '-'*20
+    print "saving pspec.npz"
+    n.savez('pspec_pk_k3pk.npz',kpl,)
     #pos = n.where(kpl >= 0, 1, 0)
     #neg = n.where(kpl <= 0, 1, 0)
     #posneg = 0.5*(k3pk.compress(pos) + k3pk.compress(neg)[::-1])
@@ -221,4 +223,5 @@ p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$')
 p.ylim(1e0,1e9)
 p.xlim(0, 0.6)
 p.grid()
-p.show()
+p.savefig('pspec.png')
+#p.show()
