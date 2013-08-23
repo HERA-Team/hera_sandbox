@@ -12,14 +12,20 @@ class wf:
           reftime = datetime of reference time or 'auto' which makes it equal to the start of the month of time1"""
     
     def __init__(self,time1=datetime.datetime(2012,11,1,0,0,0),time2=datetime.datetime(2012,12,1,0,0,0),reftime='auto',
-           Nchan = 1024, band = (100.0,200.0),
-           file_path = '/Users/daviddeboer1/Documents/Projects/PAPER/data/rfi/RFI_FILES/2012-2013'):
+           Nchan = 1024, band = (100.0,200.0), file_path = 'shredder'):
 
+        if file_path == 'shredder':
+            if time1.month < 7 and time1.year < 2012:
+                file_path = '/data4/paper/RFI_DATA/2011-2012Campaign'
+            else:
+                file_path = '/data4/paper/RFI_DATA/2012-2013Campaign'
+        elif file_path == 'davesmac':
+                file_path = '/Users/daviddeboer1/Documents/Projects/PAPER/data/rfi/RFI_FILES/2012-2013'
         #### Get files
         self.ls = []
         for line in os.listdir(file_path):
             dat = line.split('.')
-            if dat[-1] == 'npz':
+            if dat[0]=='zen' and dat[-2]=='uvcRE' and dat[-1] == 'npz':
                 self.ls.append(line)
 
         ### Write class variables
