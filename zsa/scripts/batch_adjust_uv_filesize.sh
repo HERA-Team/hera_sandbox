@@ -1,6 +1,7 @@
 #$ -S /bin/bash
 #$ -V
 #$ -cwd
+#$ -l paper
 DIRS=`pull_args.py $*`
 N=84
 for f in $DIRS; do
