@@ -17,6 +17,9 @@ for uvfile in args:
     fileparts = uvfile.split('.')
     filename_fmt = '.'.join([fileparts[0], '%13.5f', fileparts[-1]+'z'])
     uvi = a.miriad.UV(uvfile)
+    if os.path.exists(uvfile+'z'):
+        print '    File exists... skipping.'
+        continue
     if not uvo is None: print uvfile,'->',outfile
     
     for p,d,f in uvi.all(raw=True):
