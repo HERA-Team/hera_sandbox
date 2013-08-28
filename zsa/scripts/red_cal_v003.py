@@ -83,28 +83,31 @@ for filename in args:
             if c: i,j = j,i
             #valid = [0,1,2,3,16,17,18,19,8,9,10,11,24,25,26,27,4,5,6,7,20,21,22,23,12,13,14]
             #valid = [0,1,2,3,16,17,18,19,12,13,14,15,28,29,30,31]
-            #valid = [49,41,47,19,10,3,25,48,9,58,1,4]
-            #if not i in valid or not j in valid: continue
+#            valid = [49,41,47,19,10,3,25,48,9,58,1,4]
+            #valid=[49,41,47,19,29,28,34,51,10,3,25,48,24,55,27,57,9,58,1,4,17,13,56,59,22,61,35,18,5,32,30,23]
+            valid = ANTPOS_6240.flatten()
+            valid = n.delete(valid,n.where(valid==37)[0])
+            if not i in valid or not j in valid: continue
             #Add valid antennas to the bl_list. Default is all ants.
             bl_list.append(ij2bl(i,j))
             strbls[sep].append('%d_%d' % (i,j))
             conj_bl[ij2bl(i,j)] = c
         #Replace bls with bl_list.
         bls[sep] = bl_list
-        strbls[sep] = ','.join(strbls[sep])
+        strbls[sep] = ','.join([bl for bl in strbls[sep] if len(bl)>0])
         if opts.verbose: print sep, strbls[sep]
-    
     #Get the frequencies of the uvfiles
     uv = a.miriad.UV(sys.argv[-1])
     fqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
     del(uv)
     
-    seps = ['0,1','1,1','-1,1'] #+ ['2,1', '-2,1'] + ['0,2','1,2','-1,2']
-    #seps = bls.keys()
+    #seps = ['0,1','1,1','-1,1'] #+ ['2,1', '-2,1'] + ['0,2','1,2','-1,2']
+#    seps = bls.keys()
+    seps = [sep for sep in bls if len(bls[sep]) > 0]
     #Get the baselines that have separation in seps.
-    strbls = ','.join([strbls[sep] for sep in seps])
-    #pols = ['xx','yy']
-    pols = ['xx']
+    strbls = ','.join([strbls[sep] for sep in seps if len(strbls[sep])>0])
+    pols = ['xx','yy']
+    #pols = ['xx']
     NPOL = len(pols)
     if opts.verbose:
         print '-'*70
@@ -169,6 +172,7 @@ for filename in args:
     dly0,gain0 = {}, {} # Starting point for searching for solution
     #if .npz file exists it loads the starting points into dly0,gain0.
     if os.path.exists(outfile):
+        continue
         print '      Input starting point from', outfile
         f = open(outfile)
         npz = n.load(f)
@@ -212,12 +216,12 @@ for filename in args:
                 #pylab.plot(d[cbl][calpol][0])
                 #pylab.plot(d[bl][pol][0])
                 #pylab.show()0
-                print len(fqs)
-                exit()
+
                 #Feed in data to the redundant basline calibration script.
                 #First give it the calibration baseline (with wgts) , then give 
                 #it all the other baselines (with wgts).
-                g,tau,info = capo.arp.redundant_bl_cal(d[cbl][calpol], w[cbl][calpol], d[bl][pol], w[bl][pol],
+                print cbl,calpol,bl,pol
+                g,tau,info = capo.zsa.redundant_bl_cal(d[cbl][calpol], w[cbl][calpol], d[bl][pol], w[bl][pol],
                     fqs, use_offset=False, tau=tau0, maxiter=opts.maxiter)
                 print (i,j),(i0,j0), tau, tau0
                 gain = n.log10(n.median(n.abs(g)))
@@ -234,7 +238,7 @@ for filename in args:
                         else: print 'G'
                 if opts.plot:
                     pylab.subplot(211); pylab.plot(fqs, n.abs(g)/10**gain)
-                    pylab.subplot(212); pylab.plot(fqs, n.angle(g))
+                    pylab.subplot(212); pylab.plot(fqs, n.angle(g),',')
     
     C = {}
     for m in P:
