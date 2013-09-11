@@ -184,12 +184,12 @@ prms = {
          [-22.48,-14.31,-16.6 ,-19.01,-32.48,-23.04,-23.94,-40.45]]), # psa6240.17, yy - xx
     #'tau_ew': 2.71,
     #'tau_ew': 2.31, #works well with all e-w baselines.
-    'tau_ew': 2.224408, #after fitting with all cross correlations
+    #'tau_ew': 2.224408, #after fitting with all cross correlations
     'tau_ew': 2.22, #after fitting with all cross correlations
     #'tau_ew': 5.65,
     #'tau_ns': -3.56,
     #'tau_ns': 0.85,
-    'tau_ns': 0.88, #after fitting with all cross correlations
+    #'tau_ns': 0.88, #after fitting with all cross correlations
     'tau_ns': 0.88, #after fitting with all cross correlations
     #'delays': {},
     'gain': .0036096,
@@ -203,7 +203,8 @@ prms = {
          [ 0.645, 0.927, 0.842, 0.618, 0.869, 0.940, 1.005, 0.842],
          [ 0.967, 0.860, 0.990, 0.967, 1.053, 1.024, 0.831, 0.994]]), # psa6240.17, xx
     'amps': {},
-    'bp_r': n.array([[-546778459030.53168, 664643788581.23596, -352000715429.32422, 106069000024.00294, -19886868672.0816, 2375187771.2150121, -176441928.4305163, 7452103.7565970663, -136981.43950786022]] * 64) * 1.0178**0.5, # from J2214-170 in Helmboldt, with adjustment for tempgain.py gain adjustment
+    #'bp_r': n.array([[-546778459030.53168, 664643788581.23596, -352000715429.32422, 106069000024.00294, -19886868672.0816, 2375187771.2150121, -176441928.4305163, 7452103.7565970663, -136981.43950786022]] * 64) * 1.0178**0.5, # from J2214-170 in Helmboldt, with adjustment for tempgain.py gain adjustment
+    'bp_r': n.array([[14393047143907.398, -16575373619986.25, 8333466932440.8428, -2389015691359.8252, 427126790199.94519, -48768014696.821205, 3472564358.9172649, -140987785.88531482, 2498864.9056758285]] * 64), # from pic (danny's paper).
     'bp_i': n.array([[0., 0., 0.]] * 64),
     'beam': a.fit.BeamAlm,
    'twist': n.array([0]*64),#n.array([.1746] * 32),
@@ -264,7 +265,9 @@ src_prms = {
 'cen':{ 'jys':10**3.282102, 'index':  0.235166 , },
 'cyg':{ 'jys':10**3.566410, 'index':  -0.266315 , },
 'hyd':{ 'jys':10**2.448816, 'index':  -0.866462 , },
-'pic':{ 'jys':10**2.714456, 'index':  -0.436361 , },
+#'pic':{ 'jys':10**2.714456, 'index':  -0.436361 , },
+#pictor flux and index tken from danny's paper
+'pic':{ 'jys':10**2.582063, 'index':  -0.76 , },
 'vir':{ 'jys':10**2.200725, 'index':  0.202425 , },
 'Sun': {'a1': 0.00644, 'index': 1.471, 'a2': 0.00586, 'jys': 55701.96, 'th': -0.000512},
 'for': {'a1': 0.00851, 'a2': 0.00413, 'jys': 907.09, 'th': 0.230},
