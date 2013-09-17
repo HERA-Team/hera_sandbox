@@ -5,6 +5,7 @@ import sys, optparse
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True)
+o.add_option('-p',action='store_true',help="show plots [default=save pngs]")
 opts,args = o.parse_args(sys.argv[1:])
 
 NBOOT1 = 10
@@ -108,7 +109,7 @@ if True:
     p.plot(kpl, avg_1d+2*std_1d, 'k')
     filename = 'pspec.npz'
     print 'Saving', filename
-    n.savez(filename, kpl=kpl, pk=avg_1d, err=std_1d)
+    n.savez(filename, kpl=kpl, pk=avg_1d, err=std_1d,freq=f0)
     #for _kpl,_pk,_ns in zip(kpl, avg_1d, std_1d):
     #    print '%7.3f: (%f,%f),' % (_kpl, _pk/1e6, _ns/1e6)
-    #p.show()
+    if opts.p: p.show()
