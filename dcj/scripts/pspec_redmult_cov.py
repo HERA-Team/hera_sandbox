@@ -232,6 +232,7 @@ print ' '.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in bls])
 p.subplot(131); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
 p.subplot(132); capo.arp.waterfall(Ns, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
 p.subplot(133); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
+p.savefig('pspec_redmult_cov.png')
 #p.show()
 
 for boot in xrange(20):
@@ -393,7 +394,7 @@ for boot in xrange(20):
             #fudge = max(f1,f2)
             fudge = n.array([max(_f1,_f2) for _f1,_f2 in zip(f1,f2)])
             print "fudge factor",fudge
-            #fudge = 1.
+            fudge = 1.
 
             if False:
                 p.subplot(221)
@@ -421,8 +422,8 @@ for boot in xrange(20):
             dspecs.append(pk_avg)
             pspecs.append(pk_avg_)
     pspecs,dspecs = n.array(pspecs), n.array(dspecs)
-    #avg_1d = n.average(pspecs, axis=0)
-    avg_1d = n.average(dspecs, axis=0)
+    avg_1d = n.average(pspecs, axis=0)
+    #avg_1d = n.average(dspecs, axis=0)
     #p.subplot(133)
     p.plot(avg_1d.real,'.')
     #p.plot(n.average(dspecs, axis=0).real/scalar)
@@ -431,7 +432,7 @@ for boot in xrange(20):
     #std_1d = n.std(pspecs, axis=0) # in new noise subtraction, this remaining dither is essentially a bootstrap error, but with 5/7 of the data
 
     print 'Writing pspec_boot%04d.npz' % boot
-    n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, pk=avg_1d, err=std_1d)
+    n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, pk=avg_1d, err=std_1d,freq=fq)
 #p.show()
 
 import sys; sys.exit(0)
