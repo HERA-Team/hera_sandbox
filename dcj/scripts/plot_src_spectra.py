@@ -7,16 +7,29 @@ matplotlib.use('Agg')
 import aipy as a, numpy as n,atpy,os
 import optparse, sys, scipy.optimize
 import capo as C
+from capo.dcj import *
 from pylab import *
 from scipy import optimize
-
+matplotlib.rcParams.update({'font.size':14})
 CAT=True
 ioff()
 confidence=73
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True,src=True)
 o.set_description(__doc__)
+o.add_option('-v',action='store_true',
+    help="Print more details about fitting process and catalog parsing")
+o.add_option('--fmax',default=5e3,type='float',
+    help='Maximum catalog frequency in MHz [default=5e3]')
+o.add_option('--calmodel',
+    help='Calibration model file.')
 opts,args = o.parse_args(sys.argv[1:])
+if os.path.exists(opts.calmodel):
+  #get a list of the calibrators
+  try:
+      cals = opts.calmodel.split('gain')[0].split('_')
+  except(IndexError):
+      pass
 def SImodel(freqs,fluxes,err=None):
     """
     input 
@@ -43,21 +56,6 @@ def find_wrapped(A,range):
         return n.argwhere(n.logical_and(A>range[0],A<range[1]))
     else:
         return n.argwhere(n.logical_not(n.logical_and(A>range[1],A<range[0])))
-def select_table_where_source(table,srcname):
-    #Assumes MRC names!!!
-    #make a special exception for pic
-    if srcname=='pic':
-        seq=20658
-    elif srcname=='cen':
-        seq=61767
-    elif srcname=='hyd':
-        seq=43497
-    else:
-        result = table.where(table['Name']== 'MRC %s'%srcname)
-        seq = result['Seq']
-    return table.where(table['Seq']==seq)
-def spectrum(table):
-    return table['nu'],table['S_nu_']/1e3,table['e_S_nu_']/1e3
 def sky_sep(A,B):
     #compute distance on sphere
     #using input vectors in xyz
@@ -153,39 +151,12 @@ def average_spectrum(x,y,bins):
     myfreqs = n.array(myfreqs)
     myerrors = n.array(myerrors)
     return myfreqs,myspectrum,myerrors
-def get_votable_column_names(tablefile,tid=0):
-    from atpy.votable import parse
-    votable = parse(tablefile)
-    colnames = {}
-    for id, table in enumerate(votable.iter_tables()):
-        if id==tid:
-            break    
-    for field in table.fields:
-        colnames[field._ID] = field.name
-    return colnames
-def load_table(tablefile):
-    colnames = get_votable_column_names(tablefile)
-    table = atpy.Table(tablefile)
-    for ID,name in colnames.iteritems():
-        table.rename_column(ID,name)
-    return table
-def find_closest(A,a):
-    return np.abs(A-a).argmin()
-def find_percentile_errors(trace,percentile,nbins=100):
-    thist,bins = np.histogram(trace,bins=nbins)
-    binwidth = np.diff(bins)[0]
-    lower = bins[find_closest(np.cumsum(thist)/float(np.sum(thist)),
-        0.5-(percentile/100.)/2)]+binwidth/2.
-    upper = bins[find_closest(np.cumsum(thist)/float(np.sum(thist)),
-        0.5+(percentile/100.)/2)]+binwidth/2.
-    med = np.median(trace)
-    return [lower,med,upper]
 #srclist = [filename2src(f) for f in args]
 #print srclist
 #srclist,cutoff,catalogs, = a.scripting.parse_srcs(','.join(srclist), opts.cat)
 #cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs=catalogs)
 
-f=n.linspace(40,2e3)
+f=n.linspace(40,opts.fmax)
 psa64freqs,PAPERcatalog = load_paper_spectra(args[0])
 if CAT:
     """
@@ -204,39 +175,27 @@ if CAT:
     else:
         print "loading specfind subset cache: ",specfind_cache_file
         specfind = load_table(specfind_cache_file)
-rows=5
+rows=8
 cols=4
 #load teh new points
-plot_seperate = ['0518-458B','pic','cen']
-skip = ['vela']
-#try:
-#    PAPERcatalog.pop('0518-458B')
-#    PAPERcatalog.pop('pic')
-#    PAPERcatalog.pop('cen')
-#    PAPERcatalog.pop('vela')
-#except(KeyError):
-#    pass
+plot_seperate = ['pic','cen']
+skip = ['vela','0518-458B','1315-460','1247-401','1243-412']
+for src in skip:
+    try:
+        PAPERcatalog.pop(src)
+    except(KeyError):
+        continue
 multifig = 1
 singlefig = 2
 i=0
+figure(multifig,figsize=(8,9))
 for srcname in sort(PAPERcatalog.keys()):
     if srcname in skip: continue
     print srcname,
-#    srcname=filename2src(filename)
-#    D = n.load(filename)
-#    freq = D['freq']*1e3
-#    spec = n.ma.masked_invalid(D['spec'])
-#    psa64freqs,psa64fluxes,psa64errors = average_spectrum(freq,spec,freqbins)
+
     psa64fluxes,psa64errors = PAPERcatalog[srcname]['flux'],PAPERcatalog[srcname]['err']
  
-    
-#    if i==0:MYCATALOG.write("#FREQS[MHz]=%s\n"%(','.join(map(str,psa64freqs))))
-#    #srcflux,srcSI,specmodel = SImodel(freq,n.real(spec),n.imag(spec)) #fit a spectral model
-#    #psa64_S,psa64_SI,psa64_model = SImodel(psa64freqs,n.real(psa64fluxes),psa64errors)
-#    MYCATALOG.write("%s\t%s\t%s\n"%(srcname,
-#        ','.join(map(str,n.round(n.real(psa64fluxes),2))),
-#        ','.join(map(str,n.round(psa64errors,3)))))
-#
+
     #if SED_fit.py has been run on this output already, then load the trace and plot the model possibilities
     chainin = srcname+'_mcmc_chain.npz'
     if os.path.exists(chainin):
@@ -246,20 +205,17 @@ for srcname in sort(PAPERcatalog.keys()):
         mcmcfreqs = n.exp(n.random.uniform(n.log(f.min()),n.log(f.max()),trace['logS0'].size))
         SED_MCMC = 10**trace['logS0']*(mcmcfreqs/150.)**trace['alpha']
         psa64_model = lambda f: 10**logS0[1]*(f/150.)**alpha[1]
-
+    print "loading catalog data"
     if CAT:
-        if srcname!='pic':
+        nedfile = srcname+'_ned_spectrum.vot'
+        if os.path.exists(nedfile):
+            print "plotting ned data in:",nedfile
+            cat_freq,cat_flux,cat_err = ned_spectrum(nedfile,doprint=opts.v,fmax=opts.fmax*1e6)
+        else:
             print "using specfind catalog"
             cat_table = select_table_where_source(specfind,srcname)
             cat_freq,cat_flux,cat_err = spectrum(cat_table)
-        else:
-            print "using NED data"
-            cat_freq,cat_flux,cat_err = pic_spectrum('pic_ned_spectrum.xml')    
-        try: 
-            cat_flux[0]
-            catS,catalpha,catmodel    = SImodel(cat_freq,cat_flux,cat_err)
-        except(IndexError): catS,catalpha,catmodel = (cat_flux,-0.85,lambda x: cat_flux*(x/cat_freq/1e3)**-0.85)#by default use a power law
-        print n.round(catmodel(150.),2),n.round(catalpha,3)
+            print len(cat_flux),len(cat_err)
     else:print
     ind = i%(rows*cols)  +1 
     fignum = int(i/(rows*cols))
@@ -280,38 +236,52 @@ for srcname in sort(PAPERcatalog.keys()):
         ax=subplot(rows,cols,ind)
     ax.set_yscale('log',nonposx='clip')
     ax.set_xscale('log',nonposy='clip')
-    xlim([40,2000])
-     
-    if CAT: errorbar(cat_freq,cat_flux,yerr=cat_err,fmt='.') #plot catalog data
+    xlim([40,opts.fmax])
+    if CAT:
+        if len(cat_err)>1:
+            cat_err *= 2
+            cat_err_low = n.array(cat_err).copy()
+            cat_err_low[(cat_flux-cat_err)<0] = cat_flux[(cat_flux-cat_err)<0]*0.99
+            errorbar(cat_freq,cat_flux,yerr=[cat_err_low,cat_err],fmt='.k',capsize=0) #plot catalog data
+        else:
+            errorbar(cat_freq,cat_flux,yerr=cat_err,fmt='.k',capsize=0)
+    psa64errors *= 2
     psa64errors_low = psa64errors.copy()
     psa64errors_low[(psa64fluxes-psa64errors)<0] = psa64fluxes[(psa64fluxes-psa64errors)<0]*0.999
+
     errorbar(psa64freqs,psa64fluxes,
-        yerr=[psa64errors_low,psa64errors],fmt='.')
+        yerr=[psa64errors_low,psa64errors],fmt='xk',capsize=0,ms=5)
+    grid()
     if os.path.exists(chainin):
-        plot(f,psa64_model(f),'k')
-        plot(mcmcfreqs,SED_MCMC,',',color='b',alpha=0.01)
+        #plot(f,psa64_model(f),'k')
+        plot(mcmcfreqs,SED_MCMC,',',color='0.5',alpha=0.01)
     if srcname in plot_seperate:
         xlabel('frequency [MHz]')
         ylabel('flux [Jy]')
         savefig('%s_spectrum.png'%srcname)
         #savefig('%s_spectrum.eps'%srcname)
         continue
-    ylim([1,1e3])
+    ylim([1,1e3])       
+    #title(srcname)
+    if srcname in cals:calmark='*'
+    else: calmark = ''
+    annotate(srcname+calmark,[0.4,0.75],xycoords='axes fraction',textcoords='axes fraction',size=12)
 
-    annotate(srcname,[0.5,0.75],xycoords='axes fraction',textcoords='axes fraction',size=9)
     #grid plot cleanup
     #for all but the bottom left, put the 10e1 (its easiest to just just bump up the bottom ylim a scosh than figure out
     #why I can't delete the goddam bottom yticklabel
     if is_left(rows,cols,ind) and not is_bottom(rows,cols,ind): ylim([1.01,1e3]) 
+    tick_params(labelleft=is_left(rows,cols,ind),labelbottom=is_bottom(rows,cols,ind))
+
     locs,labels = yticks()
-    if not is_left(rows,cols,ind):yticks([])
-    if not is_bottom(rows,cols,ind) and (len(PAPERcatalog)-i)>cols:
-        xticks([])
-    subplots_adjust(wspace=0,hspace=0)
+#    if not is_left(rows,cols,ind):#yticks([])    
+#    if not is_bottom(rows,cols,ind) and (len(PAPERcatalog)-i)>cols:
+#        xticks([])
+    subplots_adjust(wspace=0,hspace=0,bottom=0.075,left=0.1,right=0.95,top=0.95)
     i += 1
 figure(multifig)
-figtext(0.44,0.04,'frequency [MHz]')
-figtext(0.05,0.5,'flux [Jy]',rotation='vertical')
+figtext(0.44,0.02,'Frequency [MHz]')
+figtext(0.025,0.5,'Flux [Jy]',rotation='vertical')
 savefig('srcfig_%d.png'%(fignum+1))
 #savefig('srcfig_%d.eps'%(fignum+1))
 

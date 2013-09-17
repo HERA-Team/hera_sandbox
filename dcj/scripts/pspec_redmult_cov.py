@@ -10,7 +10,7 @@ o.add_option('-t', '--taps', type='int', default=1,
     help='Taps to use in the PFB.  Default 1, which instead uses windowed FFT')
 opts,args = o.parse_args(sys.argv[1:])
 
-PLOT = False
+PLOT = True
 
 NTAPS = opts.taps
 if NTAPS > 1: PFB = True
@@ -173,10 +173,10 @@ for filename in args:
             _Wrms = capo.pfb.pfb(w   , window=WINDOW, taps=NTAPS, fft=n.fft.ifft)
         else:
             window = a.dsp.gen_window(Trms.size, WINDOW)
-            #window /= np.sum(window)
             _Trms = n.fft.ifft(window * Trms)
             _Nrms = n.fft.ifft(window * Nrms)
             _Wrms = n.fft.ifft(window * w)
+#            _Wrms = n.fft.ifft(w)
         gain = n.abs(_Wrms[0])
         #print 'Gain:', gain
         if gain > 0:
@@ -232,7 +232,8 @@ print ' '.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in bls])
 p.subplot(131); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
 p.subplot(132); capo.arp.waterfall(Ns, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
 p.subplot(133); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
-p.show()
+p.savefig('pspec_redmult_cov.png')
+#p.show()
 
 for boot in xrange(20):
     if True: # pick a sample of baselines with replacement
@@ -273,6 +274,7 @@ for boot in xrange(20):
             for k in xrange(17,24):
                 for b in xrange(L):
                     mask[b*n_k+k] = mask[:,b*n_k+k] = 1
+                    p.show()
             _Cx *= mask; _Cn *= mask
         ind = n.arange(SZ)
         for b in xrange(L): # zero out redundant off-diagonals
@@ -330,7 +332,7 @@ for boot in xrange(20):
     if PLOT:
         p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', mx=0, drng=3)
         ##p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
-        p.show()
+        #p.show()
 
     #p.subplot(221); capo.arp.waterfall(_Cxtot, mode='log', drng=2)
     #p.subplot(222); capo.arp.waterfall(cov(Ts), mode='log', drng=2)
@@ -377,7 +379,6 @@ for boot in xrange(20):
                     cx = cov(Ts)
                 if PLOT:
                     p.subplot(122); capo.arp.waterfall(cx, mode='log', mx=0, drng=3)
-                    p.show()
                 xi_,xj_ = Ts[:n_k],Ts[n_k:]
             ni,nj = Cn.get_x(bli), Cn.get_x(blj)
             n1i_,n1j_ = Cn1_.get_x(bli), Cn1_.get_x(blj)
@@ -391,6 +392,8 @@ for boot in xrange(20):
             f2 = n.sqrt((n.abs(nij)**2)/(n.abs(n2ij_)**2))
             print 'Rescale factor:', f1, f2
             #fudge = max(f1,f2)
+            fudge = n.array([max(_f1,_f2) for _f1,_f2 in zip(f1,f2)])
+            print "fudge factor",fudge
             fudge = 1.
 
             if False:
@@ -419,8 +422,8 @@ for boot in xrange(20):
             dspecs.append(pk_avg)
             pspecs.append(pk_avg_)
     pspecs,dspecs = n.array(pspecs), n.array(dspecs)
-    #avg_1d = n.average(pspecs, axis=0)
-    avg_1d = n.average(dspecs, axis=0)
+    avg_1d = n.average(pspecs, axis=0)
+    #avg_1d = n.average(dspecs, axis=0)
     #p.subplot(133)
     p.plot(avg_1d.real,'.')
     #p.plot(n.average(dspecs, axis=0).real/scalar)
@@ -429,8 +432,8 @@ for boot in xrange(20):
     #std_1d = n.std(pspecs, axis=0) # in new noise subtraction, this remaining dither is essentially a bootstrap error, but with 5/7 of the data
 
     print 'Writing pspec_boot%04d.npz' % boot
-    n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, pk=avg_1d, err=std_1d)
-p.show()
+    n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, pk=avg_1d, err=std_1d,freq=fq)
+#p.show()
 
 import sys; sys.exit(0)
 print 'Making Fisher Matrix'
