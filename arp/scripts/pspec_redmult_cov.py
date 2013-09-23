@@ -136,6 +136,7 @@ T, N = {}, {}
 times = []
 eor_mdl = {}
 for filename in args:
+    print 'Reading', filename
     uvi = a.miriad.UV(filename)
     a.scripting.uv_selector(uvi, opts.ant, opts.pol)
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
@@ -304,9 +305,11 @@ for boot in xrange(20):
                             for blj_ in gp:
                                 j_ = bls_.index(blj_)
                                 if j_ == j: continue
-                                _Csum += _C[i_,j_]
+                                #_Csum += _C[i_,j_]
+                                _Csum += _C[i_,:,j_]
                                 _Cwgt += 1
-                        sub_C[i,j] = _Csum / _Cwgt # XXX careful if _Cwgt is 0
+                        #sub_C[i,j] = _Csum / _Cwgt # XXX careful if _Cwgt is 0
+                        sub_C[i,:,j] = _Csum / _Cwgt # XXX careful if _Cwgt is 0
                 _C.shape = sub_C.shape = (L*n_k,L*n_k)
                 #p.clf()
                 #p.subplot(131); capo.arp.waterfall(_C, mode='log', mx=0, drng=2)
