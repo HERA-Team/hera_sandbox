@@ -1,5 +1,6 @@
 import numpy as np
 from aipy import dsp,deconv
+from scipy.special import erf
 from pylab import *
 
 c = 0.3 #m/ns
@@ -89,7 +90,8 @@ def RMTmat(nu,window='hamming'):
     RMs = gen_rm_samples(nu)
     L2 = better_guess_l2(nu)
     L0 = l0(nu)
-    wgt = dsp.gen_window(N,window)
+    if window=='none': wgt = np.ones(N)
+    else: wgt = dsp.gen_window(N,window)
     W = np.exp(-2.j*RMs[W[1]]*(L2[W[0]]-L0)) * Lam2Measure(nu[W[0]],dnu) * wgt[W[0]] 
     return RMs,W.T
 
@@ -108,8 +110,10 @@ def iRMTmat(nu,window='hamming'):
     W = np.indices(np.array((N,N)))
     RMs = gen_rm_samples(nu)
     L2 = better_guess_l2(nu)
-    wgt = dsp.gen_window(N,window)
-    W = np.exp(2.j*RMs[W[0]]*(L2[W[1]]-L0)) / wgt[W[1]]
+    if window=='none': wgt = np.ones(N)
+    else: wgt = dsp.gen_window(N,window)
+    L0 = l0(nu)
+    W = np.exp(2.j*RMs[W[0]]*(L2[W[1]]-L0))
     W *= (RMs[-1]-RMs[0])/(np.pi*N)
     return W.T
 def iRMT(spec,W): return np.dot(W,spec)
@@ -135,6 +139,24 @@ def RMclean1(fq,spec,gain=0.1,tol=1e-3,stop_if_div=False,
     res_spec=iRMT(info['res'],W)
 
     return mod_spec,res_spec
+
+def gen_RMtau_ker(nu,inv=None,window='hamming'):
+    N = len(nu)
+    rms = gen_rm_samples(nu)
+    wgt = dsp.gen_window(N,window)
+    mat = np.zeros((N,N**2),dtype=np.complex)
+    dly = np.fft.fftshift(np.fft.fftfreq(N,nu[1]-nu[0]))
+    RM,DLY =  np.zeros((N,N)),np.zeros((N,N))
+    for i in range(N):
+        RM[:,i] = rms[i]
+        DLY[i,:] = dly[i]
+    RM = RM.flatten()
+    DLY=DLY.flatten()
+
+    for i in range(N**2):
+        mat[:,i] = np.conj(gen_rm_spec(nu,RM[i]))*np.exp(-2.j*np.pi*DLY[i]*nu)
+    if not inv is None: return np.conj(mat)
+    else: return mat/float(N)
 
 def gen_RMdly_mat(nu,spec,window='hamming'):
     N = len(nu)
@@ -195,6 +217,40 @@ def RMclean2(fq, QiU, gain=0.1, tol=1e-2, stop_if_div=True,window='hamming'):
         i += 1
     return mod,spec
 
+#  _                    _
+# | |    ___  _ __ ___ | |__
+# | |   / _ \| '_ ' _ \|  _ \  
+# | |__| (_) | | | | | | |_)|
+# |____ \___/|_| |_| |_|_,__/
+#
+
+def LSP(d,nu):
+    N = float(len(d))
+    l2 = better_guess_l2(nu)
+    RMS = gen_rm_samples(nu)
+    dr,di = d.real,d.imag
+    Rf = np.zeros(N)
+    If = np.zeros(N)
+    Cf = np.zeros(N)
+    Sf = np.zeros(N)
+    for i,rm in enumerate(RMs):
+        cl2 = np.cos(2.*l2*rm)
+        sl2 = np.sin(2.*l2*rm)
+
+        Rf[i] = np.sum(dr*cl2) - np.sum(di*sl2)
+        If[i] = np.sum(dr*sl2) + np.sum(di*ci2)
+        #With equally spaced data, these are just N
+        Cf[i] = N#np.sum(cl2**2 + sl2**2)
+        Sf[i] = N#np.sum(cl2**2 + sl2**2)
+    return ((Rf**2/Cf) + (If**2/Sf))/N 
+
+def LPSsig(d,Nsig):
+    dr,di,N = d.real,d.imag,float(len(d))
+    alpha = erf(Nsig/np.sqrt(2))
+    d2 = (np.sum(dr**2)+np.sum(di**2))/(N-1)
+    d2 -= np.abs(np.mean(d))**2
+    return -1.*np.log(1.-alpha**(1./N))*(d2/N)
+    
 #  _   __  ____
 # | | | _ \  __|
 # | |_|  _/  _|
@@ -204,12 +260,10 @@ def RMclean2(fq, QiU, gain=0.1, tol=1e-2, stop_if_div=True,window='hamming'):
 def LPF(fq,QiU,cutoff,window='hamming'):
     rms,W = RMTmat(fq,window=window)
     spec_rm = RMT(QiU,W)
-    
     filter = np.where(np.abs(rms) <= cutoff,1.,0.)
     spec_rm *= filter
-
-    W = iRMTmat(fq,window=window)
-    return iRMT(spec_rm,W)
+    Wi = iRMTmat(fq,window=window)
+    return iRMT(spec_rm,Wi)
 
 #   ___  _   _
 #  / _ \| |_| |__   ___ _ __

@@ -14,6 +14,8 @@ def dual_plot(kpl, pk, err, umag=16., f0=.164, color='', bins=None):
     for _k,_pk,_err in zip(kpl,pk,err):
         print '%6.3f, %9.5f, %9.5f' % (_k, _pk.real/1e6, _err/1e6)
     print '-'*20
+#    p.figure(figsize=(10,5))
+    p.suptitle('z = %6.3f'%z)
     p.subplot(121)
     #pk = n.abs(pk)
     #p.errorbar(kpl, pk, yerr=err, fmt=color+'.-')
@@ -23,6 +25,7 @@ def dual_plot(kpl, pk, err, umag=16., f0=.164, color='', bins=None):
     p.subplot(122)
     k0 = n.abs(kpl).argmin()
     pkfold = pk[k0:]
+    print pkfold.shape,err.shape,pk[k0+1:].shape,pk[k0:1:-1].shape
     pkfold[1:] = (pkfold[1:]/err[k0+1:]**2 + pk[k0:1:-1]/err[k0:1:-1]**2) / (1./err[k0+1:]**2 + 1./err[k0:1:-1]**2)
     errfold = err[k0:]
     errfold[1:] = n.sqrt(1./(1./err[k0+1:]**2 + 1./err[k0:1:-1]**2))
@@ -69,6 +72,8 @@ def dual_plot(kpl, pk, err, umag=16., f0=.164, color='', bins=None):
     for _k,_k3pk,_k3err in zip(kpl,k3pk,k3err):
         print '%6.3f, %9.5f (%9.5f +/- %9.5f)' % (_k, _k3pk+_k3err,_k3pk,_k3err)
     print '-'*20
+    print "saving pspec_pk_k3pk.npz"
+    n.savez('pspec_pk_k3pk.npz',kpl=kpl,pk=pk,err=err,k3pk=k3pk,k3err=k3err)
     #pos = n.where(kpl >= 0, 1, 0)
     #neg = n.where(kpl <= 0, 1, 0)
     #posneg = 0.5*(k3pk.compress(pos) + k3pk.compress(neg)[::-1])
@@ -91,11 +96,11 @@ args = sys.argv[1:]
 
 FG_VS_KPL_NOS = 168.74e6
 FG_VS_KPL = { # K^2
-    '-0.054':   5.37262e+13,
-    '-0.027':   7.15304e+14, 
-    ' 0.000':   3.50958e+15, 
-    ' 0.027':   4.12396e+14, 
-    ' 0.054':   2.60795e+13,
+#    '-0.054':   5.37262e+13,
+#    '-0.027':   7.15304e+14, 
+#    ' 0.000':   3.50958e+15, 
+#    ' 0.027':   4.12396e+14, 
+#    ' 0.054':   2.60795e+13,
     #-0.0536455587089:   5.37262e+13,
     #-0.0268227793545:   7.15304e+14, 
     #0.0:                3.50958e+15, 
@@ -110,6 +115,10 @@ for filename in args:
     f = n.load(filename)
     RS_VS_KPL[filename] = {}
     kpl,pk,err = f['kpl'], f['pk'], f['err']
+    try:
+        freq = f['freq']
+    except(KeyError):
+        freq=0.164
     if False: # Hacky way to get a noise bias out, if necessary
         pk -= n.median(n.concatenate([pk[:8], pk[-8:]]))
     if False: # Hacky way to estimate noise
@@ -170,18 +179,19 @@ for sep in RS_VS_KPL:
     nos *= .76 
     d *= 2.35 # Use power**2 beam, which is a 1.69/0.72=2.35 penalty factor
     nos *= 2.35
-    if True: # For aggressive fringe-rate filtering, change beam area
+    if False: # For aggressive fringe-rate filtering, change beam area
         d *= 1.90 # ratio of power**2 beams for filtered * unfiltered beams: 0.306 / 0.162
         nos *= 1.90
     #for _kpl,_pk,_nos in zip(kpl,d,nos): print _kpl, _pk, _nos
     print sep, colors[0]
+    print "?"
     '''
     if True: # Hacky way to get a noise bias out, if necessary
         d -= n.median(n.concatenate([d[:8], d[-8:]]))
     if True: # Hacky way to estimate noise
         nos = n.std(n.concatenate([d[:8], d[-8:]])) * n.ones_like(d)
     '''
-    dual_plot(kpl, d, 2*nos, color=colors[0], bins=BINS) # 2-sigma error bars
+    dual_plot(kpl, d, 2*nos, color=colors[0], bins=BINS,f0=freq) # 2-sigma error bars
     colors = colors[1:] + colors[0]
 
 def mean_temp(z):
@@ -219,4 +229,5 @@ p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$')
 p.ylim(1e0,1e9)
 p.xlim(0, 0.6)
 p.grid()
-p.show()
+p.savefig('pspec.png')
+#p.show()

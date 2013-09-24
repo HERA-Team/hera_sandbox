@@ -10,6 +10,7 @@ opts,args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
 aa = a.cal.get_aa(opts.cal,uv['sdf'],uv['sfreq'],uv['nchan'])
+
 del(uv)
 
 curtime = None
@@ -36,6 +37,7 @@ for filename in args:
             src = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs).values()[0]
         else: src = 'z'
     else: src = None
+
     
     D = {}
     for (uvw,t,(i,j)),d in uvi.all():

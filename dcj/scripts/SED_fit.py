@@ -28,6 +28,8 @@ o.add_option('--fmax',default=5e3,type='float',
     help='Maximum catalog frequency in MHz [default=5e3]')
 o.add_option('--nsteps',default=1000,type=n.int,
     help='Number of MCMC steps [default=1000]')
+o.add_option('--usened',action='store_true',
+    help='use ned spectra in cwd, <srcname>_ned_spectrum.vot')
 opts,args = o.parse_args(sys.argv[1:])
 
 
@@ -131,9 +133,10 @@ def load_paper_spectra(filename):
     lines = open(filename).readlines()
     spectra ={}
     for line in lines:
-        if line.startswith('#'):
+        if line.startswith('#FREQS'):
             freqs = n.array(map(float,line.split('=')[1].split(','))).squeeze()
             continue
+        elif line.startswith('#'):continue
         line = line.split()
         srcname = line[0]
         fluxes = n.array(map(float,line[1].split(',')))
@@ -177,10 +180,12 @@ if not opts.calmodel is None:
         print "#gain [dB]", a2l(n.round(gain,2))
         print "#gain [x]",a2l(n.round(idB(gain),2))
         gain = idB(gain)
-        dG += (gain[-1] - gain[0])/2/gain[1]
-        G = gain[1]       
+        #dG += (gain[-1] - gain[0])/2/gain[1] #Assume gains are applied in the input file!!!
+        #G = gain[1]       
         print "#gain error [mult,%]", (gain[-1] - gain[0])/2/gain[1]*100    
-    print   "GAIN MODEL:",G,'+/-',dG
+    print   "#GAIN MODEL:",G,'+/-',dG
+    print "#ASSUMING CALIBRATED INPUT FROM fit_calibrators, clearing input cal"
+    print "#USING LIST OF CAL SOURCES to MARK PLOTS THAT ARE CALIBRATORS"
 #load the known spectral data
 if CAT:
     """
@@ -197,11 +202,12 @@ if CAT:
                 specfind_cache.append(selection)
         specfind_cache.write(specfind_cache_file)
     else:
-        print "loading specfind subset cache: ",specfind_cache_file
+        print "#loading specfind subset cache: ",specfind_cache_file
+        print '#',
         specfind = load_table(specfind_cache_file)
         
             
-PAPERcatalog.pop('0518-458B')
+#PAPERcatalog.pop('0518-458B')
 #for each source, do the fit
 badfits = []
 for srcname in sort(PAPERcatalog.keys()):
@@ -220,7 +226,7 @@ for srcname in sort(PAPERcatalog.keys()):
     freqs,fluxes,errors = PAPERfreqs[pos],fluxes[pos],errors[pos]
     if CAT:
         nedfile = srcname+'_ned_spectrum.vot'
-        if os.path.exists(nedfile):
+        if os.path.exists(nedfile) and (opts.usened or srcname=='pic'):
             print "plotting ned data in:",nedfile
             cat_freq,cat_flux,cat_err = ned_spectrum(nedfile,doprint=opts.v,fmax=opts.fmax*1e6)
         else:
@@ -370,10 +376,14 @@ for i,srcname in enumerate(sort(PAPERcatalog.keys())):
             #print n.round(n.dot(Pcat.ravel(),P.ravel())*1e4,2),#/(n.sum(P)*n.sum(Pcat))
             print n.round(overlap,2),
             print n.round((FOM-FOMcat)*overlap,4),
-            print n.sum(n.abs(n.diff(P76)))
+            print n.sum(n.abs(n.diff(P76))),
             #for large improvements to existing models overlap<<catarea
         else:
-            print 0,FOM,0,0,n.sum(n.abs(n.diff(n.round(P/(P.max()*(1-confidence/100))))))
+            print 0,FOM,0,0,n.sum(n.abs(n.diff(n.round(P/(P.max()*(1-confidence/100)))))),
+        if srcname in cals:
+            print 1
+        else:
+            print 0
     if PLOT_CONFIDENCE:
         print "#plotting confidence"
 
@@ -408,9 +418,9 @@ for i,srcname in enumerate(sort(PAPERcatalog.keys())):
         savefig(srcname+'_SI_MCMC.png')
 
 
-            
-print "BADFITS"
-print "#\n".join(badfits)
+if len(badfits)>0:           
+    print "#BADFITS"
+    print "#\n".join(badfits)
                 
 
 

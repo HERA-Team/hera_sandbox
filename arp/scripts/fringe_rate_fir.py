@@ -118,7 +118,6 @@ for files in triplets(args):
                 area = n.ones(_d.shape, dtype=n.int)
                 warea = n.ones_like(area)
                 # XXX would prefer to implement fr cuts as weights rather than bin ranges...
-                #print ch, ufr[ch], nfr[ch]
                 if ufr[ch] >= 0:
                     if nfr[ch] < 0:
                         area[ufr[ch]+1:nfr[ch]] = 0
