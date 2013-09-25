@@ -116,7 +116,11 @@ if PFB:
     B = sdf * afreqs.size / NTAPS
     etas = n.fft.fftshift(capo.pspec.f2eta(afreqs[:afreqs.size/NTAPS]))
 else:
-    B = sdf * afreqs.size / capo.pfb.NOISE_EQUIV_BW[WINDOW]
+    #B = sdf * afreqs.size / capo.pfb.NOISE_EQUIV_BW[WINDOW] # this is wrong if we aren't inverting
+    # the window post delay transform (or at least dividing out by the gain of the window)
+    # For windowed data, the FFT divides out by the full bandwidth, B, which is
+    # then squared.  Proper normalization is to multiply by B**2 / (B / NoiseEqBand) = B * NoiseEqBand
+    B = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW]
     etas = n.fft.fftshift(capo.pspec.f2eta(afreqs))
 kpl = etas * capo.pspec.dk_deta(z)
 bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq)
@@ -179,7 +183,8 @@ for filename in args:
             _Wrms = n.fft.ifft(window * w)
         gain = n.abs(_Wrms[0])
         #print 'Gain:', gain
-        if gain > 0:
+        #if gain > 0: # XXX this inverts the blackmann harris out of the data completely
+        if False: 
             _Trms.shape = (_Trms.size,1)
             C = n.zeros((_Trms.size, _Trms.size), dtype=n.complex)
             for k1 in xrange(_Wrms.size):
@@ -189,6 +194,9 @@ for filename in args:
             _C = n.linalg.inv(C)
             _Trms = n.dot(_C, _Trms).squeeze()
             _Nrms = n.dot(_C, _Nrms).squeeze()
+        #elif gain > 0: # This is already being done by NOISE_EQ_BW
+        #    _Trms /= gain
+        #    _Nrms /= gain
         _Trms = n.fft.fftshift(_Trms)
         _Nrms = n.fft.fftshift(_Nrms)
         if False: # swap in a simulated signal post delay transform
@@ -253,9 +261,8 @@ for boot in xrange(20):
     L = len(bls_)
 
     _Cxtot,_Cntot = 1, 1
-    #PLT1,PLT2 = 3,3
-    #PLT1,PLT2 = 2,2
-    PLT1,PLT2 = 2,3
+    PLT1,PLT2 = 3,3
+    #PLT1,PLT2 = 2,3
     for cnt in xrange(PLT1*PLT2-1):
         #print cnt, '/', PLT1*PLT2-1
         if PLOT:
@@ -280,7 +287,7 @@ for boot in xrange(20):
             _Cx[indb,indb+b*n_k] = _Cx[indb+b*n_k,indb] = 0
             _Cn[indb,indb+b*n_k] = _Cn[indb+b*n_k,indb] = 0
         _Cx[ind,ind] = _Cn[ind,ind] = 0 # set these to zero temporarily to avoid noise bias into cross terms
-        if True: # remove covariances common to all bl pairs.  XXX This is responsible for >75% of noise bias
+        if False: # remove covariances common to all bl pairs.  XXX This is responsible for >75% of noise bias
             for _C in [_Cx,_Cn]:
                 _C.shape = (L,n_k,L,n_k)
                 sub_C = n.zeros_like(_C)
@@ -299,12 +306,18 @@ for boot in xrange(20):
                         else: continue # make sure we only compute average using bls in same group
                         _Csum,_Cwgt = 0,0
                         # XXX as constructed, this will explode if a group consists entirely of one bl.
+                        print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
+                        print gp,
+                        print [bls_.index(bli_) for bli_ in gp]
                         for bli_ in gp:
                             i_ = bls_.index(bli_)
                             if i_ == i: continue
                             for blj_ in gp:
                                 j_ = bls_.index(blj_)
                                 if j_ == j: continue
+                                print [i,j],[i_,j_]
+                                #if i == j or i_ == j_: continue
+                                print [bli, blj], [bli_, blj_]
                                 #_Csum += _C[i_,j_]
                                 _Csum += _C[i_,:,j_]
                                 _Cwgt += 1

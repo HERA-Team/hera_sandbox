@@ -170,7 +170,7 @@ for sep in RS_VS_KPL:
     nos *= .76 
     d *= 2.35 # Use power**2 beam, which is a 1.69/0.72=2.35 penalty factor
     nos *= 2.35
-    if True: # For aggressive fringe-rate filtering, change beam area
+    if False: # For aggressive fringe-rate filtering, change beam area
         d *= 1.90 # ratio of power**2 beams for filtered * unfiltered beams: 0.306 / 0.162
         nos *= 1.90
     #for _kpl,_pk,_nos in zip(kpl,d,nos): print _kpl, _pk, _nos
