@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n
-import pylab as p
 import capo
 import optparse, sys, os, random
 
@@ -8,15 +7,22 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True)
 o.add_option('-t', '--taps', type='int', default=1,
     help='Taps to use in the PFB.  Default 1, which instead uses windowed FFT')
+o.add_option('-b', '--boot', type='int', default=20,
+    help='Number of bootstraps.  Default is 20')
+o.add_option('--plot', action='store_true',
+    help='Generate plots')
+o.add_option('--window', dest='window', default='blackman-harris',
+    help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 opts,args = o.parse_args(sys.argv[1:])
 
-PLOT = False
+PLOT = opts.plot
+if PLOT: import pylab as p
 
+NBOOT = opts.boot
 NTAPS = opts.taps
 if NTAPS > 1: PFB = True
 else: PFB = False
-WINDOW = 'blackman-harris'
-#WINDOW = 'none'
+WINDOW = opts.window
 
 # XXX Currently hardcoded for PSA898
 A_ = [0,16,8,24,4,20,12,28]
@@ -206,7 +212,7 @@ for filename in args:
         T[bl] = T.get(bl, []) + [_Trms]
         N[bl] = N.get(bl, []) + [_Nrms]
 
-n_k = chans.size
+n_k = chans.size / NTAPS
 bls = T.keys()
 for bl in bls: T[bl],N[bl] = n.array(T[bl]),n.array(N[bl])
 if False:
@@ -236,13 +242,14 @@ if False:
 
 print Ts.shape
 print ' '.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in bls])
-#capo.arp.waterfall(cov(Ts), mode='log', drng=2); p.show()
-p.subplot(131); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
-p.subplot(132); capo.arp.waterfall(Ns, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
-p.subplot(133); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
-p.show()
+if PLOT:
+    #capo.arp.waterfall(cov(Ts), mode='log', drng=2); p.show()
+    p.subplot(131); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
+    p.subplot(132); capo.arp.waterfall(Ns, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
+    p.subplot(133); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
+    p.show()
 
-for boot in xrange(20):
+for boot in xrange(NBOOT):
     if True: # pick a sample of baselines with replacement
         #bls_ = [random.choice(bls) for bl in bls]
         bls_ = random.sample(bls, len(bls))
@@ -287,7 +294,7 @@ for boot in xrange(20):
             _Cx[indb,indb+b*n_k] = _Cx[indb+b*n_k,indb] = 0
             _Cn[indb,indb+b*n_k] = _Cn[indb+b*n_k,indb] = 0
         _Cx[ind,ind] = _Cn[ind,ind] = 0 # set these to zero temporarily to avoid noise bias into cross terms
-        if False: # remove covariances common to all bl pairs.  XXX This is responsible for >75% of noise bias
+        if True: # remove covariances common to all bl pairs.  XXX This is responsible for >75% of noise bias
             for _C in [_Cx,_Cn]:
                 _C.shape = (L,n_k,L,n_k)
                 sub_C = n.zeros_like(_C)
@@ -306,18 +313,13 @@ for boot in xrange(20):
                         else: continue # make sure we only compute average using bls in same group
                         _Csum,_Cwgt = 0,0
                         # XXX as constructed, this will explode if a group consists entirely of one bl.
-                        print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
-                        print gp,
-                        print [bls_.index(bli_) for bli_ in gp]
                         for bli_ in gp:
                             i_ = bls_.index(bli_)
                             if i_ == i: continue
                             for blj_ in gp:
                                 j_ = bls_.index(blj_)
                                 if j_ == j: continue
-                                print [i,j],[i_,j_]
                                 #if i == j or i_ == j_: continue
-                                print [bli, blj], [bli_, blj_]
                                 #_Csum += _C[i_,j_]
                                 _Csum += _C[i_,:,j_]
                                 _Cwgt += 1
@@ -379,7 +381,9 @@ for boot in xrange(20):
                     g = .3
                     _cx = -g*cx
                     mask = n.zeros_like(cx)
-                    for k in xrange(17,24):
+                    #for k in xrange(8,12): # XXX this is hardcoded for 20 channels
+                    for k in xrange(17,24): # XXX this is hardcoded for 40 channels
+                    #for k in xrange(34,48): # XXX this is hardcoded for 80 channels
                         mask[k] = mask[:,k] = 1
                         mask[k+n_k] = mask[:,k+n_k] = 1
                     ind = n.arange(n_k)
@@ -434,18 +438,18 @@ for boot in xrange(20):
             dspecs.append(pk_avg)
             pspecs.append(pk_avg_)
     pspecs,dspecs = n.array(pspecs), n.array(dspecs)
-    #avg_1d = n.average(pspecs, axis=0)
-    avg_1d = n.average(dspecs, axis=0)
+    avg_1d = n.average(pspecs, axis=0)
+    #avg_1d = n.average(dspecs, axis=0)
     #p.subplot(133)
-    p.plot(avg_1d.real,'.')
+    if PLOT: p.plot(avg_1d.real,'.')
     #p.plot(n.average(dspecs, axis=0).real/scalar)
     #p.show()
     std_1d = n.std(pspecs, axis=0) / n.sqrt(pspecs.shape[0])
     #std_1d = n.std(pspecs, axis=0) # in new noise subtraction, this remaining dither is essentially a bootstrap error, but with 5/7 of the data
 
     print 'Writing pspec_boot%04d.npz' % boot
-    n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, pk=avg_1d, err=std_1d)
-p.show()
+    n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, pk=avg_1d, err=std_1d, cmd=' '.join(sys.argv))
+if PLOT: p.show()
 
 import sys; sys.exit(0)
 print 'Making Fisher Matrix'
