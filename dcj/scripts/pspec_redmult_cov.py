@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n
+import pylab as p
 import capo
 import optparse, sys, os, random
 
@@ -7,22 +8,15 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True)
 o.add_option('-t', '--taps', type='int', default=1,
     help='Taps to use in the PFB.  Default 1, which instead uses windowed FFT')
-o.add_option('-b', '--boot', type='int', default=20,
-    help='Number of bootstraps.  Default is 20')
-o.add_option('--plot', action='store_true',
-    help='Generate plots')
-o.add_option('--window', dest='window', default='blackman-harris',
-    help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 opts,args = o.parse_args(sys.argv[1:])
 
-PLOT = opts.plot
-if PLOT: import pylab as p
+PLOT = True
 
-NBOOT = opts.boot
 NTAPS = opts.taps
 if NTAPS > 1: PFB = True
 else: PFB = False
-WINDOW = opts.window
+WINDOW = 'blackman-harris'
+#WINDOW = 'none'
 
 # XXX Currently hardcoded for PSA898
 A_ = [0,16,8,24,4,20,12,28]
@@ -122,11 +116,7 @@ if PFB:
     B = sdf * afreqs.size / NTAPS
     etas = n.fft.fftshift(capo.pspec.f2eta(afreqs[:afreqs.size/NTAPS]))
 else:
-    #B = sdf * afreqs.size / capo.pfb.NOISE_EQUIV_BW[WINDOW] # this is wrong if we aren't inverting
-    # the window post delay transform (or at least dividing out by the gain of the window)
-    # For windowed data, the FFT divides out by the full bandwidth, B, which is
-    # then squared.  Proper normalization is to multiply by B**2 / (B / NoiseEqBand) = B * NoiseEqBand
-    B = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW]
+    B = sdf * afreqs.size / capo.pfb.NOISE_EQUIV_BW[WINDOW]
     etas = n.fft.fftshift(capo.pspec.f2eta(afreqs))
 kpl = etas * capo.pspec.dk_deta(z)
 bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq)
@@ -146,7 +136,6 @@ T, N = {}, {}
 times = []
 eor_mdl = {}
 for filename in args:
-    print 'Reading', filename
     uvi = a.miriad.UV(filename)
     a.scripting.uv_selector(uvi, opts.ant, opts.pol)
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
@@ -184,14 +173,13 @@ for filename in args:
             _Wrms = capo.pfb.pfb(w   , window=WINDOW, taps=NTAPS, fft=n.fft.ifft)
         else:
             window = a.dsp.gen_window(Trms.size, WINDOW)
-            #window /= np.sum(window)
             _Trms = n.fft.ifft(window * Trms)
             _Nrms = n.fft.ifft(window * Nrms)
             _Wrms = n.fft.ifft(window * w)
+#            _Wrms = n.fft.ifft(w)
         gain = n.abs(_Wrms[0])
         #print 'Gain:', gain
-        #if gain > 0: # XXX this inverts the blackmann harris out of the data completely
-        if False: 
+        if gain > 0:
             _Trms.shape = (_Trms.size,1)
             C = n.zeros((_Trms.size, _Trms.size), dtype=n.complex)
             for k1 in xrange(_Wrms.size):
@@ -201,9 +189,6 @@ for filename in args:
             _C = n.linalg.inv(C)
             _Trms = n.dot(_C, _Trms).squeeze()
             _Nrms = n.dot(_C, _Nrms).squeeze()
-        #elif gain > 0: # This is already being done by NOISE_EQ_BW
-        #    _Trms /= gain
-        #    _Nrms /= gain
         _Trms = n.fft.fftshift(_Trms)
         _Nrms = n.fft.fftshift(_Nrms)
         if False: # swap in a simulated signal post delay transform
@@ -213,7 +198,7 @@ for filename in args:
         T[bl] = T.get(bl, []) + [_Trms]
         N[bl] = N.get(bl, []) + [_Nrms]
 
-n_k = chans.size / NTAPS
+n_k = chans.size
 bls = T.keys()
 for bl in bls: T[bl],N[bl] = n.array(T[bl]),n.array(N[bl])
 if False:
@@ -243,14 +228,14 @@ if False:
 
 print Ts.shape
 print ' '.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in bls])
-if PLOT:
-    #capo.arp.waterfall(cov(Ts), mode='log', drng=2); p.show()
-    p.subplot(131); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
-    p.subplot(132); capo.arp.waterfall(Ns, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
-    p.subplot(133); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
-    p.show()
+#capo.arp.waterfall(cov(Ts), mode='log', drng=2); p.show()
+p.subplot(131); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
+p.subplot(132); capo.arp.waterfall(Ns, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
+p.subplot(133); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
+p.savefig('pspec_redmult_cov.png')
+#p.show()
 
-for boot in xrange(NBOOT):
+for boot in xrange(20):
     if True: # pick a sample of baselines with replacement
         #bls_ = [random.choice(bls) for bl in bls]
         bls_ = random.sample(bls, len(bls))
@@ -269,8 +254,9 @@ for boot in xrange(NBOOT):
     L = len(bls_)
 
     _Cxtot,_Cntot = 1, 1
-    PLT1,PLT2 = 3,3
-    #PLT1,PLT2 = 2,3
+    #PLT1,PLT2 = 3,3
+    #PLT1,PLT2 = 2,2
+    PLT1,PLT2 = 2,3
     for cnt in xrange(PLT1*PLT2-1):
         #print cnt, '/', PLT1*PLT2-1
         if PLOT:
@@ -288,6 +274,7 @@ for boot in xrange(NBOOT):
             for k in xrange(17,24):
                 for b in xrange(L):
                     mask[b*n_k+k] = mask[:,b*n_k+k] = 1
+                    p.show()
             _Cx *= mask; _Cn *= mask
         ind = n.arange(SZ)
         for b in xrange(L): # zero out redundant off-diagonals
@@ -320,12 +307,9 @@ for boot in xrange(NBOOT):
                             for blj_ in gp:
                                 j_ = bls_.index(blj_)
                                 if j_ == j: continue
-                                #if i == j or i_ == j_: continue
-                                #_Csum += _C[i_,j_]
-                                _Csum += _C[i_,:,j_]
+                                _Csum += _C[i_,j_]
                                 _Cwgt += 1
-                        #sub_C[i,j] = _Csum / _Cwgt # XXX careful if _Cwgt is 0
-                        sub_C[i,:,j] = _Csum / _Cwgt # XXX careful if _Cwgt is 0
+                        sub_C[i,j] = _Csum / _Cwgt # XXX careful if _Cwgt is 0
                 _C.shape = sub_C.shape = (L*n_k,L*n_k)
                 #p.clf()
                 #p.subplot(131); capo.arp.waterfall(_C, mode='log', mx=0, drng=2)
@@ -348,7 +332,7 @@ for boot in xrange(NBOOT):
     if PLOT:
         p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', mx=0, drng=3)
         ##p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
-        p.show()
+        #p.show()
 
     #p.subplot(221); capo.arp.waterfall(_Cxtot, mode='log', drng=2)
     #p.subplot(222); capo.arp.waterfall(cov(Ts), mode='log', drng=2)
@@ -382,9 +366,7 @@ for boot in xrange(NBOOT):
                     g = .3
                     _cx = -g*cx
                     mask = n.zeros_like(cx)
-                    #for k in xrange(8,12): # XXX this is hardcoded for 20 channels
-                    for k in xrange(17,24): # XXX this is hardcoded for 40 channels
-                    #for k in xrange(34,48): # XXX this is hardcoded for 80 channels
+                    for k in xrange(17,24):
                         mask[k] = mask[:,k] = 1
                         mask[k+n_k] = mask[:,k+n_k] = 1
                     ind = n.arange(n_k)
@@ -397,7 +379,6 @@ for boot in xrange(NBOOT):
                     cx = cov(Ts)
                 if PLOT:
                     p.subplot(122); capo.arp.waterfall(cx, mode='log', mx=0, drng=3)
-                    p.show()
                 xi_,xj_ = Ts[:n_k],Ts[n_k:]
             ni,nj = Cn.get_x(bli), Cn.get_x(blj)
             n1i_,n1j_ = Cn1_.get_x(bli), Cn1_.get_x(blj)
@@ -411,6 +392,8 @@ for boot in xrange(NBOOT):
             f2 = n.sqrt((n.abs(nij)**2)/(n.abs(n2ij_)**2))
             print 'Rescale factor:', f1, f2
             #fudge = max(f1,f2)
+            fudge = n.array([max(_f1,_f2) for _f1,_f2 in zip(f1,f2)])
+            print "fudge factor",fudge
             fudge = 1.
 
             if False:
@@ -442,15 +425,15 @@ for boot in xrange(NBOOT):
     avg_1d = n.average(pspecs, axis=0)
     #avg_1d = n.average(dspecs, axis=0)
     #p.subplot(133)
-    if PLOT: p.plot(avg_1d.real,'.')
+    p.plot(avg_1d.real,'.')
     #p.plot(n.average(dspecs, axis=0).real/scalar)
     #p.show()
     std_1d = n.std(pspecs, axis=0) / n.sqrt(pspecs.shape[0])
     #std_1d = n.std(pspecs, axis=0) # in new noise subtraction, this remaining dither is essentially a bootstrap error, but with 5/7 of the data
 
     print 'Writing pspec_boot%04d.npz' % boot
-    n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, pk=avg_1d, err=std_1d, cmd=' '.join(sys.argv))
-if PLOT: p.show()
+    n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, pk=avg_1d, err=std_1d,freq=fq)
+#p.show()
 
 import sys; sys.exit(0)
 print 'Making Fisher Matrix'
