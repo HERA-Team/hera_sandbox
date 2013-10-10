@@ -7,6 +7,8 @@ a.scripting.add_standard_options(o, ant=True, pol=True, cal=True, dec=True,
     src=True, chan=True)
 o.add_option('--altmin', dest='altmin', type='float', default=0,
     help="Minimum allowed altitude for pointing, in degrees.  When phase center is lower than this altitude, data is omitted.  Default is 0.")
+o.add_option('--avoid',dest='avoidsrc',default='Sun',
+    help='Source to avoid. If src is up do not use the data')
 opts,args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
@@ -14,9 +16,10 @@ aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
 if opts.chan is None: opts.chan = 'all'
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 aa.select_chans(chans)
-srclist,cutoff,catalogs, = a.scripting.parse_srcs(opts.src, opts.cat)
+srclist,cutoff,catalogs, = a.scripting.parse_srcs(opts.src+','+opts.avoidsrc, opts.cat)
 cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs=catalogs)
-src = cat.values()[0]
+src = cat[opts.src]
+avoidsrc = cat[opts.avoidsrc]
 del(uv)
 
 spec, swgt = 0, 0
@@ -32,9 +35,12 @@ for filename in args:
             curtime = t
             aa.set_jultime(t)
             cat.compute(aa)
+            if avoidsrc.alt>0 : 
+                print avoidsrc.src_name + ' is up. %f, jd= %f'%(avoidsrc.alt, t)
+                continue
             if src.alt < opts.altmin * a.img.deg2rad: continue
-            s_eq = cat.get_crds('eq', ncrd=3)
-            aa.sim_cache(s_eq)
+            s_eq = src.get_crds('eq', ncrd=3)
+            aa.sim_cache(s_eq.reshape(3,1))
         if src.alt < opts.altmin * a.img.deg2rad: continue
 
         d,f = d.take(chans), f.take(chans)
