@@ -88,7 +88,7 @@ for filename in args:
     uvo = a.miriad.UV(filename+'.bm_'+src.src_name, status='new')
     uvo.init_from_uv(uvi)
     uvo.pipe(uvi, mfunc=mfunc, raw=True,
-        append2hist='BEAMFORM: src=%s ant=%s srcflux=%s minuv=%s\n' % (opts.src, opts.ant, opts.srcflux, opts.minuv))
+        append2hist='BEAMFORM: src=%s ant=%s srcflux=%s minuv=%s maxuv=%s minsep=%s\n' % (opts.src, opts.ant, opts.srcflux, opts.minuv, opts.maxuv, opts.minsep))
     del(uvi); del(uvo)
     
     
