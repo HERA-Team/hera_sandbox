@@ -29,6 +29,7 @@ else:
 srclist = [f.split('_')[0] for f in args]
 if not calsrc is None: assert(calsrc.src_name in srclist)
 srclist,cutoff,catalogs, = a.scripting.parse_srcs(','.join(srclist), opts.cat)
+print srclist
 cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs=catalogs)
 
 filetypes = {}
