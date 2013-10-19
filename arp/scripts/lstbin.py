@@ -3,6 +3,8 @@ import aipy as a, numpy as n,os
 import sys, optparse, ephem
 import capo as C
 
+MEDIAN = True
+
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, ant=True, pol=True, src=True)
 o.add_option('--lst_res', type='float', default=10.,
@@ -104,7 +106,10 @@ for f in nargs:
         if not src is None and src.alt >= opts.altmax: continue
         blp = a.pol.ijp2blp(i,j,uv['pol'])
         crds[blp] = uvw
-        dat[lst][blp] = dat[lst].get(blp,0) + n.where(f,0,d)
+        if MEDIAN:
+            dat[lst][blp] = dat[lst].get(blp,[]) + [n.where(f,0,d)]
+        else:
+            dat[lst][blp] = dat[lst].get(blp,0) + n.where(f,0,d)
         cnt[lst][blp] = cnt[lst].get(blp,0) + n.logical_not(f).astype(n.int)
 
 if opts.nogaps:
@@ -158,7 +163,20 @@ for lst in lsts:
         preamble = (crds[blp], t, (i,j))
         try:
             cmax = n.max(cnt[lst][blp])
-            d = dat[lst][blp] / cnt[lst][blp].clip(1, n.Inf)
+            if MEDIAN:
+                #d = n.median(dat[lst][blp], axis=0)
+                d = n.array(dat[lst][blp])
+                c = n.array(cnt[lst][blp])
+                ad = n.argsort(n.abs(d), axis=0)
+                for i in xrange(d.shape[1]):
+                    d[:,i] = d[:,i][ad[:,i]]
+                #import pylab, capo
+                #capo.arp.waterfall(d, mode='real')
+                #pylab.show()
+                cut = max(1, int(0.9*d.shape[0]))
+                d = n.sum(d[:cut],axis=0) / c.clip(1,n.Inf) / 0.9 # XXX hack for now to renormalize correctly
+            else:
+                d = dat[lst][blp] / cnt[lst][blp].clip(1, n.Inf)
             f = n.where(cnt[lst][blp] < cmax * opts.flag_thresh, 1, 0)
         except(KeyError): # This happens if we are missing data for a desired LST bin
             d,f = dzero, fzero
