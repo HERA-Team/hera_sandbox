@@ -1,8 +1,331 @@
-'''Beam parameters so you don't have to copy-paste, and all that bullshit.'''
-
+"""This is a cal file for data from psa64.
+Notes:
+    40,55 cross-polarized until 2455748.
+    27,61 unstable
+    24 unstable
+    3,10,13,17,19,22,24,25,27,28,32,34,40,41,42,44,47,49,58,59,61 get ratty in 2455747
+        25 is the worst
+v007: Put in spectra from 747-uvcbRmtsFFFFF beam-forming run
+v008: Put in spectra003b from 747-uvcbRmtsFFFFFs beam-forming
+v009: Replaced all spectra with unique list regenerated from srcspec003a,b
+v010: Updated overall gain calibration to match spectra derived above
+v012: calibrated to psa852 and brought back generic_catalog
+"""
 import aipy as a, numpy as n,glob,ephem
+import generic_catalog
+import logging
+loglevel = logging.CRITICAL
+logging.basicConfig(level=loglevel)
+log = logging.getLogger('psa748_v012')
+log.setLevel(loglevel)
+class Antenna(a.fit.Antenna):
+    def __init__(self, *args, **kwargs):
+        self.dphsoff = n.array([0., 0.])
+        a.fit.Antenna.__init__(self,*args,**kwargs)
+        self._pos = self.pos.copy()
+        self.dpos = n.array([0., 0., 0.])
+        self.update()
+        self.lat = ephem.degrees(kwargs['lat'])
+        self._eq2zen = a.coord.eq2top_m(0., self.lat)
+        self.top_pos = n.dot(self._eq2zen,self.pos)
+    def _update_phsoff(self):
+        self.phsoff = n.polyval(self._phsoff + self.dphsoff, self.beam.afreqs)
+    def update(self):
+        a.fit.Antenna.update(self)
+        #self._bm_gain = a.fit.Antenna.bm_response(self, (0,0,1), pol='x')[0,0]
+        #self._bm_gain = n.average(a.fit.Antenna.bm_response(self, (0,0,1), pol='x')[:,0])
+        self._bm_gain = 1
+        self.pos = self._pos + self.dpos
+    def bm_response(self, *args, **kwargs):
+        #print '(', self._bm_gain, ')',
+        return a.fit.Antenna.bm_response(self,*args,**kwargs) / self._bm_gain
+    def get_params(self, prm_list=['*']):
+        """Return all fitable parameters in a dictionary."""
+        x,y,z = self._pos
+        aprms = {'x':x, 'y':y, 'z':z, 'dly':self._phsoff[-2],
+            'off':self._phsoff[-1], 'phsoff':self._phsoff}
+        aprms['ddly'] = self.dphsoff[-2]
+        aprms['doff'] = self.dphsoff[-1]
+        aprms['dx'] = self.dpos[0]
+        aprms['dy'] = self.dpos[1]
+        aprms['dz'] = self.dpos[2]
+        aprms['bp_r'] = list(self.bp_r)
+        aprms['bp_i'] = list(self.bp_i)
+        aprms['amp'] = self.amp
+        aprms.update(self.beam.get_params(prm_list))
+        prms = {}
+        for p in prm_list:
+            if p.startswith('*'): return aprms
+            try: prms[p] = aprms[p]
+            except(KeyError): pass
+        return prms
+    def set_params(self, prms):
+        """Set all parameters from a dictionary."""
+        changed = False
+        self.beam.set_params(prms)
+        try: self._pos[0], changed = prms['x'], True
+        except(KeyError): pass
+        try: self._pos[1], changed = prms['y'], True
+        except(KeyError): pass
+        try: self._pos[2], changed = prms['z'], True
+        except(KeyError): pass
+        try: self.dpos[0], changed = prms['dx'], True
+        except(KeyError): pass
+        try: self.dpos[1], changed = prms['dy'], True
+        except(KeyError): pass
+        try: self.dpos[2], changed = prms['dz'], True
+        except(KeyError): pass
+        try: self._phsoff[-2], changed = prms['dly'], True
+        except(KeyError): pass
+        try: self._phsoff[-1], changed = prms['off'], True
+        except(KeyError): pass
+        try: self.dphsoff[-2], changed = prms['ddly'], True
+        except(KeyError): pass
+        try: self.dphsoff[-1], changed = prms['doff'], True
+        except(KeyError): pass
+        try: self._phsoff, changed = prms['phsoff'], True
+        except(KeyError): pass
+        try: self.bp_r, changed = prms['bp_r'], True
+        except(KeyError): pass
+        try: self.bp_i, changed = prms['bp_i'], True
+        except(KeyError): pass
+        try: self.amp, changed = prms['amp'], True
+        except(KeyError): pass
+        if changed: self.update()
+        return changed
+
+
+class AntennaArray(a.fit.AntennaArray):
+    def set_jultime(self, t=None):
+        a.fit.AntennaArray.set_jultime(self, t=t)
+        if t == None: return
+        # Implement time-dependent cal
+        if t > 2455747.0:  # corr restart preceding psa747 run (relative to psa746)
+            for i in range(48,64):
+                self[i].set_params({'ddly':5.056})
+        else: # default to psa746 phase calibration
+            for i in range(48,64): self[i].set_params({'ddly':0})
+    def get_params(self, ant_prms={'*':'*'}):
+        try: prms = a.fit.AntennaArray.get_params(self, ant_prms)
+        except(IndexError): return {}
+        for k in ant_prms:
+            try: top_pos = n.dot(self._eq2zen, self[int(k)].pos)
+            except(ValueError): continue
+            if ant_prms[k] == '*':
+                prms[k].update({'top_x':top_pos[0], 'top_y':top_pos[1], 'top_z':top_pos[2]})
+            else:
+                for val in ant_prms[k]:
+                    if   val == 'top_x': prms[k]['top_x'] = top_pos[0]
+                    elif val == 'top_y': prms[k]['top_y'] = top_pos[1]
+                    elif val == 'top_z': prms[k]['top_z'] = top_pos[2]
+        return prms
+    def set_params(self, prms):
+        changed = a.fit.AntennaArray.set_params(self, prms)
+        for i, ant in enumerate(self):
+            ant_changed = False
+            top_pos = n.dot(self._eq2zen, ant.pos)
+            try:
+                top_pos[0] = prms[str(i)]['top_x']
+                ant_changed = True
+            except(KeyError): pass
+            try:
+                top_pos[1] = prms[str(i)]['top_y']
+                ant_changed = True
+            except(KeyError): pass
+            try:
+                top_pos[2] = prms[str(i)]['top_z']
+                ant_changed = True
+            except(KeyError): pass
+            if ant_changed: ant.pos = n.dot(n.linalg.inv(self._eq2zen), top_pos)
+            changed |= ant_changed
+        return changed
+
+
 prms = {
+    #'loc': ('-30:45:40', '21:24:24.5'), # KAT, SA (Google)
+    'loc': ('-30:43:17.5', '21:25:41.9'), # KAT, SA (GPS)
+    'antpos':{
+            #32:[-112.893563,109.228967,-182.880941], # original
+            #47:[82.998742,-157.005822,143.375763], # original
+            #53:[228.948582,78.038958,393.662509], # original
+             0:n.array([ 147.93527, 337.12580, 264.51808]) + n.array([  0.0    ,  0.0    , 0.0    ]),
+             1:n.array([ -122.020309402, -268.023014624, -199.815623761,]),
+             2:n.array([ 178.182697611, -281.228145672, 314.256932747,]),
+             3:n.array([ -27.26782,-368.33731, -35.49412]) + n.array([ -0.29182,  0.29581,-0.06470]),
+             4:n.array([ -136.271417956, -63.8538192223, -223.81696088,]),
+             5:n.array([ -185.394536198, 61.2146784634, -307.596987596,]),
+             6:n.array([  81.62552,-398.52015, 151.70308]) + n.array([ -0.90456,  0.31155,-0.03229]),
+             7:n.array([  61.18198, 423.06854, 115.99715]) + n.array([  0.04571,  0.00224, 0.06347]),
+             8:n.array([ 151.744912834, -230.476259414, 266.100117346]),
+             9:n.array([-121.15655,-329.37685,-197.06224]) + n.array([  0.07513,  0.00316,-0.14179]),
+            10:n.array([ -31.90961,-420.62509, -43.56460]) + n.array([ -0.54834,  0.39122,-0.24124]),
+            11:n.array([-181.51436,-188.96090,-301.06291]) + n.array([ -0.01202,  0.07766,-0.02666]),
+            12:n.array([ 160.72973, 208.27653, 286.82157]) + n.array([ -0.00755,  0.06142,-0.02066]),
+            13:n.array([ -77.8707662359, 265.443210445, -122.866728234,]),
+            14:n.array([  93.49461, 405.98665, 171.30307]) + n.array([  0.01422, -0.06648, 0.09750]),
+            15:n.array([ 137.15781,-345.85204, 247.10124]) + n.array([ -0.38124,  0.29203,-0.17590]),
+            16:n.array([ 72.4889166113, -363.847833856, 135.520493153]),
+            17:n.array([ -169.390511149, 113.82049335, -280.122814575]),
+            18:n.array([ -174.729494724, -51.6560694198, -289.267372556]),
+            19:n.array([ 33.674525626, -74.865368323, 69.2972343811,]),
+            20:n.array([ 221.456027623, -108.390005006, 391.362891776]),
+            21:n.array([ 210.58399,-180.86686, 373.06684]) + n.array([ -1.00517,  0.11158,-0.28632]),
+            22:n.array([ -55.3656528503, -405.662993034, -84.3890558675]),
+            23:n.array([ -72.5558848039, 377.393814897, -113.678876716]),
+            24:n.array([ -90.34611,   4.21680,-144.20799]) + n.array([  0.01805,  0.10158,-0.09630]),
+            25:n.array([ -24.79049,-153.74222, -31.28959]) + n.array([ -0.35529,  0.45195,-0.14708]),
+            26:n.array([ 210.10061544, 187.975673579, 370.683657743]),
+            27:n.array([ -21.84807, 312.60274, -26.72816]) + n.array([  0.04485,  0.29455,-0.25724]),
+            28:n.array([ -18.8534131847, 166.106071174, -21.0403737068]),
+            29:n.array([  88.43837, -21.20718, 162.84732]) + n.array([  0.06337,  0.22358,-0.09150]),
+            30:n.array([-136.73690, 313.93707,-223.87046]) + n.array([  0.00693,  0.14085,-0.14483]),
+            31:n.array([ 230.19780727, 47.1563467525, 406.219047894,]),
+            32:n.array([-121.89484, 147.01857,-178.53714]) + n.array([-12.34044,-21.29123,-1.62317]),
+            33:n.array([ 121.35534,-319.42959, 209.57574]) + n.array([-13.46091,-21.08721,-2.04411]),
+            34:n.array([  -1.18600, 298.79078,  -1.57273]) + n.array([-12.15281,-21.09783,-1.02046]),
+            35:n.array([-150.75421,-224.46078,-258.59405]) + n.array([-13.33191,-21.31901,-2.09637]),
+            36:n.array([-148.16634, 285.39014,-254.15270]) + n.array([-12.14134,-20.96592,-1.06129]),
+            37:n.array([ 65.4745545234, -398.989793689, 135.937771903]),
+            38:n.array([ 183.23862, 145.04638, 314.99738]) + n.array([-12.53417,-21.24913,-1.65605]),
+            39:n.array([ 201.11005, 270.60894, 345.38803]) + n.array([-12.49116,-21.34547,-1.58327]),
+            40:n.array([-187.75317, 101.63458,-322.33070]) + n.array([-13.027  ,-20.968  ,-1.872  ]),
+            41:n.array([  32.85944,-311.36127,  57.49240]) + n.array([-13.45655,-21.32004,-2.25554]),
+            42:n.array([ 111.79179,-360.75226, 193.12456]) + n.array([-13.38514,-21.23868,-1.85556]),
+            43:n.array([ 185.29648,  12.47387, 318.94840]) + n.array([-12.90096,-21.24585,-1.81436]),
+            44:n.array([  66.84088, 269.98916, 115.13990]) + n.array([-12.32095,-21.10367,-1.21838]),
+            45:n.array([ 208.32754,-181.02402, 358.71376]) + n.array([-13.77787,-21.21314,-2.35549]),
+            46:n.array([ 222.40198, 114.55998, 382.32980]) + n.array([-12.61714,-21.02361,-1.42653]),
+            47:n.array([  87.62899,-157.64380, 134.49244]) + n.array([-12.57070,-20.86601,-1.67331]),
+            48:n.array([-123.36405,   7.56840,-211.39198]) + n.array([-12.63378,-21.12748,-1.07278]),
+            49:n.array([  42.32481,-394.59655,  73.80015]) + n.array([-13.86259,-21.23736,-2.03213]),
+            50:n.array([ 155.42810, 103.98180, 267.54514]) + n.array([-12.63677,-21.21007,-1.64005]),
+            51:n.array([   4.00271, 454.85825,   7.08648]) + n.array([-11.63465,-20.89803,-1.78326]),
+            52:n.array([28.8976025965, 358.993678483, 69.7233597137,]),
+            53:n.array([ 247.12661,  75.95094, 404.94444]) + n.array([-13.14037,-20.72110,-1.99411]),
+            54:n.array([ 195.692326034, 148.9067559, 358.382640028]),
+            55:n.array([  22.16270, 221.12001,  38.44946]) + n.array([-13.027  ,-20.968  ,-1.872  ]),
+            56:n.array([ -85.96290, 360.45682,-147.01823]) + n.array([-11.24916,-21.18504,-1.59575]),
+            57:n.array([ -22.18217, 447.51766, -37.58554]) + n.array([-11.87513,-21.21941,-1.20133]),
+            58:n.array([ -40.13290,-349.20766, -68.17466]) + n.array([-13.60638,-21.21031,-2.56979]),
+            59:n.array([ -38.86438, 362.86645, -66.27003]) + n.array([-11.69585,-21.02930,-1.18640]),
+            60:n.array([ 121.811369523, 377.231448971, 229.602800651]),
+            61:n.array([ -94.7836220969, -297.64232068, -141.49713256]),
+            62:n.array([-161.60804, 226.51205,-277.24339]) + n.array([-12.05381,-20.93013,-1.23832]),
+            63:n.array([170.275635,-299.76472, 293.55448]) + n.array([-13.44311,-21.21483,-2.31634]),
+    },
+ # 0: 0.0     ,  1:-0.189680,  2:-0.047846,  3: 0.135219,
+ # 4:-0.194260,  5:-0.014246,  6: 0.635888,  7:-0.037970,
+ # 8:-0.030542,  9: 0.072134, 10: 0.233400, 11:-0.040424,
+ #12:-0.048852, 13:-0.071262, 14:-0.014639, 15: 0.137635,
+ #16:-0.088492, 17: 0.017005, 18: 0.039835, 19: 0.074384,
+ #20: 0.101006, 21: 0.524285, 22:-0.277923, 23:-0.033217,
+ #24:-0.104658, 25: 0.174498, 26:-0.231212, 27:-0.223689,
+ #28:-0.030564, 29:-0.136460, 30:-0.055878, 31:-0.113441,
+ #32:-1.835390, 33:-1.301427, 34:-1.376236, 35:-1.262580,
+ #36:-1.396654, 37:-1.145020, 38:-1.547626, 39:-1.523989,
+ #40: 0.0     , 41:-1.351484, 42:-1.381199, 43:-1.376285,
+ #44:-1.397143, 45:-0.972617, 46:-1.327046, 47:-1.458517,
+ #48:-1.496978, 49:-1.015409, 50:-1.454481, 51:-2.107209,
+ #52:-1.696301, 53:-1.303749, 54:-1.503803, 55: 0.0     ,
+ #56:-2.461284, 57:-1.699660, 58:-1.399629, 59:-1.794985,
+ #60:-1.466923, 61:-1.306356, 62:-1.574552, 63:-1.341382,
+
+    'delays': {
+         0:  0.00000,  1:  1.90251,  2: -5.04434,  3:  1.82363,
+         4: -9.59716,  5:  6.38722,  6: -7.75454,  7:  3.19018,
+         8: -8.43995,  9: -0.03911, 10:-11.88403, 11: -6.97286,
+        12:  2.48693, 13:-14.78799, 14:-10.46206, 15: -3.52409,
+        16: 16.87281, 17: -0.92220, 18: -0.51058, 19:  3.25037,
+        20:  2.60934, 21:  1.78428, 22:  5.27815, 23:-14.37782,
+        24: -1.90652, 25:-15.40243, 26:-11.23833, 27:  3.14987,
+        28:  3.87429, 29:  7.40496, 30: -2.08892, 31:-13.72179,
+        32: 22.01993, 33: -2.60862, 34: -7.10621, 35: -8.65217,
+        36: -7.53194, 37: -5.13895, 38: 10.45674, 39: -7.99611,
+        40:  0.00000, 41: -0.52698, 42: -0.80384, 43:-10.87221,
+        44: -7.79094, 45: -2.03461, 46: -7.14113, 47:-14.80853,
+        48: -1.98915, 49: -2.47736, 50: -5.58780, 51: -3.63866,
+        52: -8.13744, 53:  6.05448, 54: -1.43166, 55:  0.00000,
+        56: -4.51703, 57: -2.00401, 58: -4.97970, 59: -4.43863,
+        60: -2.48776, 61: -8.93252, 62: -9.89454, 63: -7.03737,
+    },
+    'offsets': { },
+    'amps': {
+0:0.00317, # (calibrated to 2455852, a -6.66% correction)
+1:0.00358, # (calibrated to 2455852, a -3.43% correction)
+2:0.00351, # (calibrated to 2455852, a -6.70% correction)
+3:0.00362, # (calibrated to 2455852, a -6.64% correction)
+4:0.00370, # (calibrated to 2455852, a -6.68% correction)
+5:0.00383, # (calibrated to 2455852, a -6.56% correction)
+6:0.00326, # (calibrated to 2455852, a -6.44% correction)
+7:0.00371, # (calibrated to 2455852, a -5.48% correction)
+8:0.00347, # (calibrated to 2455852, a -7.65% correction)
+9:0.00310, # (calibrated to 2455852, a -7.41% correction)
+10:0.00313, # (calibrated to 2455852, a -7.09% correction)
+11:0.00316, # (calibrated to 2455852, a -7.30% correction)
+12:0.00412, # (calibrated to 2455852, a -6.97% correction)
+13:0.00363, # (calibrated to 2455852, a -6.87% correction)
+14:0.00307, # (calibrated to 2455852, a -13.30% correction)
+15:0.00378, # (calibrated to 2455852, a -7.21% correction)
+16:0.00376, # (calibrated to 2455852, a -6.72% correction)
+17:0.00408, # (calibrated to 2455852, a -7.08% correction)
+18:0.00400, # (calibrated to 2455852, a -7.20% correction)
+19:0.00378, # (calibrated to 2455852, a -6.55% correction)
+20:0.00589, # (calibrated to 2455852, a 42.33% correction)
+21:0.00379, # (calibrated to 2455852, a -5.90% correction)
+22:0.00339, # (calibrated to 2455852, a -5.62% correction)
+23:0.00372, # (calibrated to 2455852, a -5.65% correction)
+24:0.00342, # (calibrated to 2455852, a -6.61% correction)
+25:0.00358, # (calibrated to 2455852, a -5.81% correction)
+26:0.00311, # (calibrated to 2455852, a -4.92% correction)
+27:0.00212, # (calibrated to 2455852, a -26.33% correction)
+28:0.00606, # (calibrated to 2455852, a 49.98% correction)
+29:0.00384, # (calibrated to 2455852, a -4.25% correction)
+30:0.00392, # (calibrated to 2455852, a -4.18% correction)
+31:0.00346, # (calibrated to 2455852, a -3.64% correction)
+32:0.00360, # (calibrated to 2455852, a -5.79% correction)
+33:0.00380, # (calibrated to 2455852, a -5.80% correction)
+34:0.00340, # (calibrated to 2455852, a -5.01% correction)
+35:0.00325, # (calibrated to 2455852, a -5.09% correction)
+36:0.00425, # (calibrated to 2455852, a -5.13% correction)
+37:0.00355, # (calibrated to 2455852, a -4.71% correction)
+38:0.00417, # (calibrated to 2455852, a -5.85% correction)
+39:0.00416, # (calibrated to 2455852, a -4.42% correction)
+40:0.00282, # (calibrated to 2455852, a -6.03% correction)
+41:0.00346, # (calibrated to 2455852, a -6.30% correction)
+42:0.00337, # (calibrated to 2455852, a -5.81% correction)
+43:0.00396, # (calibrated to 2455852, a -5.90% correction)
+44:0.00361, # (calibrated to 2455852, a -5.60% correction)
+45:0.00344, # (calibrated to 2455852, a -6.25% correction)
+46:0.00358, # (calibrated to 2455852, a -5.74% correction)
+47:0.00314, # (calibrated to 2455852, a -5.74% correction)
+48:0.00348, # (calibrated to 2455852, a -7.12% correction)
+49:0.00337, # (calibrated to 2455852, a -7.16% correction)
+50:0.00328, # (calibrated to 2455852, a -5.98% correction)
+51:0.00320, # (calibrated to 2455852, a -6.95% correction)
+52:0.00310, # (calibrated to 2455852, a -6.58% correction)
+53:0.00358, # (calibrated to 2455852, a -8.69% correction)
+54:0.00398, # (calibrated to 2455852, a -6.78% correction)
+55:0.00278, # (calibrated to 2455852, a -7.28% correction)
+56:0.00357, # (calibrated to 2455852, a -9.14% correction)
+57:0.00346, # (calibrated to 2455852, a -8.90% correction)
+58:0.00326, # (calibrated to 2455852, a -8.72% correction)
+59:0.00351, # (calibrated to 2455852, a -9.48% correction)
+60:0.00348, # (calibrated to 2455852, a -9.01% correction)
+61:0.00284, # (calibrated to 2455852, a -15.59% correction)
+62:0.00354, # (calibrated to 2455852, a -8.82% correction)
+63:0.00343, # (calibrated to 2455852, a -7.56% correction)
+    },
+
+    #'bp_r': n.array([[-546778459030.53168, 664643788581.23596, -352000715429.32422, 106069000024.00294, -19886868672.0816, 2375187771.2150121, -176441928.4305163, 7452103.7565970663, -136981.43950786022]] * 64), # from J2214-170 in Helmboldt
+    #'bp_r': n.array([[-546778459030.53168, 664643788581.23596, -352000715429.32422, 106069000024.00294, -19886868672.0816, 2375187771.2150121, -176441928.4305163, 7452103.7565970663, -136981.43950786022]] * 64) * 1.0178**0.5, # from J2214-170 in Helmboldt, with adjustment for tempgain.py gain adjustment
+   # 'bp_r': n.array([[-167333390752.98276, 198581623581.65594, -102487141227.4993, 30027423590.548084, -5459067124.669095, 630132740.98792362, -45056600.848056234, 1822654.0034047314, -31892.9279846797]] * 64) * 1.0178**0.5, # from J2214-170 in Helmboldt, with adjustment for tempgain.py gain adjustment, then renormalized post-beamform to J2214-170 again,  poly is the product of previous bp_r and [193546064213.89413, -237715087605.97723, 127252227822.95598, -38776645160.640396, 7356414439.0182276, -889674290.93449306, 66979793.474958092, -2869901.2171315835, 53580.480200223508]
+    'bp_r': n.array([[ -1.40152497e+12+0.j,   1.87688648e+12+0.j,  -1.10924496e+12+0.j,
+         3.79618728e+11+0.j,  -8.28853139e+10+0.j,   1.19702307e+10+0.j,
+        -1.14322183e+09+0.j,   6.96143014e+07+0.j,  -2.45225907e+06+0.j,
+         3.80746980e+04+0.j]] * 64),
+    'bp_i': n.array([[0., 0., 0.]] * 64),
     'beam': a.fit.BeamAlm,
+   'twist': n.array([0]*64),#n.array([.1746] * 32),
     'bm_prms': {
         'alm7': n.array(
 [-1081324093.5604355, 0.0, 0.0, 0.0, -262155437.14744619, -40523.293875736716, -1144639049.4450433, 0.0, 0.0, 0.0, -1209061567.4856892, -62596.955398614278, 0.0, 0.0, 234574880.79412466, -59373.276068766572, 0.0, 0.0, 204426224.06441718, 55114.563591448132, 1729080775.5577424, 0.0, 0.0, 0.0, -5627870.2693141159, 8441.4522962633619, 0.0, 0.0, -957871468.02796948, -26154.972628033676, 0.0, 0.0, -87102252.471384808, -50052.73968168487, 0.0, 0.0, 191828502.26962891, -10048.43132508696, 0.0, 0.0, 110776547.27628954, -37351.826990050504, -906797537.4834379, 0.0, 0.0, 0.0, 329222817.13445771, -29060.739352269207, 0.0, 0.0, 546809652.71201193, -115946.69818003669, 0.0, 0.0, -591134355.63541889, 62683.080456769902, 0.0, 0.0, -144055745.14333308, -3344.9767162177391, 0.0, 0.0, -368656232.30881768, -1608.1983129602879, 0.0, 0.0, -118801805.27812727, 31905.336279017167, 0.0, 0.0, -70225720.747015119, -37865.877995669623, 235419758.4512482, 0.0, 0.0, 0.0, 361579085.9617995, 79072.147640181458, 0.0, 0.0, 146429964.96514896, -102117.14213434084, 0.0, 0.0, 106427393.26674381, -60107.204182634705, 0.0, 0.0, 59154166.248101547, -20388.350978482271, 0.0, 0.0, 176029459.26438314, 33285.591239419438, 0.0, 0.0, 527618634.93934166, 66884.303920780934, 0.0, 0.0, 95913693.41127409, -79300.923099238891, 0.0, 0.0, 152734050.03753135, -21615.518484261818, 0.0, 0.0, 230694358.5770939, 22922.170838031663, -383288562.70426351, 0.0, 0.0, 0.0, -126281330.72650661, -26736.867629611937, 0.0, 0.0, 108175824.49057513, -73826.154995947072, 0.0, 0.0, -105130427.45878558, -27109.647812448158, 0.0, 0.0, -495130497.4338429, -43312.494575842124, 0.0, 0.0, -162294563.70339859, -78644.408483291132, 0.0, 0.0, -446143155.07499522, 35049.023211568106, 0.0, 0.0, -434372911.29877228, 74645.281954757884, 0.0, 0.0, 88535885.916778564, -59658.181174639933, 0.0, 0.0, -154524011.19535148, -64925.569280836324, 0.0, 0.0, -197013303.49254256, -57546.998199721042, 0.0, 0.0, 60578806.739350073, 60269.144321032669, 614919978.78591418, 0.0, 0.0, 0.0, -177976472.87455249, 83517.765491276004, 0.0, 0.0, -136301559.45860973, -2057.5912754017359, 0.0, 0.0, 613862755.05429029, -126093.29111144203, 0.0, 0.0, 330986019.80497843, -171293.91106101952, 0.0, 0.0, -29154749.084786706, -23698.75128392793, 0.0, 0.0, 118909415.76059921, 260.4906139722309, 0.0, 0.0, 258338224.08025572, 34588.968913224162, 0.0, 0.0, 3785397.5870792689, -32603.464627771926, 0.0, 0.0, -23259161.770430245, -32648.547687113882, 0.0, 0.0, 104427443.08076131, 5749.4319312391553, 0.0, 0.0, 6766465.5382205453, 3241.742220615246, 0.0, 0.0, -60284503.8862499, -59902.508087108952, 0.0, 0.0, 70947908.65981704, -50046.164234017422, 71592751.406619206, 0.0, 0.0, 0.0, 114423944.11037378, -29629.639271339391, 0.0, 0.0, -16162405.156746721, -22843.554219456128, 0.0, 0.0, -391208214.49301404, 85360.748577972205, 0.0, 0.0, -180559385.64929616, -232405.39276717394, 0.0, 0.0, -173999368.48403537, -154535.5223811192, 0.0, 0.0, 21379759.421723526, -49363.223340975463, 0.0, 0.0, -65362589.496401452, 56497.722354469195, 0.0, 0.0, -59068349.756921723, -22203.228234489961, 0.0, 0.0, 178895590.72285667, -36778.476704805165, 0.0, 0.0, -7977531.617536407, -19838.626327764079, 0.0, 0.0, 80425490.578405693, 27831.980826245854, 0.0, 0.0, 114611568.72714353, -107486.07299270081, 0.0, 0.0, 20196073.66257038, 21928.884663855733, 0.0, 0.0, -77682176.577698827, 29213.006661709769, 0.0, 0.0, 15123630.35168907, -28694.812017467506, -22259183.296553552, 0.0, 0.0, 0.0, -44195359.795093246, 51184.417790776875, 0.0, 0.0, 416191946.56073493, -71732.351641676665, 0.0, 0.0, 205663263.71618012, 3388.5589815610024, 0.0, 0.0, -130943398.42767963, -131143.82698794606, 0.0, 0.0, 61651470.898734599, -81217.981804434457, 0.0, 0.0, -67180046.491523147, -146577.21040483299, 0.0, 0.0, -152936171.75485, -9306.3668560189235, 0.0, 0.0, -78432624.898623183, -16457.284767487032, 0.0, 0.0, -182188345.51379466, -28943.200208655751, 0.0, 0.0, -230936841.81174293, -69881.661699287171, 0.0, 0.0, -48611744.075940624, -45613.670555435718, 0.0, 0.0, -137135254.63530335, 89602.425289011473, 0.0, 0.0, -122086433.73023096, 10038.304046797484, 0.0, 0.0, 4230108.1019680994, -125434.25870475314, 0.0, 0.0, -88554513.106125027, -65172.061009842495, 0.0, 0.0, -48016889.768255182, 6514.6442567450413, 0.0, 0.0, -7234862.3567767777, 29462.421170785103, 23975873.985774957, 0.0, 0.0, 0.0, 150246363.27382952, -4635.0397663657277, 0.0, 0.0, -47057107.317354918, -61032.384893401948, 0.0, 0.0, -145067771.71055323, 30340.435422360377, 0.0, 0.0, 130479661.43167895, -11379.689478798271, 0.0, 0.0, 26361229.859195136, -125845.83502669417, 0.0, 0.0, 169502237.90273514, -190856.12211173368, 0.0, 0.0, -93899694.259581938, 9428.9987870662444, 0.0, 0.0, -197490720.78410134, 21312.280548650102, 0.0, 0.0, 39647940.551049069, -68437.045331174842, 0.0, 0.0, 69474226.516149923, -51031.516066011136, 0.0, 0.0, 183898889.91059858, 25427.755216915164, 0.0, 0.0, 105935367.66732898, 47267.944906588062, 0.0, 0.0, 91688077.289836451, 19266.763736649074, 0.0, 0.0, 107771149.47695087, -67938.256377686776, 0.0, 0.0, -29850724.42625796, 21607.473853242802, 0.0, 0.0, 105178954.14601882, -69775.134273171891, 0.0, 0.0, -57617253.476713084, -65410.799885873028, 0.0, 0.0, 3261331.2317122123, -32217.75104223685, 0.0, 0.0, 16472425.803737164, 79582.269607468625, -272848871.13511133, 0.0, 0.0, 0.0, -166763480.12559777, 33090.611564668841, 0.0, 0.0, 108954734.6009059, -403.73869004175492, 0.0, 0.0, -17283151.399917897, -68588.699644901702, 0.0, 0.0, -21492440.153302398, -17597.541258704674, 0.0, 0.0, -38441136.647693813, 64579.571492712137, 0.0, 0.0, 4505100.6340750242, -300117.69352899096, 0.0, 0.0, 549992.16794250254, -197163.89229418512, 0.0, 0.0, -127963651.33731289, -10644.866941283586, 0.0, 0.0, 100807969.57532065, 29015.182801835355, 0.0, 0.0, -7278488.9224838661, 7477.4234534004445]
@@ -30,3 +353,85 @@ prms = {
         ),
     }
 }
+
+def get_aa(freqs):
+    '''Return the AntennaArray to be used for simulation.'''
+    location = prms['loc']
+    antennas = []
+    nants = len(prms['antpos'])
+    for i in range(nants):
+        beam = prms['beam'](freqs, nside=32, lmax=20, mmax=20, deg=7)
+        try: beam.set_params(prms['bm_prms'])
+        except(AttributeError): pass
+        pos = prms['antpos'][i]
+        dly = prms['delays'].get(i, 0.)
+        off = prms['offsets'].get(i, 0.)
+        amp = prms['amps'].get(i, 4e-3)
+        bp_r = prms['bp_r'][i]
+        bp_i = prms['bp_i'][i]
+        twist = prms['twist'][i]
+        antennas.append(Antenna(pos[0],pos[1],pos[2], beam, phsoff=[dly,off],
+                amp=amp, bp_r=bp_r, bp_i=bp_i, pointing=(0.,n.pi/2,twist),lat=prms['loc'][0]))
+        if i >= 32:
+            antennas[-1].set_params({
+               #'dx': -13.0274536654,
+               #'dy': -20.9677193273,
+               #'dz': -1.87182968283,
+               #'ddly': -1.36854425919,
+            })
+    #aa = a.fit.AntennaArray(prms['loc'], antennas)
+    aa = AntennaArray(prms['loc'], antennas)
+    return aa
+
+src_prms = {
+'cen':{ 'jys':10**3.282102, 'index':  0.235166 , },
+'cyg':{ 'jys':10**3.566410, 'index':  -0.266315 , },
+'hyd':{ 'jys':10**2.448816, 'index':  -0.866462 , },
+#'pic':{ 'jys':10**2.714456, 'index':  -0.436361 , },
+'pic':{'jys':450, 'index':-1.},
+'for':{'jys':267,'index':-1.15},#score=0.70
+#{'jys':447,'index':-1.15},#old value
+'vir':{ 'jys':10**2.200725, 'index':  0.202425 , },
+'Sun': {'a1': 0.00644, 'index': 1.471, 'a2': 0.00586, 'jys': 55701.96, 'th': -0.000512},
+#'for': {'a1': 0.00851, 'a2': 0.00413, 'jys': 907.09, 'th': 0.230},
+}
+
+def get_catalog(srcs=None, cutoff=None, catalogs=['helm','misc']):
+    '''Return a catalog containing the listed sources.'''
+    custom_srcs = ['J1347-603','J1615-610', 'J1336-340', 'J1248-412', 'J1531-423', 'J1359-415']
+    srclist =[]
+    for c in catalogs:
+        log.info("looking for %s in a local file"%(c,))
+        this_srcs = generic_catalog.get_srcs(srcs=srcs,
+              cutoff=cutoff,catalogs=[c],loglevel=loglevel)
+        if len(this_srcs)==0:
+            log.warning("no sources found with genericfile, trying built in catalog")
+            tcat = a.src.get_catalog(srcs=srcs, 
+                   cutoff=cutoff, catalogs=[c])
+            srclist += [tcat[src] for src in tcat]
+        else: srclist += this_srcs    
+    cat = a.fit.SrcCatalog(srclist)
+    #Add specials.  All fixed radio sources must be in catalog, for completeness
+    if not srcs is None:
+        for src in srcs:
+            if src in src_prms.keys():
+                if src in custom_srcs:
+                    cat[src] = a.fit.RadioSpecial(src,**src_prms[src])
+    return cat    
+
+
+if __name__=='__main__':
+    import sys, numpy as n
+    if len(sys.argv)>1:
+        print "loading catalog: ",sys.argv[1]
+        logging.basicConfig(level=logging.DEBUG)
+        cat = get_catalog(catalogs=[sys.argv[1]])
+        names = [cat[src].src_name for src in cat]
+        print "loaded",len(names)," sources"
+        flx = [cat[src]._jys for src in cat]
+        print names
+        print "brightest source in catalog"
+        print names[flx.index(n.max(flx))],n.max(flx)
+        log.info("loaded %d items from %s"%(len(cat),sys.argv[1]))
+        try: assert([cat[src].e_S_nu for src in cat])
+        except(AttributeError): print "this catalog does not have flux errors"

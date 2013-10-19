@@ -22,7 +22,7 @@ opts,args = o.parse_args(sys.argv[1:])
 def filename2src(f):
     #return f.split('_')[-1]
     return f.split('_')[0].strip()
-def average_spectrum(x,y,bins):
+def average_spectrum(x,y,bins,dy=None):
     myspectrum = []
     myerrors = []
     myfreqs = []
@@ -30,6 +30,10 @@ def average_spectrum(x,y,bins):
         myspectrum.append(n.mean(y[n.logical_and(x>bins[i-1],x<bins[i])]))
         myerrors.append(n.std(y[n.logical_and(x>bins[i-1],x<bins[i])]))
         myfreqs.append((bins[i]+bins[i-1])/2)
+    if not dy is None:
+        myerrors = []
+        for i in range(1,len(bins)):
+            myerrors.append(n.sqrt(n.mean(dy[n.logical_and(x>bins[i-1],x<bins[i])]**2)))
     myspectrum=n.array(myspectrum)
     myfreqs = n.array(myfreqs)
     myerrors = n.array(myerrors)
@@ -43,7 +47,10 @@ for i,filename in enumerate(args):
     D = n.load(filename)
     freq = D['freq']*1e3
     spec = n.ma.masked_invalid(D['spec'])
-    psa64freqs,psa64fluxes,psa64errors = average_spectrum(freq,n.real(spec),freqbins)
+    err = None
+    if 'res' in D.files:
+        err = n.real(D['res'])
+    psa64freqs,psa64fluxes,psa64errors = average_spectrum(freq,n.real(spec),freqbins,dy=err)
     if i==0: print "#FREQS[MHz]=%s"%(','.join(map(str,psa64freqs)))
     print "%s\t%s\t%s"%(srcname,
         ','.join(map(str,n.round(n.real(psa64fluxes),2))),

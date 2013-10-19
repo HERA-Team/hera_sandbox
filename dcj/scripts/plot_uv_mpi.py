@@ -55,6 +55,7 @@ o.add_option('--antpos',action='store_true',
     help='Plot positions of antennae')
 o.add_option('--exp',action='store_true',
     help='do a stupid experiment')
+o.add_option('--ls',default='-',help='linestyle')
 
 def convert_arg_range(arg):
     """Split apart command-line lists/ranges into a list of numbers."""
@@ -161,13 +162,20 @@ times = []
 selected_ants = []
 for uvfile in files:
     print 'Reading', uvfile
-    uv = a.miriad.UV(uvfile)
+    try:
+        uv = a.miriad.UV(uvfile)
+    except IOError as e:
+        print "ERROR LOADING DATA, skipping file..."
+        print e.strerror
+        continue
+
     if not opts.cal is None:
         aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
     # Only select data that is needed to plot
     a.scripting.uv_selector(uv, opts.ant, opts.pol)
     # Read data from a single UV file
     for (uvw,t,(i,j)),d in uv.all():
+        aa.set_active_pol(opts.pol)
         bl = '%d,%d' % (i,j)
         selected_ants.append(i)
         selected_ants.append(j)
@@ -179,7 +187,10 @@ for uvfile in files:
             use_this_time = ((len(times) - 1) % opts.decimate) == 0
             use_this_time &= time_sel(t, (len(times)-1) / opts.decimate)
             if use_this_time:
-                plot_t['lst'].append(uv['lst'])
+                if not opts.cal is None:
+                    plot_t['lst'].append(repr(aa.sidereal_time()))
+                else:
+                    plot_t['lst'].append(uv['lst'])
                 plot_t['jd'].append(t)
                 plot_t['cnt'].append((len(times)-1) / opts.decimate)
         if not use_this_time: continue
@@ -259,7 +270,7 @@ nsub = m2*m1
 dmin,dmax = None, None
 fig = p.figure()
 pax = p.axes()
-if is_time_range and is_chan_range:
+if (is_time_range and is_chan_range) or opts.time_axis=='lst':
     cax = p.axes([0.05,0.025,0.9,0.03])
 if not opts.src is None:fig.suptitle(opts.src)
 for cnt, bl in enumerate(bls):
@@ -395,16 +406,31 @@ for cnt, bl in enumerate(bls):
     elif not is_chan_range and is_time_range:
         if opts.time_axis == 'index': plot_times = range(len(plot_t['jd']))
         elif opts.time_axis == 'physical': plot_times = plot_t['jd']
-        elif opts.time_axis == 'lst': plot_times = plot_t['lst']
+        elif opts.time_axis == 'lst': plot_times = n.array(plot_t['lst']).astype(float)*12./n.pi
         else: raise ValueError('Unrecognized time axis type.')
-        if opts.sum_chan: p.plot(plot_times, d, '-', label=label+'(+)')
+        print len(plot_t['lst']),len(plot_t['jd'])
+        if opts.sum_chan: 
+            if opts.time_axis=='lst':
+                colors = n.array(plot_t['jd']).astype(int)
+                colors -= colors.min()
+                p.scatter(plot_times,d,label=label+'(+)',c=colors,marker='.',edgecolors='none')
+
+            else:
+                p.plot(plot_times, d, opts.ls, label=label+'(+)')
         else:
             if opts.chan_axis == 'index': label += '#%d'
             else:
                 chans = freqs
                 label += '%f GHz'
             for c, chan in enumerate(chans):
-                p.plot(plot_times, d[:,c], '-', label=label % chan)
+                print len(plot_times),d[:,c].shape
+                if opts.time_axis=='lst':
+                    colors = n.array(plot_t['jd']).astype(int)
+                    colors -= colors.min()            
+                    p.scatter(plot_times,
+                    d[:,c],label=label%chan,c=colors,marker='.',edgecolor='none')
+                else:
+                    p.plot(plot_times, d[:,c],opts.ls, label=label % chan)
         if not opts.max is None: dmax = opts.max
         elif dmax is None: dmax = d.max()
         else: dmax = max(dmax,d.max())
@@ -418,7 +444,7 @@ for cnt, bl in enumerate(bls):
     if not opts.share: p.title(bl,x=0.25,y=0.75)
 if not opts.nolegend and (not is_time_range or not is_chan_range): 
     p.legend(loc='best')
-if is_chan_range and is_time_range:
+if (is_chan_range and is_time_range) or opts.time_axis=='lst':
     p.colorbar(cax = cax,orientation='horizontal')
 p.subplots_adjust(wspace=0,hspace=0,left=0.075,right=0.95,bottom=0.1,top=0.95)
 if opts.antpos:
