@@ -259,7 +259,8 @@ for boot in xrange(NBOOT):
         gp1 = random.sample(gp1, 2) + [random.choice(gp1) for bl in gp1[:len(gp1)-2]]
         gp2 = random.sample(gp2, 2) + [random.choice(gp2) for bl in gp2[:len(gp2)-2]]
     else:
-        gp1,gp2 = bls[:len(bls)/2],bls[len(bls)/2:]
+        bls_ = random.sample(bls, len(bls))
+        gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:]
     bls_ = gp1 + gp2
     print 'Bootstrap sample %d:' % boot,
     for gp in [gp1,gp2]: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
@@ -367,7 +368,7 @@ for boot in xrange(NBOOT):
             if bli == blj: continue
             if True: # exclude intra-group pairings
                 if (bli in gp1 and blj in gp1) or (bli in gp2 and blj in gp2): continue
-            print a.miriad.bl2ij(bli), a.miriad.bl2ij(blj)
+            #print a.miriad.bl2ij(bli), a.miriad.bl2ij(blj)
             # XXX behavior here is poorly defined for repeat baselines in bootstrapping
             xi,xj = Cx.get_x(bli), Cx.get_x(blj)
             xi_,xj_ = Cx_.get_x(bli), Cx_.get_x(blj)
@@ -382,9 +383,11 @@ for boot in xrange(NBOOT):
                     g = .3
                     _cx = -g*cx
                     mask = n.zeros_like(cx)
-                    #for k in xrange(8,12): # XXX this is hardcoded for 20 channels
-                    for k in xrange(17,24): # XXX this is hardcoded for 40 channels
-                    #for k in xrange(34,48): # XXX this is hardcoded for 80 channels
+                    if n_k == 20: prj_ch = xrange(8,12)
+                    elif n_k == 40: prj_ch = xrange(17,24)
+                    elif n_k == 80: prj_ch = xrange(34,48)
+                    else: raise ValueError('Only support # channels = (20,40,80) for now')
+                    for k in prj_ch:
                         mask[k] = mask[:,k] = 1
                         mask[k+n_k] = mask[:,k+n_k] = 1
                     ind = n.arange(n_k)
@@ -409,9 +412,9 @@ for boot in xrange(NBOOT):
             #f2 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n2ij_)**2))
             f1 = n.sqrt((n.abs(nij)**2)/(n.abs(n1ij_)**2))
             f2 = n.sqrt((n.abs(nij)**2)/(n.abs(n2ij_)**2))
-            print 'Rescale factor:', f1, f2
-            #fudge = max(f1,f2)
-            fudge = 1.
+            #print 'Rescale factor:', f1, f2
+            #rescale = max(f1,f2)
+            rescale = 1.
 
             if False:
                 p.subplot(221)
@@ -423,19 +426,21 @@ for boot in xrange(NBOOT):
                 p.subplot(223)
                 p.plot(n.average(xi_*xj_.conj(), axis=1).real, 'k')
                 p.plot(n.average(xi*xj.conj(), axis=1).real, 'r')
-                p.plot(fudge*n.average(xi_*xj_.conj(), axis=1).real, 'g')
+                p.plot(rescale*n.average(xi_*xj_.conj(), axis=1).real, 'g')
                 p.subplot(224)
                 p.plot(n.average(n1i_*n1i_.conj(), axis=1).real, 'k')
                 p.plot(n.average(n1j_*n1j_.conj(), axis=1).real, 'b')
                 p.plot(n.average(n1i_*n1j_.conj(), axis=1).real, 'g')
                 p.plot(n.average(ni*nj.conj(), axis=1).real, 'r')
-                p.plot(fudge*n.average(n1i_*n1j_.conj(), axis=1).real, 'c')
+                p.plot(rescale*n.average(n1i_*n1j_.conj(), axis=1).real, 'c')
                 p.show()
             elif False:
                 p.subplot(131); p.plot(n.average(xi*xj.conj(), axis=1).real)
                 p.subplot(132); p.plot(n.average(xi_*xj_.conj(), axis=1).real)
-            pk_avg = scalar * n.average(xi * xj.conj(), axis=1)
-            pk_avg_ = scalar * n.average(xi_ * xj_.conj(), axis=1) * fudge # XXX
+            #import capo as C, pylab as p
+            #C.arp.waterfall(xi_ * xj_.conj(), mode='log', drng=3); p.show()
+            pk_avg = scalar * n.average(xi * xj.conj(), axis=1) # average over time
+            pk_avg_ = scalar * n.average(xi_ * xj_.conj(), axis=1) * rescale# XXX
             dspecs.append(pk_avg)
             pspecs.append(pk_avg_)
     pspecs,dspecs = n.array(pspecs), n.array(dspecs)
