@@ -5,6 +5,7 @@ import capo as C
 
 MEDIAN = True
 CUT = 0.95
+NSIG = 3
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, ant=True, pol=True, src=True)
@@ -173,22 +174,35 @@ for lst in lsts:
         try:
             cmax = n.max(cnt[lst][blp])
             if MEDIAN:
-                #d = n.median(dat[lst][blp], axis=0)
                 d = n.array(dat[lst][blp])
                 c = n.array(cnt[lst][blp])
-                ad = n.argsort(n.abs(d), axis=0)
-                cut = max(1, int(CUT*d.shape[0]))
-                for i in xrange(d.shape[1]):
-                    d[:,i] = d[:,i][ad[:,i]]
-                    jd_sort = jds[lst][ad[:,i]]
-                    files_sort = files[lst][ad[:,i]]
-                    for f in files_sort[cut:]:
-                        f = str(f)
-                        bad_files[f] = bad_files.get(f,0) + 1
-                #import pylab, capo
-                #capo.arp.waterfall(d, mode='real')
-                #pylab.show()
-                d = n.sum(d[:cut],axis=0) / c.clip(1,n.Inf) / CUT # XXX hack for now to renormalize correctly
+                if True:
+                    d = n.ma.array(d, mask=n.where(d==0, 1, 0))
+                    d_med = n.ma.median(d, axis=0); d_med.shape = (1,) + d_med.shape
+                    d_res = n.abs(d - d_med)
+                    d_sig = n.ma.median(d_res, axis=0); d_sig.shape = (1,) + d_sig.shape
+                    mask = n.where(d_res > NSIG * d_sig, 1, 0)
+                    #print n.sum(mask, axis=0)
+                    #print mask.shape
+                    d = n.ma.masked_where(d_res > NSIG * d_sig, d)
+                    d = n.ma.average(d, axis=0).filled(0)
+                    # XXX technically might want to update cnt based on this new flagging.  not critical
+                    #d = n.median(dat[lst][blp], axis=0)
+                else:
+                    ad = n.argsort(n.abs(d), axis=0)
+                    cut = max(1, int(CUT*d.shape[0]))
+                    print d.shape[0]
+                    for i in xrange(d.shape[1]):
+                        d[:,i] = d[:,i][ad[:,i]]
+                        jd_sort = jds[lst][ad[:,i]]
+                        files_sort = files[lst][ad[:,i]]
+                        for f in files_sort[cut:]:
+                            f = str(f)
+                            bad_files[f] = bad_files.get(f,0) + 1
+                    #import pylab, capo
+                    #capo.arp.waterfall(d, mode='real')
+                    #pylab.show()
+                    d = n.sum(d[:cut],axis=0) / c.clip(1,n.Inf) / CUT # XXX hack for now to renormalize correctly
             else:
                 d = dat[lst][blp] / cnt[lst][blp].clip(1, n.Inf)
             f = n.where(cnt[lst][blp] < cmax * opts.flag_thresh, 1, 0)
