@@ -177,15 +177,29 @@ for lst in lsts:
                 d = n.array(dat[lst][blp])
                 c = n.array(cnt[lst][blp])
                 if True:
-                    d = n.ma.array(d, mask=n.where(d==0, 1, 0))
-                    d_med = n.ma.median(d, axis=0); d_med.shape = (1,) + d_med.shape
-                    d_res = n.abs(d - d_med)
-                    d_sig = n.ma.median(d_res, axis=0); d_sig.shape = (1,) + d_sig.shape
-                    mask = n.where(d_res > NSIG * d_sig, 1, 0)
+                    #mask = n.where(d == 0, 1, 0)
                     #print n.sum(mask, axis=0)
+                    d = n.ma.array(d, mask=n.where(d==0, 1, 0))
+                    #import pylab
+                    #for d_ in d: pylab.plot(d_.real, '.')
+                    d_med = n.ma.median(d, axis=0); d_med.shape = (1,) + d_med.shape # XXX does this cast to real?
+                    #print d_med.dtype
+                    #pylab.plot(d_med[0].real, 'k-')
+                    d_res = n.ma.abs(d - d_med)
+                    d_sig = n.ma.median(d_res, axis=0); d_sig.shape = (1,) + d_sig.shape
+                    #print d_res.dtype, d_sig.dtype, d.dtype
+                    #pylab.plot(d_med[0].real+NSIG*d_sig[0],'k:')
+                    #pylab.plot(d_med[0].real-NSIG*d_sig[0],'k:')
+                    #mask = n.where(d_res > NSIG * d_sig, 1, 0)
+                    #print n.ma.sum(mask, axis=0)
                     #print mask.shape
                     d = n.ma.masked_where(d_res > NSIG * d_sig, d)
-                    d = n.ma.average(d, axis=0).filled(0)
+                    #print d.dtype
+                    #d = n.ma.average(d, axis=0).filled(0)
+                    d = n.ma.mean(d, axis=0).filled(0)
+                    #print d.dtype
+                    #pylab.plot(d.real, 'g')
+                    #pylab.show()
                     # XXX technically might want to update cnt based on this new flagging.  not critical
                     #d = n.median(dat[lst][blp], axis=0)
                 else:
