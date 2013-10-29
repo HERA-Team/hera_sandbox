@@ -4,6 +4,7 @@ import sys, optparse, ephem
 import capo as C
 
 MEDIAN = True
+CUT = 0.95
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, ant=True, pol=True, src=True)
@@ -81,9 +82,10 @@ for f in args:
         nargs.append(f)
 
 jds = {}
-for f in nargs:
-    uv = a.miriad.UV(f)
-    print 'Reading', f
+files = {}
+for filename in nargs:
+    uv = a.miriad.UV(filename)
+    print 'Reading', filename
     sys.stdout.flush()
     # Unsure whether to trust lsts of uv files
     #if lstrng[0] < lstrng[1]:
@@ -97,9 +99,12 @@ for f in nargs:
     for (uvw,t,(i,j)),d,f in uv.all(raw=True):
         if t != curtime:
             aa.set_jultime(t)
-            if not src is None: src.compute(aa); print src.alt
+            if not src is None: src.compute(aa)#; print src.alt
             lst = lstbin(aa.sidereal_time())
-            if dat.has_key(lst): jds[lst] = min(jds.get(lst,n.Inf), t)
+            #if dat.has_key(lst): jds[lst] = min(jds.get(lst,n.Inf), t)
+            if dat.has_key(lst):
+                jds[lst] = jds.get(lst,[]) + [t] # keep track of all jds that contribute
+                files[lst] = files.get(lst,[]) + [filename] # keep track of all files that contribute
             curtime = t
         # Only take this LST if we have a bin for it already allocated
         if not dat.has_key(lst): continue
@@ -128,9 +133,12 @@ for lst in dat:
 blps = blps.keys()
 # Find a starting jd for recording in the file
 lst_start, jd_start = n.Inf, n.Inf
-for lst in jds:
-    if jds[lst] < jd_start:
-        lst_start, jd_start = lst, jds[lst]
+for lst in jds.keys():
+    jds[lst] = n.array(jds[lst])
+    files[lst] = n.array(files[lst])
+    jd_min = n.min(jds[lst])
+    if jd_min < jd_start:
+        lst_start, jd_start = lst, jd_min
 djd_dlst = a.const.sidereal_day / (2*n.pi) * a.ephem.second
 jd_start = jd_start + (lst_start - lsts[0]) * djd_dlst
 lst_start = lsts[0]
@@ -153,6 +161,7 @@ uvo.init_from_uv(uvi)
 dzero = n.zeros(uvi['nchan'], dtype=n.complex64)
 fzero = n.ones(uvi['nchan'], dtype=n.int)
 for lst in lsts:
+    bad_files = {}
     t = jd_start + (lst - lst_start) * djd_dlst
     print 'LST:', a.ephem.hours(lst), '(%f)' % lst, ' -> JD:', t
     sys.stdout.flush()
@@ -168,19 +177,27 @@ for lst in lsts:
                 d = n.array(dat[lst][blp])
                 c = n.array(cnt[lst][blp])
                 ad = n.argsort(n.abs(d), axis=0)
+                cut = max(1, int(CUT*d.shape[0]))
                 for i in xrange(d.shape[1]):
                     d[:,i] = d[:,i][ad[:,i]]
+                    jd_sort = jds[lst][ad[:,i]]
+                    files_sort = files[lst][ad[:,i]]
+                    for f in files_sort[cut:]:
+                        f = str(f)
+                        bad_files[f] = bad_files.get(f,0) + 1
                 #import pylab, capo
                 #capo.arp.waterfall(d, mode='real')
                 #pylab.show()
-                cut = max(1, int(0.9*d.shape[0]))
-                d = n.sum(d[:cut],axis=0) / c.clip(1,n.Inf) / 0.9 # XXX hack for now to renormalize correctly
+                d = n.sum(d[:cut],axis=0) / c.clip(1,n.Inf) / CUT # XXX hack for now to renormalize correctly
             else:
                 d = dat[lst][blp] / cnt[lst][blp].clip(1, n.Inf)
             f = n.where(cnt[lst][blp] < cmax * opts.flag_thresh, 1, 0)
         except(KeyError): # This happens if we are missing data for a desired LST bin
             d,f = dzero, fzero
         uvo.write(preamble, d, f)
+    bfiles = n.array([f for f in bad_files])
+    bcnt = n.array([bad_files[f] for f in bfiles])
+    n.savez('bad_%f.npz' % lst, files=bfiles, cnt=bcnt)
 del(uvo)
 print 'Finished writing', filename
 
