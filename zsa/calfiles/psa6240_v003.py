@@ -31,7 +31,6 @@ class AntennaArray(a.pol.AntennaArray):
         self.update_gains()
         self.update_delays()
         a.pol.AntennaArray.update(self)
-        print self[41]._phsoff
     def get_params(self, ant_prms={'*':'*'}):
         try: prms = a.pol.AntennaArray.get_params(self, ant_prms)
         except(IndexError): return {}
@@ -175,7 +174,7 @@ prms = {
        [-12.73,  -4.17,  -8.91,-11.85,-18.68, -5.2 ,  -3.69, -24.53],
        [  8.77,   1.01,  -0.85, 17.39,-21.39,-21.83, -11.96, -25.96],
        [-12.44,  -8.02,  -5.13, -7.02,-19.94,-17.42, -25.49, -15.5 ]]), # New dlys from the new run of data PSA6240 - PSA6378 on 11/5/2013
-#first row of dly_xx_to_yy solved by hand.
+    #dly_xx_to_yy is actually the yy delays and not an offset from xx. misnomer.
     'dly_xx_to_yy': n.array(
         [[0.00  ,-8.62 ,-21.13, -0.96,-8.29 ,-11.23, -16.91, -18.56],
          [-9.71 ,-3.43 ,-25.73, -4.71,-17.74,-15.19, -19.12, -16.23], 
@@ -199,17 +198,18 @@ prms = {
     #'tau_ew': 2.31, #works well with all e-w baselines.
     #'tau_ew': 2.224408, #after fitting with all cross correlations
     #'tau_ew': 2.20075, #with a number of ew bls. 11/7/2013
-    'tau_ew': 2.232084, #fittting with all cross 11/7/2013 (xx pol)
+    'tau_ew': 2.23, #fittting with all cross 11/7/2013 (xx pol)
     #'tau_ew': -1.367, 
     #'tau_ew': 5.65,
     #'tau_ns': -3.56,
     #'tau_ns': 0.85,
     #'tau_ns': 0.88, #after fitting with all cross correlations
-    'tau_ns': 0.880171, #after fitting with all cross correlations 11/7/2013
+    #'tau_ns': 0.88366, #after fitting with all cross correlations 11/7/2013
+    'tau_ns': 0.88, #after fitting with all cross correlations 11/7/2013
     #'delays': {},
     #'gain': .0036096,
     #'gain': .0036096,
-    'gain': .0054,
+    'gain': .004934, #got this on 11/9/2013
     'amp_coeffs': n.array(
         [[ 1.   , 0.993, 1.004, 0.931, 0.959, 0.636, 0.958, 0.895],
          [ 0.903, 1.062, 0.966, 0.964, 0.944, 1.050, 0.633, 1.012],
