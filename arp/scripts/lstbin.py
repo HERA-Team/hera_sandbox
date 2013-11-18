@@ -181,8 +181,8 @@ for lst in lsts:
                     #print n.sum(mask, axis=0)
                     d = n.ma.array(d, mask=n.where(d==0, 1, 0))
                     #import pylab
-                    #for d_ in d: pylab.plot(d_.real, '.')
-                    d_med = n.ma.median(d, axis=0); d_med.shape = (1,) + d_med.shape # XXX does this cast to real?
+                    #for d_ in d: pylab.plot(d_.real, 'r.')
+                    d_med = n.ma.median(d, axis=0); d_med.shape = (1,) + d_med.shape
                     #print d_med.dtype
                     #pylab.plot(d_med[0].real, 'k-')
                     d_res = n.ma.abs(d - d_med)
@@ -196,6 +196,7 @@ for lst in lsts:
                     d = n.ma.masked_where(d_res > NSIG * d_sig, d)
                     #print d.dtype
                     #d = n.ma.average(d, axis=0).filled(0)
+                    #for d_ in d: pylab.plot(d_.real, 'b.')
                     d = n.ma.mean(d, axis=0).filled(0)
                     #print d.dtype
                     #pylab.plot(d.real, 'g')
