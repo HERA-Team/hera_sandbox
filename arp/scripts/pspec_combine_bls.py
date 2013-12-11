@@ -22,7 +22,8 @@ bl2bin = {}
 for i in range(ANTPOS.max()+1):
     for j in range(i, ANTPOS.max()+1):
         bl = a.miriad.ij2bl(i,j)
-        offset = min(i % 4, j % 4) # for PSA898, this bins by column
+        #offset = min(i % 4, j % 4) # for PSA898, this bins by column
+        offset = min(i % 2, j % 2) # for PSA898, this bins by column
         bin = a.miriad.ij2bl(i-offset, j-offset)
         bl2bin[bl] = bin
 

@@ -261,19 +261,24 @@ for boot in xrange(NBOOT):
     if True: # pick a sample of baselines with replacement
         #bls_ = [random.choice(bls) for bl in bls]
         bls_ = random.sample(bls, len(bls))
-        gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:] # ensure gp1 and gp2 can't share baselines
+        #gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:] # ensure gp1 and gp2 can't share baselines
+        #gp1,gp2,gp3 = bls_[:4],bls_[4:9],bls_[9:]
+        gp1,gp2,gp3,gp4 = bls_[:7],bls_[7:14],bls_[14:21],bls_[21:] # for 28bl
+        #gp1,gp2,gp3,gp4 = bls_[:5],bls_[5:10],bls_[10:15],bls_[15:] # for 21bl
         # ensure each group has at least 2 kinds of baselines
         gp1 = random.sample(gp1, 2) + [random.choice(gp1) for bl in gp1[:len(gp1)-2]]
         gp2 = random.sample(gp2, 2) + [random.choice(gp2) for bl in gp2[:len(gp2)-2]]
+        gp3 = random.sample(gp3, 2) + [random.choice(gp3) for bl in gp3[:len(gp3)-2]]
+        gp4 = random.sample(gp4, 2) + [random.choice(gp4) for bl in gp4[:len(gp4)-2]]
     else:
         bls_ = random.sample(bls, len(bls))
         gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:]
     #gp2 = gp2[:len(gp1)] # XXX force gp1 and gp2 to be same size
     #gp1,gp2 = gp1+gp2,[] # XXX
     #print 'XXX', len(gp1), len(gp2)
-    bls_ = gp1 + gp2
+    bls_ = gp1 + gp2 + gp3 + gp4
     print 'Bootstrap sample %d:' % boot,
-    for gp in [gp1,gp2]: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
+    for gp in [gp1,gp2,gp3,gp4]: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
     print
     Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
     Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
@@ -283,8 +288,8 @@ for boot in xrange(NBOOT):
     print Ts.shape, temp_noise_var.shape
 
     _Cxtot,_Cntot = 1, 1
+    #PLT1,PLT2 = 4,4
     PLT1,PLT2 = 3,3
-    #PLT1,PLT2 = 2,2
     #PLT1,PLT2 = 2,3
     for cnt in xrange(PLT1*PLT2-1):
         print cnt, '/', PLT1*PLT2-1
@@ -298,7 +303,8 @@ for boot in xrange(NBOOT):
             c /= n.sqrt(d) * 2
         #g = .3 # for 1*7 baselines
         #g = .1 # for 2*7 baselines
-        g = .06 # for 4*7 baselines
+        #g = .06 # for 4*7 baselines
+        g = .2 # for 4*7 baselines
         _Cx,_Cn = -g*Cx, -g*Cn
         if False: # restrict to certain modes in the covariance diagonalization
             mask = n.zeros_like(Cx)
@@ -307,6 +313,7 @@ for boot in xrange(NBOOT):
                     mask[b*n_k+k] = mask[:,b*n_k+k] = 1
             _Cx *= mask; _Cn *= mask
         ind = n.arange(SZ)
+        # XXX do we also need to zero modes adjacent to diagonal, since removing them results in bigger signal loss?
         for b in xrange(L): # zero out redundant off-diagonals
             indb = ind[:-b*n_k]
             _Cx[indb,indb+b*n_k] = _Cx[indb+b*n_k,indb] = 0
@@ -322,56 +329,109 @@ for boot in xrange(NBOOT):
                 #        _C_avg = n.mean(n.mean(_C.take(not_ij,axis=0).take(not_ij,axis=2), axis=2), axis=0)
                 #        #capo.arp.waterfall(_C_avg, mode='log', drng=2); p.colorbar(shrink=.5); p.show()
                 #        sub_C[i,:,j,:] = _C_avg
+
+                # Choose a (i,j) baseline cross-multiple panel in the covariance matrix
                 for i in xrange(L):
-                    bli = bls_[i]
+                    bli = bls_[i] 
                     for j in xrange(L):
                         blj = bls_[j]
+                        # even remove signal bias if bli == blj
+                        # ensure bli and blj belong to the same group
                         if bli in gp1 and blj in gp1: gp = gp1
                         elif bli in gp2 and blj in gp2: gp = gp2
+                        elif bli in gp3 and blj in gp3: gp = gp3
+                        elif bli in gp3 and blj in gp3: gp = gp4
                         else: continue # make sure we only compute average using bls in same group
+                        # Now average over all other panels of covariance matrix (within this group)
+                        # to get the average signal covariance and subtract that off so that we don't
+                        # get signal loss removing residual signal covariances.
                         _Csum,_Cwgt = 0,0
-                        # XXX as constructed, this will explode if a group consists entirely of one bl.
                         for bli_ in gp:
                             i_ = bls_.index(bli_)
-                            if i_ == i: continue
+                            #if bli == bli_: continue # only average over other bls to better isolate bl systematics
                             for blj_ in gp:
+                                if bli_ == blj_: continue # don't average over panels with noise bias
                                 j_ = bls_.index(blj_)
-                                if j_ == j: continue
-                                #if i == j or i_ == j_: continue
-                                #_Csum += _C[i_,j_]
-                                _Csum += _C[i_,:,j_]
+                                #if blj == blj_: continue # only average over other bls to better isolate bl systematics
+                                _Csum += _C[i_,:,j_] # fixes indexing error in earlier ver
                                 _Cwgt += 1
-                        #sub_C[i,j] = _Csum / _Cwgt # XXX careful if _Cwgt is 0
-                        sub_C[i,:,j] = _Csum / _Cwgt # XXX careful if _Cwgt is 0
+                        sub_C[i,:,j] = _Csum / _Cwgt # fixes indexing error in earlier ver XXX careful if _Cwgt is 0
                 _C.shape = sub_C.shape = (L*n_k,L*n_k)
-                #p.clf()
-                #p.subplot(131); capo.arp.waterfall(_C, mode='log', mx=0, drng=2)
-                #p.subplot(132); capo.arp.waterfall(sub_C, mode='log', mx=0, drng=2)
                 _C -= sub_C
-                #p.subplot(133); capo.arp.waterfall(_C, mode='log', mx=0, drng=2)
-                #p.show()
-        if True: # divide baselines into two independent groups to avoid cross-contamination of noise
+        if True:
+            # divide bls into two independent groups to avoid cross-contamination of noise
+            # this is done by setting mask=0 for all panels pairing bls between different groups
+            # this masks covariances between groups, so no covariance from a bl in one group is subtracted from
+            # a bl in another group
             mask = n.ones_like(Cx)
+            # XXX need to clean this section up
+            #for bl1 in xrange(len(gp1)):
+            #    for bl2 in xrange(len(gp1)):
+            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
+            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
             for bl1 in xrange(len(gp1)):
                 for bl2 in xrange(len(gp2)):
                     bl2 += len(gp1)
                     mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
                     mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-            #capo.arp.waterfall(mask, mode='real'); p.show()
+            for bl1 in xrange(len(gp1)):
+                for bl2 in xrange(len(gp3)):
+                    bl2 += len(gp1) + len(gp2)
+                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            for bl1 in xrange(len(gp1)):
+                for bl2 in xrange(len(gp4)):
+                    bl2 += len(gp1) + len(gp2) + len(gp3)
+                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            #for bl1 in xrange(len(gp2)):
+            #    bl1 += len(gp1)
+            #    for bl2 in xrange(len(gp2)):
+            #        bl2 += len(gp1)
+            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
+            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            for bl1 in xrange(len(gp2)):
+                bl1 += len(gp1)
+                for bl2 in xrange(len(gp3)):
+                    bl2 += len(gp1) + len(gp2)
+                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            for bl1 in xrange(len(gp2)):
+                bl1 += len(gp1)
+                for bl2 in xrange(len(gp4)):
+                    bl2 += len(gp1) + len(gp2) + len(gp3)
+                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            #for bl1 in xrange(len(gp3)):
+            #    bl1 += len(gp1) + len(gp2)
+            #    for bl2 in xrange(len(gp3)):
+            #        bl2 += len(gp1) + len(gp2)
+            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
+            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            for bl1 in xrange(len(gp3)):
+                bl1 += len(gp1) + len(gp2)
+                for bl2 in xrange(len(gp4)):
+                    bl2 += len(gp1) + len(gp2) + len(gp3)
+                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            #for bl1 in xrange(len(gp4)):
+            #    bl1 += len(gp1) + len(gp2) + len(gp3)
+            #    for bl2 in xrange(len(gp4)):
+            #        bl2 += len(gp1) + len(gp2) + len(gp3)
+            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
+            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
             _Cx *= mask; _Cn *= mask
         _Cx[ind,ind] = _Cn[ind,ind] = 1
         Ts,Ns = n.dot(_Cx,Ts), n.dot(_Cn,Ns)
         _Cxtot,_Cntot = n.dot(_Cx,_Cxtot), n.dot(_Cn,_Cntot)
     if PLOT:
         p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', mx=0, drng=3)
-        ##p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
         p.show()
 
-    #p.subplot(221); capo.arp.waterfall(_Cxtot, mode='log', drng=2)
-    #p.subplot(222); capo.arp.waterfall(cov(Ts), mode='log', drng=2)
-    #p.subplot(223); capo.arp.waterfall(cov(n.dot(_Cxtot,Ts)), mode='log', drng=2)
-    #p.subplot(224); capo.arp.waterfall(cov(X), mode='log', drng=2)
-    #p.show()
     Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
     Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
 
@@ -380,10 +440,11 @@ for boot in xrange(NBOOT):
     Cx_ = CoV(n.dot(_Cxtot,Ts), bls_)
     Cn1_,Cn2_ = CoV(n.dot(_Cntot,Ns), bls_), CoV(n.dot(_Cxtot,Ns), bls_)
     for cnt,bli in enumerate(bls_):
+        print cnt
         for blj in bls_[cnt:]:
             if bli == blj: continue
-            if True: # exclude intra-group pairings
-                if (bli in gp1 and blj in gp1) or (bli in gp2 and blj in gp2): continue
+            if True: # exclude intra-group pairings # XXX
+                if (bli in gp1 and blj in gp1) or (bli in gp2 and blj in gp2) or (bli in gp3 and blj in gp3) or (bli in gp4 and blj in gp4): continue
             #print a.miriad.bl2ij(bli), a.miriad.bl2ij(blj)
             # XXX behavior here is poorly defined for repeat baselines in bootstrapping
             xi,xj = Cx.get_x(bli), Cx.get_x(blj)
@@ -424,11 +485,11 @@ for boot in xrange(NBOOT):
             nij = n.sqrt(n.mean(n.abs(ni*nj.conj())**2, axis=1))
             n1ij_ = n.sqrt(n.mean(n.abs(n1i_*n1j_.conj())**2, axis=1))
             n2ij_ = n.sqrt(n.mean(n.abs(n2i_*n2j_.conj())**2, axis=1))
-            #f1 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n1ij_)**2))
-            #f2 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n2ij_)**2))
-            f1 = n.sqrt((n.abs(nij)**2)/(n.abs(n1ij_)**2))
-            f2 = n.sqrt((n.abs(nij)**2)/(n.abs(n2ij_)**2))
-            #print 'Rescale factor:', f1, f2
+            f1 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n1ij_)**2))
+            f2 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n2ij_)**2))
+            #f1 = n.sqrt((n.abs(nij)**2)/(n.abs(n1ij_)**2))
+            #f2 = n.sqrt((n.abs(nij)**2)/(n.abs(n2ij_)**2))
+            print 'Rescale factor:', f1, f2
             #rescale = max(f1,f2)
             rescale = 1.
 

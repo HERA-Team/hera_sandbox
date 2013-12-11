@@ -1,4 +1,4 @@
-#!/opt/local/Library/Frameworks/Python.framework/Versions/2.6/Resources/Python.app/Contents/MacOS/Python
+#! /usr/bin/env python
 """
 Creates waterfall plots from Miriad UV files.  Can tile multiple plots
 on one window, or plot just a single baseline.  When taking the delay
@@ -11,17 +11,15 @@ output plot (i.e. as specified by --chan_axis and --time_axis).
 Author: Aaron Parsons, Griffin Foster
 """
 
-import aipy as a, numpy as n, pylab as p, math, sys, optparse
+import aipy as a, numpy as n, pylab as p, sys, optparse
 
 o = optparse.OptionParser()
 o.set_usage('plot_uv.py [options] *.uv')
 o.set_description(__doc__)
-a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, dec=True,
-    cmap=True, max=True, drng=True)
+a.scripting.add_standard_options(o, src=True,ant=True, pol=True, chan=True, dec=True,
+    cmap=True, max=True, drng=True, cal=True)
 o.add_option('-m', '--mode', dest='mode', default='log',
     help='Plot mode can be log (logrithmic), lin (linear), phs (phase), real, or imag.')
-o.add_option('--sum_chan', dest='sum_chan', action='store_true',
-    help='Sum active channels together.')
 o.add_option('-t', '--time', dest='time', default='all', help='Select which time sample to plot. Options are: "all" (default), "<time1 #>_<time2 #>" (a range of times to plot), or "<time1 #>,<time2 #>" (a list of times to plot). If "all" or a range are selected, a 2-d image will be plotted. If a list of times is selected an xy plot will be generated.')
 o.add_option('-u', '--unmask', dest='unmask', action='store_true',
     help='Plot masked data, too.')
@@ -45,44 +43,22 @@ o.add_option('--nolegend', dest='nolegend', action='store_true',
     help='Omit legend in last plot.')
 o.add_option('--share', dest='share', action='store_true',
     help='Share plots in a single frame.')
-o.add_option('--window', dest='window', default='kaiser3',
-    help='Windowing function to use in delay transform.  Default is kaiser3.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
+o.add_option('--xlim', dest='xlim',
+    help='Limits on the x axis (channel/delay) for plotting.')
+o.add_option('--ylim', dest='ylim',
+    help='Limits on the x axis (time/delay-rate) for plotting.')
+o.add_option('--plot_each', dest='plot_each',
+    help='Instead of a waterfall plot, plot each of the specified axis (chan,time)')
+o.add_option('--window', dest='window', default='blackman-harris',
+    help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 
 def convert_arg_range(arg):
     """Split apart command-line lists/ranges into a list of numbers."""
     arg = arg.split(',')
     return [map(float, option.split('_')) for option in arg]
 
-def gen_chans(chanopt, uv, coords, is_delay):
-    """Return an array of active channels and whether or not a range of
-    channels is selected (as opposed to one or more individual channels)
-    based on command-line arguments."""
-    is_chan_range = True
-    if chanopt == 'all': chans = n.arange(uv['nchan'])
-    else:
-        chanopt = convert_arg_range(chanopt)
-        if coords != 'index':
-            if is_delay:
-                def conv(c):
-                    return int(n.round(c * uv['sdf'] * uv['nchan'])) \
-                        + uv['nchan']/2
-            else:
-                def conv(c): return int(n.round((c - uv['sfreq']) / uv['sdf']))
-        else:
-            if is_delay:
-                def conv(c): return int(c) + uv['nchan']/2
-            else:
-                def conv(c): return c
-        chanopt = [map(conv, c) for c in chanopt]
-        if len(chanopt[0]) != 1: 
-            chanopt = [n.arange(x,y, dtype=n.int) for x,y in chanopt]
-        else: is_chan_range = False
-        chans = n.concatenate(chanopt)
-    return chans.astype(n.int), is_chan_range
-
-def gen_times(timeopt, uv, coords, decimate, is_fringe):
-    is_time_range = True
-    if timeopt == 'all' or is_fringe:
+def gen_times(timeopt, uv, coords, decimate):
+    if timeopt == 'all':
         def time_selector(t, cnt): return True
     else:
         timeopt = convert_arg_range(timeopt)
@@ -93,7 +69,6 @@ def gen_times(timeopt, uv, coords, decimate, is_fringe):
                     if (t >= opt[0]) and (t < opt[1]): return True
                 return False
         else:
-            is_time_range = False
             timeopt = [opt[0] for opt in timeopt]
             inttime = uv['inttime'] / a.const.s_per_day * decimate
             def time_selector(t, cnt):
@@ -101,7 +76,7 @@ def gen_times(timeopt, uv, coords, decimate, is_fringe):
                 for opt in timeopt:
                     if (t >= opt) and (t < opt + inttime): return True
                 return False
-    return time_selector, is_time_range
+    return time_selector
 
 def data_mode(data, mode='abs'):
     if mode.startswith('phs'): data = n.angle(data.filled(0))
@@ -121,16 +96,27 @@ opts, args = o.parse_args(sys.argv[1:])
 
 # Parse command-line options
 cmap = p.get_cmap(opts.cmap)
+if not opts.xlim == None: opts.xlim = map(float, opts.xlim.split('_'))
+if not opts.ylim == None: opts.ylim = map(float, opts.ylim.split('_'))
 uv = a.miriad.UV(args[0])
 a.scripting.uv_selector(uv, opts.ant, opts.pol)
-chans, is_chan_range = gen_chans(opts.chan, uv, opts.chan_axis, opts.delay)
-freqs = n.arange(uv['sfreq'], uv['sfreq']+uv['nchan']*uv['sdf'], uv['sdf'])
+chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
+is_chan_range, is_time_range = True, True
+if opts.plot_each == 'chan': is_chan_range = False
+elif opts.plot_each == 'time': is_time_range = False
+freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 freqs = freqs.take(chans)
-delays = n.arange(-.5/uv['sdf'], .5/uv['sdf'], 1/(uv['sdf']*uv['nchan']))
-delays = delays.take(chans)
-time_sel, is_time_range = gen_times(opts.time, uv, opts.time_axis, 
-    opts.decimate, opts.fringe)
+if opts.delay:
+    if freqs.size == freqs[-1] - freqs[0] + 1:
+        # XXX someday could allow for equal spaced chans
+        raise ValueError('Channels must be contiguous to do delay transform (chan=%s)' % (opts.chan))
+    delays = n.fft.fftfreq(freqs.size, freqs[1]-freqs[0])
+    delays = n.fft.fftshift(delays)
+time_sel = gen_times(opts.time, uv, opts.time_axis, opts.decimate)
 inttime = uv['inttime'] * opts.decimate
+if not opts.src is None:
+    srclist,cutoff,catalogs = a.scripting.parse_srcs(opts.src, opts.cat)
+    src = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs).values()[0]
 del(uv)
 
 # Loop through UV files collecting relevant data
@@ -145,45 +131,57 @@ plt_data = {}
 for uvfile in args:
     print 'Reading', uvfile
     uv = a.miriad.UV(uvfile)
+    if not opts.cal is None:
+        aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
+        aa.set_active_pol(opts.pol)
+        aa.select_chans(chans)
+    else: aa = None
     # Only select data that is needed to plot
     a.scripting.uv_selector(uv, opts.ant, opts.pol)
+    uv.select('decimate', opts.decimate, opts.decphs)
     # Read data from a single UV file
     for (uvw,t,(i,j)),d in uv.all():
-        #d /= n.average(n.abs(d[1000:1020]))
-        bl = '%d,%d' % (i,j)
-        # Implement Decimation
+        bl = '%d,%d,%d' % (i,j,uv['pol'])
         if len(times) == 0 or times[-1] != t:
             times.append(t)
-            use_this_time = ((len(times) - 1) % opts.decimate) == 0
-            use_this_time &= time_sel(t, (len(times)-1) / opts.decimate)
+            # Implement time selection
+            use_this_time = time_sel(t, (len(times)-1) / opts.decimate)
             if use_this_time:
-                plot_t['lst'].append(uv['lst'])
+                if aa == None: lst = uv['lst']
+                else:
+                    aa.set_jultime(t)
+                    lst = aa.sidereal_time()
+                plot_t['lst'].append(lst)
                 plot_t['jd'].append(t)
-                plot_t['cnt'].append((len(times)-1) / opts.decimate)
+                plot_t['cnt'].append(len(times)-1)
         if not use_this_time: continue
+        d = d.take(chans)
+        #apply cal phases
+        if not opts.cal is None:
+            aa.set_jultime(t)
+            if not opts.src is None:
+                src.compute(aa)
+                d = aa.phs2src(d, src, i, j)
+            #else: took out this mode because it's not used, and prefer not to phase.
+            #    d *= n.exp(-1j*n.pi*aa.get_phs_offset(i,j))
         # Do delay transform if required
         if opts.delay:
             w = a.dsp.gen_window(d.shape[-1], window=opts.window)
             if opts.unmask:
+                flags = n.ones(d.shape, dtype=n.float)
                 d = d.data
-                ker = n.zeros_like(d)
-                ker[0] = 1.
-                gain = 1.
             else:
                 flags = n.logical_not(d.mask).astype(n.float)
-                gain = n.sqrt(n.average(flags**2))
-                ker = n.fft.ifft(flags*w)
                 d = d.filled(0)
             d = n.fft.ifft(d*w)
+            ker = n.fft.ifft(flags*w)
+            gain = a.img.beam_gain(ker)
             if not opts.clean is None and not n.all(d == 0):
                 d, info = a.deconv.clean(d, ker, tol=opts.clean)
                 d += info['res'] / gain
             d = n.ma.array(d)
-            d = n.ma.concatenate([d[d.shape[0]/2:], d[:d.shape[0]/2]], 
-                axis=0)
+            d = n.fft.fftshift(d, axes=0)
         elif opts.unmask: d = d.data
-        # Extract specific channels for plotting
-        d = d.take(chans)
         d.shape = (1,) + d.shape
         if not plot_x.has_key(bl): plot_x[bl] = []
         plot_x[bl].append(d)
@@ -191,78 +189,91 @@ for uvfile in args:
 
 bls = plot_x.keys()
 def sort_func(a, b):
-    ai,aj = map(int, a.split(','))
-    bi,bj = map(int, b.split(','))
-    if bi > ai or (bi == ai and bj > aj): return -1
+    ai,aj,pa = map(int, a.split(','))
+    bi,bj,pb = map(int, b.split(','))
+    if bi > ai or (bi == ai and bj > aj) or (bi == ai and bj == aj and pb < pa): return -1
     return 1
 bls.sort(cmp=sort_func)
 if len(bls) == 0:
     print 'No data to plot.'
     sys.exit(0)
-m2 = int(math.sqrt(len(bls)))
-m1 = int(math.ceil(float(len(bls)) / m2))
+m2 = int(n.sqrt(len(bls)))
+m1 = int(n.ceil(float(len(bls)) / m2))
 
 # Generate all the plots
 dmin,dmax = None, None
+fig = p.figure()
+if not opts.src is None:fig.suptitle(opts.src)
 for cnt, bl in enumerate(bls):
     d = n.ma.concatenate(plot_x[bl], axis=0)
     if opts.df: d = d[:,:-2]/2 + d[:,2:]/2 - d[:,1:-1]
     if opts.dt: d = d[:-2]/2 + d[2:]/2 - d[1:-1]
     if opts.fringe:
         d = d.filled(0)
-        flags = n.where(d[:,0] != 0, 1., 0.)
-        gain = n.sqrt(n.average(flags**2))
-        ker = n.fft.ifft(flags)
-        d = n.fft.ifft(d, axis=0)
+        w = a.dsp.gen_window(d.shape[0], window=opts.window); w.shape += (1,)
+        wgts = n.where(d != 0, 1., 0.) * w
+        gain = n.sqrt(n.average(wgts**2, axis=0))
+        ker = n.fft.ifft(wgts, axis=0) # w already put in 2 lines above
+        d = n.fft.ifft(d*w, axis=0)
         if not opts.clean is None:
             for chan in range(d.shape[1]):
-                d[:,chan],info = a.deconv.clean(d[:,chan],ker,tol=opts.clean)
-                d[:,chan] += info['res'] / gain
-        d = n.ma.concatenate([d[d.shape[0]/2:], d[:d.shape[0]/2]], axis=0)
-    if opts.sum_chan:
-        d = d.sum(axis=1)
-        is_chan_range = False
+                if gain[chan] == 0: continue
+                d[:,chan],info = a.deconv.clean(d[:,chan],ker[:,chan],tol=opts.clean)
+                d[:,chan] += info['res'] / gain[chan]
+        d = n.fft.fftshift(d, axes=0)
+        d = n.ma.array(d)
     plt_data[cnt+1] = d
     d = data_mode(d, opts.mode)
     if not opts.share:
         p.subplot(m2, m1, cnt+1)
         dmin,dmax = None,None
         label = ''
-    else: label = bl + ' '
+    else:
+        i,j,pol = map(int,bl.split(','))
+        pol = a.miriad.pol2str[pol]
+        label = '%d%s,%d%s ' % (i,pol[0],j,pol[-1]) 
     if is_chan_range and is_time_range:
         if opts.fringe:
             if opts.time_axis == 'index':
-                if opts.time != 'all':
-                    t1, t2 = map(float, opts.time.split('_'))
-                    d = d[t1+d.shape[0]/2:t2+d.shape[0]/2]
-                else:
-                    t1 = len(plot_t['jd'])/2 - len(plot_t['jd'])
-                    t2 = len(plot_t['jd'])/2
+                drates = n.fft.fftfreq(len(plot_t['cnt']), 1./len(plot_t['cnt']))
+                step = drates[1] - drates[0]
                 ylabel = 'Delay-Rate (bins)'
             else:
-                t1 = -500/inttime
-                t2 =  500/inttime - 1000 / (inttime * len(plot_t['jd']))
+                drates = n.fft.fftfreq(len(plot_t['cnt']), inttime) * 1e3 # mHz
+                step = drates[1] - drates[0]
                 ylabel = 'Delay-Rate (milliHz)'
+            drates = n.fft.fftshift(drates)
+            t1,t2 = drates[0]-0.5*step,drates[-1]+0.5*step
         else:
             if opts.time_axis == 'index':
-                t1,t2 = plot_t['cnt'][0], plot_t['cnt'][-1]
+                step = 1.
+                t1,t2 = plot_t['cnt'][0]-0.5*step, plot_t['cnt'][-1]+0.5*step
                 ylabel = 'Time (integrations)'
+            elif opts.time_axis=='lst':
+                step = plot_t['lst'][1] - plot_t['lst'][0]
+                t1,t2 = (plot_t['lst'][0]-0.5*step)*12/n.pi, (plot_t['lst'][-1]+0.5*step)*12/n.pi
+                ylabel = 'Local Sideral time (hrs)'
             else:
-                t1,t2 = plot_t['jd'][0], plot_t['jd'][-1]
+                step = plot_t['jd'][1] - plot_t['jd'][0]
+                t1,t2 = plot_t['jd'][0]-0.5*step, plot_t['jd'][-1]+0.5*step
                 ylabel = 'Time (Julian Date)'
         if opts.delay:
             if opts.chan_axis == 'index':
-                c1,c2 = len(chans)/2 - len(chans), len(chans)/2
+                step = 1
+                c1,c2 = len(chans)/2 - len(chans)-0.5*step, len(chans)/2-0.5*step
                 xlabel = 'Delay (bins)'
             else:
-                c1,c2 = delays[0], delays[-1]
+                step = delays[1] - delays[0]
+                c1,c2 = delays[0]-0.5*step, delays[-1]+0.5*step
                 xlabel = 'Delay (ns)'
         else:
             if opts.chan_axis == 'index':
-                c1,c2 = 0, len(chans) - 1
+                step = 1
+                c1,c2 = 0-0.5*step, len(chans)-0.5*step
                 xlabel = 'Frequency (chan)'
             else:
-                c1,c2 = freqs[0], freqs[-1]
+                step = freqs[1] - freqs[0]
+                c1,c2 = freqs[0]-0.5*step, freqs[-1]+0.5*step
                 xlabel = 'Frequency (GHz)'
         if not opts.max is None: dmax = opts.max
         elif dmax is None: dmax = d.max()
@@ -270,11 +281,13 @@ for cnt, bl in enumerate(bls):
         if not opts.drng is None: dmin = dmax - opts.drng
         elif dmin is None: dmin = d.min()
         else: dmin = min(dmin,d.min())
-        plots[cnt+1] = p.imshow(d, extent=(c1,c2,t2,t1), 
+        plots[cnt+1] = p.imshow(d, extent=(c1,c2,t2,t1), origin='upper',
             aspect='auto', interpolation='nearest', 
             vmax=dmax, vmin=dmin, cmap=cmap)
         p.colorbar(shrink=0.5)
         p.xlabel(xlabel); p.ylabel(ylabel)
+        if not opts.xlim == None: p.xlim(*opts.xlim)
+        if not opts.ylim == None: p.ylim(opts.ylim[1],opts.ylim[0]) # Reverse b/c otherwise ylim flips origin for unknown reasons
     elif is_chan_range and not is_time_range:
         if opts.delay:
             if opts.chan_axis == 'index':
@@ -297,38 +310,60 @@ for cnt, bl in enumerate(bls):
             if cnt == 0: plot_t = plot_t['jd']
             label += 'jd%f'
         for i,t in enumerate(plot_t):
-            p.plot(plot_chans, d[i,:], '-', label=label % t)
+            p.plot(plot_chans, d[i,:], ',', label=label % t)
         p.xlabel(xlabel)
+        if not opts.xlim == None: p.xlim(*opts.xlim)
         if not opts.max is None: dmax = opts.max
         elif dmax is None: dmax = d.max()
         else: dmax = max(dmax,d.max())
         if not opts.drng is None: dmin = dmax - opts.drng
         elif dmin is None: dmin = d.min()
         else: dmin = min(dmin,d.min())
-        p.ylim(dmin,dmax)
+        if not opts.ylim == None: p.ylim(*opts.ylim)
+        else: p.ylim(dmin,dmax)
     elif not is_chan_range and is_time_range:
-        if opts.time_axis == 'index': plot_times = range(len(plot_t['jd']))
-        elif opts.time_axis == 'physical': plot_times = plot_t['jd']
-        elif opts.time_axis == 'lst': plot_times = plot_t['lst']
-        else: raise ValueError('Unrecognized time axis type.')
-        if opts.sum_chan: p.plot(plot_times, d, '-', label=label+'(+)')
-        else:
-            if opts.chan_axis == 'index': label += '#%d'
+        if opts.fringe:
+            if opts.time_axis == 'index':
+                drates = n.fft.fftfreq(len(plot_t['cnt']), 1./len(plot_t['cnt']))
+                xlabel = 'Delay-Rate (bins)'
             else:
-                chans = freqs
-                label += '%f GHz'
-            for c, chan in enumerate(chans):
-                d /= n.average(n.abs(d[150:200,c]))
-                p.plot(plot_times, d[:,c], '-', label=label % chan)
+                print inttime, len(plot_t['cnt'])
+                drates = n.fft.fftfreq(len(plot_t['cnt']), inttime) * 1e3 # mHz
+                xlabel = 'Delay-Rate (milliHz)'
+            plot_times = n.fft.fftshift(drates)
+        else:
+            if opts.time_axis == 'index':
+                plot_times = range(len(plot_t['jd']))
+                xlabel = 'Time (integrations)'
+            elif opts.time_axis == 'physical':
+                plot_times = plot_t['jd']
+                xlabel = 'Time (JD)'
+            elif opts.time_axis == 'lst':
+                plot_times = plot_t['lst']
+                xlabel = 'Time (Sidereal Radians)'
+            else: raise ValueError('Unrecognized time axis type.')
+        if opts.chan_axis == 'index': label += '#%d'
+        else:
+            chans = freqs
+            label += '%f GHz'
+        for c, chan in enumerate(chans):
+            p.plot(plot_times, d[:,c], ',', label=label % chan)
         if not opts.max is None: dmax = opts.max
         elif dmax is None: dmax = d.max()
         else: dmax = max(dmax,d.max())
         if not opts.drng is None: dmin = dmax - opts.drng
         elif dmin is None: dmin = d.min()
         else: dmin = min(dmin,d.min())
-        p.ylim(dmin,dmax)
+        p.xlabel(xlabel)
+        if not opts.xlim == None: p.xlim(*opts.xlim)
+        if not opts.ylim == None: p.ylim(*opts.ylim)
+        else: p.ylim(dmin,dmax)
     else: raise ValueError('Either time or chan needs to be a range.')
-    if not opts.share: p.title(bl)
+    if not opts.share:
+        i,j,pol = map(int,bl.split(','))
+        pol = a.miriad.pol2str[pol]
+        title = '%d%s,%d%s ' % (i,pol[0],j,pol[-1]) 
+        p.title(title)
 if not opts.nolegend and (not is_time_range or not is_chan_range): 
     p.legend(loc='best')
 
