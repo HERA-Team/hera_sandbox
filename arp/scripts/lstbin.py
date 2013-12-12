@@ -68,7 +68,6 @@ for f in args:
     if not src is None:
         src.compute(aa)
         src_alt_end = src.alt
-    start_t = aa.sidereal_time()
     end_t = aa.sidereal_time()
     if start_t < end_t:
         if opts.lst_rng[0] < opts.lst_rng[1]:
