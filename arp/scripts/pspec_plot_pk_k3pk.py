@@ -207,12 +207,12 @@ for sep in RS_VS_KPL:
         
     d,kpl,nos = n.array(d, dtype=n.complex), n.array(kpl), n.array(nos)
     d_fold,kpl_fold,nos_fold = n.array(d_fold, dtype=n.complex), n.array(kpl_fold), n.array(nos_fold)
-    # Currently calibrated to Pictor A @ 160 MHz = 424 Jy
-    # To recalibrate to new Pic A, must multiply by square of ratio of fluxes
-    #d *= 0.774 # Recalibrate to Pic A from Perley et al. 1997
-    #d *= 1.125 # Recalibrate to Pic A from Slee 1995
     if True:
-        f = 0.76 # psa747 calibration of Pic A = 370.6 Jy @ 160 MHz (which includes resolution effects)
+        # PSA32 was calibrated to Pictor A @ 160 MHz = 424 Jy
+        # To recalibrate to new Pic A, must multiply by square of ratio of fluxes
+        # Jacobs et al 2013 says Pic A = 382 @ 150 MHz, index=-0.76, so at 160 MHz, Pic A = 364 Jy
+        #f = 0.76 # psa747 calibration of Pic A = 370.6 Jy @ 160 MHz (which includes resolution effects)
+        f = 0.736 # rescale by (364/424)**2 to correct flux scale
         print 'Scaling data and noise by %f for recalibration to PicA from Jacobs et al. 2013 (PSA32 only)' % f
         d *= f
         nos *= f

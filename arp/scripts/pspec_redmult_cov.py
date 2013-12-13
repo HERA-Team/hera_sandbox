@@ -337,7 +337,7 @@ for boot in xrange(NBOOT):
                             for blj_ in gp:
                                 j_ = bls_.index(blj_)
                                 if j_ == j: continue
-                                #if i == j or i_ == j_: continue
+                                if i == j or i_ == j_: continue
                                 #_Csum += _C[i_,j_]
                                 _Csum += _C[i_,:,j_]
                                 _Cwgt += 1
