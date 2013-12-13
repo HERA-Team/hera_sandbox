@@ -9,6 +9,7 @@ args = sys.argv[1:]
 pks = {}
 pk_2d = {}
 temp_data = {}
+nocov_2d = {}
 for filename in args:
     print 'Reading', filename
     f = n.load(filename)
@@ -20,10 +21,12 @@ for filename in args:
         pks[path] = []
         pk_2d[path] = []
         temp_data[path] = []
+        nocov_2d[path] = []
     pks[path].append(f['pk'])
     pk_2d[path].append(f['pk_vs_t'])
     scalar = f['scalar']
     temp_data[path].append(f['temp_noise_var'])
+    nocov_2d[path].append(f['nocov_vs_t'])
 
 paths = pks.keys()
 print paths
@@ -31,6 +34,7 @@ print paths
 pks = n.array([pks[path] for path in paths]) # (bltype,bootstraps,kpls)
 pk_2d = n.array([pk_2d[path] for path in paths]) # (bltype,bootstraps,kpls,times)
 temp_data = n.array([temp_data[path] for path in paths]) # (bltype,bootstraps,kpls,times), T averaged over all bls
+nocov_2d = n.array([nocov_2d[path] for path in paths]) # (bltype,bootstraps,kpls,times), T averaged over all bls
 nos_std_2d = n.var(temp_data, axis=1) * scalar # (bltype,kpls,times), thermal noise err in pk_2d
 #tot_std_2d = n.std(pk_2d, axis=1) # (bltype,kpls,times), total err in pk_2d
 avg_pk_2d = n.average(pk_2d, axis=1) # (bltype, kpls,times), best estimate of pk in each integration
@@ -44,8 +48,11 @@ wgts = n.ones_like(avg_pk_2d)
 #wgts = n.ones_like(wgts) / nos_std_1d**2
 #wgts = 1./(n.abs(avg_pk_1d) + nos_std_2d)**2
 
+if False: # override power spectrum with the version w/o covariance diagonalization
+    print 'Overriding power spectrum with non-covariance diagonalized version'
+    pk_2d = nocov_2d
 
-CLIP = False
+CLIP = True
 if CLIP:
     #pk_2d = pk_2d[...,250:550]
     #avg_pk_2d = avg_pk_2d[...,250:550]
@@ -79,21 +86,29 @@ if True: # plot some stuff
     p.subplot(plt2,plt1,1); p.title('Thermal Noise [mK$^2$]'); p.show()
     for cnt,path in enumerate(paths):
         p.subplot(plt2,plt1,cnt+1)
-        C.arp.waterfall(avg_pk_2d[cnt], mx=10, drng=3)
+        #C.arp.waterfall(avg_pk_2d[cnt], mx=10, drng=3)
+        C.arp.waterfall(avg_pk_2d[cnt], mode='real', mx=1e8, drng=2e8)
         p.colorbar(shrink=.5) 
     p.subplot(plt2,plt1,1); p.title('Power Spectrum [mK$^2$]'); p.show()
     plt1,plt2 = len(paths),3
     for cnt,path in enumerate(paths):
         p.subplot(plt2,plt1,0*plt1+cnt+1)
-        C.arp.waterfall(avg_pk_2d[cnt], mx=10, drng=4)
+        #C.arp.waterfall(avg_pk_2d[cnt], mx=10, drng=4)
+        C.arp.waterfall(avg_pk_2d[cnt], mode='real', mx=1e8, drng=2e8)
         p.colorbar(shrink=.5) 
         p.subplot(plt2,plt1,1*plt1+cnt+1)
         C.arp.waterfall(wgts[cnt])
         p.colorbar(shrink=.5) 
         p.subplot(plt2,plt1,2*plt1+cnt+1)
-        C.arp.waterfall(n.cumsum(avg_pk_2d[cnt]*wgts[cnt],axis=1)/n.cumsum(wgts[cnt],axis=1), mx=10, drng=4)
+        #C.arp.waterfall(n.cumsum(avg_pk_2d[cnt]*wgts[cnt],axis=1)/n.cumsum(wgts[cnt],axis=1), mx=10, drng=4)
+        C.arp.waterfall(n.cumsum(avg_pk_2d[cnt]*wgts[cnt],axis=1)/n.cumsum(wgts[cnt],axis=1), mode='real', mx=1e8, drng=2e8)
         p.colorbar(shrink=.5) 
     p.subplot(plt2,plt1,1); p.title('Weighted Power Spectrum [mK$^2$]'); p.show()
+
+print avg_pk_2d.shape, wgts.shape
+p.plot(avg_pk_2d[0,30])
+p.plot(n.cumsum(avg_pk_2d[0,30]*wgts[0,30])/n.cumsum(wgts[0,30]))
+p.show()
 
 print pk_2d.shape
 print wgts.shape
