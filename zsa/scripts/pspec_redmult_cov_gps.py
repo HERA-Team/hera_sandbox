@@ -31,11 +31,13 @@ WINDOW = opts.window
 #D_ = [i+3 for i in A_]
 #ANTPOS = n.array([A_, B_, C_, D_])
 
+#Take half of the 64 antenna array. For testing purposes.
+#1/13/14 : take the whole array.
 ANTPOS = n.array(
         [[49,41,47,19,29,28,34,51],
          [10, 3,25,48,24,55,27,57],
          [ 9,58, 1, 4,17,13,56,59],
-         [22,61,35,18,5,32,30,23]])
+         [22,61,35,18, 5,32,30,23]])
 #         [20,63,42,37,40,14,54,50],
 #         [43, 2,33, 6,52, 7,12,38],
 #         [53,21,15,16,62,44, 0,26],
@@ -85,7 +87,9 @@ def cov2(m1,m2):
     fact = float(N - 1)
     return (n.dot(X1, X2.T.conj()) / fact).squeeze()
 
-# Get a dict of all separations and the bls that contribute
+# Get a dict of all separations and the bls that contribute.0000
+#creates a dictionary of separations given a certain baseline
+#and vice versa, gives baselines for a given separation (returns list).
 bl2sep = {}
 sep2bl = {}
 for ri in range(ANTPOS.shape[0]):
@@ -101,17 +105,18 @@ for ri in range(ANTPOS.shape[0]):
                 bl2sep[bl] = sep
                 sep = n.abs(sep)
                 sep2bl[sep] = sep2bl.get(sep,[]) + [bl]
-
 uv = a.miriad.UV(args[0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 del(uv)
 
+#creat active frequencies, average active frequency and convert to redshift.
 afreqs = freqs.take(chans)
 fq = n.average(afreqs)
 z = capo.pspec.f2z(fq)
 
+#currently not used.
 if PFB:
     # XXX unsure how much of a BW modification a windowed PFB needs.  I think not much...
     B = sdf * afreqs.size / NTAPS
@@ -121,11 +126,11 @@ else:
     # the window post delay transform (or at least dividing out by the gain of the window)
     # For windowed data, the FFT divides out by the full bandwidth, B, which is
     # then squared.  Proper normalization is to multiply by B**2 / (B / NoiseEqBand) = B * NoiseEqBand
-    B = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW]
-    etas = n.fft.fftshift(capo.pspec.f2eta(afreqs))
-kpl = etas * capo.pspec.dk_deta(z)
+    B = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW] # normalization. See above.
+    etas = n.fft.fftshift(capo.pspec.f2eta(afreqs)) #creat etas (these are fourier dual to frequency)
+kpl = etas * capo.pspec.dk_deta(z) #111
 bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq)
-scalar = capo.pspec.X2Y(z) * bm * B
+scalar = capo.pspec.X2Y(z) * bm * B # cosmological volume scalar
 #scalar = 1
 print 'Freq:',fq
 print 'z:', z
@@ -137,6 +142,7 @@ print 'scalar:', scalar
 #kwargs = {'cen_fqs':cen_fqs,'B':B, 'ntaps':NTAPS, 'window':WINDOW, 'bm_fqs':afreqs.clip(.120,.190)}
 #window = a.dsp.gen_window(freqs.size, window=WINDOW)
 
+#T is a dictionary of the visibilities and N is the dictionary for noise estimates.
 T, N = {}, {}
 times = []
 eor_mdl = {}
@@ -147,14 +153,18 @@ for filename in args:
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
         if len(times) == 0 or times[-1] != t:
             if len(times) % 8 == 0:
-                eor_mdl[t] = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size))
+                #For every 8th integration make random normal noise that is our eor model. Note for every block of 8, this noise is the same. 222
+                eor_mdl[t] = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size)) 
             else: eor_mdl[t] = eor_mdl[times[-1]]
             times.append(t)
+        #For 32 array inside 64 array. skip bls not in the subarray, but may be in the data set.
+        if not (( i in ANTPOS ) and ( j in ANTPOS )) : continue
         bl = a.miriad.ij2bl(i,j)
         sep = bl2sep[bl]
         if sep < 0:
             #print 'Conj:', a.miriad.bl2ij(bl)
             d,sep = n.conj(d),-sep
+        #take active data and convert from janksy's to temperature units. Current data is in janskys.
         d,f = d.take(chans), f.take(chans)
         w = n.logical_not(f).astype(n.float)
         Trms = d * capo.pspec.jy2T(afreqs)
@@ -201,23 +211,27 @@ for filename in args:
             _Trms = n.random.normal(size=_Trms.size) * n.exp(2j*n.pi*n.random.uniform(size=_Trms.size))
             mask = n.ones(_Trms.size); mask[15:25] = 0
             _Trms += .3*eor_mdl[times[-1]] * mask
+        #Makes list of visibilities for each baseline for all times. number of integrations by number of channels.
         T[bl] = T.get(bl, []) + [_Trms]
         N[bl] = N.get(bl, []) + [_Nrms]
 
+#444
 n_k = chans.size / NTAPS
 bls = T.keys()
 for bl in bls:
+    print 'bl shape:'
     T[bl],N[bl] = n.array(T[bl]),n.array(N[bl])
-    print T[bl].shape
+    print '\t',T[bl].shape
 if True:
     print 'Fringe-rate filtering the noise to match the data'
     for bl in N:
-        _N = n.fft.ifft(N[bl], axis=0)
-        _N[23:] = 0 # This was calculated by hand for fr-filter with max_fr=1. and min_fr=0.
+        _N = n.fft.ifft(N[bl], axis=0) # iffts along the time axis
+        _N[23:] = 0 # This was calculated by hand for fr-filter with max_fr=1. and min_fr=0. #555
         N[bl] = n.fft.fft(_N, axis=0)
 if False:
     print 'Adding extra noise into the data'
     for bl in bls: T[bl] += N[bl]
+#666
 Ts = n.concatenate([T[bl] for bl in bls], axis=-1).T
 Ns = n.concatenate([N[bl] for bl in bls], axis=-1).T
 if False:
@@ -236,26 +250,38 @@ if False:
             Ns[i] *= -1
 
 print Ts.shape
+print Ns.shape
 print times[300], times[500]
 print ' '.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in bls])
 if PLOT:
     #capo.arp.waterfall(cov(Ts), mode='log', drng=2); p.show()
     p.subplot(131); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
-    p.subplot(132); capo.arp.waterfall(Ns, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
+    p.title('Vis in K. bls X ints.', fontsize = 8)
+    p.subplot(132); capo.arp.waterfall(Ns, mode='log')#, mx=1, drng=2); p.colorbar(shrink=.5)
+    p.title('FRF eor_model.', fontsize=8)
     p.subplot(133); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
+    print cov(Ts).shape
+    p.title('cov(Ts)', fontsize=8)
     p.show()
     p.subplot(121); capo.arp.waterfall(cov(Ts), mode='real', mx=.005, drng=.01); p.colorbar(shrink=.5)
+    p.title('cov(Ts) real part', fontsize=8)
     p.subplot(122); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
+    p.title('cov(Ts) log', fontsize=8)
     p.show()
 
 for boot in xrange(NBOOT):
     if True: # pick a sample of baselines with replacement
         #bls_ = [random.choice(bls) for bl in bls]
         bls_ = random.sample(bls, len(bls))
+        nbls = len(bls)
         #gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:] # ensure gp1 and gp2 can't share baselines
         #gp1,gp2,gp3 = bls_[:4],bls_[4:9],bls_[9:]
-        #GGG : divide number of bls by 4 for 64 dataset
-        gp1,gp2,gp3,gp4 = bls_[:7],bls_[7:14],bls_[14:21],bls_[21:] # for 28bl
+        #GGG : divide number of bls by 4 for 64 dataset. This is 56 bls for sep01
+        nblspg = nbls/4
+        print 'Breaking %d bls into groups of %d'%(nbls, nblspg)
+        #gp1,gp2,gp3,gp4 = bls_[:7],bls_[7:14],bls_[14:21],bls_[21:] # for 28bl i.e. 32 antennas in a grid 4 X 8
+        gp1,gp2,gp3,gp4 = bls_[:nblspg],bls_[nblspg:nblspg*2],bls_[nblspg*2:nblspg*3],bls_[nblspg*3:] # generic
+        #gp1,gp2,gp3,gp4 = bls_[:14],bls_[14:28],bls_[28:42],bls_[42:] # for 56bl -> 14 * 4
         #gp1,gp2,gp3,gp4 = bls_[:5],bls_[5:10],bls_[10:15],bls_[15:] # for 21bl
         # ensure each group has at least 2 kinds of baselines
         gp1 = random.sample(gp1, 2) + [random.choice(gp1) for bl in gp1[:len(gp1)-2]]
@@ -286,8 +312,8 @@ for boot in xrange(NBOOT):
     for cnt in xrange(PLT1*PLT2-1):
         print cnt, '/', PLT1*PLT2-1
         if PLOT:
-            #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log', mx=0, drng=3)
-            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
+            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log',  drng=3); p.colorbar(shrink=.5)
+            #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
         SZ = Ts.shape[0]
         Cx,Cn = cov(Ts), cov(Ns)
         for c in [Cx,Cn]: # Normalize covariance matrices
@@ -411,8 +437,8 @@ for boot in xrange(NBOOT):
         # These are a running tally of all the diagonalization steps applied
         _Cxtot,_Cntot = n.dot(_Cx,_Cxtot), n.dot(_Cn,_Cntot)
     if PLOT:
-        #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', mx=0, drng=3)
-        p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=3)
+        p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', drng=3);p.colorbar(shrink=.5)
+        #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=3)
         p.show()
 
     Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
