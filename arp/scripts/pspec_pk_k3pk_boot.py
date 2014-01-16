@@ -23,6 +23,7 @@ for filename in args:
         temp_data[path] = []
         nocov_2d[path] = []
     pks[path].append(f['pk'])
+    print 'Has NaN:', n.any(n.isnan(f['pk']))
     pk_2d[path].append(f['pk_vs_t'])
     scalar = f['scalar']
     temp_data[path].append(f['temp_noise_var'])

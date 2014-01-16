@@ -275,8 +275,8 @@ for boot in xrange(NBOOT):
     for cnt in xrange(PLT1*PLT2-1):
         print cnt, '/', PLT1*PLT2-1
         if PLOT:
-            #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log', mx=0, drng=3)
-            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
+            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log', mx=-1, drng=3)
+            #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
         SZ = Ts.shape[0]
         Cx,Cn = cov(Ts), cov(Ns)
         for c in [Cx,Cn]: # Normalize covariance matrices
@@ -400,8 +400,8 @@ for boot in xrange(NBOOT):
         # These are a running tally of all the diagonalization steps applied
         _Cxtot,_Cntot = n.dot(_Cx,_Cxtot), n.dot(_Cn,_Cntot)
     if PLOT:
-        #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', mx=0, drng=3)
-        p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=3)
+        p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', mx=-1, drng=3)
+        #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=3)
         p.show()
 
     Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
@@ -430,7 +430,7 @@ for boot in xrange(NBOOT):
                 cx = cov(Ts)
                 if PLOT:
                     p.clf()
-                    p.subplot(121); capo.arp.waterfall(cx, mode='log', mx=0, drng=3)
+                    p.subplot(121); capo.arp.waterfall(cx, mode='log', mx=-1, drng=3)
                 for cnt1 in xrange(9):
                     d = n.diag(cx); d.shape = (1,d.size); cx /= n.sqrt(d) * 2
                     g = .3
@@ -452,7 +452,7 @@ for boot in xrange(NBOOT):
                     Ts = n.dot(_cx, Ts)
                     cx = cov(Ts)
                 if PLOT:
-                    p.subplot(122); capo.arp.waterfall(cx, mode='log', mx=0, drng=3)
+                    p.subplot(122); capo.arp.waterfall(cx, mode='log', mx=-1, drng=3)
                     p.show()
                 xi_,xj_ = Ts[:n_k],Ts[n_k:]
             ni,nj = Cn.get_x(bli), Cn.get_x(blj)
