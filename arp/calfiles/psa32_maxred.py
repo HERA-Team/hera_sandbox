@@ -14,6 +14,11 @@ class AntennaArray(a.pol.AntennaArray):
         self.tau_ew = kwargs.pop('tau_ew')
         self.tau_ns = kwargs.pop('tau_ns')
         self.update_delays()
+    def set_active_pol(self, pol):
+        if pol in 'IQUV':
+            #print 'Overriding pol=%s with pol=xx' % pol
+            pol = 'xx'
+            a.pol.AntennaArray.set_active_pol(self, pol)
     def update_gains(self):
         gains = self.gain * self.amp_coeffs
         for i,gain in zip(self.ant_layout.flatten(), gains.flatten()):
@@ -24,8 +29,6 @@ class AntennaArray(a.pol.AntennaArray):
         dlys = ns*self.tau_ns + ew*self.tau_ew + self.dly_coeffs
         for i,tau in zip(self.ant_layout.flatten(), dlys.flatten()):
             self[i].set_params({'dly_x':tau})
-            # this assumes dly_xx_to_yy comes from old way of calibrating polarization
-            # by directly relating xx and yy on the same baseline
             self[i].set_params({'dly_y':tau + self.dly_xx_to_yy[i]})
     def update(self):
         self.update_gains()
@@ -192,19 +195,24 @@ def get_aa(freqs):
     antennas = []
     nants = len(prms['antpos'])
     for i in range(nants):
-        beam = prms['beam'](freqs, nside=32, lmax=20, mmax=20, deg=7)
-        try: beam.set_params(prms['bm_prms'])
-        except(AttributeError): pass
+        if False:
+            beam = prms['beam'](freqs, nside=32, lmax=20, mmax=20, deg=7)
+            try: beam.set_params(prms['bm_prms'])
+            except(AttributeError): pass
+        else:
+            beam = a.fit.Beam(freqs)
         pos = prms['antpos'][i]
         phsoff = {'x':[0.,0.], 'y':[0.,0.]}
-        amp = prms['amps'].get(i, 4e-3); amp = {'x':amp,'y':amp}
-        bp_r = prms['bp_r'][i]; bp_r = {'x':bp_r, 'y':bp_r}
-        bp_i = prms['bp_i'][i]; bp_i = {'x':bp_i, 'y':bp_i}
+        #amp = prms['amps'].get(i, 4e-3); amp = {'x':amp,'y':amp}
+        amp = 1; amp = {'x':amp,'y':amp}
+        #bp_r = prms['bp_r'][i]; bp_r = {'x':bp_r, 'y':bp_r}
+        bp_r = [1.]; bp_r = {'x':bp_r, 'y':bp_r}
+        bp_i = [0.]; bp_i = {'x':bp_i, 'y':bp_i}
         twist = prms['twist'][i]
         antennas.append(a.pol.Antenna(pos[0], pos[1], pos[2], beam, phsoff=phsoff,
                 amp=amp, bp_r=bp_r, bp_i=bp_i, pointing=(0.,n.pi/2,twist)))
     aa = AntennaArray(prms['loc'], antennas, tau_ew=prms['tau_ew'], tau_ns=prms['tau_ns'],
-        gain=prms['gain'], amp_coeffs=prms['amp_coeffs'],
+        gain=n.ones_like(prms['gain']), amp_coeffs=n.ones_like(prms['amp_coeffs']),
         dly_coeffs=prms['dly_coeffs'], dly_xx_to_yy=prms['dly_xx_to_yy'], ant_layout=prms['ant_layout'])
     #for i in range(nants):
     #    pos = prms['antpos-top'][i]
@@ -212,19 +220,13 @@ def get_aa(freqs):
     #    aa.set_params({i:{'top_x':pos[0], 'top_y':pos[1], 'top_z':pos[2]}})
     return aa
 
-src_prms = {
-'cen':{ 'jys':10**3.282102, 'index':  0.235166 , },
-'cyg':{ 'jys':10**3.566410, 'index':  -0.266315 , },
-'hyd':{ 'jys':10**2.448816, 'index':  -0.866462 , },
-'pic':{ 'jys':10**2.714456, 'index':  -0.436361 , },
-'vir':{ 'jys':10**2.200725, 'index':  0.202425 , },
-'Sun': {'a1': 0.00644, 'index': 1.471, 'a2': 0.00586, 'jys': 55701.96, 'th': -0.000512},
-'for': {'a1': 0.00851, 'a2': 0.00413, 'jys': 907.09, 'th': 0.230},
-}
+src_prms = {}
+for dec in range(-90,60,5):
+    src_prms['d%+03d' % dec] = {'ra': '6:00', 'dec': '%+03d:00' % dec, 'jys': 1., 'index': 0.}
 
 def get_catalog(srcs=None, cutoff=None, catalogs=['helm','misc']):
     '''Return a catalog containing the listed sources.'''
-    custom_srcs = ['J1347-603','J1615-610', 'J1336-340', 'J1248-412', 'J1531-423', 'J1359-415']
+    custom_srcs = src_prms.keys()
     if srcs is None:
         cat = a.src.get_catalog(srcs=srcs, cutoff=cutoff, catalogs=catalogs)
     else:

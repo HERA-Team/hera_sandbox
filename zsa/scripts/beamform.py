@@ -12,8 +12,8 @@ o.add_option('--minuv', type='float', default=0,
     help='Minimum uv length (in wavelengths) for a baseline to be included.')
 o.add_option('--maxuv', type='float', default=n.Inf,
     help='Maximum uv length (in wavelengths) for a baseline to be included.')
-o.add_option('--zenphs', action='store_true',
-    help='Data are already zenith-phased, so only apply a geometric re-phasing.')
+o.add_option('--minsep', type='float', default=0,
+    help='Minimum baseline separation in wavelengths.')
 opts,args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
@@ -23,6 +23,10 @@ srclist,cutoff,catalogs = a.scripting.parse_srcs(opts.src, opts.cat)
 cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs)
 src = cat.values()[0]
 del(uv)
+
+def dist(i,j):
+    vsep = aa[j] - aa[i] 
+    return n.sqrt(n.sum(vsep**2))
 
 for filename in args:
     print filename, '->', filename+'.bm_'+src.src_name
@@ -46,6 +50,9 @@ for filename in args:
                 s_eq = cat.get_crds('eq', ncrd=3)
                 aa.sim_cache(s_eq)
         try:
+            if dist(i,j) < opts.minsep:
+                #print '%d_%d'%(i,j)
+                continue
             d = aa.phs2src(d, src, i, j)
             u,v,w = aa.gen_uvw(i, j, src)
             tooshort = n.where(n.sqrt(u**2+v**2) < opts.minuv, 1, 0).squeeze()
@@ -81,7 +88,7 @@ for filename in args:
     uvo = a.miriad.UV(filename+'.bm_'+src.src_name, status='new')
     uvo.init_from_uv(uvi)
     uvo.pipe(uvi, mfunc=mfunc, raw=True,
-        append2hist='BEAMFORM: src=%s ant=%s srcflux=%s minuv=%s\n' % (opts.src, opts.ant, opts.srcflux, opts.minuv))
+        append2hist='BEAMFORM: src=%s ant=%s srcflux=%s minuv=%s maxuv=%s minsep=%s\n' % (opts.src, opts.ant, opts.srcflux, opts.minuv, opts.maxuv, opts.minsep))
     del(uvi); del(uvo)
     
     

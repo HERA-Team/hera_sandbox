@@ -75,21 +75,6 @@ def cov2(m1,m2):
     fact = float(N - 1)
     return (n.dot(X1, X2.T.conj()) / fact).squeeze()
 
-def gen_Q(knum, n_k, dim):
-    Q = n.zeros((dim,dim), dtype=n.float)
-    for i in n.arange(0,Q.shape[0],n_k):
-        for j in n.arange(0,Q.shape[1],n_k):
-            Q[i+knum,j+knum] = 1
-    if False: # Remove auto-products from estimator to avoid +noise bias
-        Q[n.arange(Q.shape[0]),n.arange(Q.shape[1])] = 0
-    return Q
-
-def quick_diag_dot(A, B):
-    return n.array([n.dot(A[...,i,:], B[...,:,i]) for i in range(A.shape[-2])])
-def quick_trace_dot(A, B):
-    return quick_diag_dot(A,B).sum()
-
-
 # Get a dict of all separations and the bls that contribute
 bl2sep = {}
 sep2bl = {}
@@ -166,17 +151,17 @@ for filename in args:
         if True: # generate noise
             TSYS = 560e3 # mK
             B = 100e6 / uvi['nchan']
-            NDAY = 44
-            NBL = 4
+            NDAY = 92
+            NBL = 1
             NPOL = 2
             T_INT = 43. # for just compressed data
-            #T_INT = 351. # for fringe-rate filtered data
+            #T_INT = 351. # for fringe-rate filtered data.  don't use if fringe-rate filtering is active below
             Trms_ = n.random.normal(size=Trms.size) * n.exp(2j*n.pi*n.random.uniform(size=Trms.size))
             Trms_ *= TSYS / n.sqrt(B * T_INT * NDAY * NBL * NPOL)
             #Trms_ *= n.sqrt(n.sqrt(351./43)) # penalize for oversampling fr-filtered data
             Trms_ *= 1.14 # adjust to suboptimal flux calibration
-            #Trms_ += eor_mdl[t]
-            Trms_ = eor_mdl[t]
+            #Trms_ += 10*eor_mdl[t] # add in a common signal to all baselines
+            Trms_ = eor_mdl[t] # override noise with common signal
             Nrms  = Trms_ * w
         if PFB:
             _Trms = capo.pfb.pfb(Trms, window=WINDOW, taps=NTAPS, fft=n.fft.ifft)
@@ -188,22 +173,18 @@ for filename in args:
             _Trms = n.fft.ifft(window * Trms)
             _Nrms = n.fft.ifft(window * Nrms)
             _Wrms = n.fft.ifft(window * w)
-        gain = n.abs(_Wrms[0])
+        #gain = n.abs(_Wrms[0])
         #print 'Gain:', gain
-        #if gain > 0: # XXX this inverts the blackmann harris out of the data completely
-        if False: 
-            _Trms.shape = (_Trms.size,1)
-            C = n.zeros((_Trms.size, _Trms.size), dtype=n.complex)
-            for k1 in xrange(_Wrms.size):
-              for k2 in xrange(_Wrms.size):
-                #C[k1,k2] = _Wrms[k2-k1]
-                C[k1,k2] = _Wrms[k1-k2]
-            _C = n.linalg.inv(C)
-            _Trms = n.dot(_C, _Trms).squeeze()
-            _Nrms = n.dot(_C, _Nrms).squeeze()
-        #elif gain > 0: # This is already being done by NOISE_EQ_BW
-        #    _Trms /= gain
-        #    _Nrms /= gain
+        #if False and gain > 0: # XXX this inverts the blackmann harris out of the data completely
+        #    _Trms.shape = (_Trms.size,1)
+        #    C = n.zeros((_Trms.size, _Trms.size), dtype=n.complex)
+        #    for k1 in xrange(_Wrms.size):
+        #      for k2 in xrange(_Wrms.size):
+        #        #C[k1,k2] = _Wrms[k2-k1]
+        #        C[k1,k2] = _Wrms[k1-k2]
+        #    _C = n.linalg.inv(C)
+        #    _Trms = n.dot(_C, _Trms).squeeze()
+        #    _Nrms = n.dot(_C, _Nrms).squeeze()
         _Trms = n.fft.fftshift(_Trms)
         _Nrms = n.fft.fftshift(_Nrms)
         if False: # swap in a simulated signal post delay transform
@@ -218,7 +199,7 @@ bls = T.keys()
 for bl in bls:
     T[bl],N[bl] = n.array(T[bl]),n.array(N[bl])
     print T[bl].shape
-if False:
+if True:
     print 'Fringe-rate filtering the noise to match the data'
     for bl in N:
         _N = n.fft.ifft(N[bl], axis=0)
@@ -261,19 +242,24 @@ for boot in xrange(NBOOT):
     if True: # pick a sample of baselines with replacement
         #bls_ = [random.choice(bls) for bl in bls]
         bls_ = random.sample(bls, len(bls))
-        gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:] # ensure gp1 and gp2 can't share baselines
+        #gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:] # ensure gp1 and gp2 can't share baselines
+        #gp1,gp2,gp3 = bls_[:4],bls_[4:9],bls_[9:]
+        gp1,gp2,gp3,gp4 = bls_[:7],bls_[7:14],bls_[14:21],bls_[21:] # for 28bl
+        #gp1,gp2,gp3,gp4 = bls_[:5],bls_[5:10],bls_[10:15],bls_[15:] # for 21bl
         # ensure each group has at least 2 kinds of baselines
         gp1 = random.sample(gp1, 2) + [random.choice(gp1) for bl in gp1[:len(gp1)-2]]
         gp2 = random.sample(gp2, 2) + [random.choice(gp2) for bl in gp2[:len(gp2)-2]]
+        gp3 = random.sample(gp3, 2) + [random.choice(gp3) for bl in gp3[:len(gp3)-2]]
+        gp4 = random.sample(gp4, 2) + [random.choice(gp4) for bl in gp4[:len(gp4)-2]]
     else:
         bls_ = random.sample(bls, len(bls))
         gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:]
     #gp2 = gp2[:len(gp1)] # XXX force gp1 and gp2 to be same size
     #gp1,gp2 = gp1+gp2,[] # XXX
     #print 'XXX', len(gp1), len(gp2)
-    bls_ = gp1 + gp2
+    bls_ = gp1 + gp2 + gp3 + gp4
     print 'Bootstrap sample %d:' % boot,
-    for gp in [gp1,gp2]: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
+    for gp in [gp1,gp2,gp3,gp4]: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
     print
     Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
     Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
@@ -283,117 +269,168 @@ for boot in xrange(NBOOT):
     print Ts.shape, temp_noise_var.shape
 
     _Cxtot,_Cntot = 1, 1
+    #PLT1,PLT2 = 4,4
     PLT1,PLT2 = 3,3
-    #PLT1,PLT2 = 2,2
-    #PLT1,PLT2 = 2,3
+    #PLT1,PLT2 = 1,2
     for cnt in xrange(PLT1*PLT2-1):
         print cnt, '/', PLT1*PLT2-1
         if PLOT:
-            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log', mx=0, drng=3)
-            ##p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
+            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log', mx=-1, drng=3)
+            #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
         SZ = Ts.shape[0]
         Cx,Cn = cov(Ts), cov(Ns)
         for c in [Cx,Cn]: # Normalize covariance matrices
             d = n.diag(c); d.shape = (1,SZ)
             c /= n.sqrt(d) * 2
         #g = .3 # for 1*7 baselines
-        #g = .1 # for 2*7 baselines
-        g = .06 # for 4*7 baselines
-        _Cx,_Cn = -g*Cx, -g*Cn
-        if False: # restrict to certain modes in the covariance diagonalization
-            mask = n.zeros_like(Cx)
-            for k in xrange(17,24):
-                for b in xrange(L):
-                    mask[b*n_k+k] = mask[:,b*n_k+k] = 1
-            _Cx *= mask; _Cn *= mask
+        g = .2 # for 4*7 baselines
+        # begin with off-diagonal covariances to subtract off 
+        # (psuedo-inv for limit of small off-diagonal component)
+        _Cx,_Cn = -g*Cx, -g*Cn 
         ind = n.arange(SZ)
-        for b in xrange(L): # zero out redundant off-diagonals
+        # XXX do we also need to zero modes adjacent to diagonal, since removing them results in bigger signal loss?
+        for b in xrange(L): # for each redundant baseline, zero out diagonal from covariance diagonalization
             indb = ind[:-b*n_k]
             _Cx[indb,indb+b*n_k] = _Cx[indb+b*n_k,indb] = 0
             _Cn[indb,indb+b*n_k] = _Cn[indb+b*n_k,indb] = 0
         _Cx[ind,ind] = _Cn[ind,ind] = 0 # set these to zero temporarily to avoid noise bias into cross terms
-        if True: # remove covariances common to all bl pairs.  XXX This is responsible for >75% of noise bias
+        if True: # estimate and remove signal covariance from diagonalization process 
+            # do this twice: once for the signal (Cx) and once for the noise (Cn)
+            # using the statistics of the signal and noise, respectively
             for _C in [_Cx,_Cn]:
                 _C.shape = (L,n_k,L,n_k)
                 sub_C = n.zeros_like(_C)
-                #for i in xrange(L):
-                #    for j in xrange(L):
-                #        not_ij = n.array([bl for bl in xrange(L) if not bl in [i,j]])
-                #        _C_avg = n.mean(n.mean(_C.take(not_ij,axis=0).take(not_ij,axis=2), axis=2), axis=0)
-                #        #capo.arp.waterfall(_C_avg, mode='log', drng=2); p.colorbar(shrink=.5); p.show()
-                #        sub_C[i,:,j,:] = _C_avg
+                # Choose a (i,j) baseline cross-multiple panel in the covariance matrix
                 for i in xrange(L):
-                    bli = bls_[i]
+                    bli = bls_[i] 
                     for j in xrange(L):
                         blj = bls_[j]
+                        # even remove signal bias if bli == blj
+                        # ensure bli and blj belong to the same group
                         if bli in gp1 and blj in gp1: gp = gp1
                         elif bli in gp2 and blj in gp2: gp = gp2
+                        elif bli in gp3 and blj in gp3: gp = gp3
+                        elif bli in gp4 and blj in gp4: gp = gp4
                         else: continue # make sure we only compute average using bls in same group
+                        # Now average over all other panels of covariance matrix (within this group)
+                        # to get the average signal covariance and subtract that off so that we don't
+                        # get signal loss removing residual signal covariances.
                         _Csum,_Cwgt = 0,0
-                        # XXX as constructed, this will explode if a group consists entirely of one bl.
-                        for bli_ in gp:
-                            i_ = bls_.index(bli_)
-                            if i_ == i: continue
-                            for blj_ in gp:
-                                j_ = bls_.index(blj_)
-                                if j_ == j: continue
-                                if i == j or i_ == j_: continue
-                                #_Csum += _C[i_,j_]
-                                _Csum += _C[i_,:,j_]
+                        for i_ in xrange(L):
+                            bli_ = bls_[i_]
+                            if bli == bli_: continue # only average over other bls to better isolate bl systematics
+                            for j_ in xrange(L):
+                                blj_ = bls_[j_]
+                                if bli_ == blj_: continue # don't average over panels with noise bias
+                                if blj == blj_: continue # only average over other bls to better isolate bl systematics
+                                _Csum += _C[i_,:,j_] # fixes indexing error in earlier ver
                                 _Cwgt += 1
-                        #sub_C[i,j] = _Csum / _Cwgt # XXX careful if _Cwgt is 0
-                        sub_C[i,:,j] = _Csum / _Cwgt # XXX careful if _Cwgt is 0
+                        sub_C[i,:,j] = _Csum / _Cwgt # fixes indexing error in earlier ver XXX careful if _Cwgt is 0
                 _C.shape = sub_C.shape = (L*n_k,L*n_k)
-                #p.clf()
-                #p.subplot(131); capo.arp.waterfall(_C, mode='log', mx=0, drng=2)
-                #p.subplot(132); capo.arp.waterfall(sub_C, mode='log', mx=0, drng=2)
                 _C -= sub_C
-                #p.subplot(133); capo.arp.waterfall(_C, mode='log', mx=0, drng=2)
-                #p.show()
-        if True: # divide baselines into two independent groups to avoid cross-contamination of noise
+        if True:
+            # divide bls into two independent groups to avoid cross-contamination of noise
+            # this is done by setting mask=0 for all panels pairing bls between different groups
+            # this masks covariances between groups, so no covariance from a bl in one group is subtracted from
+            # a bl in another group
             mask = n.ones_like(Cx)
+            # XXX need to clean this section up
+            #for bl1 in xrange(len(gp1)):
+            #    for bl2 in xrange(len(gp1)):
+            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
+            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
             for bl1 in xrange(len(gp1)):
                 for bl2 in xrange(len(gp2)):
                     bl2 += len(gp1)
                     mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
                     mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-            #capo.arp.waterfall(mask, mode='real'); p.show()
+            for bl1 in xrange(len(gp1)):
+                for bl2 in xrange(len(gp3)):
+                    bl2 += len(gp1) + len(gp2)
+                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            for bl1 in xrange(len(gp1)):
+                for bl2 in xrange(len(gp4)):
+                    bl2 += len(gp1) + len(gp2) + len(gp3)
+                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            #for bl1 in xrange(len(gp2)):
+            #    bl1 += len(gp1)
+            #    for bl2 in xrange(len(gp2)):
+            #        bl2 += len(gp1)
+            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
+            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            for bl1 in xrange(len(gp2)):
+                bl1 += len(gp1)
+                for bl2 in xrange(len(gp3)):
+                    bl2 += len(gp1) + len(gp2)
+                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            for bl1 in xrange(len(gp2)):
+                bl1 += len(gp1)
+                for bl2 in xrange(len(gp4)):
+                    bl2 += len(gp1) + len(gp2) + len(gp3)
+                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            #for bl1 in xrange(len(gp3)):
+            #    bl1 += len(gp1) + len(gp2)
+            #    for bl2 in xrange(len(gp3)):
+            #        bl2 += len(gp1) + len(gp2)
+            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
+            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            for bl1 in xrange(len(gp3)):
+                bl1 += len(gp1) + len(gp2)
+                for bl2 in xrange(len(gp4)):
+                    bl2 += len(gp1) + len(gp2) + len(gp3)
+                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            #for bl1 in xrange(len(gp4)):
+            #    bl1 += len(gp1) + len(gp2) + len(gp3)
+            #    for bl2 in xrange(len(gp4)):
+            #        bl2 += len(gp1) + len(gp2) + len(gp3)
+            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
+            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
             _Cx *= mask; _Cn *= mask
         _Cx[ind,ind] = _Cn[ind,ind] = 1
         Ts,Ns = n.dot(_Cx,Ts), n.dot(_Cn,Ns)
+        # These are a running tally of all the diagonalization steps applied
         _Cxtot,_Cntot = n.dot(_Cx,_Cxtot), n.dot(_Cn,_Cntot)
     if PLOT:
-        p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', mx=0, drng=3)
-        ##p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
+        p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', mx=-1, drng=3)
+        #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=3)
         p.show()
 
-    #p.subplot(221); capo.arp.waterfall(_Cxtot, mode='log', drng=2)
-    #p.subplot(222); capo.arp.waterfall(cov(Ts), mode='log', drng=2)
-    #p.subplot(223); capo.arp.waterfall(cov(n.dot(_Cxtot,Ts)), mode='log', drng=2)
-    #p.subplot(224); capo.arp.waterfall(cov(X), mode='log', drng=2)
-    #p.show()
     Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
     Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
 
     pspecs,dspecs = [], []
+    nspecs,n1specs,n2specs = [], [], []
     Cx,Cn = CoV(Ts, bls_), CoV(Ns, bls_)
     Cx_ = CoV(n.dot(_Cxtot,Ts), bls_)
+    # Cn1 is the noise diagonalized as if it were the signal, Cn2 is the noise with the signal diagonalization applied
     Cn1_,Cn2_ = CoV(n.dot(_Cntot,Ns), bls_), CoV(n.dot(_Cxtot,Ns), bls_)
     for cnt,bli in enumerate(bls_):
+        print cnt
         for blj in bls_[cnt:]:
-            if bli == blj: continue
-            if True: # exclude intra-group pairings
-                if (bli in gp1 and blj in gp1) or (bli in gp2 and blj in gp2): continue
             #print a.miriad.bl2ij(bli), a.miriad.bl2ij(blj)
             # XXX behavior here is poorly defined for repeat baselines in bootstrapping
             xi,xj = Cx.get_x(bli), Cx.get_x(blj)
             xi_,xj_ = Cx_.get_x(bli), Cx_.get_x(blj)
+            pk_avg = scalar * xi * xj.conj()
+            dspecs.append(pk_avg) # do this before bli == blj check to include noise bias in dspec
+            if bli == blj: continue
+            if True: # exclude intra-group pairings # XXX
+                if (bli in gp1 and blj in gp1) or (bli in gp2 and blj in gp2) or (bli in gp3 and blj in gp3) or (bli in gp4 and blj in gp4): continue
             if True: # do an extra final removal of leakage from particular modes
                 Ts = n.concatenate([xi_,xj_], axis=0)
                 cx = cov(Ts)
                 if PLOT:
                     p.clf()
-                    p.subplot(121); capo.arp.waterfall(cx, mode='log', mx=0, drng=3)
+                    p.subplot(121); capo.arp.waterfall(cx, mode='log', mx=-1, drng=3)
                 for cnt1 in xrange(9):
                     d = n.diag(cx); d.shape = (1,d.size); cx /= n.sqrt(d) * 2
                     g = .3
@@ -415,7 +452,7 @@ for boot in xrange(NBOOT):
                     Ts = n.dot(_cx, Ts)
                     cx = cov(Ts)
                 if PLOT:
-                    p.subplot(122); capo.arp.waterfall(cx, mode='log', mx=0, drng=3)
+                    p.subplot(122); capo.arp.waterfall(cx, mode='log', mx=-1, drng=3)
                     p.show()
                 xi_,xj_ = Ts[:n_k],Ts[n_k:]
             ni,nj = Cn.get_x(bli), Cn.get_x(blj)
@@ -424,11 +461,11 @@ for boot in xrange(NBOOT):
             nij = n.sqrt(n.mean(n.abs(ni*nj.conj())**2, axis=1))
             n1ij_ = n.sqrt(n.mean(n.abs(n1i_*n1j_.conj())**2, axis=1))
             n2ij_ = n.sqrt(n.mean(n.abs(n2i_*n2j_.conj())**2, axis=1))
-            #f1 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n1ij_)**2))
-            #f2 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n2ij_)**2))
-            f1 = n.sqrt((n.abs(nij)**2)/(n.abs(n1ij_)**2))
-            f2 = n.sqrt((n.abs(nij)**2)/(n.abs(n2ij_)**2))
-            #print 'Rescale factor:', f1, f2
+            f1 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n1ij_)**2))
+            f2 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n2ij_)**2))
+            #f1 = n.sqrt((n.abs(nij)**2)/(n.abs(n1ij_)**2))
+            #f2 = n.sqrt((n.abs(nij)**2)/(n.abs(n2ij_)**2))
+            print 'Rescale factor:', f1, f2
             #rescale = max(f1,f2)
             rescale = 1.
 
@@ -456,14 +493,22 @@ for boot in xrange(NBOOT):
                 print blistr, bljstr
                 #p.subplot(121); p.plot(n.average(xi*xj.conj(), axis=1).real, label='%s-%s'%(blistr,bljstr))
                 p.plot(n.average(xi_*xj_.conj(), axis=1).real, label='%s-%s'%(blistr,bljstr))
-            pk_avg = scalar * xi * xj.conj()
             pk_avg_ = scalar * xi_ * xj_.conj() * rescale# XXX
-            dspecs.append(pk_avg)
             pspecs.append(pk_avg_)
+            nspecs.append(scalar * ni * nj.conj())
+            n1specs.append(scalar * n1i_ * n1j_.conj())
+            n2specs.append(scalar * n2i_ * n2j_.conj())
     #p.subplot(121); p.legend(loc='best')
     #p.legend(loc='best')
-    #p.show()
     pspecs,dspecs = n.array(pspecs), n.array(dspecs)
+    nspecs,n1specs,n2specs = n.array(nspecs), n.array(n1specs), n.array(n2specs)
+    navg_2d = n.average(nspecs, axis=0)
+    n1avg_2d = n.average(n1specs, axis=0)
+    n2avg_2d = n.average(n2specs, axis=0)
+    f1 = n.sqrt(n.sum(n.abs(navg_2d)**2)/n.sum(n.abs(n1avg_2d)**2))
+    f2 = n.sqrt(n.sum(n.abs(navg_2d)**2)/n.sum(n.abs(n2avg_2d)**2))
+    print 'Rescale factor (FINAL):', f1, f2
+    
     avg_2d = n.average(pspecs, axis=0) # average over baseline cross-multiples
     std_2d = n.std(pspecs, axis=0) # get distribution as a function of time
     wgt_2d = 1. / std_2d**2 # inverse variance weighting
@@ -490,56 +535,7 @@ for boot in xrange(NBOOT):
 
     print 'Writing pspec_boot%04d.npz' % boot
     n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, pk=avg_1d, err=std_1d, scalar=scalar, times=n.array(times),
-        pk_vs_t=avg_2d, err_vs_t=std_2d, temp_noise_var=temp_noise_var,
+        pk_vs_t=avg_2d, err_vs_t=std_2d, temp_noise_var=temp_noise_var, nocov_vs_t=n.average(dspecs,axis=0),
         cmd=' '.join(sys.argv))
 if PLOT: p.show()
-
-import sys; sys.exit(0)
-print 'Making Fisher Matrix'
-Qs,Q_C = {}, {}
-for k in range(n_k):
-    Qs[k] = gen_Q(k,n_k,_Cxtot.shape[0])
-    Q_C[k] = n.dot(Qs[k], _Cxtot)
-F = n.zeros((40,40), dtype=n.complex)
-
-for k1 in range(n_k):
-  for k2 in range(n_k):
-    F[k1,k2] = 0.5 * quick_trace_dot(Q_C[k1],Q_C[k2])
-_F = n.linalg.inv(F)
-
-print 'Making Normalization/Windowing'
-# Set M = F^-1/2
-w,v = n.linalg.eig(_F)
-M = n.dot(v, n.dot(n.diagflat(n.sqrt(w)), v.T))
-# Normalize M s.t. rows of W sum to 1
-W = n.dot(M,F)
-norm = n.sum(W, axis=-1); norm.shape = (norm.size,1)
-M /= norm
-W = n.dot(M,F) # this is just to prove normalization
-
-p.subplot(221); capo.arp.waterfall(F, mode='log', drng=2)
-p.subplot(222); capo.arp.waterfall(_F, mode='log', drng=2)
-p.subplot(223); capo.arp.waterfall(M, mode='log', drng=2)
-p.subplot(224); capo.arp.waterfall(W, mode='log', drng=2)
-p.show()
-
-print 'Minding ps and qs'
-qs = []
-for k in range(n_k):
-    print k
-    _CQ_C = n.dot(_Cxtot, Q_C[k])
-    qs.append(0.5 * quick_diag_dot(Ts.T.conj(), n.dot(_CQ_C, Ts)))
-qs = n.array(qs)
-print qs.shape, M.shape
-ps = n.dot(M,qs)
-covp = n.dot(W,M.T)
-
-p.subplot(131); capo.arp.waterfall(qs, mode='log', drng=2)
-p.subplot(132); capo.arp.waterfall(ps, mode='log', drng=2)
-p.subplot(133); capo.arp.waterfall(covp, mode='log', drng=2); p.colorbar(shrink=.5)
-p.show()
-
-p.subplot(121); p.plot(scalar * n.average(qs, axis=1))
-p.subplot(122); p.plot(scalar * n.average(ps, axis=1))
-p.show()
 

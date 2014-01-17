@@ -5,7 +5,6 @@ import sys, optparse
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True)
 o.add_option('--aspect_neq', action='store_true', help='Do not force equal aspect in x/y plot.')
-o.add_option('--nonumbers', action='store_true', help='Do not plot antenna numbers next to symbols.')
 opts, args = o.parse_args(sys.argv[1:])
 
 th = n.arange(0, 2*n.pi, .01)
@@ -34,7 +33,7 @@ for ant,(xa,ya,za) in enumerate(zip(x,y,z)):
     if za > 0: fmt = '#eeeeee'
     else: fmt = '#a0a0a0'
     #p.fill(hx,hy, fmt)
-    if not opts.nonumbers: p.text(xa,ya, str(ant))
+    p.text(xa,ya, str(ant))
 p.grid()
 #p.xlim(-100,100)
 p.xlabel("East-West Antenna Position (m)")

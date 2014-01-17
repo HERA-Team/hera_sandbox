@@ -33,6 +33,7 @@ bm_wgts = None
 for i, filename in enumerate(args):
     img, kwds = a.img.from_fits(filename)
     img = img.squeeze()
+    img = n.fliplr(n.flipud(img))
     # Read ra/dec of image center, which are stored in J2000
     assert(kwds['epoch'] == 2000)
     s = ephem.Equatorial(kwds['ra']*a.img.deg2rad, kwds['dec']*a.img.deg2rad, 
