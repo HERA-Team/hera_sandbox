@@ -5,7 +5,7 @@ import datetime
 import time
 import numpy as np
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('TkAgg')
 from matplotlib import dates
 from pylab import *
 
@@ -44,7 +44,7 @@ def fmt_times(jd):
     return datetime.datetime(t.tm_year,t.tm_mon,t.tm_mday,t.tm_hour,t.tm_min,t.tm_sec)
 
 times,freqs,vTime,vFreq = None,None,[],None
-
+flagg_arr = []
 for file in args:
     dat = np.load(file)
     files = dat.files
@@ -56,8 +56,13 @@ for file in args:
         if freqs is None: freqs = np.linspace(0.1,0.2,dat[str(i)].shape[0]) 
         if vFreq is None: vFreq = dat[str(i)].astype(np.float)
         else: vFreq += dat[str(i)]
+        flagg_arr.append(dat[str(i)])
 vFreq /= vFreq.max()
-
+flag_arr = np.array(flagg_arr)
+figure()
+imshow(flag_arr,aspect='auto',cmap='binary',extent=(freqs.min(),freqs.max(),times.min(),times.max()))
+savefig('today_waterfall.png')
+show()
 ftimes = []
 for t in times: ftimes.append(fmt_times(t)) 
 
