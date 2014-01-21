@@ -5,46 +5,15 @@ import datetime
 import time
 import numpy as np
 import matplotlib
-matplotlib.use('TkAgg')
-from matplotlib import dates
+matplotlib.use('Agg')
 from pylab import *
 
 o = optparse.OptionParser()
 o.add_option('-o','--outfile',dest='outfile',default='today.png',help='Path to the output image file')
 opts,args = o.parse_args(sys.argv[1:])
 
-def fmt_times(jd):
-    #get the y,m,d out of the jd
-    ymd = int(np.floor(jd))
-    #from aa.usno.navy.mil
-    l = ymd+68569
-    n = 4*l/146097
-    l = l - (146097*n+3)/4
-    i = 4000*(l+1)/1461001
-    l = l - 1461*i/4+31
-    j = 80*l/2447
-    k = l-2447*j/80
-    l = j/11
-    j = j+2-12*l
-    i = 100*(n-49)+i+l
-    Y,M,D = i,j,k
-
-    #get h,m,s out of the jd.
-    jd -= np.floor(jd)
-    jd = 24.*jd
-    h = np.floor(jd)
-    jd = 60.*(jd-h)
-    m = np.floor(jd)
-    s = np.floor(60.*(jd-m))
-
-    #format it
-    ifmt = '%Y/%m/%d %H:%M:%S'
-    tstr = '%d/%d/%d %d:%d:%d'%(Y,M,D,h,m,s)
-    t = time.strptime(tstr,ifmt)
-    return datetime.datetime(t.tm_year,t.tm_mon,t.tm_mday,t.tm_hour,t.tm_min,t.tm_sec)
-
 times,freqs,vTime,vFreq = None,None,[],None
-flagg_arr = []
+flag_arr = []
 for file in args:
     dat = np.load(file)
     files = dat.files
@@ -53,37 +22,29 @@ for file in args:
     else: times = np.concatenate((times,dat['times']),axis=0)
     for i in range(len(dat['times'])):
         vTime.append(dat[str(i)].sum()/float(len(dat[str(i)])))
-        if freqs is None: freqs = np.linspace(0.1,0.2,dat[str(i)].shape[0]) 
+        if freqs is None: freqs = np.linspace(0.1,0.2,dat[str(i)].shape[0])
         if vFreq is None: vFreq = dat[str(i)].astype(np.float)
         else: vFreq += dat[str(i)]
-        flagg_arr.append(dat[str(i)])
+        flag_arr.append(dat[str(i)])
 vFreq /= vFreq.max()
-flag_arr = np.array(flagg_arr)
-figure()
-imshow(flag_arr,aspect='auto',cmap='binary',extent=(freqs.min(),freqs.max(),times.min(),times.max()))
-savefig('today_waterfall.png')
-show()
-ftimes = []
-for t in times: ftimes.append(fmt_times(t)) 
+flag_arr = np.array(flag_arr)
+JD0 = np.floor(times[0])
+JD = times - JD0
 
-fig1 = figure()
+fig1 = figure(figsize=(8,10))
 #plot v frequency
-axf = fig1.add_subplot(211)
+axf = fig1.add_subplot(311)
 axf.plot(freqs,vFreq)
 axf.set_xlabel('Frequency [GHz]')
 #plot v time
-axt = fig1.add_subplot(212)
-axt.plot_date(times,vTime,'.')
-#format dates
-Mfmt = dates.DateFormatter('%m - %d')
-mfmt = dates.DateFormatter('%H:%M')
-axt.xaxis.set_major_locator(dates.DayLocator())
-axt.xaxis.set_minor_locator(dates.HourLocator(interval=3))
-axt.xaxis.set_minor_formatter(mfmt)
-axt.xaxis.set_major_formatter(Mfmt)
-axt.set_xlabel('UTC')
+axt = fig1.add_subplot(312)
+axt.plot(JD,vTime,'.')
+axt.set_xlabel('Days since JD %d'%JD0)
+axwf = fig1.add_subplot(313)
+axwf.imshow(flag_arr,aspect='auto',cmap='binary',extent=(freqs.min()*1e3,freqs.max()*1e3,times.max()*24,times.min()*24))
+axwf.set_ylabel('time [hrs]')
+axwf.set_xlabel('freq [MHz]')
 #title
-f0 = ftimes[0]
-fig1.suptitle('RFI summary for (Y-M-D) %d-%d-%d'%(f0.year,f0.month,f0.day))
+fig1.suptitle('RFI summary for JD'%(JD))
 print 'saving to %s' % opts.outfile
 fig1.savefig(opts.outfile,fmt='png')
