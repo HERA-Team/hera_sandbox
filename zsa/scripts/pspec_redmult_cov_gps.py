@@ -44,6 +44,14 @@ ANTPOS = n.array(
 #         [31,45, 8,11,36,60,39,46]])
 
 class CoV:
+    '''Covariance class. 
+        input : Data matrix and bls in set. (X, bls)
+        
+        bls   = bls
+        X     = data matrix
+        nprms = number of channels/kmodes/prms
+        C     = covariance of data matrix.
+    '''
     def __init__(self, X, bls):
         self.bls = bls
         self.X = X
@@ -219,7 +227,7 @@ for filename in args:
 n_k = chans.size / NTAPS
 bls = T.keys()
 for bl in bls:
-    print 'bl shape:'
+    print 'bl shape (nints, nchan):'
     T[bl],N[bl] = n.array(T[bl]),n.array(N[bl])
     print '\t',T[bl].shape
 if True:
@@ -270,6 +278,7 @@ if PLOT:
     p.show()
 
 for boot in xrange(NBOOT):
+    #777
     if True: # pick a sample of baselines with replacement
         #bls_ = [random.choice(bls) for bl in bls]
         bls_ = random.sample(bls, len(bls))
@@ -298,6 +307,7 @@ for boot in xrange(NBOOT):
     print 'Bootstrap sample %d:' % boot,
     for gp in [gp1,gp2,gp3,gp4]: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
     print
+    #again Ts is the number of bls*channels X number of integrations. Note this rearragnes the order of bls in Ts to be that of bls_. May be repititions.
     Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
     Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
     L = len(bls_)
@@ -308,7 +318,9 @@ for boot in xrange(NBOOT):
     _Cxtot,_Cntot = 1, 1
     #PLT1,PLT2 = 4,4
     PLT1,PLT2 = 3,3
+    #PLT1,PLT2 = 2,2
     #PLT1,PLT2 = 1,2
+    #888
     for cnt in xrange(PLT1*PLT2-1):
         print cnt, '/', PLT1*PLT2-1
         if PLOT:
@@ -316,7 +328,9 @@ for boot in xrange(NBOOT):
             #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
         SZ = Ts.shape[0]
         Cx,Cn = cov(Ts), cov(Ns)
+        #999
         for c in [Cx,Cn]: # Normalize covariance matrices
+            #SZ is number of rows in Ts. i.e. #bls * #channels.
             d = n.diag(c); d.shape = (1,SZ)
             c /= n.sqrt(d) * 2
         #g = .3 # for 1*7 baselines
@@ -326,7 +340,7 @@ for boot in xrange(NBOOT):
         _Cx,_Cn = -g*Cx, -g*Cn 
         ind = n.arange(SZ)
         # XXX do we also need to zero modes adjacent to diagonal, since removing them results in bigger signal loss?
-        for b in xrange(L): # for each redundant baseline, zero out diagonal from covariance diagonalization
+        for b in xrange(L): # for each redundant baseline, zero out diagonal from covariance diagonalization. Sets each diagonal of each bl-bl covariance to 0.
             indb = ind[:-b*n_k]
             _Cx[indb,indb+b*n_k] = _Cx[indb+b*n_k,indb] = 0
             _Cn[indb,indb+b*n_k] = _Cn[indb+b*n_k,indb] = 0
@@ -335,6 +349,7 @@ for boot in xrange(NBOOT):
             # do this twice: once for the signal (Cx) and once for the noise (Cn)
             # using the statistics of the signal and noise, respectively
             for _C in [_Cx,_Cn]:
+                #remember L is the total number of baselines and n_k is the number of kbins (i.e. number of channels). Note shape of covariance is n_k*#bls X n_k*#bls.
                 _C.shape = (L,n_k,L,n_k)
                 sub_C = n.zeros_like(_C)
                 # Choose a (i,j) baseline cross-multiple panel in the covariance matrix
@@ -352,8 +367,11 @@ for boot in xrange(NBOOT):
                         # Now average over all other panels of covariance matrix (within this group)
                         # to get the average signal covariance and subtract that off so that we don't
                         # get signal loss removing residual signal covariances.
+                        #AAA, Why are we not checking if the baselines are in the same group as the one we want to subtract from? i.e. bli_ and blj_ in gp{i}
+                        #CHANGE TO GP #Seems like it needs to be for i_,j_ in gp:
                         _Csum,_Cwgt = 0,0
                         for i_ in xrange(L):
+                            #check if i_ in gp
                             bli_ = bls_[i_]
                             if bli == bli_: continue # only average over other bls to better isolate bl systematics
                             for j_ in xrange(L):
@@ -431,16 +449,24 @@ for boot in xrange(NBOOT):
             #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
             #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
             #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            #BBB All of the above for loops mask the gp-gp baseline pairs. Get a diagonal matrix of covariances within the group.
             _Cx *= mask; _Cn *= mask
+        #make diagonal 1 after applying mask.
         _Cx[ind,ind] = _Cn[ind,ind] = 1
         Ts,Ns = n.dot(_Cx,Ts), n.dot(_Cn,Ns)
         # These are a running tally of all the diagonalization steps applied
         _Cxtot,_Cntot = n.dot(_Cx,_Cxtot), n.dot(_Cn,_Cntot)
+#        p.figure(cnt)
+#        p.subplot(111); capo.arp.waterfall(Ts, mode='log', drng=3);p.colorbar(shrink=.5)
     if PLOT:
         p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', drng=3);p.colorbar(shrink=.5)
         #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=3)
         p.show()
 
+#    p.show()
+#    import IPython
+#    IPython.embed()
+#    exit()
     Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
     Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
 
@@ -455,9 +481,9 @@ for boot in xrange(NBOOT):
         for blj in bls_[cnt:]:
             #print a.miriad.bl2ij(bli), a.miriad.bl2ij(blj)
             # XXX behavior here is poorly defined for repeat baselines in bootstrapping
-            xi,xj = Cx.get_x(bli), Cx.get_x(blj)
-            xi_,xj_ = Cx_.get_x(bli), Cx_.get_x(blj)
-            pk_avg = scalar * xi * xj.conj()
+            xi,xj = Cx.get_x(bli), Cx.get_x(blj) # No covariance applied.
+            xi_,xj_ = Cx_.get_x(bli), Cx_.get_x(blj) #covariance applied.
+            pk_avg = scalar * xi * xj.conj() # make a power spectrum from bli*blj^*.
             dspecs.append(pk_avg) # do this before bli == blj check to include noise bias in dspec
             if bli == blj: continue
             if True: # exclude intra-group pairings # XXX
@@ -473,6 +499,7 @@ for boot in xrange(NBOOT):
                     g = .3
                     _cx = -g*cx
                     mask = n.zeros_like(cx)
+                    #CCC what is prj_ch
                     if n_k == 20: prj_ch = xrange(8,12)
                     elif n_k == 40: prj_ch = xrange(17,24)
                     elif n_k == 80: prj_ch = xrange(34,48)
