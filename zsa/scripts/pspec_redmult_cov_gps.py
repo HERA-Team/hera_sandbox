@@ -373,9 +373,11 @@ for boot in xrange(NBOOT):
                         for i_ in xrange(L):
                             #check if i_ in gp
                             bli_ = bls_[i_]
+                            if not bli_ in gp: continue # make sure averaging over baseline in the same group.
                             if bli == bli_: continue # only average over other bls to better isolate bl systematics
                             for j_ in xrange(L):
                                 blj_ = bls_[j_]
+                                if not blj_ in gp: continue # make sure averaging over baseline in the same group.
                                 if bli_ == blj_: continue # don't average over panels with noise bias
                                 if blj == blj_: continue # only average over other bls to better isolate bl systematics
                                 _Csum += _C[i_,:,j_] # fixes indexing error in earlier ver
