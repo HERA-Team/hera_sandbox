@@ -11,7 +11,8 @@ o.add_option('-t', '--taps', type='int', default=1,
 opts,args = o.parse_args(sys.argv[1:])
 
 PLOT = True
-
+NOCOV = False
+NBOOT = 20
 NTAPS = opts.taps
 if NTAPS > 1: PFB = True
 else: PFB = False
@@ -175,11 +176,12 @@ for filename in args:
             window = a.dsp.gen_window(Trms.size, WINDOW)
             _Trms = n.fft.ifft(window * Trms)
             _Nrms = n.fft.ifft(window * Nrms)
-            _Wrms = n.fft.ifft(window * w)
-#            _Wrms = n.fft.ifft(w)
+            _Wrms = n.fft.ifft(window * w)   #ARP INVERSION
+#            _Wrms = n.fft.ifft(w) #YYY1  #DAMO INVERSION
         gain = n.abs(_Wrms[0])
         #print 'Gain:', gain
-        if gain > 0:
+#        if gain > 0:
+        if False:
             _Trms.shape = (_Trms.size,1)
             C = n.zeros((_Trms.size, _Trms.size), dtype=n.complex)
             for k1 in xrange(_Wrms.size):
@@ -235,7 +237,7 @@ p.subplot(133); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shri
 p.savefig('pspec_redmult_cov.png')
 #p.show()
 
-for boot in xrange(20):
+for boot in xrange(NBOOT):
     if True: # pick a sample of baselines with replacement
         #bls_ = [random.choice(bls) for bl in bls]
         bls_ = random.sample(bls, len(bls))
@@ -266,8 +268,11 @@ for boot in xrange(20):
         Cx,Cn = cov(Ts), cov(Ns)
         for c in [Cx,Cn]: # Normalize covariance matrices
             d = n.diag(c); d.shape = (1,SZ)
-            c /= n.sqrt(d) * 2
-        g = .3
+            c /= n.sqrt(d) * 2  #YYY3
+            #d.shape = (SZ,1)
+            #c /= n.sqrt(d)
+            #This might be ok if its symmetric? But maybe not the sqrt?
+        g = 0.3
         _Cx,_Cn = -g*Cx, -g*Cn
         if False: # restrict to certain modes in the covariance diagonalization
             mask = n.zeros_like(Cx)
@@ -307,11 +312,13 @@ for boot in xrange(20):
                             for blj_ in gp:
                                 j_ = bls_.index(blj_)
                                 if j_ == j: continue
-                                _Csum += _C[i_,j_]
+                                #_Csum += _C[i_,j_]
+                                _Csum += _C[i_,:,j_,:]
                                 _Cwgt += 1
-                        sub_C[i,j] = _Csum / _Cwgt # XXX careful if _Cwgt is 0
+                        #sub_C[i,j] = _Csum / _Cwgt # XXX careful if _Cwgt is 0
+                        sub_C[i,:,j,:]  = _Csum / _Cwgt #YYY4
                 _C.shape = sub_C.shape = (L*n_k,L*n_k)
-                #p.clf()
+                p.clf()
                 #p.subplot(131); capo.arp.waterfall(_C, mode='log', mx=0, drng=2)
                 #p.subplot(132); capo.arp.waterfall(sub_C, mode='log', mx=0, drng=2)
                 _C -= sub_C
@@ -320,7 +327,7 @@ for boot in xrange(20):
         if True: # divide baselines into two independent groups to avoid cross-contamination of noise
             mask = n.ones_like(Cx)
             for bl1 in xrange(len(gp1)):
-                for bl2 in xrange(len(gp2)):
+                for bl2 in xrange(len(gp2)): 
                     bl2 += len(gp1)
                     mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
                     mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
@@ -333,16 +340,21 @@ for boot in xrange(20):
         p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', mx=0, drng=3)
         ##p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
         #p.show()
-
-    #p.subplot(221); capo.arp.waterfall(_Cxtot, mode='log', drng=2)
-    #p.subplot(222); capo.arp.waterfall(cov(Ts), mode='log', drng=2)
-    #p.subplot(223); capo.arp.waterfall(cov(n.dot(_Cxtot,Ts)), mode='log', drng=2)
-    #p.subplot(224); capo.arp.waterfall(cov(X), mode='log', drng=2)
-    #p.show()
+    if False:
+        p.clf()
+        p.suptitle('the matrix')
+        print _Cxtot.shape,cov(Ts).shape,cov(n.dot(_Cxtot,Ts)).shape
+        p.subplot(221); capo.arp.waterfall(_Cxtot, mode='log', drng=3,mx=0);p.colorbar()
+        p.subplot(222); capo.arp.waterfall(cov(Ts), mode='log', drng=3,mx=0);p.colorbar()
+        p.subplot(223); capo.arp.waterfall(cov(n.dot(_Cxtot,Ts)), mode='log', drng=3,mx=0);p.colorbar()
+        p.subplot(224); capo.arp.waterfall(cov(Ts)-cov(n.dot(_Cxtot,Ts)), mode='lin');p.colorbar()
+        #p.subplot(224); capo.arp.waterfall(cov(X), mode='log', drng=2)
+        p.show()
     Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
     Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
 
     pspecs,dspecs = [], []
+    if NOCOV: _Cxtot = 1
     Cx,Cn = CoV(Ts, bls_), CoV(Ns, bls_)
     Cx_ = CoV(n.dot(_Cxtot,Ts), bls_)
     Cn1_,Cn2_ = CoV(n.dot(_Cntot,Ns), bls_), CoV(n.dot(_Cxtot,Ns), bls_)
@@ -355,7 +367,7 @@ for boot in xrange(20):
             # XXX behavior here is poorly defined for repeat baselines in bootstrapping
             xi,xj = Cx.get_x(bli), Cx.get_x(blj)
             xi_,xj_ = Cx_.get_x(bli), Cx_.get_x(blj)
-            if True: # do an extra final removal of leakage from particular modes
+            if True and not NOCOV: # do an extra final removal of leakage from particular modes
                 Ts = n.concatenate([xi_,xj_], axis=0)
                 cx = cov(Ts)
                 if PLOT:
@@ -363,6 +375,8 @@ for boot in xrange(20):
                     p.subplot(121); capo.arp.waterfall(cx, mode='log', mx=0, drng=3)
                 for cnt1 in xrange(9):
                     d = n.diag(cx); d.shape = (1,d.size); cx /= n.sqrt(d) * 2
+                    #d.shape = (d.size,1) #YYY3
+                    #cx /= n.sqrt(d) 
                     g = .3
                     _cx = -g*cx
                     mask = n.zeros_like(cx)
@@ -379,6 +393,7 @@ for boot in xrange(20):
                     cx = cov(Ts)
                 if PLOT:
                     p.subplot(122); capo.arp.waterfall(cx, mode='log', mx=0, drng=3)
+                    #p.show()
                 xi_,xj_ = Ts[:n_k],Ts[n_k:]
             ni,nj = Cn.get_x(bli), Cn.get_x(blj)
             n1i_,n1j_ = Cn1_.get_x(bli), Cn1_.get_x(blj)
