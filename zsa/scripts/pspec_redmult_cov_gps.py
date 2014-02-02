@@ -153,6 +153,7 @@ print 'scalar:', scalar
 #T is a dictionary of the visibilities and N is the dictionary for noise estimates.
 T, N = {}, {}
 times = []
+lsts = []
 eor_mdl = {}
 for filename in args:
     print 'Reading', filename
@@ -165,6 +166,7 @@ for filename in args:
                 eor_mdl[t] = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size)) 
             else: eor_mdl[t] = eor_mdl[times[-1]]
             times.append(t)
+            lsts.append(uvi['lst'])
         #For 32 array inside 64 array. skip bls not in the subarray, but may be in the data set.
         if not (( i in ANTPOS ) and ( j in ANTPOS )) : continue
         bl = a.miriad.ij2bl(i,j)
@@ -196,6 +198,7 @@ for filename in args:
             _Nrms = capo.pfb.pfb(Nrms, window=WINDOW, taps=NTAPS, fft=n.fft.ifft)
             _Wrms = capo.pfb.pfb(w   , window=WINDOW, taps=NTAPS, fft=n.fft.ifft)
         else:
+            #take delay transform.
             window = a.dsp.gen_window(Trms.size, WINDOW)
             #window /= np.sum(window)
             _Trms = n.fft.ifft(window * Trms)
@@ -213,6 +216,8 @@ for filename in args:
         #    _C = n.linalg.inv(C)
         #    _Trms = n.dot(_C, _Trms).squeeze()
         #    _Nrms = n.dot(_C, _Nrms).squeeze()
+        
+        #shift delay transforms so center delay is zero.
         _Trms = n.fft.fftshift(_Trms)
         _Nrms = n.fft.fftshift(_Nrms)
         if False: # swap in a simulated signal post delay transform
@@ -483,10 +488,10 @@ for boot in xrange(NBOOT):
         for blj in bls_[cnt:]:
             #print a.miriad.bl2ij(bli), a.miriad.bl2ij(blj)
             # XXX behavior here is poorly defined for repeat baselines in bootstrapping
-            xi,xj = Cx.get_x(bli), Cx.get_x(blj) # No covariance applied.
-            xi_,xj_ = Cx_.get_x(bli), Cx_.get_x(blj) #covariance applied.
+            xi,xj = Cx.get_x(bli), Cx.get_x(blj) # No covariance applied. Gets bl{i,j} data for all integrations.
+            xi_,xj_ = Cx_.get_x(bli), Cx_.get_x(blj) #covariance applied. Gets bl{i,j} data for all integrations.
             pk_avg = scalar * xi * xj.conj() # make a power spectrum from bli*blj^*.
-            dspecs.append(pk_avg) # do this before bli == blj check to include noise bias in dspec
+            dspecs.append(pk_avg) # do this before bli == blj check to include noise bias in dspec.
             if bli == blj: continue
             if True: # exclude intra-group pairings # XXX
                 if (bli in gp1 and blj in gp1) or (bli in gp2 and blj in gp2) or (bli in gp3 and blj in gp3) or (bli in gp4 and blj in gp4): continue
@@ -535,7 +540,9 @@ for boot in xrange(NBOOT):
             #rescale = max(f1,f2)
             rescale = 1.
 
+            #if True:
             if False:
+                import pylab as p
                 p.subplot(221)
                 p.plot(n.average(xi_*xi_.conj(), axis=1).real, 'k')
                 p.plot(n.average(xi*xi.conj(), axis=1).real, 'r')
@@ -554,6 +561,7 @@ for boot in xrange(NBOOT):
                 p.plot(rescale*n.average(n1i_*n1j_.conj(), axis=1).real, 'c')
                 p.show()
             elif False:
+            #elif True:
                 import pylab as p
                 blistr,bljstr = str(a.miriad.bl2ij(bli)),str(a.miriad.bl2ij(blj))
                 print blistr, bljstr
