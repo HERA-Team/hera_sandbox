@@ -13,10 +13,18 @@ o.add_option('--plot', action='store_true',
     help='Generate plots')
 o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
+o.add_option('--msg', '-m', action='store', default='No MSF',
+    help='Message for this data run. Used to say number of antennas, type of data, etc')
 opts,args = o.parse_args(sys.argv[1:])
+
+print opts.msg
 
 PLOT = opts.plot
 if PLOT: import pylab as p
+import pylab as p
+
+#seed random number generator
+random.seed()
 
 NBOOT = opts.boot
 NTAPS = opts.taps
@@ -33,15 +41,23 @@ WINDOW = opts.window
 
 #Take half of the 64 antenna array. For testing purposes.
 #1/13/14 : take the whole array.
+#ANTPOS = n.array(
+#        [[49,41,47,19,29,28,34,51],
+#         [10, 3,25,48,24,55,27,57],
+#         [ 9,58, 1, 4,17,13,56,59],
+#         [22,61,35,18, 5,32,30,23]])
+
 ANTPOS = n.array(
         [[49,41,47,19,29,28,34,51],
          [10, 3,25,48,24,55,27,57],
          [ 9,58, 1, 4,17,13,56,59],
-         [22,61,35,18, 5,32,30,23]])
-#         [20,63,42,37,40,14,54,50],
-#         [43, 2,33, 6,52, 7,12,38],
-#         [53,21,15,16,62,44, 0,26],
-#         [31,45, 8,11,36,60,39,46]])
+         [22,61,35,18, 5,32,30,23],
+         [20,63,42,37,40,14,54,50],
+         [43, 2,33, 6,52, 7,12,38],
+         [53,21,15,16,62,44, 0,26],
+         [31,45, 8,11,36,60,39,46]])
+
+
 
 class CoV:
     '''Covariance class. 
@@ -308,6 +324,17 @@ for boot in xrange(NBOOT):
     #gp2 = gp2[:len(gp1)] # XXX force gp1 and gp2 to be same size
     #gp1,gp2 = gp1+gp2,[] # XXX
     #print 'XXX', len(gp1), len(gp2)
+    
+    #OVERRIDE TEST: This produces errors with a zero divde in averaging. 
+    #gp1 = n.array([(29,55),(3,49),(1,18),(17,48),(25,41)] )
+    #gp2 = n.array([(27,59),(19,24),(27,59),(13,30),(13,30)] )
+    #gp3 = n.array([(9,61),(27,28),(55,56),(9,61),(55,56)] )
+    #gp4 = n.array([(10,58),(35,58),(35,58),(35,58),(35,58),(10,58)] )
+    #gp1 = map(a.miriad.ij2bl, gp1[:,0], gp1[:,1])
+    #gp2 = map(a.miriad.ij2bl, gp2[:,0], gp2[:,1])
+    #gp3 = map(a.miriad.ij2bl, gp3[:,0], gp3[:,1])
+    #gp4 = map(a.miriad.ij2bl, gp4[:,0], gp4[:,1])
+    
     bls_ = gp1 + gp2 + gp3 + gp4
     print 'Bootstrap sample %d:' % boot,
     for gp in [gp1,gp2,gp3,gp4]: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
@@ -323,12 +350,14 @@ for boot in xrange(NBOOT):
     _Cxtot,_Cntot = 1, 1
     #PLT1,PLT2 = 4,4
     PLT1,PLT2 = 3,3
+    #PLT1,PLT2 = 4,3
     #PLT1,PLT2 = 2,2
     #PLT1,PLT2 = 1,2
     #888
     for cnt in xrange(PLT1*PLT2-1):
         print cnt, '/', PLT1*PLT2-1
         if PLOT:
+        #if True:
             p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log',  drng=3); p.colorbar(shrink=.5)
             #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
         SZ = Ts.shape[0]
@@ -374,7 +403,8 @@ for boot in xrange(NBOOT):
                         # get signal loss removing residual signal covariances.
                         #AAA, Why are we not checking if the baselines are in the same group as the one we want to subtract from? i.e. bli_ and blj_ in gp{i}
                         #CHANGE TO GP #Seems like it needs to be for i_,j_ in gp:
-                        _Csum,_Cwgt = 0,0
+                        _Csum,_Cwgt = 0.,0.
+                        #print gp
                         for i_ in xrange(L):
                             #check if i_ in gp
                             bli_ = bls_[i_]
@@ -385,9 +415,17 @@ for boot in xrange(NBOOT):
                                 if not blj_ in gp: continue # make sure averaging over baseline in the same group.
                                 if bli_ == blj_: continue # don't average over panels with noise bias
                                 if blj == blj_: continue # only average over other bls to better isolate bl systematics
+                                #print i_,j_,bli_,blj_
                                 _Csum += _C[i_,:,j_] # fixes indexing error in earlier ver
                                 _Cwgt += 1
-                        sub_C[i,:,j] = _Csum / _Cwgt # fixes indexing error in earlier ver XXX careful if _Cwgt is 0
+                        try:
+                            sub_C[i,:,j] = _Csum / _Cwgt # fixes indexing error in earlier ver XXX careful if _Cwgt is 0
+                        except:
+                           # print gp
+                           # print i,j,bli,blj
+                           # print i_,j_,bli_,blj_
+                           # print _Cwgt
+                            sub_C[i,:,j] = _Csum
                 _C.shape = sub_C.shape = (L*n_k,L*n_k)
                 _C -= sub_C
         if True:
@@ -466,6 +504,7 @@ for boot in xrange(NBOOT):
 #        p.figure(cnt)
 #        p.subplot(111); capo.arp.waterfall(Ts, mode='log', drng=3);p.colorbar(shrink=.5)
     if PLOT:
+    #if True:
         p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', drng=3);p.colorbar(shrink=.5)
         #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=3)
         p.show()
@@ -523,7 +562,9 @@ for boot in xrange(NBOOT):
                     Ts = n.dot(_cx, Ts)
                     cx = cov(Ts)
                 if PLOT:
-                    p.subplot(122); capo.arp.waterfall(cx, mode='log', mx=0, drng=3)
+                    i1,j1 = a.miriad.bl2ij(bli)
+                    i2,j2 = a.miriad.bl2ij(blj)
+                    p.subplot(122); capo.arp.waterfall(cx, mode='log', mx=0, drng=3); p.suptitle('covariace with %d_%d and %d_%d'%(i1,j1,i2,j2))
                     p.show()
                 xi_,xj_ = Ts[:n_k],Ts[n_k:]
             ni,nj = Cn.get_x(bli), Cn.get_x(blj)
@@ -610,6 +651,6 @@ for boot in xrange(NBOOT):
     print 'Writing pspec_boot%04d.npz' % boot
     n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, pk=avg_1d, err=std_1d, scalar=scalar, times=n.array(times),
         pk_vs_t=avg_2d, err_vs_t=std_2d, temp_noise_var=temp_noise_var, nocov_vs_t=n.average(dspecs,axis=0),
-        cmd=' '.join(sys.argv))
+        cmd=' '.join(sys.argv), msg=opts.msg)
 if PLOT: p.show()
 
