@@ -13,8 +13,8 @@ srclist, cutoff, catalogs = [], None, []
 cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs)
 aa = a.cal.get_aa(opts.cal, n.array([.15]))
 
-#NBOOT = 400
-NBOOT = 20
+NBOOT = 400
+#NBOOT = 20
 
 pks = {}
 pk_2d = {}
@@ -32,6 +32,9 @@ for filename in args:
         pk_2d[path] = []
         temp_data[path] = []
         nocov_2d[path] = []
+    if n.any(n.isnan(f['pk'])):
+        print 'skipping ', filename
+        continue
     pks[path].append(f['pk'])
     pk_2d[path].append(f['pk_vs_t'])
     scalar = f['scalar']
@@ -73,6 +76,7 @@ if False: # override power spectrum with the version w/o covariance diagonalizat
     pk_2d = nocov_2d
 
 CLIP = True
+#CLIP = False
 if CLIP:
     #pk_2d = pk_2d[...,250:550]
     #avg_pk_2d = avg_pk_2d[...,250:550]
@@ -90,6 +94,7 @@ else:
       for j in xrange(nos_std_2d.shape[1]):
         nos_std_2d[i,j] = n.convolve(nos_std_2d[i,j], n.ones((50,)), mode='same')
     wgts = 1./nos_std_2d**2
+    clsts = n.copy(lsts)
 
 #import IPython
 #IPython.embed()
@@ -155,9 +160,9 @@ p.show()
 print pk_2d.shape
 print wgts.shape
 pk_2d = pk_2d.transpose([1,2,3,0]).copy() # (bootstraps, kpls, times, bltypes)
-pk_2d.shape = pk_2d.shape[:-2] + (pk_2d.shape[-2] * pk_2d.shape[-1],) # (bootstraps, kpls, timebls)
+pk_2d.shape = pk_2d.shape[:-2] + (pk_2d.shape[-2] * pk_2d.shape[-1],) # (bootstraps, kpls, timebltypes)
 wgts = wgts.transpose([1,2,0]).copy() # (kpls, times, bltypes)
-wgts.shape = wgts.shape[:-2] + (wgts.shape[-2] * wgts.shape[-1],) # (bootstraps, kpls, timebls)
+wgts.shape = wgts.shape[:-2] + (wgts.shape[-2] * wgts.shape[-1],) # (bootstraps, kpls, timebltypes)
 
 #ntimes = pk_2d.shape[-1] / 2
 ntimes = pk_2d.shape[-1]
@@ -189,6 +194,7 @@ for boot in xrange(NBOOT):
 pk_boot = n.array(pk_boot).T
 pk_fold_boot = n.array(pk_fold_boot).T
 
+print pk_boot.shape
 print 'Sorting bootstraps'
 pk = n.average(pk_boot, axis=1)
 pk_fold = n.average(pk_fold_boot, axis=1)
