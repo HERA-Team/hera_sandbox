@@ -13,8 +13,8 @@ srclist, cutoff, catalogs = [], None, []
 cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs)
 aa = a.cal.get_aa(opts.cal, n.array([.15]))
 
-#NBOOT = 400
-NBOOT = 20
+NBOOT = 400
+#NBOOT = 20
 
 pks = {}
 pk_2d = {}
