@@ -60,6 +60,6 @@ axwf.set_xlabel('freq [MHz]')
 #title
 fig1.suptitle('RFI summary for %s (JD %d)'%(datetimes[0].strftime('%d-%b-%Y'),JD0))
 if opts.outfile == 'today.png':
-    opts.outfile = 'RFI_summary_'+datetimes[0].strftime('%d-%b-%Y')+'.png'
+    opts.outfile = str(JD0)+'_RFI_summary_'+datetimes[0].strftime('%d-%b-%Y')+'.png'
 print 'saving to %s' % opts.outfile
 fig1.savefig(opts.outfile,fmt='png')
