@@ -212,7 +212,9 @@ for sep in RS_VS_KPL:
         # To recalibrate to new Pic A, must multiply by square of ratio of fluxes
         # Jacobs et al 2013 says Pic A = 382 @ 150 MHz, index=-0.76, so at 160 MHz, Pic A = 364 Jy
         #f = 0.76 # psa747 calibration of Pic A = 370.6 Jy @ 160 MHz (which includes resolution effects)
-        f = 0.736 # rescale by (364/424)**2 to correct flux scale
+        #f = 0.736 # rescale by (364/424)**2 to correct flux scale
+        #for psa64
+        f = 1 # rescale by (364/424)**2 to correct flux scale
         print 'Scaling data and noise by %f for recalibration to PicA from Jacobs et al. 2013 (PSA32 only)' % f
         d *= f
         nos *= f

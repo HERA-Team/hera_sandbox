@@ -53,7 +53,8 @@ o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 o.add_option('--avoid', dest='avoid_src', 
     help='Source to avoid when plotting')
-
+o.add_option('--conj', action='store_true',
+    help='Properly conjugate the baselines')
 o.add_option('--blavg', dest='bl_avg', action='store_true',
     help='Average all the baselines give')
 
@@ -190,6 +191,8 @@ for uvfile in args:
         #conjugate if necessary when averaging.
         if opts.bl_avg:
             if check_conjugation(aa,i,j):d = d.conj()
+        if opts.conj:
+            if check_conjugation(aa,i,j):d = d.conj()
         # Do delay transform if required
         if opts.delay:
             w = a.dsp.gen_window(d.shape[-1], window=opts.window)
@@ -295,6 +298,9 @@ for cnt, bl in enumerate(bls):
                 ylabel = 'Time (integrations)'
             elif opts.time_axis=='lst':
                 step = plot_t['lst'][1] - plot_t['lst'][0]
+                if plot_t['lst'][0] > plot_t['lst'][-1]:
+                    diff = 2*n.pi - plot_t['lst'][0]
+                    plot_t['lst'] = ((n.array(plot_t['lst']) + diff)%(2*n.pi)) - diff
                 t1,t2 = (plot_t['lst'][0]-0.5*step)*12/n.pi, (plot_t['lst'][-1]+0.5*step)*12/n.pi
                 ylabel = 'Local Sideral time (hrs)'
             else:
