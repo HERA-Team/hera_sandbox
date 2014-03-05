@@ -111,24 +111,31 @@ def cov2(m1,m2):
     fact = float(N - 1)
     return (n.dot(X1, X2.T.conj()) / fact).squeeze()
 
-# Get a dict of all separations and the bls that contribute.0000
-#creates a dictionary of separations given a certain baseline
-#and vice versa, gives baselines for a given separation (returns list).
-bl2sep = {}
-sep2bl = {}
-for ri in range(ANTPOS.shape[0]):
-    for ci in range(ANTPOS.shape[1]):
-        for rj in range(ANTPOS.shape[0]):
-            for cj in range(ci,ANTPOS.shape[1]):
-                if ri >= rj and ci == cj: continue # exclude repeat +/- listings of certain bls
-                #sep = a.miriad.ij2bl(rj-ri, cj-ci)
-                sep = a.miriad.ij2bl(cj-ci, rj-ri) # prefer to have column as leading term to orient E/W baselines
-                i,j = ANTPOS[ri,ci], ANTPOS[rj,cj]
-                bl = a.miriad.ij2bl(i,j)
-                if i > j: i,j,sep = j,i,-sep
-                bl2sep[bl] = sep
-                sep = n.abs(sep)
-                sep2bl[sep] = sep2bl.get(sep,[]) + [bl]
+def get_sepbl(ANTPOS):
+    '''Returns dictionaries of separation to bls and 
+       vice versa for all seps and bls in ANTPOS'''
+    # Get a dict of all separations and the bls that contribute.0000
+    #creates a dictionary of separations given a certain baseline
+    #and vice versa, gives baselines for a given separation (returns list).
+    bl2sep = {}
+    sep2bl = {}
+    for ri in range(ANTPOS.shape[0]):
+        for ci in range(ANTPOS.shape[1]):
+            for rj in range(ANTPOS.shape[0]):
+                for cj in range(ci,ANTPOS.shape[1]):
+                    if ri >= rj and ci == cj: continue # exclude repeat +/- listings of certain bls
+                    #sep = a.miriad.ij2bl(rj-ri, cj-ci)
+                    sep = a.miriad.ij2bl(cj-ci, rj-ri) # prefer to have column as leading term to orient E/W baselines
+                    i,j = ANTPOS[ri,ci], ANTPOS[rj,cj]
+                    bl = a.miriad.ij2bl(i,j)
+                    if i > j: i,j,sep = j,i,-sep
+                    bl2sep[bl] = sep
+                    sep = n.abs(sep)
+                    sep2bl[sep] = sep2bl.get(sep,[]) + [bl]
+    return bl2sep, sep2bl
+
+bl2sep, sep2bl = get_sepbl(ANTPOS)
+
 uv = a.miriad.UV(args[0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
