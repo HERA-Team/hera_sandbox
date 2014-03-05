@@ -197,7 +197,8 @@ for filename in args:
         if True: # generate noise
             TSYS = 560e3 # mK
             B = 100e6 / uvi['nchan']
-            NDAY = 92
+            #NDAY = 92
+            NDAY = 47
             NBL = 1
             NPOL = 2
             T_INT = 43. # for just compressed data
@@ -240,7 +241,7 @@ for filename in args:
             _Trms = n.random.normal(size=_Trms.size) * n.exp(2j*n.pi*n.random.uniform(size=_Trms.size))
             mask = n.ones(_Trms.size); mask[15:25] = 0
             _Trms += .3*eor_mdl[times[-1]] * mask
-        #Makes list of visibilities for each baseline for all times. number of integrations by number of channels.
+        #Makes list of visibilities for each baseline for all times. number of integrations by number of channels. These are actually delay spectrums. Note ifft above.
         T[bl] = T.get(bl, []) + [_Trms]
         N[bl] = N.get(bl, []) + [_Nrms]
 
@@ -284,13 +285,13 @@ print times[300], times[500]
 print ' '.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in bls])
 if PLOT:
     #capo.arp.waterfall(cov(Ts), mode='log', drng=2); p.show()
-    p.subplot(131); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
+    p.subplot(111); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
     p.title('Vis in K. bls X ints.', fontsize = 8)
-    p.subplot(132); capo.arp.waterfall(Ns, mode='log')#, mx=1, drng=2); p.colorbar(shrink=.5)
-    p.title('FRF eor_model.', fontsize=8)
-    p.subplot(133); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
+#    p.subplot(132); capo.arp.waterfall(Ns, mode='log')#, mx=1, drng=2); p.colorbar(shrink=.5)
+#    p.title('FRF eor_model.', fontsize=8)
+#    p.subplot(133); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
     print cov(Ts).shape
-    p.title('cov(Ts)', fontsize=8)
+#    p.title('cov(Ts)', fontsize=8)
     p.show()
     p.subplot(121); capo.arp.waterfall(cov(Ts), mode='real', mx=.005, drng=.01); p.colorbar(shrink=.5)
     p.title('cov(Ts) real part', fontsize=8)
@@ -358,7 +359,7 @@ for boot in xrange(NBOOT):
         print cnt, '/', PLT1*PLT2-1
         if PLOT:
         #if True:
-            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log',  drng=3); p.colorbar(shrink=.5)
+            p.figure(0);p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log',  drng=3); p.colorbar(shrink=.5)
             #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
         SZ = Ts.shape[0]
         Cx,Cn = cov(Ts), cov(Ns)
@@ -368,7 +369,8 @@ for boot in xrange(NBOOT):
             d = n.diag(c); d.shape = (1,SZ)
             c /= n.sqrt(d) * 2
         #g = .3 # for 1*7 baselines
-        g = .2 # for 4*7 baselines
+        #g = .2 # for 4*7 baselines
+        g = .1 # for 4*7 baselines
         # begin with off-diagonal covariances to subtract off 
         # (psuedo-inv for limit of small off-diagonal component)
         _Cx,_Cn = -g*Cx, -g*Cn 
@@ -425,9 +427,21 @@ for boot in xrange(NBOOT):
                            # print i,j,bli,blj
                            # print i_,j_,bli_,blj_
                            # print _Cwgt
+                            print 'weights are zero for %d_%d'%(i_,j_)
                             sub_C[i,:,j] = _Csum
                 _C.shape = sub_C.shape = (L*n_k,L*n_k)
+             #   if PLOT:
+             #       p.figure(5);p.subplot(2,2,1);capo.arp.waterfall(_C, mode='log');p.title('before sub')
+             #       p.colorbar(shrink=.5) 
+                
                 _C -= sub_C
+             #   if PLOT:
+             #       p.figure(5);p.subplot(2,2,2);capo.arp.waterfall(sub_C, mode='log', drng=3)
+             #       p.colorbar(shrink=.5) 
+             #       p.figure(5);p.subplot(2,2,3);capo.arp.waterfall(_C, mode='log')
+             #       p.colorbar(shrink=.5) 
+             #       p.figure(5);p.subplot(2,2,4);capo.arp.waterfall(cov(Ts), mode='log',  drng=3); p.colorbar(shrink=.5#)
+             #       p.show()
         if True:
             # divide bls into two independent groups to avoid cross-contamination of noise
             # this is done by setting mask=0 for all panels pairing bls between different groups
@@ -505,7 +519,7 @@ for boot in xrange(NBOOT):
 #        p.subplot(111); capo.arp.waterfall(Ts, mode='log', drng=3);p.colorbar(shrink=.5)
     if PLOT:
     #if True:
-        p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', drng=3);p.colorbar(shrink=.5)
+        p.figure(0);p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', drng=3);p.colorbar(shrink=.5)
         #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=3)
         p.show()
 
