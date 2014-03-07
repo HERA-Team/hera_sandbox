@@ -237,9 +237,8 @@ bls = plot_x.keys()
 if opts.lst_avg:
     hr = n.pi/12.
     #create lstbins 
-    lst_bins = n.round(n.arange(0,24*hr, hr*(42.95/3600.)), 8) #42.95 is resolution of lst bin in sec. 
+    lst_bins = n.round(n.arange(0, 2*n.pi, 2*n.pi*(42.95/a.const.sidereal_day)), 8) #42.95 is resolution of lst bin in sec. 
     bin_indices = n.digitize(plot_t['lst'],lst_bins)
-    print d.size
     for b in bls:
         summed = n.zeros((len(lst_bins),d.size), dtype=d.dtype)
         lst_wgts = n.zeros((len(lst_bins),d.size), dtype=float) 
