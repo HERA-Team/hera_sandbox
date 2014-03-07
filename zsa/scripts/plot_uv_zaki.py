@@ -58,6 +58,9 @@ o.add_option('--conj', action='store_true',
 o.add_option('--blavg', dest='bl_avg', action='store_true',
     help='Average all the baselines give')
 
+o.add_option('--lst_avg', dest='lst_avg', action='store_true',
+    help='Averag in lst. Takes lst bin size to be 42.95 seconds.')
+
 def convert_arg_range(arg):
     """Split apart command-line lists/ranges into a list of numbers."""
     arg = arg.split(',')
@@ -232,9 +235,36 @@ for uvfile in args:
 
 #[d / float(len(opts.ant.split(','))) for d in plot_x['0,0,%d'%pol]]
 
-
-
 bls = plot_x.keys()
+n.savez('lst_list_test',plot_t['lst'], plot_x[bls[0]])
+if opts.lst_avg:
+    hr = n.pi/12.
+    #create lstbins 
+    lst_bins = n.round(n.arange(0,24*hr, hr*(42.95/3600.)), 8) #42.95 is resolution of lst bin in sec. 
+    bin_indices = n.digitize(plot_t['lst'],lst_bins)
+    print d.size
+    for b in bls:
+        summed = n.zeros((len(lst_bins),d.size), dtype=d.dtype)
+        lst_wgts = n.zeros((len(lst_bins),d.size), dtype=float) 
+        n_flagged = n.zeros((len(lst_bins),d.size), dtype=float) 
+        total_summed = n.zeros((len(lst_bins),1))
+        frac_flagged = n.zeros((len(lst_bins),d.size), dtype=float) 
+        sum_count = 0
+        for i, datum in zip(bin_indices, plot_x[b]):
+            if i >= len(lst_bins):i = len(lst_bins)-1
+            #print d.dtype
+            #print i, datum, datum[0].shape, summed.shape
+            summed[i] += datum[0].data
+            total_summed[i] += 1.
+            n_flagged[i] += datum[0].mask
+            lst_wgts[i] += n.logical_not(datum[0].mask)
+        frac_flagged = n_flagged/total_summed
+        mask = frac_flagged > 0.5
+        plot_x[b] = n.ma.array(summed,mask=mask)
+        full_shape = plot_x[b].shape
+        plot_x[b].shape = (full_shape[0], 1, full_shape[-1]) #turn shape in to (bins, 1, chans) for plotting image purposes.
+    plot_t['lst'] = lst_bins     
+
 def sort_func(a, b):
     ai,aj,pa = map(int, a.split(','))
     bi,bj,pb = map(int, b.split(','))
