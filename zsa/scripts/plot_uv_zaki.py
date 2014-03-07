@@ -215,8 +215,6 @@ for uvfile in args:
             d = n.fft.fftshift(d, axes=0)
         elif opts.unmask: d = d.data
         d.shape = (1,) + d.shape
-        #import IPython 
-        #IPython.embed()
         if opts.bl_avg:
             awgt = 1/float(len(opts.ant.split(',')))
             if not plot_x.has_key('0,0,%d'%uv['pol']):
@@ -236,7 +234,6 @@ for uvfile in args:
 #[d / float(len(opts.ant.split(','))) for d in plot_x['0,0,%d'%pol]]
 
 bls = plot_x.keys()
-n.savez('lst_list_test',plot_t['lst'], plot_x[bls[0]])
 if opts.lst_avg:
     hr = n.pi/12.
     #create lstbins 
