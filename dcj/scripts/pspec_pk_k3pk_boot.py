@@ -2,7 +2,7 @@
 import aipy as a, numpy as n, pylab as p
 import capo as C
 import sys, optparse, re, os, random
-
+PLOT=True
 NBOOT = 400
 args = sys.argv[1:]
 
@@ -23,7 +23,7 @@ for filename in args:
         temp_data[path] = []
         nocov_2d[path] = []
     pks[path].append(f['pk'])
-    print 'Has NaN:', n.any(n.isnan(f['pk']))
+    print 'Has NaN:', n.any(n.isnan(f['pk'])),n.sum(n.isnan(f['pk']))/float(f['pk'].size)
     pk_2d[path].append(f['pk_vs_t'])
     scalar = f['scalar']
     temp_data[path].append(f['temp_noise_var'])
@@ -71,7 +71,7 @@ else:
         nos_std_2d[i,j] = n.convolve(nos_std_2d[i,j], n.ones((50,)), mode='same')
     wgts = 1./nos_std_2d**2
 
-if True: # plot some stuff
+if PLOT: # plot some stuff
     plt1 = int(n.sqrt(len(paths)))
     plt2 = int(n.ceil(len(paths)/float(plt1)))
     for cnt,path in enumerate(paths):
@@ -79,18 +79,18 @@ if True: # plot some stuff
         p.subplot(plt2,plt1,cnt+1)
         C.arp.waterfall(n.abs(n.average(temp_data[cnt], axis=0))**2 * scalar, mx=10, drng=3)
         p.colorbar(shrink=.5) 
-    p.subplot(plt2,plt1,1); p.title(r'$|\langle\tilde V_b\rangle|^2$'); p.show()
+    p.subplot(plt2,plt1,1); p.title(r'$|\langle\tilde V_b\rangle|^2$'); p.savefig('pspec_boot_1.png')
     for cnt,path in enumerate(paths):
         p.subplot(plt2,plt1,cnt+1)
         C.arp.waterfall(nos_std_2d[cnt], mx=10, drng=3)
         p.colorbar(shrink=.5) 
-    p.subplot(plt2,plt1,1); p.title('Thermal Noise [mK$^2$]'); p.show()
+    p.subplot(plt2,plt1,1); p.title('Thermal Noise [mK$^2$]'); p.savefig('pspec_boot_2.png')
     for cnt,path in enumerate(paths):
         p.subplot(plt2,plt1,cnt+1)
         #C.arp.waterfall(avg_pk_2d[cnt], mx=10, drng=3)
         C.arp.waterfall(avg_pk_2d[cnt], mode='real', mx=1e8, drng=2e8)
         p.colorbar(shrink=.5) 
-    p.subplot(plt2,plt1,1); p.title('Power Spectrum [mK$^2$]'); p.show()
+    p.subplot(plt2,plt1,1); p.title('Power Spectrum [mK$^2$]'); p.savefig('spec_boot_3.png')
     plt1,plt2 = len(paths),3
     for cnt,path in enumerate(paths):
         p.subplot(plt2,plt1,0*plt1+cnt+1)
@@ -104,13 +104,13 @@ if True: # plot some stuff
         #C.arp.waterfall(n.cumsum(avg_pk_2d[cnt]*wgts[cnt],axis=1)/n.cumsum(wgts[cnt],axis=1), mx=10, drng=4)
         C.arp.waterfall(n.cumsum(avg_pk_2d[cnt]*wgts[cnt],axis=1)/n.cumsum(wgts[cnt],axis=1), mode='real', mx=1e8, drng=2e8)
         p.colorbar(shrink=.5) 
-    p.subplot(plt2,plt1,1); p.title('Weighted Power Spectrum [mK$^2$]'); p.show()
+    p.subplot(plt2,plt1,1); p.title('Weighted Power Spectrum [mK$^2$]'); p.savefig('pspec_boot_4.png')
 
+
+    p.plot(avg_pk_2d[0,30])
+    p.plot(n.cumsum(avg_pk_2d[0,30]*wgts[0,30])/n.cumsum(wgts[0,30]))
+    p.savefig('pspec_boot_5.png')
 print avg_pk_2d.shape, wgts.shape
-p.plot(avg_pk_2d[0,30])
-p.plot(n.cumsum(avg_pk_2d[0,30]*wgts[0,30])/n.cumsum(wgts[0,30]))
-p.show()
-
 print pk_2d.shape
 print wgts.shape
 pk_2d = pk_2d.transpose([1,2,3,0]).copy() # (bootstraps, kpls, times, bltypes)
@@ -169,20 +169,20 @@ if True:
 else:
     err = n.std(pk_boot, axis=1)
     err_fold = n.std(pk_fold_boot, axis=1)
-
-#p.subplot(221); C.arp.waterfall(pk_boot, mx=9, drng=3); p.colorbar(shrink=.5)
-p.subplot(221); p.plot(pk_boot)
-p.subplot(222)
-p.plot(pk)
-p.plot(n.median(pk_boot,axis=1))
-p.plot(pk+2*err)
-#p.subplot(223); C.arp.waterfall(pk_fold_boot, mx=9, drng=3); p.colorbar(shrink=.5)
-p.subplot(223); p.plot(pk_fold_boot)
-p.subplot(224)
-p.plot(pk_fold)
-p.plot(n.median(pk_fold_boot,axis=1))
-p.plot(pk_fold+2*err_fold)
-p.show()
+if PLOT:
+    #p.subplot(221); C.arp.waterfall(pk_boot, mx=9, drng=3); p.colorbar(shrink=.5)
+    p.subplot(221); p.plot(pk_boot)
+    p.subplot(222)
+    p.plot(pk)
+    p.plot(n.median(pk_boot,axis=1))
+    p.plot(pk+2*err)
+    #p.subplot(223); C.arp.waterfall(pk_fold_boot, mx=9, drng=3); p.colorbar(shrink=.5)
+    p.subplot(223); p.plot(pk_fold_boot)
+    p.subplot(224)
+    p.plot(pk_fold)
+    p.plot(n.median(pk_fold_boot,axis=1))
+    p.plot(pk_fold+2*err_fold)
+    p.savefig('pspec_boot_6.png')
 
 print 'Writing pspec.npz'
 n.savez('pspec.npz', kpl=kpl, pk=pk, err=err, pk_fold=pk_fold, err_fold=err_fold, cmd=cmd)
