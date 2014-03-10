@@ -11,21 +11,6 @@ opts,args = o.parse_args(sys.argv[1:])
 uv = a.miriad.UV(args[0])
 aa = a.cal.get_aa(opts.cal,uv['sdf'],uv['sfreq'],uv['nchan'])
 
-if opts.onephs:
-    (uvw,t,bl),d = uv.read()
-    aa.set_jultime(t+5.*60./a.const.s_per_day)
-    RA = str(aa.sidereal_time())
-    dec= str(aa.lat)
-    print "opts.onesrc is True: setting phase to %s_%s"%(RA,dec)
-    opts.src = RA+'_'+dec
-
-if not opts.src is None:
-    if not opts.src.startswith('zen'):
-        srclist,cutoff,catalogs = a.scripting.parse_srcs(opts.src, opts.cat)
-        src = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs).values()[0]
-    else: src = 'z'
-else: src = None
-
 del(uv)
 
 curtime = None
@@ -37,6 +22,22 @@ for filename in args:
         continue
     
     uvi = a.miriad.UV(filename)
+    if opts.onephs:
+        (uvw,t,bl),d = uvi.read()
+        aa.set_jultime(t+5.*60./a.const.s_per_day)
+        RA = str(aa.sidereal_time())
+        dec= str(aa.lat)
+        print "opts.onesrc is True: setting phase to %s_%s"%(RA,dec)
+        opts.src = RA+'_'+dec
+        epoch = aa.epoch
+    
+    if not opts.src is None:
+        if not opts.src.startswith('zen'):
+            srclist,cutoff,catalogs = a.scripting.parse_srcs(opts.src, opts.cat)
+            src = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs).values()[0]
+        else: src = 'z'
+    else: src = None
+
     
     D = {}
     for (uvw,t,(i,j)),d in uvi.all():
@@ -63,12 +64,13 @@ for filename in args:
     antpos.shape = antpos.shape[0]*antpos.shape[1]
     
     uvo = a.pol.UV(filename+'M',status='new')
-    uvo.init_from_uv(uvi,override={'antpos':antpos})
+    ra = src.get_params()['ra']
+    uvo.init_from_uv(uvi,override={'antpos':antpos,'obsra':ra,'ra':ra,'epoch':epoch*2000/36525.})
     uvo.add_var('resfreq','d')
     uvo['restfreq'] = uvi['sfreq']
     for t in D:
         for bl in D[t]:
-            for pol in D[t][bl]:
+            for pol in np.sort(D[t][bl].keys()):
                 p,d = D[t][bl][pol]
                 uvo.write_pol(a.miriad.pol2str[pol])
                 uvo.write(p,d)

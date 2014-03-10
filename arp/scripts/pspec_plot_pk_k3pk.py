@@ -225,14 +225,14 @@ for sep in RS_VS_KPL:
         nos *= f
         d_fold *= f
         nos_fold *= f
-    if False: # For aggressive fringe-rate filtering, change beam area
+    if True: # For aggressive fringe-rate filtering, change beam area
         f = 1.90 # ratio of power**2 beams for filtered * unfiltered beams: 0.306 / 0.162
         print 'Scaling data and noise by %f for beam constriction in aggressive fringe-rate filtering' % f
         d *= f
         nos *= f
         d_fold *= f
         nos_fold *= f
-    if True: # if lstbin cut out outlying data, need to renormalize noise
+    if False: # Used to think that if lstbin cut out outlying data, need to renormalize noise but now have shown that bootstrapping still accurately recovers the variation from noise
         #f = 1.305 # for lst_v003_I
         f = 1.586 # for lst_v00[256]_I
         print 'Scaling noise by %f for noise attenuation from rejecting outliers in LST binning' % f

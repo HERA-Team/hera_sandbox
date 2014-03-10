@@ -15,7 +15,7 @@ o.add_option('--apply_masknpz',action='store_true',
 opts,args = o.parse_args(sys.argv[1:])
 
 for file in args:
-    outfile = file+'.avg.pkl'
+    outfile = os.path.basename(file)+'.avg.pkl'
     print file, ' > ',outfile
     uv = a.miriad.UV(file)
     freqs = n.arange(uv['sfreq'], uv['sfreq']+uv['nchan']*uv['sdf'], uv['sdf'])

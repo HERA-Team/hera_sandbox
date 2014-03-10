@@ -3,6 +3,11 @@ import aipy as a, numpy as n
 import capo
 import optparse, sys, os, random
 
+
+def miriadbl2str(mbl):
+    return "%d_%d"%a.miriad.bl2ij(mbl)
+
+
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True)
 o.add_option('-t', '--taps', type='int', default=1,
@@ -14,6 +19,7 @@ o.add_option('--plot', action='store_true',
 o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 opts,args = o.parse_args(sys.argv[1:])
+
 
 PLOT = opts.plot
 if PLOT: import pylab as p
@@ -31,7 +37,27 @@ C_ = [i+2 for i in A_]
 D_ = [i+3 for i in A_]
 ANTPOS = n.array([A_, B_, C_, D_])
 
+#Take half of the 64 antenna array. For testing purposes.
+#1/13/14 : take the whole array.
+#ANTPOS = n.array(
+#        [[49,41,47,19,29,28,34,51],
+#         [10, 3,25,48,24,55,27,57],
+#         [ 9,58, 1, 4,17,13,56,59],
+#         [22,61,35,18, 5,32,30,23]])
+#         [20,63,42,37,40,14,54,50],
+#         [43, 2,33, 6,52, 7,12,38],
+#         [53,21,15,16,62,44, 0,26],
+#         [31,45, 8,11,36,60,39,46]])
+
 class CoV:
+    '''Covariance class. 
+        input : Data matrix and bls in set. (X, bls)
+        
+        bls   = bls
+        X     = data matrix
+        nprms = number of channels/kmodes/prms
+        C     = covariance of data matrix.
+    '''
     def __init__(self, X, bls):
         self.bls = bls
         self.X = X
@@ -75,7 +101,9 @@ def cov2(m1,m2):
     fact = float(N - 1)
     return (n.dot(X1, X2.T.conj()) / fact).squeeze()
 
-# Get a dict of all separations and the bls that contribute
+# Get a dict of all separations and the bls that contribute.0000
+#creates a dictionary of separations given a certain baseline
+#and vice versa, gives baselines for a given separation (returns list).
 bl2sep = {}
 sep2bl = {}
 for ri in range(ANTPOS.shape[0]):
@@ -84,24 +112,48 @@ for ri in range(ANTPOS.shape[0]):
             for cj in range(ci,ANTPOS.shape[1]):
                 if ri >= rj and ci == cj: continue # exclude repeat +/- listings of certain bls
                 #sep = a.miriad.ij2bl(rj-ri, cj-ci)
-                sep = a.miriad.ij2bl(cj-ci, rj-ri) # prefer to have column as leading term to orient E/W baselines
+                sep = (cj-ci, rj-ri) #(dx,dy) in row spacing units
                 i,j = ANTPOS[ri,ci], ANTPOS[rj,cj]
                 bl = a.miriad.ij2bl(i,j)
-                if i > j: i,j,sep = j,i,-sep
+                if i > j: 
+                    i,j = j,i
+                    sep = (sep[0]*-1,sep[1]*-1)
                 bl2sep[bl] = sep
-                sep = n.abs(sep)
                 sep2bl[sep] = sep2bl.get(sep,[]) + [bl]
+#choose unit seperations corresponding to the bls I put in.
+if len(opts.ant.split('_'))>1: #if there are baselines requested
+    #get a list of miriad format bl ints
+    input_bls = [a.miriad.ij2bl(int(l.split('_')[0]),int(l.split('_')[1])) for l in opts.ant.split(',')]
+    print input_bls
+    myseps = list(set([bl2sep[bl] for bl in input_bls]))#get a list of the seps, one entry per 
+    print "based on input baselines, I am including the following seperations"
+    print myseps
+    mybls = []
+    for sep in myseps:
+        mybls += sep2bl[sep]
+        revsep = (-sep[0],-sep[1])
+        mybls += sep2bl[revsep] #don't forget the reverse seps. they count as the same!
+    print "found %d baselines"%len(mybls)
+    opts.ant = ','.join([miriadbl2str(bl) for bl in mybls])
+    print opts.ant
+#WARNING: The default is to do _all_ seps in the data.
 
+
+#checking that our grid indexing is working
+print [a.miriad.bl2ij(bl) for bl in sep2bl[(1,0)]]
+print len(sep2bl[(0,1)])
 uv = a.miriad.UV(args[0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 del(uv)
 
+#creat active frequencies, average active frequency and convert to redshift.
 afreqs = freqs.take(chans)
 fq = n.average(afreqs)
 z = capo.pspec.f2z(fq)
 
+#currently not used.
 if PFB:
     # XXX unsure how much of a BW modification a windowed PFB needs.  I think not much...
     B = sdf * afreqs.size / NTAPS
@@ -111,11 +163,11 @@ else:
     # the window post delay transform (or at least dividing out by the gain of the window)
     # For windowed data, the FFT divides out by the full bandwidth, B, which is
     # then squared.  Proper normalization is to multiply by B**2 / (B / NoiseEqBand) = B * NoiseEqBand
-    B = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW]
-    etas = n.fft.fftshift(capo.pspec.f2eta(afreqs))
-kpl = etas * capo.pspec.dk_deta(z)
+    B = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW] # normalization. See above.
+    etas = n.fft.fftshift(capo.pspec.f2eta(afreqs)) #creat etas (these are fourier dual to frequency)
+kpl = etas * capo.pspec.dk_deta(z) #111
 bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq)
-scalar = capo.pspec.X2Y(z) * bm * B
+scalar = capo.pspec.X2Y(z) * bm * B # cosmological volume scalar
 #scalar = 1
 print 'Freq:',fq
 print 'z:', z
@@ -127,6 +179,7 @@ print 'scalar:', scalar
 #kwargs = {'cen_fqs':cen_fqs,'B':B, 'ntaps':NTAPS, 'window':WINDOW, 'bm_fqs':afreqs.clip(.120,.190)}
 #window = a.dsp.gen_window(freqs.size, window=WINDOW)
 
+#T is a dictionary of the visibilities and N is the dictionary for noise estimates.
 T, N = {}, {}
 times = []
 eor_mdl = {}
@@ -137,14 +190,22 @@ for filename in args:
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
         if len(times) == 0 or times[-1] != t:
             if len(times) % 8 == 0:
-                eor_mdl[t] = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size))
+                #For every 8th integration make random normal noise that is our eor model. Note for every block of 8, this noise is the same. 222
+                eor_mdl[t] = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size)) 
             else: eor_mdl[t] = eor_mdl[times[-1]]
             times.append(t)
+        #For 32 array inside 64 array. skip bls not in the subarray, but may be in the data set.
+        if not (( i in ANTPOS ) and ( j in ANTPOS )) : continue
         bl = a.miriad.ij2bl(i,j)
         sep = bl2sep[bl]
-        if sep < 0:
+        #print i,j,':',sep
+        #if n.abs(sep[0]) != 1 or sep[1] !=0:continue
+        #print '-->',i,j
+        sys.stdout.flush()
+        if sep[0] < 0:
             #print 'Conj:', a.miriad.bl2ij(bl)
-            d,sep = n.conj(d),-sep
+            d,sep = n.conj(d),-1*n.array(sep)
+        #take active data and convert from janksy's to temperature units. Current data is in janskys.
         d,f = d.take(chans), f.take(chans)
         w = n.logical_not(f).astype(n.float)
         Trms = d * capo.pspec.jy2T(afreqs)
@@ -191,23 +252,27 @@ for filename in args:
             _Trms = n.random.normal(size=_Trms.size) * n.exp(2j*n.pi*n.random.uniform(size=_Trms.size))
             mask = n.ones(_Trms.size); mask[15:25] = 0
             _Trms += .3*eor_mdl[times[-1]] * mask
+        #Makes list of visibilities for each baseline for all times. number of integrations by number of channels.
         T[bl] = T.get(bl, []) + [_Trms]
         N[bl] = N.get(bl, []) + [_Nrms]
 
+#444
 n_k = chans.size / NTAPS
 bls = T.keys()
 for bl in bls:
+    print 'bl shape (nints, nchan):'
     T[bl],N[bl] = n.array(T[bl]),n.array(N[bl])
-    print T[bl].shape
+    print '\t',T[bl].shape
 if True:
     print 'Fringe-rate filtering the noise to match the data'
     for bl in N:
-        _N = n.fft.ifft(N[bl], axis=0)
-        _N[23:] = 0 # This was calculated by hand for fr-filter with max_fr=1. and min_fr=0.
+        _N = n.fft.ifft(N[bl], axis=0) # iffts along the time axis
+        _N[23:] = 0 # This was calculated by hand for fr-filter with max_fr=1. and min_fr=0. #555
         N[bl] = n.fft.fft(_N, axis=0)
 if False:
     print 'Adding extra noise into the data'
     for bl in bls: T[bl] += N[bl]
+#666
 Ts = n.concatenate([T[bl] for bl in bls], axis=-1).T
 Ns = n.concatenate([N[bl] for bl in bls], axis=-1).T
 if False:
@@ -226,31 +291,50 @@ if False:
             Ns[i] *= -1
 
 print Ts.shape
+print Ns.shape
 print times[300], times[500]
 print ' '.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in bls])
 if PLOT:
     #capo.arp.waterfall(cov(Ts), mode='log', drng=2); p.show()
     p.subplot(131); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
-    p.subplot(132); capo.arp.waterfall(Ns, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
+    p.title('Vis in K. bls X ints.', fontsize = 8)
+    p.subplot(132); capo.arp.waterfall(Ns, mode='log')#, mx=1, drng=2); p.colorbar(shrink=.5)
+    p.title('FRF eor_model.', fontsize=8)
     p.subplot(133); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
+    print cov(Ts).shape
+    p.title('cov(Ts)', fontsize=8)
     p.show()
     p.subplot(121); capo.arp.waterfall(cov(Ts), mode='real', mx=.005, drng=.01); p.colorbar(shrink=.5)
+    p.title('cov(Ts) real part', fontsize=8)
     p.subplot(122); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
+    p.title('cov(Ts) log', fontsize=8)
     p.show()
 
 for boot in xrange(NBOOT):
+    #777
     if True: # pick a sample of baselines with replacement
         #bls_ = [random.choice(bls) for bl in bls]
         bls_ = random.sample(bls, len(bls))
+        nbls = len(bls)
         #gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:] # ensure gp1 and gp2 can't share baselines
         #gp1,gp2,gp3 = bls_[:4],bls_[4:9],bls_[9:]
-        gp1,gp2,gp3,gp4 = bls_[:7],bls_[7:14],bls_[14:21],bls_[21:] # for 28bl
+        #GGG : divide number of bls by 4 for 64 dataset. This is 56 bls for sep01
+        nblspg = nbls/4
+        print 'Breaking %d bls into groups of %d'%(nbls, nblspg)
+        #gp1,gp2,gp3,gp4 = bls_[:7],bls_[7:14],bls_[14:21],bls_[21:] # for 28bl i.e. 32 antennas in a grid 4 X 8
+        gp1,gp2,gp3,gp4 = bls_[:nblspg],bls_[nblspg:nblspg*2],bls_[nblspg*2:nblspg*3],bls_[nblspg*3:nblspg*4] # generic
+        leftover = nbls - (nblspg*4)
+        while leftover>0:
+            i = random.choice(range(4))
+            [gp1,gp2,gp3,gp4][i].append(bls_[-1*leftover])
+            leftover -= 1
+        #gp1,gp2,gp3,gp4 = bls_[:14],bls_[14:28],bls_[28:42],bls_[42:] # for 56bl -> 14 * 4
         #gp1,gp2,gp3,gp4 = bls_[:5],bls_[5:10],bls_[10:15],bls_[15:] # for 21bl
-        # ensure each group has at least 2 kinds of baselines
-        gp1 = random.sample(gp1, 2) + [random.choice(gp1) for bl in gp1[:len(gp1)-2]]
-        gp2 = random.sample(gp2, 2) + [random.choice(gp2) for bl in gp2[:len(gp2)-2]]
-        gp3 = random.sample(gp3, 2) + [random.choice(gp3) for bl in gp3[:len(gp3)-2]]
-        gp4 = random.sample(gp4, 2) + [random.choice(gp4) for bl in gp4[:len(gp4)-2]]
+        # ensure each group has at least 3 kinds of baselines. Otherwise get 0 divide.
+        gp1 = random.sample(gp1, 3) + [random.choice(gp1) for bl in gp1[:len(gp1)-3]]
+        gp2 = random.sample(gp2, 3) + [random.choice(gp2) for bl in gp2[:len(gp2)-3]]
+        gp3 = random.sample(gp3, 3) + [random.choice(gp3) for bl in gp3[:len(gp3)-3]]
+        gp4 = random.sample(gp4, 3) + [random.choice(gp4) for bl in gp4[:len(gp4)-3]]
     else:
         bls_ = random.sample(bls, len(bls))
         gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:]
@@ -261,6 +345,7 @@ for boot in xrange(NBOOT):
     print 'Bootstrap sample %d:' % boot,
     for gp in [gp1,gp2,gp3,gp4]: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
     print
+    #again Ts is the number of bls*channels X number of integrations. Note this rearragnes the order of bls in Ts to be that of bls_. May be repititions.
     Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
     Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
     L = len(bls_)
@@ -271,15 +356,19 @@ for boot in xrange(NBOOT):
     _Cxtot,_Cntot = 1, 1
     #PLT1,PLT2 = 4,4
     PLT1,PLT2 = 3,3
+    #PLT1,PLT2 = 2,2
     #PLT1,PLT2 = 1,2
+    #888
     for cnt in xrange(PLT1*PLT2-1):
         print cnt, '/', PLT1*PLT2-1
         if PLOT:
-            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log', mx=-1, drng=3)
+            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log',  drng=3); p.colorbar(shrink=.5)
             #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
         SZ = Ts.shape[0]
         Cx,Cn = cov(Ts), cov(Ns)
+        #999
         for c in [Cx,Cn]: # Normalize covariance matrices
+            #SZ is number of rows in Ts. i.e. #bls * #channels.
             d = n.diag(c); d.shape = (1,SZ)
             c /= n.sqrt(d) * 2
         #g = .3 # for 1*7 baselines
@@ -289,7 +378,7 @@ for boot in xrange(NBOOT):
         _Cx,_Cn = -g*Cx, -g*Cn 
         ind = n.arange(SZ)
         # XXX do we also need to zero modes adjacent to diagonal, since removing them results in bigger signal loss?
-        for b in xrange(L): # for each redundant baseline, zero out diagonal from covariance diagonalization
+        for b in xrange(L): # for each redundant baseline, zero out diagonal from covariance diagonalization. Sets each diagonal of each bl-bl covariance to 0.
             indb = ind[:-b*n_k]
             _Cx[indb,indb+b*n_k] = _Cx[indb+b*n_k,indb] = 0
             _Cn[indb,indb+b*n_k] = _Cn[indb+b*n_k,indb] = 0
@@ -298,6 +387,7 @@ for boot in xrange(NBOOT):
             # do this twice: once for the signal (Cx) and once for the noise (Cn)
             # using the statistics of the signal and noise, respectively
             for _C in [_Cx,_Cn]:
+                #remember L is the total number of baselines and n_k is the number of kbins (i.e. number of channels). Note shape of covariance is n_k*#bls X n_k*#bls.
                 _C.shape = (L,n_k,L,n_k)
                 sub_C = n.zeros_like(_C)
                 # Choose a (i,j) baseline cross-multiple panel in the covariance matrix
@@ -315,17 +405,30 @@ for boot in xrange(NBOOT):
                         # Now average over all other panels of covariance matrix (within this group)
                         # to get the average signal covariance and subtract that off so that we don't
                         # get signal loss removing residual signal covariances.
+                        #AAA, Why are we not checking if the baselines are in the same group as the one we want to subtract from? i.e. bli_ and blj_ in gp{i}
+                        #CHANGE TO GP #Seems like it needs to be for i_,j_ in gp:
                         _Csum,_Cwgt = 0,0
                         for i_ in xrange(L):
+                            #check if i_ in gp
                             bli_ = bls_[i_]
+                            if not bli_ in gp: continue # make sure averaging over baseline in the same group.
                             if bli == bli_: continue # only average over other bls to better isolate bl systematics
                             for j_ in xrange(L):
                                 blj_ = bls_[j_]
+                                if not blj_ in gp: continue # make sure averaging over baseline in the same group.
                                 if bli_ == blj_: continue # don't average over panels with noise bias
                                 if blj == blj_: continue # only average over other bls to better isolate bl systematics
                                 _Csum += _C[i_,:,j_] # fixes indexing error in earlier ver
                                 _Cwgt += 1
-                        sub_C[i,:,j] = _Csum / _Cwgt # fixes indexing error in earlier ver XXX careful if _Cwgt is 0
+                        try:
+                            sub_C[i,:,j] = _Csum / _Cwgt # fixes indexing error in earlier ver 
+                        except(ZeroDivisionError): #catches zero weights
+                           # print gp
+                           # print i,j,bli,blj
+                           # print i_,j_,bli_,blj_
+                           # print _Cwgt
+                            print 'weights are zero for %d_%d'%(i_,j_)
+                            sub_C[i,:,j] = _Csum
                 _C.shape = sub_C.shape = (L*n_k,L*n_k)
                 _C -= sub_C
         if True:
@@ -394,16 +497,24 @@ for boot in xrange(NBOOT):
             #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
             #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
             #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+            #BBB All of the above for loops mask the gp-gp baseline pairs. Get a diagonal matrix of covariances within the group.
             _Cx *= mask; _Cn *= mask
+        #make diagonal 1 after applying mask.
         _Cx[ind,ind] = _Cn[ind,ind] = 1
         Ts,Ns = n.dot(_Cx,Ts), n.dot(_Cn,Ns)
         # These are a running tally of all the diagonalization steps applied
         _Cxtot,_Cntot = n.dot(_Cx,_Cxtot), n.dot(_Cn,_Cntot)
+#        p.figure(cnt)
+#        p.subplot(111); capo.arp.waterfall(Ts, mode='log', drng=3);p.colorbar(shrink=.5)
     if PLOT:
-        p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', mx=-1, drng=3)
+        p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', drng=3);p.colorbar(shrink=.5)
         #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=3)
         p.show()
 
+#    p.show()
+#    import IPython
+#    IPython.embed()
+#    exit()
     Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
     Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
 
@@ -418,9 +529,9 @@ for boot in xrange(NBOOT):
         for blj in bls_[cnt:]:
             #print a.miriad.bl2ij(bli), a.miriad.bl2ij(blj)
             # XXX behavior here is poorly defined for repeat baselines in bootstrapping
-            xi,xj = Cx.get_x(bli), Cx.get_x(blj)
-            xi_,xj_ = Cx_.get_x(bli), Cx_.get_x(blj)
-            pk_avg = scalar * xi * xj.conj()
+            xi,xj = Cx.get_x(bli), Cx.get_x(blj) # No covariance applied.
+            xi_,xj_ = Cx_.get_x(bli), Cx_.get_x(blj) #covariance applied.
+            pk_avg = scalar * xi * xj.conj() # make a power spectrum from bli*blj^*.
             dspecs.append(pk_avg) # do this before bli == blj check to include noise bias in dspec
             if bli == blj: continue
             if True: # exclude intra-group pairings # XXX
@@ -430,16 +541,18 @@ for boot in xrange(NBOOT):
                 cx = cov(Ts)
                 if PLOT:
                     p.clf()
-                    p.subplot(121); capo.arp.waterfall(cx, mode='log', mx=-1, drng=3)
+                    p.subplot(121); capo.arp.waterfall(cx, mode='log', mx=0, drng=3)
                 for cnt1 in xrange(9):
                     d = n.diag(cx); d.shape = (1,d.size); cx /= n.sqrt(d) * 2
                     g = .3
                     _cx = -g*cx
                     mask = n.zeros_like(cx)
+                    #CCC what is prj_ch
                     if n_k == 20: prj_ch = xrange(8,12)
                     elif n_k == 40: prj_ch = xrange(17,24)
                     elif n_k == 80: prj_ch = xrange(34,48)
-                    else: raise ValueError('Only support # channels = (20,40,80) for now')
+                    else: #raise ValueError('Only support # channels = (20,40,80) for now')
+                        prj_ch = xrange(int(n_k/2-n_k/10),int(n_k/2+n_k/10))
                     for k in prj_ch:
                         mask[k] = mask[:,k] = 1
                         mask[k+n_k] = mask[:,k+n_k] = 1
@@ -452,7 +565,7 @@ for boot in xrange(NBOOT):
                     Ts = n.dot(_cx, Ts)
                     cx = cov(Ts)
                 if PLOT:
-                    p.subplot(122); capo.arp.waterfall(cx, mode='log', mx=-1, drng=3)
+                    p.subplot(122); capo.arp.waterfall(cx, mode='log', mx=0, drng=3)
                     p.show()
                 xi_,xj_ = Ts[:n_k],Ts[n_k:]
             ni,nj = Cn.get_x(bli), Cn.get_x(blj)
@@ -534,7 +647,7 @@ for boot in xrange(NBOOT):
     #std_1d = n.std(pspecs, axis=0) # in new noise subtraction, this remaining dither is essentially a bootstrap error, but with 5/7 of the data
 
     print 'Writing pspec_boot%04d.npz' % boot
-    n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, pk=avg_1d, err=std_1d, scalar=scalar, times=n.array(times),
+    n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, pk=avg_1d, err=std_1d, scalar=scalar, times=n.array(times),freq=fq,
         pk_vs_t=avg_2d, err_vs_t=std_2d, temp_noise_var=temp_noise_var, nocov_vs_t=n.average(dspecs,axis=0),
         cmd=' '.join(sys.argv))
 if PLOT: p.show()

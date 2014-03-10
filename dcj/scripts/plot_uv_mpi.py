@@ -199,12 +199,12 @@ for uvfile in files:
             pass
 
         if not opts.cal is None:
-            if not opts.src is None:
+            if opts.src is 'zen':
+                d *= n.exp(-1j*n.pi*aa.get_phs_offset(i,j))
+            elif not opts.src is None:
                 src.compute(aa)
                 try: d = aa.phs2src(d, src, i, j)
                 except(a.phs.PointingError):continue
-            else:
-                d *= n.exp(-1j*n.pi*aa.get_phs_offset(i,j))
         # Do delay transform if required
         if opts.delay:
             if opts.unmask:

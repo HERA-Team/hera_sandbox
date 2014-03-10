@@ -5,7 +5,7 @@ import sys, optparse, re, os
 
 ONLY_POS_K = True
 
-def dual_plot(kpl, pk, err, umag=16., f0=.164, color='', bins=None):
+def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.164, color='', bins=None):
     z = C.pspec.f2z(f0)
     kpr = C.pspec.dk_du(z) * umag
     k = n.sqrt(kpl**2 + kpr**2)
@@ -14,21 +14,28 @@ def dual_plot(kpl, pk, err, umag=16., f0=.164, color='', bins=None):
     for _k,_pk,_err in zip(kpl,pk,err):
         print '%6.3f, %9.5f, %9.5f' % (_k, _pk.real/1e6, _err/1e6)
     print '-'*20
-#    p.figure(figsize=(10,5))
-    p.suptitle('z = %6.3f'%z)
+    #pk = pk.imag
+    pk = pk.real
     p.subplot(121)
     #pk = n.abs(pk)
     #p.errorbar(kpl, pk, yerr=err, fmt=color+'.-')
     #p.errorbar(kpl, n.abs(pk), yerr=err, fmt='mx')
-    p.errorbar(kpl, pk.real, yerr=err, fmt=color+'.', capsize=0)
+    p.errorbar(kpl, pk, yerr=err, fmt=color+'.', capsize=0)
     #p.errorbar(kpl, pk.imag, yerr=err, fmt=color+'x')
     p.subplot(122)
     k0 = n.abs(kpl).argmin()
-    pkfold = pk[k0:]
-    print pkfold.shape,err.shape,pk[k0+1:].shape,pk[k0:1:-1].shape
-    pkfold[1:] = (pkfold[1:]/err[k0+1:]**2 + pk[k0:1:-1]/err[k0:1:-1]**2) / (1./err[k0+1:]**2 + 1./err[k0:1:-1]**2)
-    errfold = err[k0:]
-    errfold[1:] = n.sqrt(1./(1./err[k0+1:]**2 + 1./err[k0:1:-1]**2))
+    if pkfold is None:
+        print 'Folding'
+        pkfold = pk[k0:].copy()
+        errfold = err[k0:].copy()
+        pkpos,errpos = pk[k0+1:].copy(), err[k0+1:].copy()
+        pkneg,errneg = pk[k0-1:0:-1].copy(), err[k0-1:0:-1].copy()
+        pkfold[1:] = (pkpos/errpos**2 + pkneg/errneg**2) / (1./errpos**2 + 1./errneg**2)
+        errfold[1:] = n.sqrt(1./(1./errpos**2 + 1./errneg**2))
+    else:
+        print pkfold.imag
+        pkfold = pkfold.real
+
     #p.errorbar(k, k3*pk, yerr=k3*err, fmt=color+'.', capsize=0)
     p.errorbar(k[k0:], k3[k0:]*pkfold, yerr=k3[k0:]*errfold, fmt=color+'.', capsize=0)
     if not bins is None:
@@ -72,6 +79,9 @@ def dual_plot(kpl, pk, err, umag=16., f0=.164, color='', bins=None):
     for _k,_k3pk,_k3err in zip(kpl,k3pk,k3err):
         print '%6.3f, %9.5f (%9.5f +/- %9.5f)' % (_k, _k3pk+_k3err,_k3pk,_k3err)
     print '-'*20
+    for _k,_k3pk,_k3err in zip(k[k0:],k3[k0:]*pkfold,k3[k0:]*errfold):
+        print '%6.3f, %9.5f (%9.5f +/- %9.5f)' % (_k, _k3pk+_k3err,_k3pk,_k3err)
+    print '-'*20
     print "saving pspec_pk_k3pk.npz"
     n.savez('pspec_pk_k3pk.npz',kpl=kpl,pk=pk,err=err,k3pk=k3pk,k3err=k3err)
     #pos = n.where(kpl >= 0, 1, 0)
@@ -96,11 +106,11 @@ args = sys.argv[1:]
 
 FG_VS_KPL_NOS = 168.74e6
 FG_VS_KPL = { # K^2
-#    '-0.054':   5.37262e+13,
-#    '-0.027':   7.15304e+14, 
-#    ' 0.000':   3.50958e+15, 
-#    ' 0.027':   4.12396e+14, 
-#    ' 0.054':   2.60795e+13,
+    '-0.054':   5.37262e+13,
+    '-0.027':   7.15304e+14, 
+    ' 0.000':   3.50958e+15, 
+    ' 0.027':   4.12396e+14, 
+    ' 0.054':   2.60795e+13,
     #-0.0536455587089:   5.37262e+13,
     #-0.0268227793545:   7.15304e+14, 
     #0.0:                3.50958e+15, 
@@ -109,16 +119,17 @@ FG_VS_KPL = { # K^2
 }
 
 RS_VS_KPL = {} # K^2
+RS_VS_KPL_FOLD = {} # K^2
 dsum, dwgt = {}, {}
+dsum_fold, dwgt_fold = {}, {}
 for filename in args:
     print 'Reading', filename
     f = n.load(filename)
     RS_VS_KPL[filename] = {}
+    RS_VS_KPL_FOLD[filename] = {}
     kpl,pk,err = f['kpl'], f['pk'], f['err']
-    try:
-        freq = f['freq']
-    except(KeyError):
-        freq=0.164
+    try: pkfold,errfold = f['pk_fold'],f['err_fold']
+    except(KeyError): pkfold,errfold = None, None
     if False: # Hacky way to get a noise bias out, if necessary
         pk -= n.median(n.concatenate([pk[:8], pk[-8:]]))
     if False: # Hacky way to estimate noise
@@ -132,11 +143,20 @@ for filename in args:
         RS_VS_KPL[filename][_kpl] = (_pk, _err)
         dsum[_kpl] = dsum.get(_kpl, 0) + _pk / _err**2
         dwgt[_kpl] = dwgt.get(_kpl, 0) + 1 / _err**2
+    k0 = n.abs(kpl).argmin()
+    if not pkfold is None:
+        for _kpl, _pk, _err in zip(kpl[k0:], pkfold, errfold):
+            RS_VS_KPL_FOLD[filename][_kpl] = (_pk, _err)
+            dsum_fold[_kpl] = dsum_fold.get(_kpl, 0) + _pk / _err**2
+            dwgt_fold[_kpl] = dwgt_fold.get(_kpl, 0) + 1 / _err**2
 #RS_VS_KPL = {}
 if True:
     RS_VS_KPL['total'] = {}
+    RS_VS_KPL_FOLD['total'] = {}
     for _kpl in dsum:
         RS_VS_KPL['total'][_kpl] = (dsum[_kpl] / dwgt[_kpl], 1./n.sqrt(dwgt[_kpl]))
+    for _kpl in dsum_fold:
+        RS_VS_KPL_FOLD['total'][_kpl] = (dsum_fold[_kpl] / dwgt_fold[_kpl], 1./n.sqrt(dwgt_fold[_kpl]))
 
 BINS = None
 #BINS = ((-.52,-.4),(-.4,-.2),(-.2,-.15),(-.15,-.1),(-.1,-.06),(-.06,.06),(.06,.1),(.1,.15),(.15,.2),(.2,.4),(.4,.52))
@@ -151,6 +171,7 @@ colors = 'kbcm' * 10
 for sep in RS_VS_KPL:
     if not sep == 'total': continue
     dsum, dwgt = {}, {}
+    dsum_fold, dwgt_fold = {}, {}
     ks = RS_VS_KPL[sep].keys(); ks.sort()
     for k in ks:
         _d,_n = RS_VS_KPL[sep][k]
@@ -158,10 +179,20 @@ for sep in RS_VS_KPL:
         dsum[k] = dsum.get(k,0) + _d / _n**2
         dwgt[k] = dwgt.get(k,0) + 1 / _n**2
         #print dsum[k] / dwgt[k], 1./n.sqrt(dwgt[k])
+    ks_fold = RS_VS_KPL_FOLD[sep].keys(); ks_fold.sort()
+    for k in ks_fold:
+        _d,_n = RS_VS_KPL_FOLD[sep][k]
+        #print k, _d, _n, '->',
+        dsum_fold[k] = dsum_fold.get(k,0) + _d / _n**2
+        dwgt_fold[k] = dwgt_fold.get(k,0) + 1 / _n**2
+        #print dsum[k] / dwgt[k], 1./n.sqrt(dwgt[k])
         
     kpl = dsum.keys(); kpl.sort()
     d = [dsum[k]/dwgt[k] for k in kpl]
     nos = [1./n.sqrt(dwgt[k]) for k in kpl]
+    kpl_fold = dsum_fold.keys(); kpl_fold.sort()
+    d_fold = [dsum_fold[k]/dwgt_fold[k] for k in kpl_fold]
+    nos_fold = [1./n.sqrt(dwgt_fold[k]) for k in kpl_fold]
     #d = [RS_VS_KPL[k][0] for k in kpl]
     #nos = [RS_VS_KPL[k][1] for k in kpl]
     if True: #if 'I' in sep: # Add foregrounds
@@ -170,28 +201,63 @@ for sep in RS_VS_KPL:
             if not FG_VS_KPL.has_key(k): continue
             d[cnt] += FG_VS_KPL[k]
             nos[cnt] = 2*n.sqrt(FG_VS_KPL_NOS*FG_VS_KPL[k])
+        for cnt,k in enumerate(kpl_fold):
+            k = '%6.3f' % k
+            if not FG_VS_KPL.has_key(k): continue
+            d_fold[cnt] += FG_VS_KPL[k]
+            nos_fold[cnt] = 2*n.sqrt(FG_VS_KPL_NOS*FG_VS_KPL[k])
+        
     d,kpl,nos = n.array(d, dtype=n.complex), n.array(kpl), n.array(nos)
-    # Currently calibrated to Pictor A @ 160 MHz = 424 Jy
-    # To recalibrate to new Pic A, must multiply by square of ratio of fluxes
-    #d *= 0.774 # Recalibrate to Pic A from Perley et al. 1997
-    #d *= 1.125 # Recalibrate to Pic A from Slee 1995
-    d *= .76 # psa747 calibration of Pic A = 370.6 Jy @ 160 MHz (which includes resolution effects)
-    nos *= .76 
-    d *= 2.35 # Use power**2 beam, which is a 1.69/0.72=2.35 penalty factor
-    nos *= 2.35
-    if False: # For aggressive fringe-rate filtering, change beam area
-        d *= 1.90 # ratio of power**2 beams for filtered * unfiltered beams: 0.306 / 0.162
-        nos *= 1.90
+    d_fold,kpl_fold,nos_fold = n.array(d_fold, dtype=n.complex), n.array(kpl_fold), n.array(nos_fold)
+    if True:
+        # PSA32 was calibrated to Pictor A @ 160 MHz = 424 Jy
+        # To recalibrate to new Pic A, must multiply by square of ratio of fluxes
+        # Jacobs et al 2013 says Pic A = 382 @ 150 MHz, index=-0.76, so at 160 MHz, Pic A = 364 Jy
+        #f = 0.76 # psa747 calibration of Pic A = 370.6 Jy @ 160 MHz (which includes resolution effects)
+        f = 0.736 # rescale by (364/424)**2 to correct flux scale
+        print 'Scaling data and noise by %f for recalibration to PicA from Jacobs et al. 2013 (PSA32 only)' % f
+        d *= f
+        nos *= f
+        d_fold *= f
+        nos_fold *= f
+    if True:
+        f = 2.35 # Use power**2 beam, which is a 1.69/0.72=2.35 penalty factor
+        print 'Scaling data and noise by %f for correcting cosmo scalar to use power^2 beam' % f
+        d *= f
+        nos *= f
+        d_fold *= f
+        nos_fold *= f
+    if True: # For aggressive fringe-rate filtering, change beam area
+        f = 1.90 # ratio of power**2 beams for filtered * unfiltered beams: 0.306 / 0.162
+        print 'Scaling data and noise by %f for beam constriction in aggressive fringe-rate filtering' % f
+        d *= f
+        nos *= f
+        d_fold *= f
+        nos_fold *= f
+    if False: # Used to think that if lstbin cut out outlying data, need to renormalize noise but now have shown that bootstrapping still accurately recovers the variation from noise
+        #f = 1.305 # for lst_v003_I
+        f = 1.586 # for lst_v00[256]_I
+        print 'Scaling noise by %f for noise attenuation from rejecting outliers in LST binning' % f
+        nos *= f
+        nos_fold *= f
+    if True: # extra penalty for signal loss in covariance diagonalization
+        f = 1.5
+        print 'Scaling data and noise by %f for signal loss in covariance diagonalization' % f
+        d *= f
+        nos *= f
+        d_fold *= f
+        nos_fold *= f
     #for _kpl,_pk,_nos in zip(kpl,d,nos): print _kpl, _pk, _nos
     print sep, colors[0]
-    print "?"
     '''
     if True: # Hacky way to get a noise bias out, if necessary
         d -= n.median(n.concatenate([d[:8], d[-8:]]))
     if True: # Hacky way to estimate noise
         nos = n.std(n.concatenate([d[:8], d[-8:]])) * n.ones_like(d)
     '''
-    dual_plot(kpl, d, 2*nos, color=colors[0], bins=BINS,f0=freq) # 2-sigma error bars
+    if d_fold.size == 0: d_fold,nos_fold = None, None
+    dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS) # 2-sigma error bars
+    #dual_plot(kpl, d, nos, color=colors[0], bins=BINS) # 2-sigma error bars
     colors = colors[1:] + colors[0]
 
 def mean_temp(z):
