@@ -322,14 +322,19 @@ for boot in xrange(NBOOT):
         nblspg = nbls/4
         print 'Breaking %d bls into groups of %d'%(nbls, nblspg)
         #gp1,gp2,gp3,gp4 = bls_[:7],bls_[7:14],bls_[14:21],bls_[21:] # for 28bl i.e. 32 antennas in a grid 4 X 8
-        gp1,gp2,gp3,gp4 = bls_[:nblspg],bls_[nblspg:nblspg*2],bls_[nblspg*2:nblspg*3],bls_[nblspg*3:] # generic
+        gp1,gp2,gp3,gp4 = bls_[:nblspg],bls_[nblspg:nblspg*2],bls_[nblspg*2:nblspg*3],bls_[nblspg*3:nblspg*4] # generic
+        leftover = nbls - (nblspg*4)
+        while leftover>0:
+            i = random.choice(range(4))
+            [gp1,gp2,gp3,gp4][i].append(bls_[-1*leftover])
+            leftover -= 1
         #gp1,gp2,gp3,gp4 = bls_[:14],bls_[14:28],bls_[28:42],bls_[42:] # for 56bl -> 14 * 4
         #gp1,gp2,gp3,gp4 = bls_[:5],bls_[5:10],bls_[10:15],bls_[15:] # for 21bl
-        # ensure each group has at least 2 kinds of baselines
-        gp1 = random.sample(gp1, 2) + [random.choice(gp1) for bl in gp1[:len(gp1)-2]]
-        gp2 = random.sample(gp2, 2) + [random.choice(gp2) for bl in gp2[:len(gp2)-2]]
-        gp3 = random.sample(gp3, 2) + [random.choice(gp3) for bl in gp3[:len(gp3)-2]]
-        gp4 = random.sample(gp4, 2) + [random.choice(gp4) for bl in gp4[:len(gp4)-2]]
+        # ensure each group has at least 3 kinds of baselines. Otherwise get 0 divide.
+        gp1 = random.sample(gp1, 3) + [random.choice(gp1) for bl in gp1[:len(gp1)-3]]
+        gp2 = random.sample(gp2, 3) + [random.choice(gp2) for bl in gp2[:len(gp2)-3]]
+        gp3 = random.sample(gp3, 3) + [random.choice(gp3) for bl in gp3[:len(gp3)-3]]
+        gp4 = random.sample(gp4, 3) + [random.choice(gp4) for bl in gp4[:len(gp4)-3]]
     else:
         bls_ = random.sample(bls, len(bls))
         gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:]
@@ -415,7 +420,15 @@ for boot in xrange(NBOOT):
                                 if blj == blj_: continue # only average over other bls to better isolate bl systematics
                                 _Csum += _C[i_,:,j_] # fixes indexing error in earlier ver
                                 _Cwgt += 1
-                        sub_C[i,:,j] = _Csum / _Cwgt # fixes indexing error in earlier ver XXX careful if _Cwgt is 0
+                        try:
+                            sub_C[i,:,j] = _Csum / _Cwgt # fixes indexing error in earlier ver 
+                        except(ZeroDivisionError): #catches zero weights
+                           # print gp
+                           # print i,j,bli,blj
+                           # print i_,j_,bli_,blj_
+                           # print _Cwgt
+                            print 'weights are zero for %d_%d'%(i_,j_)
+                            sub_C[i,:,j] = _Csum
                 _C.shape = sub_C.shape = (L*n_k,L*n_k)
                 _C -= sub_C
         if True:
