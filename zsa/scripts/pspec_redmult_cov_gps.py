@@ -434,7 +434,7 @@ for boot in xrange(NBOOT):
                                 _Cwgt += 1
                         try:
                             sub_C[i,:,j] = _Csum / _Cwgt # fixes indexing error in earlier ver XXX careful if _Cwgt is 0
-                        except:
+                        except(ZeroDivisionError):
                            # print gp
                            # print i,j,bli,blj
                            # print i_,j_,bli_,blj_
