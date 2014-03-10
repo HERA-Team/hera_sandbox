@@ -53,6 +53,13 @@ o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 o.add_option('--avoid', dest='avoid_src', 
     help='Source to avoid when plotting')
+o.add_option('--conj', action='store_true',
+    help='Properly conjugate the baselines')
+o.add_option('--blavg', dest='bl_avg', action='store_true',
+    help='Average all the baselines give')
+
+o.add_option('--lst_avg', dest='lst_avg', action='store_true',
+    help='Averag in lst. Takes lst bin size to be 42.95 seconds.')
 
 def convert_arg_range(arg):
     """Split apart command-line lists/ranges into a list of numbers."""
@@ -93,6 +100,15 @@ def data_mode(data, mode='abs'):
         data = n.ma.log10(data)
     else: raise ValueError('Unrecognized plot mode.')
     return data
+
+def check_conjugation(aa,i,j):
+    ANTPOS = aa.ant_layout
+    x = n.where(ANTPOS.flat == i)
+    y = n.where(ANTPOS.flat == j)
+    if y<x: 
+        #print 'conjugated bl', i, j
+        return True
+    else: return False
 
 opts, args = o.parse_args(sys.argv[1:])
 
@@ -157,8 +173,11 @@ for uvfile in args:
                 else:
                     aa.set_jultime(t)
                     lst = aa.sidereal_time()
+                    if opts.avoid_src:
+                        avoid_src.compute(aa)
+                if not opts.avoid_src is None: 
                     avoid_src.compute(aa)
-                if avoid_src.alt>0: continue
+                    if avoid_src.alt>0:continue
                 plot_t['lst'].append(lst)
                 plot_t['jd'].append(t)
                 plot_t['cnt'].append(len(times)-1)
@@ -172,6 +191,11 @@ for uvfile in args:
                 d = aa.phs2src(d, src, i, j)
             #else: took out this mode because it's not used, and prefer not to phase.
             #    d *= n.exp(-1j*n.pi*aa.get_phs_offset(i,j))
+        #conjugate if necessary when averaging.
+        if opts.bl_avg:
+            if check_conjugation(aa,i,j):d = d.conj()
+        if opts.conj:
+            if check_conjugation(aa,i,j):d = d.conj()
         # Do delay transform if required
         if opts.delay:
             w = a.dsp.gen_window(d.shape[-1], window=opts.window)
@@ -191,11 +215,52 @@ for uvfile in args:
             d = n.fft.fftshift(d, axes=0)
         elif opts.unmask: d = d.data
         d.shape = (1,) + d.shape
-        if not plot_x.has_key(bl): plot_x[bl] = []
-        plot_x[bl].append(d)
+        if opts.bl_avg:
+            awgt = 1/float(len(opts.ant.split(',')))
+            if not plot_x.has_key('0,0,%d'%uv['pol']):
+                plot_x['0,0,%d'%uv['pol']] = [d*awgt]
+                pol = uv['pol']
+            elif times[-1] == tavg:
+                plot_x['0,0,%d'%uv['pol']][-1] += d*awgt
+            else:
+#                plot_x['0,0,%d'%pol][-1] /= float(len(opts.ant.split(',')))
+                plot_x['0,0,%d'%uv['pol']].append(d*awgt)
+            tavg = t
+        else:
+            if not plot_x.has_key(bl): plot_x[bl] = []
+            plot_x[bl].append(d)
     del(uv)
 
+#[d / float(len(opts.ant.split(','))) for d in plot_x['0,0,%d'%pol]]
+
 bls = plot_x.keys()
+if opts.lst_avg:
+    hr = n.pi/12.
+    #create lstbins 
+    lst_bins = n.round(n.arange(0, 2*n.pi, 2*n.pi*(42.95/a.const.sidereal_day)), 8) #42.95 is resolution of lst bin in sec. 
+    bin_indices = n.digitize(plot_t['lst'],lst_bins)
+    for b in bls:
+        summed = n.zeros((len(lst_bins),d.size), dtype=d.dtype)
+        lst_wgts = n.zeros((len(lst_bins),d.size), dtype=float) 
+        n_flagged = n.zeros((len(lst_bins),d.size), dtype=float) 
+        total_summed = n.zeros((len(lst_bins),1))
+        frac_flagged = n.zeros((len(lst_bins),d.size), dtype=float) 
+        sum_count = 0
+        for i, datum in zip(bin_indices, plot_x[b]):
+            if i >= len(lst_bins):i = len(lst_bins)-1
+            #print d.dtype
+            #print i, datum, datum[0].shape, summed.shape
+            summed[i] += datum[0].data
+            total_summed[i] += 1.
+            n_flagged[i] += datum[0].mask
+            lst_wgts[i] += n.logical_not(datum[0].mask)
+        frac_flagged = n_flagged/total_summed
+        mask = frac_flagged > 0.5
+        plot_x[b] = n.ma.array(summed,mask=mask)
+        full_shape = plot_x[b].shape
+        plot_x[b].shape = (full_shape[0], 1, full_shape[-1]) #turn shape in to (bins, 1, chans) for plotting image purposes.
+    plot_t['lst'] = lst_bins     
+
 def sort_func(a, b):
     ai,aj,pa = map(int, a.split(','))
     bi,bj,pb = map(int, b.split(','))
@@ -259,6 +324,9 @@ for cnt, bl in enumerate(bls):
                 ylabel = 'Time (integrations)'
             elif opts.time_axis=='lst':
                 step = plot_t['lst'][1] - plot_t['lst'][0]
+                if plot_t['lst'][0] > plot_t['lst'][-1]:
+                    diff = 2*n.pi - plot_t['lst'][0]
+                    plot_t['lst'] = ((n.array(plot_t['lst']) + diff)%(2*n.pi)) - diff
                 t1,t2 = (plot_t['lst'][0]-0.5*step)*12/n.pi, (plot_t['lst'][-1]+0.5*step)*12/n.pi
                 ylabel = 'Local Sideral time (hrs)'
             else:

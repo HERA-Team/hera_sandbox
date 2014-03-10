@@ -3,9 +3,18 @@ import aipy as a, numpy as n, pylab as p
 import capo as C
 import sys, optparse, re, os, random
 
+o = optparse.OptionParser()
+a.scripting.add_standard_options(o, cal=True)
+o.add_option('--hours', dest='hours', action='store_true',
+            help='plot lsts in hours instead of radians')
+opts, args = o.parse_args(sys.argv[1:])
+
+srclist, cutoff, catalogs = [], None, []
+cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs)
+aa = a.cal.get_aa(opts.cal, n.array([.15]))
+
 NBOOT = 400
 #NBOOT = 20
-args = sys.argv[1:]
 
 pks = {}
 pk_2d = {}
@@ -23,14 +32,24 @@ for filename in args:
         pk_2d[path] = []
         temp_data[path] = []
         nocov_2d[path] = []
-    print n.any(n.isnan(f['pk']))
-    print f['pk']
-    print f['pk_vs_t']
+    if n.any(n.isnan(f['pk'])):
+        print 'skipping ', filename
+        continue
     pks[path].append(f['pk'])
     pk_2d[path].append(f['pk_vs_t'])
     scalar = f['scalar']
     temp_data[path].append(f['temp_noise_var'])
     nocov_2d[path].append(f['nocov_vs_t'])
+
+try:
+    lsts = f['lsts']
+except:
+    lsts = []
+    for t in f['times']:
+        aa.set_jultime(t)
+        lsts.append(aa.sidereal_time())
+    lsts = n.array(lsts)
+print kpl
 
 paths = pks.keys()
 print paths
@@ -57,6 +76,7 @@ if False: # override power spectrum with the version w/o covariance diagonalizat
     pk_2d = nocov_2d
 
 CLIP = True
+#CLIP = False
 if CLIP:
     #pk_2d = pk_2d[...,250:550]
     #avg_pk_2d = avg_pk_2d[...,250:550]
@@ -64,6 +84,7 @@ if CLIP:
     pk_2d = pk_2d[...,200:800]
     avg_pk_2d = avg_pk_2d[...,200:800]
     wgts = wgts[...,200:800]
+    clsts = n.copy(lsts[200:800])
     ##pk_2d = pk_2d[...,200:600]
     ##wgts = wgts[...,200:600]
     #pk_2d = pk_2d[...,300:500]
@@ -73,6 +94,25 @@ else:
       for j in xrange(nos_std_2d.shape[1]):
         nos_std_2d[i,j] = n.convolve(nos_std_2d[i,j], n.ones((50,)), mode='same')
     wgts = 1./nos_std_2d**2
+    clsts = n.copy(lsts)
+
+#import IPython
+#IPython.embed()
+#exit()
+if opts.hours : 
+    lsts *= 12./n.pi
+    clsts *= 12./n.pi
+kpl_delt = kpl[2] - kpl[1]
+dlsts = lsts[-1] - lsts[-2]
+dclsts = clsts[5] - clsts[4]
+extents = (lsts[0], lsts[-1]+dlsts, kpl[0],kpl[-1]+kpl_delt)
+cextents = (clsts[0], clsts[-1]+dclsts, kpl[0], kpl[-1]+kpl_delt)
+print extents
+print cextents
+
+def make_xy_label():
+    p.xlabel('lst hours')
+    p.ylabel(r'$k_{\parallel}$')
 
 if True: # plot some stuff
     plt1 = int(n.sqrt(len(paths)))
@@ -80,21 +120,21 @@ if True: # plot some stuff
     for cnt,path in enumerate(paths):
         print cnt, path
         p.subplot(plt2,plt1,cnt+1)
-        C.arp.waterfall(n.abs(n.average(temp_data[cnt], axis=0))**2 * scalar, mx=10, drng=3)
+        C.arp.waterfall(n.abs(n.average(temp_data[cnt], axis=0))**2 * scalar, mx=10, drng=3,extent=extents)
         p.colorbar(shrink=.5) 
-    p.subplot(plt2,plt1,1); p.title(r'$|\langle\tilde V_b\rangle|^2$'); p.show()
+    p.subplot(plt2,plt1,1); p.title(r'$|\langle\tilde V_b\rangle|^2$'); make_xy_label(); p.show()
     for cnt,path in enumerate(paths):
         p.subplot(plt2,plt1,cnt+1)
-        C.arp.waterfall(nos_std_2d[cnt], mx=10, drng=3)
+        C.arp.waterfall(nos_std_2d[cnt], mx=10, drng=3, extent=extents)
         p.colorbar(shrink=.5) 
-    p.subplot(plt2,plt1,1); p.title('Thermal Noise [mK$^2$]'); p.show()
+    p.subplot(plt2,plt1,1); p.title('Thermal Noise [mK$^2$]'); make_xy_label(); p.show()
     for cnt,path in enumerate(paths):
         p.subplot(plt2,plt1,cnt+1)
         #C.arp.waterfall(avg_pk_2d[cnt], mx=10, drng=3)
-        C.arp.waterfall(avg_pk_2d[cnt], mode='real', mx=1e8, drng=2e8)
-        C.arp.waterfall(avg_pk_2d[cnt], mode='real')#, mx=1e8, drng=2e8)
+        #C.arp.waterfall(avg_pk_2d[cnt], mode='real', mx=1e8, drng=2e8)
+        C.arp.waterfall(avg_pk_2d[cnt], mode='real', extent=cextents)#, mx=1e8, drng=2e8)
         p.colorbar(shrink=.5) 
-    p.subplot(plt2,plt1,1); p.title('Power Spectrum [mK$^2$]'); p.show()
+    p.subplot(plt2,plt1,1); p.title('Power Spectrum [mK$^2$]'); make_xy_label(); p.show()
     plt1,plt2 = len(paths),3
     for cnt,path in enumerate(paths):
         p.subplot(plt2,plt1,0*plt1+cnt+1)
@@ -103,9 +143,11 @@ if True: # plot some stuff
         p.colorbar(shrink=.5) 
         p.subplot(plt2,plt1,1*plt1+cnt+1)
         C.arp.waterfall(wgts[cnt])
+        p.title('Weights')
         p.colorbar(shrink=.5) 
         p.subplot(plt2,plt1,2*plt1+cnt+1)
         #C.arp.waterfall(n.cumsum(avg_pk_2d[cnt]*wgts[cnt],axis=1)/n.cumsum(wgts[cnt],axis=1), mx=10, drng=4)
+        p.title('cumalative sum')
         C.arp.waterfall(n.cumsum(avg_pk_2d[cnt]*wgts[cnt],axis=1)/n.cumsum(wgts[cnt],axis=1), mode='real', mx=1e8, drng=2e8)
         p.colorbar(shrink=.5) 
     p.subplot(plt2,plt1,1); p.title('Weighted Power Spectrum [mK$^2$]'); p.show()
@@ -118,9 +160,9 @@ p.show()
 print pk_2d.shape
 print wgts.shape
 pk_2d = pk_2d.transpose([1,2,3,0]).copy() # (bootstraps, kpls, times, bltypes)
-pk_2d.shape = pk_2d.shape[:-2] + (pk_2d.shape[-2] * pk_2d.shape[-1],) # (bootstraps, kpls, timebls)
+pk_2d.shape = pk_2d.shape[:-2] + (pk_2d.shape[-2] * pk_2d.shape[-1],) # (bootstraps, kpls, timebltypes)
 wgts = wgts.transpose([1,2,0]).copy() # (kpls, times, bltypes)
-wgts.shape = wgts.shape[:-2] + (wgts.shape[-2] * wgts.shape[-1],) # (bootstraps, kpls, timebls)
+wgts.shape = wgts.shape[:-2] + (wgts.shape[-2] * wgts.shape[-1],) # (bootstraps, kpls, timebltypes)
 
 #ntimes = pk_2d.shape[-1] / 2
 ntimes = pk_2d.shape[-1]
@@ -152,6 +194,7 @@ for boot in xrange(NBOOT):
 pk_boot = n.array(pk_boot).T
 pk_fold_boot = n.array(pk_fold_boot).T
 
+print pk_boot.shape
 print 'Sorting bootstraps'
 pk = n.average(pk_boot, axis=1)
 pk_fold = n.average(pk_fold_boot, axis=1)
