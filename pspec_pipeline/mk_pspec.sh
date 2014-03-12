@@ -1,5 +1,5 @@
 #! /bin/bash
-PREFIX="TestPlumbing"
+PREFIX="OneDayFG"
 
 #chans=`python -c "print ' '.join(['%d_%d'%(i,i+39) for i in range(10,150,1)])"`
 pols='I Q U V'
@@ -9,10 +9,10 @@ RA="1:01_9:00"
 NBOOT=20
 
 #DATAPATH=fringe_hor_v006
-SCRIPTSDIR=~/scripts/
+SCRIPTSDIR=~/src/capo/pspec_pipeline
 cal="psa898_v003"
 PWD=`pwd`
-DATAPATH="${PWD}/lst*uv"
+DATAPATH="${PWD}/typical_day/*FRXS"
 PIDS=""
 
 FILES=`${SCRIPTSDIR}/lst_select.py -C ${cal} --ra=${RA} ${DATAPATH}`
