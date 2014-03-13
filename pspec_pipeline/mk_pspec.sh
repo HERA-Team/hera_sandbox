@@ -1,18 +1,23 @@
 #! /bin/bash
-PREFIX="OneDayFG"
-
-#chans=`python -c "print ' '.join(['%d_%d'%(i,i+39) for i in range(10,150,1)])"`
-pols='I Q U V'
-seps='0_16 1_16 0_17'
-chans='110_149'
-RA="1:01_9:00"
-NBOOT=20
-
-#DATAPATH=fringe_hor_v006
-SCRIPTSDIR=~/src/capo/pspec_pipeline
-cal="psa898_v003"
-PWD=`pwd`
-DATAPATH="${PWD}/typical_day/*FRXS"
+#PREFIX="OneDayFG"
+#
+##chans=`python -c "print ' '.join(['%d_%d'%(i,i+39) for i in range(10,150,1)])"`
+#pols='I Q U V'
+#seps='0_16 1_16 0_17'
+#chans='110_149'
+#RA="1:01_9:00"
+#NBOOT=20
+#
+##DATAPATH=fringe_hor_v006
+#SCRIPTSDIR=~/src/capo/pspec_pipeline
+#cal="psa898_v003"
+#PWD=`pwd`
+#DATAPATH="${PWD}/typical_day/*FRXS"
+(
+echo using config $*
+. $*
+threadcount=`python -c "opts='${pols} '+'${chans} '+'${seps}';print len(opts.split())"`
+echo Running $threadcount threads
 PIDS=""
 
 FILES=`${SCRIPTSDIR}/lst_select.py -C ${cal} --ra=${RA} ${DATAPATH}`
@@ -55,3 +60,4 @@ for chan in $chans; do
         cp  pspec_${PREFIX}_${chan}_${pol}.png ${poldir}/
     done
 done
+)
