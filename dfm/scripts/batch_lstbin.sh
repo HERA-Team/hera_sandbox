@@ -1,4 +1,10 @@
-#! /bin/bash
+#$ -S /bin/bash
+#$ -V
+#$ -cwd
+#$ -j y
+#$ -N lstbin
+#$ -o grid_output/
+#$ -l h_vmem=8G
 
 LSTS='0_24'
 FLEN='0.5'
