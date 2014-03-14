@@ -1,0 +1,87 @@
+#! /bin/bash
+
+TriggerRegexp='/home/obs/Trigger*'
+ARXIVDIR=/home/obs/Share/grid_output
+
+function format_qsub () {
+    x=${1##Your job-array}
+    x=${x%%.*}
+    echo $x
+}
+
+POLS=('' 'xx' 'xy' 'yx' 'yy')
+
+while :
+do
+    Trigger=`ls -1dr ${TriggerRegexp} 2> /dev/null | head -n 1`
+    qstat_out=`qstat`
+    if [[ $Trigger != "" ]] && [[ $qstat_out == "" ]]; then
+        thisJD=${Triggeri##*_}; thisJD=${thisJD%%.txt} 
+        echo "trigger ${Trigger} detected, beginning transfer"
+        sleep 1
+        tstart=`date -u`
+        ustart=`date -u "+%F_%H.%M.%S"`
+        THISDIR=${ustart}
+        mkdir $ARXIVDIR/$THISDIR
+
+        TRIGGER=$ARXIVDIR/$THISDIR/${Trigger##*/}
+        echo; echo "Moving trigger $Trigger to archive $TRIGGER"; echo
+        mv $Trigger $TRIGGER
+        #cp $Trigger $TRIGGER
+
+        echo; echo "Starting Transfer"; echo
+        for i in {1..4};
+        do
+            HOST=still${i}
+            QUEUE=S${i}.q
+            #deal with still1 replacement
+            if (( $i == 1 )); then
+                HOST=cask0; QUEUE=cask0.q
+            fi
+
+            #first, wipe the scratch space
+            echo "Wiping scratch from ${HOST}"
+            ssh -q -o ConnectTimeout=3 ${HOST} "rm -r /home/obs/Scratch/*"
+            #cat $TRIGGER | while read line;
+            while read line
+            do
+                if [[ $line == *${POLS[$i]}* ]]
+                then
+                    #THis would be a nice feature, but it breaks the while loop.
+                    if ssh ${HOST} test -e /home/obs/Scratch/${line##*/} < /dev/null
+                    then
+                        echo "Target File(${HOST}:/home/obs/Scratch/${line##*/}) Exists!"
+                    else
+                       if [[ $line == /data0/* ]]
+                       then
+                           #echo "scp -rp -c arcfour256 pot0:${line} ${HOST}:/home/obs/Scratch/"
+                           scp -rp -c arcfour256 pot0:${line} ${HOST}:/home/obs/Scratch/
+                       else
+                           #echo "scp -rp -c arcfour256 pot1:${line} ${HOST}:/home/obs/Scratch/"
+                           scp -rp -c arcfour256 pot1:${line} ${HOST}:/home/obs/Scratch/
+                       fi
+                    fi
+                    ssh ${HOST} test -e /home/obs/Scratch/${line##*/} < /dev/null || echo $line >> $ARXIVDIR/$THISDIR/MissingFiles.txt
+                fi
+            done < $TRIGGER
+            #python /home/obs/Share/redux/submit_to_grid.py -o $ARXIVDIR/$THISDIR -q S${i} -t 10
+            echo qsub -t 1:10 -q ${QUEUE} -o ${ARXIVDIR}/${THISDIR} -j y /home/obs/Share/redux/correct_and_xrfi.sh
+            jid1=`qsub -t 1:10 -q ${QUEUE} -o ${ARXIVDIR}/${THISDIR} -j y  /home/obs/Share/redux/correct_and_xrfi.sh`
+            echo ${jid1}
+            jid1=`format_qsub "${jid1}"`
+            echo "Job number ${jid1}."
+            echo qsub -t 1:10 -q ${QUEUE} -o ${ARXIVDIR}/${THISDIR} -j y -hold_jid ${jid1} /home/obs/Share/redux/better_xrfi.sh
+            jid2=`qsub -t 1:10 -q ${QUEUE} -o ${ARXIVDIR}/${THISDIR} -j y  -hold_jid ${jid1} /home/obs/Share/redux/better_xrfi.sh`
+            echo ${jid2}
+            jid2=`format_qsub "${jid2}"`
+            echo "Job number ${jid1}."
+            echo qsub -t 1:10 -q ${QUEUE} -o ${ARXIVDIR}/${THISDIR} -j y -hold_jid ${jid2} /home/obs/Share/redux/compress.sh
+            jid3=`qsub -t 1:10 -q ${QUEUE} -o ${ARXIVDIR}/${THISDIR} -j y  -hold_jid ${jid2} /home/obs/Share/redux/compress.sh`
+            echo $jid3
+        done
+        ssh -q -o ConnectTimeout=3 pot0 "python /home/obs/daily_move_pot0.py /data0/zen.${thisJD}*uv"
+        ssh -q -o ConnectTimeout=3 pot1 "python /home/obs/daily_move_pot1.py /data1/zen.${thisJD}*uv"
+        tend=`date -u`
+        echo "Tx begin: ${tstart}\nTx end: ${tend}" > $ARXVIDIR/$THISDIR/TransferLog.txt
+    fi
+done
