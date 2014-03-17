@@ -132,7 +132,8 @@ if True: # plot some stuff
         p.subplot(plt2,plt1,cnt+1)
         #C.arp.waterfall(avg_pk_2d[cnt], mx=10, drng=3)
         #C.arp.waterfall(avg_pk_2d[cnt], mode='real', mx=1e8, drng=2e8)
-        C.arp.waterfall(avg_pk_2d[cnt], mode='real', extent=cextents)#, mx=1e8, drng=2e8)
+        #C.arp.waterfall(avg_pk_2d[cnt], mode='real', extent=cextents)#, mx=1e8, drng=2e8)
+        C.arp.waterfall(avg_pk_2d[cnt], mode='real', extent=cextents, mx=1e9, drng=1e9)
         p.colorbar(shrink=.5) 
     p.subplot(plt2,plt1,1); p.title('Power Spectrum [mK$^2$]'); make_xy_label(); p.show()
     plt1,plt2 = len(paths),3
