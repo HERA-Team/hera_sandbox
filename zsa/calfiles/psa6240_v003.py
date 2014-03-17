@@ -23,9 +23,10 @@ class AntennaArray(a.pol.AntennaArray):
     def update_delays(self):
         ns,ew = n.indices(self.ant_layout.shape)
         dlys = ns*self.tau_ns + ew*self.tau_ew + self.dly_coeffs
-        for i,tau in zip(self.ant_layout.flatten(), dlys.flatten()):
-            self[i].set_params({'dly_x':tau})
-            self[i].set_params({'dly_y':tau + self.dly_xx_to_yy.flatten()[i]})
+        dlys_xx_to_yy = ns*self.tau_ns + ew*self.tau_ew + self.dly_xx_to_yy
+        for i,tau_x,tau_y in zip(self.ant_layout.flatten(), dlys.flatten(), dlys_xx_to_yy.flatten()):
+            self[i].set_params({'dly_x':tau_x})
+            self[i].set_params({'dly_y':tau_y})
     def update(self):
         self.update_gains()
         self.update_delays()
@@ -165,14 +166,15 @@ prms = {
          [53,21,15,16,62,44, 0,26],
          [31,45, 8,11,36,60,39,46]]),
     'dly_coeffs': n.array(
-        [[  0.  ,  0.  ,-10.08,  8.37,  5.72, -0.25, -18.11, -16.08],
-         [  0.  ,  6.13,-13.41, -7.10, -4.20,-15.88,  -4.20, -16.12],
-         [ 10.88, -5.58,  3.33, -9.96,  0.81,-15.11, -16.30, -19.01],
-         [ 10.20,-10.88,-12.87,  2.27,  2.07,-10.50, -11.09, -25.62],
-         [  6.23, -9.96, -6.43,  0.  ,-19.81,-13.07, -17.42, -24.05],
-         [-12.74, -4.19, -8.94,-11.89,-18.71, -5.23,  -3.73, -24.56],
-         [  8.75,  0.95, -0.89, 17.36,-21.44,-21.85, -12.01, -25.99],
-         [-12.46, -8.04, -5.17, -7.08,-19.99,-17.49, -25.55, -15.56]]), # PSA6240.17, xx
+       [[ 0.  ,  -0.  , -10.07,  8.38,5.74,  -0.24,   -18.1,-16.07 ],
+       [ -0.  ,   6.14, -13.4 , -7.09, -4.18,-15.87,  -4.19, -16.11],
+       [ 10.89,  -5.58,   3.36, -9.96,  0.83,-15.1 , -16.3 , -19.  ],
+       [ 10.21, -10.87, -12.85,  2.7 ,  2.11,-10.48, -11.08, -25.6 ],
+       [  6.26,  -9.94,  -6.42,  0.  ,-19.78,-13.04, -17.39, -24.01],
+       [-12.73,  -4.17,  -8.91,-11.85,-18.68, -5.2 ,  -3.69, -24.53],
+       [  8.77,   1.01,  -0.85, 17.39,-21.39,-21.83, -11.96, -25.96],
+       [-12.44,  -8.02,  -5.13, -7.02,-19.94,-17.42, -25.49, -15.5 ]]), # New dlys from the new run of data PSA6240 - PSA6378 on 11/5/2013
+    #dly_xx_to_yy is actually the yy delays and not an offset from xx. misnomer.
     'dly_xx_to_yy': n.array(
         [[0.00  ,-8.62 ,-21.13, -0.96,-8.29 ,-11.23, -16.91, -18.56],
          [-9.71 ,-3.43 ,-25.73, -4.71,-17.74,-15.19, -19.12, -16.23], 
@@ -195,14 +197,19 @@ prms = {
     #'tau_ew': 2.71,
     #'tau_ew': 2.31, #works well with all e-w baselines.
     #'tau_ew': 2.224408, #after fitting with all cross correlations
-    'tau_ew': 2.22, #after fitting with all cross correlations
+    #'tau_ew': 2.20075, #with a number of ew bls. 11/7/2013
+    'tau_ew': 2.23, #fittting with all cross 11/7/2013 (xx pol)
+    #'tau_ew': -1.367, 
     #'tau_ew': 5.65,
     #'tau_ns': -3.56,
     #'tau_ns': 0.85,
     #'tau_ns': 0.88, #after fitting with all cross correlations
-    'tau_ns': 0.88, #after fitting with all cross correlations
+    #'tau_ns': 0.88366, #after fitting with all cross correlations 11/7/2013
+    'tau_ns': 0.88, #after fitting with all cross correlations 11/7/2013
     #'delays': {},
-    'gain': .0036096,
+    #'gain': .0036096,
+    #'gain': .0036096,
+    'gain': .004934, #got this on 11/9/2013
     'amp_coeffs': n.array(
         [[ 1.   , 0.993, 1.004, 0.931, 0.959, 0.636, 0.958, 0.895],
          [ 0.903, 1.062, 0.966, 0.964, 0.944, 1.050, 0.633, 1.012],
@@ -213,7 +220,7 @@ prms = {
          [ 0.645, 0.927, 0.842, 0.618, 0.869, 0.940, 1.005, 0.842],
          [ 0.967, 0.860, 0.990, 0.967, 1.053, 1.024, 0.831, 0.994]]), # psa6240.17, xx
     'amps': {},
-    #'bp_r': n.array([[-546778459030.53168, 664643788581.23596, -352000715429.32422, 106069000024.00294, -19886868672.0816, 2375187771.2150121, -176441928.4305163, 7452103.7565970663, -136981.43950786022]] * 64) * 1.0178**0.5, # from J2214-170 in Helmboldt, with adjustment for tempgain.py gain adjustment
+   # 'bp_r': n.array([[-546778459030.53168, 664643788581.23596, -352000715429.32422, 106069000024.00294, -19886868672.0816, 2375187771.2150121, -176441928.4305163, 7452103.7565970663, -136981.43950786022]] * 64) * 1.0178**0.5, # from J2214-170 in Helmboldt, with adjustment for tempgain.py gain adjustment
     'bp_r': n.array([[-551229901929.10315, 685757303983.00293, -370738356723.81897, 113784843213.44109, -21686535302.711388, 2628544446.213274, -197867884.08778715, 8457793.3780113906, -157170.17280964542]] * 64), # from pic (danny's paper).
     'bp_i': n.array([[0., 0., 0.]] * 64),
     'beam': a.fit.BeamAlm,

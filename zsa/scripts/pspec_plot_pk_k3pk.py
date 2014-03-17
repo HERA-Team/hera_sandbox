@@ -82,8 +82,6 @@ def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.164, color=
     for _k,_k3pk,_k3err in zip(k[k0:],k3[k0:]*pkfold,k3[k0:]*errfold):
         print '%6.3f, %9.5f (%9.5f +/- %9.5f)' % (_k, _k3pk+_k3err,_k3pk,_k3err)
     print '-'*20
-    print "saving pspec_pk_k3pk.npz"
-    n.savez('pspec_pk_k3pk.npz',kpl=kpl,pk=pk,err=err,k3pk=k3pk,k3err=k3err)
     #pos = n.where(kpl >= 0, 1, 0)
     #neg = n.where(kpl <= 0, 1, 0)
     #posneg = 0.5*(k3pk.compress(pos) + k3pk.compress(neg)[::-1])
@@ -214,7 +212,9 @@ for sep in RS_VS_KPL:
         # To recalibrate to new Pic A, must multiply by square of ratio of fluxes
         # Jacobs et al 2013 says Pic A = 382 @ 150 MHz, index=-0.76, so at 160 MHz, Pic A = 364 Jy
         #f = 0.76 # psa747 calibration of Pic A = 370.6 Jy @ 160 MHz (which includes resolution effects)
-        f = 0.736 # rescale by (364/424)**2 to correct flux scale
+        #f = 0.736 # rescale by (364/424)**2 to correct flux scale
+        #for psa64
+        f = 1 # rescale by (364/424)**2 to correct flux scale
         print 'Scaling data and noise by %f for recalibration to PicA from Jacobs et al. 2013 (PSA32 only)' % f
         d *= f
         nos *= f
@@ -227,14 +227,14 @@ for sep in RS_VS_KPL:
         nos *= f
         d_fold *= f
         nos_fold *= f
-    if True: # For aggressive fringe-rate filtering, change beam area
+    if False: # For aggressive fringe-rate filtering, change beam area
         f = 1.90 # ratio of power**2 beams for filtered * unfiltered beams: 0.306 / 0.162
         print 'Scaling data and noise by %f for beam constriction in aggressive fringe-rate filtering' % f
         d *= f
         nos *= f
         d_fold *= f
         nos_fold *= f
-    if False: # Used to think that if lstbin cut out outlying data, need to renormalize noise but now have shown that bootstrapping still accurately recovers the variation from noise
+    if True: # if lstbin cut out outlying data, need to renormalize noise
         #f = 1.305 # for lst_v003_I
         f = 1.586 # for lst_v00[256]_I
         print 'Scaling noise by %f for noise attenuation from rejecting outliers in LST binning' % f
@@ -295,5 +295,4 @@ p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$')
 p.ylim(1e0,1e9)
 p.xlim(0, 0.6)
 p.grid()
-p.savefig('pspec.png')
-#p.show()
+p.show()
