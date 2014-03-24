@@ -266,7 +266,7 @@ def mean_temp(z):
 import glob
 re_z = re.compile(r'power_21cm_z(\d+\.\d+)\.dat')
 
-for filename in glob.glob('lidz_mcquinn_k3pk/*7.3*dat'):
+for filename in glob.glob(os.path.realpath(__file__)+'lidz_mcquinn_k3pk/*7.3*dat'):
     print 'Reading', filename
     d = n.array([map(float, L.split()) for L in open(filename).readlines()])
     ks, pk = d[:,0], d[:,1]

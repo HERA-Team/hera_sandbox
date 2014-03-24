@@ -6,18 +6,54 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o,cal=True)
 opts, args = o.parse_args(sys.argv[1:])
 
+array = 'hera'
+
+if array == 'hera':
+    obs_duration = 40. # minutes
+    dish_size_in_lambda = 7 #simple lambda/D
+    SIZE = 600 #uv plane size in wavelengths
+    sigma = 1/(2*n.pi*0.0643)
+
+if array == 'paper':
+    obs_duration = 120. # minutes
+    dish_size_in_lambda = 2 #simple lambda/D
+    SIZE = 300 #uv plane size in wavelengths
+    sigma = 1/(2*n.pi*0.2251)
+
+if array == 'mwa':
+    obs_duration = 120. # minutes
+    dish_size_in_lambda = 2.65 #simple lambda/D
+    SIZE = 600 #uv plane size in wavelengths
+    sigma = 1/(2*n.pi*0.1702)
+
+if array == 'lofar':
+    obs_duration = 15. # minutes
+    dish_size_in_lambda = 15.4 #simple lambda/D
+    SIZE = 600 #uv plane size in wavelengths
+    sigma = 1/(2*n.pi*0.0293)
+
+if array == 'skalo1':
+    obs_duration = 15. # minutes
+    dish_size_in_lambda = 17.5 #simple lambda/D
+    SIZE = 600 #uv plane size in wavelengths
+    sigma = 1/(2*n.pi*0.02577)
+
 def beamgridder(sigma,xcen,ycen,size):
     #makes FFT of 2D gaussian beam with sigma; returns an array of size x size
     crds = n.mgrid[0:size,0:size]
     cen = size/2 - 0.5 # correction for centering
     xcen += cen
     ycen = -1*ycen + cen
-    beam = n.exp(-((crds[1]-xcen)/(2*sigma))**2)*n.exp(-((crds[0]-ycen)/(2*sigma))**2)
-    return beam/n.sum(beam)
+    #beam = n.exp(-((crds[1]-xcen)**2/(2*sigma**2)))*n.exp(-((crds[0]-ycen)**2/(2*sigma**2))) #beam gridder
+    beam = n.zeros((size,size))
+    if round(ycen) > size - 1 or round(xcen) > size - 1: 
+        return beam
+    else:
+        beam[round(ycen),round(xcen)] = 1. #single pixel gridder
+        return beam/n.sum(beam)
 
 #observing time
 cen_jd = 2454600.90911
-obs_duration = 40. #minutes
 start_jd = cen_jd - (1./24)*((obs_duration/60)/2)
 end_jd = cen_jd + (1./24)*(((obs_duration-1)/60)/2)
 times = n.arange(start_jd,end_jd,(1./24/60))
@@ -26,12 +62,11 @@ print 'Observation duration:', start_jd, end_jd
 #other observing parameters
 fq = .150
 #dish_size_in_lambda = 5.51 #PAPER primary beam model for HERA
-dish_size_in_lambda = 7. #simple lambda/D
-SIZE = 600 #uv plane size in wavelengths
+#dish_size_in_lambda = 7. #simple lambda/D
 #sigma = 0.0727
 #sigma = dish_size_in_lambda/2.35 #in uv plane
 #sigma = 1/(2*n.pi*0.0727) #analytic with right Fourier convention
-sigma = 1/(2*n.pi*0.0643)
+#sigma = 1/(2*n.pi*0.0643)
 
 #load array information
 aa = a.cal.get_aa(opts.cal,n.array([.150]))
@@ -71,8 +106,8 @@ for cnt, uvbin in enumerate(uvbins):
         i, j = int(i), int(j)
         #print i,j,bl,nbls
         u,v,w = aa.gen_uvw(i,j,src=obs_zen)
-        _beam = beamgridder(sigma=sigma,xcen=u/dish_size_in_lambda,ycen=v/dish_size_in_lambda,size=dim)
-        #print sigma, u/dish_size_in_lambda,v/dish_size_in_lambda, dim       
+        _beam = beamgridder(sigma=sigma/dish_size_in_lambda,xcen=u/dish_size_in_lambda,ycen=v/dish_size_in_lambda,size=dim)
+        #print sigma/dish_size_in_lambda, u/dish_size_in_lambda,v/dish_size_in_lambda, dim       
         uvplane[uvbin] += nbls*_beam
         uvsum += nbls*_beam
     quadsum += (uvplane[uvbin])**2
@@ -84,7 +119,7 @@ quadsum = quadsum**.5
 uvplane['sum'] = uvsum
 uvplane['quadsum'] = quadsum
 
-n.savez('uvcov.npz',**uvplane)
+n.savez('uvcov.npz',sum=uvplane['sum'],quadsum=uvplane['quadsum'])
 
 print 'there are %i minutes of integration in the uv plane' % n.sum(uvsum)
 
