@@ -10,31 +10,56 @@ def grid_jd(jds, temps, binsize=120):
 
 def conv_tempfilename(f):
     f = os.path.basename(f)
-    ftime = '%s/%s/%s %s:%s' % (f[:4],f[4:6],f[6:8],f[9:11],f[11:13])
-    return a.phs.ephem2juldate(a.ephem.date(ftime))
+    ftime = '.'.join(f.split('.')[1:3])
+    return ftime
 
 def filter_files(filenames, start_jd, end_jd):
+    '''Return list of temperature files withing the range
+       [start_jd, end_jd]'''
+    #Get jd's from file name. Use to 
     jds = [conv_tempfilename(f) for f in filenames]
     return [f for f,jd in zip(filenames,jds) if jd >= start_jd and jd <= end_jd]
 
 def get_temps(tempdir, file_jd, uv_filetime=600, temp_filetime=3600,
         t_offset=-2*a.ephem.hour):
+    '''Get temperatures from psa6240 temperature data. 
+        Columns [ JD, Lab Jack, Balun ] 
+    '''
     print '    Folding in temp data from', tempdir
     RECVR,ANT58,GOM_E = 0,1,2
-    files = glob.glob(tempdir + '/201*.txt'); files.sort()
+    #Get temperature files.
+    files = glob.glob(tempdir + '/temp.245*.txt'); files.sort()
+    #Get start and end JD of temp files. Sets up a window for temperature files.
     start_jd = file_jd - a.ephem.second * (uv_filetime + temp_filetime) - t_offset
     end_jd = file_jd + a.ephem.second * (uv_filetime + temp_filetime) - t_offset
+    #Filter the files given the start and stop jd. Returns a list of the files.
     files = filter_files(files, start_jd, end_jd)
+    #Get the data from the files. gets all the lines in all the files and splits
+    #into list.
     lines = [L.split() for f in files for L in open(f).readlines()]
-    jds = n.array([a.phs.ephem2juldate(a.ephem.date(' '.join(L[:2]))) for L in lines])
+    #arrays of jds.
+    jds = n.array([L[0] for L in lines])
+    #Don't think we need this adjustment anymore...
     jds += t_offset # Adjust for local time being 2 hrs ahead of UTC
-    dat = n.array([map(float,L[2:]) for L in lines])
+    #Get the temperature data.
+    dat = n.array([map(float,L[1:]) for L in lines])
+    #This is where we need to interpolate.
+    data = interpolate_temps(jds, dat)
     T_r, bins = grid_jd(jds, dat[:,RECVR])
     T_c, bins = grid_jd(jds, dat[:,ANT58])
     T_b, bins = grid_jd(jds, dat[:,ANT58])
     T_l, bins = grid_jd(jds, dat[:,GOM_E])
     return bins, (T_r,T_c,T_b,T_l)
-    
+
+def interpolate_temps(jds, dat):
+    ''' Interpolate the temperature data so that 
+        we get some temperature data where we don't 
+        have any.'''
+    #diff : dat[n+1] - dat[n]
+    diff = n.diff(dat)
+    gap_indices = n.where(diff > .000124)
+    for i in gap_indices:
+        gap = dat[  
 
 import optparse
 o = optparse.OptionParser()

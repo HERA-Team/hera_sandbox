@@ -234,7 +234,8 @@ for sep in RS_VS_KPL:
         nos *= f
         d_fold *= f
         nos_fold *= f
-    if True: # if lstbin cut out outlying data, need to renormalize noise
+    if 0: # if lstbin cut out outlying data, need to renormalize noise
+        #THERE IS NO PENALTY FACTOR FOR THIS.
         #f = 1.305 # for lst_v003_I
         f = 1.586 # for lst_v00[256]_I
         print 'Scaling noise by %f for noise attenuation from rejecting outliers in LST binning' % f
