@@ -31,12 +31,14 @@ for file in args:
         nights_c[night] = {}
     for bl in AVG:
         if bl=='freqs':freqs = AVG['freqs'];continue
-        nights[night][bl] = nights[night].get(bl,0) + AVG[bl]
-        nights_c[night][bl] = nights_c[night].get(bl,0) + 1
+        if bl=='counts':continue
+        nights[night][bl] = nights[night].get(bl,0) + AVG[bl]*AVG['counts'][bl].astype(float)
+        nights_c[night][bl] = nights_c[night].get(bl,0) + AVG['counts'][bl]
 for night in nights:
     for bl in nights[night]:
         N = nights_c[night][bl]
-        if N>0: nights[night][bl] /= N
+        nights[night][bl][N>0] /= N[N>0]
+    nights[night]['counts'] = nights_c[night]
     nights[night]['freqs'] = freqs
 for night in nights:
     outfile = str(night)+'.avg.pkl'
