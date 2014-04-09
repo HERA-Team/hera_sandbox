@@ -44,6 +44,7 @@ def in_lst_range(lst):
         return lst >= opts.lst_rng[0] or lst < opts.lst_rng[1]
 
 def lstbin(lst):
+    #lst resolution in seconds.  #seconds / seconds in day -> radians
     lst_res = opts.lst_res / a.const.sidereal_day * (2*n.pi)
     return C.pspec.bin2uv(C.pspec.uv2bin(0,0,lst,lst_res=lst_res),lst_res=lst_res)[-1]
 
@@ -69,7 +70,7 @@ for f in args:
     if not src is None:
         src.compute(aa)
         src_alt_end = src.alt
-    start_t = aa.sidereal_time()
+    #XXX
     end_t = aa.sidereal_time()
     if start_t < end_t:
         if opts.lst_rng[0] < opts.lst_rng[1]:
@@ -79,7 +80,7 @@ for f in args:
     else:
         if opts.lst_rng[0] < opts.lst_rng[1]:
             if start_t > opts.lst_rng[1] and end_t < opts.lst_rng[0]: continue
-        # Never bail if both wrap...
+        #Never bail if both wrap...
     if src is None or (src_alt_start < opts.altmax or src_alt_end < opts.altmax):
         nargs.append(f)
 
