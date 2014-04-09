@@ -9,7 +9,7 @@ def miriadbl2str(mbl):
 
 
 o = optparse.OptionParser()
-a.scripting.add_standard_options(o, ant=True, pol=True, chan=True)
+a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
 o.add_option('-t', '--taps', type='int', default=1,
     help='Taps to use in the PFB.  Default 1, which instead uses windowed FFT')
 o.add_option('-b', '--boot', type='int', default=20,
@@ -18,6 +18,8 @@ o.add_option('--plot', action='store_true',
     help='Generate plots')
 o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
+o.add_option('--gain', type='float', default=.3,
+    help='gain parameter in approximation. .3 for 32, .1 for 64')
 opts,args = o.parse_args(sys.argv[1:])
 
 
@@ -30,12 +32,16 @@ if NTAPS > 1: PFB = True
 else: PFB = False
 WINDOW = opts.window
 
+aa = a.cal.get_aa(opts.cal, .1, .1, 1) #bogus params in get_aa
+ANTPOS = aa.ant_layout
+del(aa)
+
 # XXX Currently hardcoded for PSA898
-A_ = [0,16,8,24,4,20,12,28]
-B_ = [i+1 for i in A_]
-C_ = [i+2 for i in A_]
-D_ = [i+3 for i in A_]
-ANTPOS = n.array([A_, B_, C_, D_])
+#A_ = [0,16,8,24,4,20,12,28]
+#B_ = [i+1 for i in A_]
+#C_ = [i+2 for i in A_]
+#D_ = [i+3 for i in A_]
+#ANTPOS = n.array([A_, B_, C_, D_])
 
 #Take half of the 64 antenna array. For testing purposes.
 #1/13/14 : take the whole array.
@@ -372,7 +378,7 @@ for boot in xrange(NBOOT):
             d = n.diag(c); d.shape = (1,SZ)
             c /= n.sqrt(d) * 2
         #g = .3 # for 1*7 baselines
-        g = .2 # for 4*7 baselines
+        g = opts.gain # for 4*7 baselines
         # begin with off-diagonal covariances to subtract off 
         # (psuedo-inv for limit of small off-diagonal component)
         _Cx,_Cn = -g*Cx, -g*Cn 
