@@ -81,84 +81,105 @@ for src in ccat:
 print "loading %d sources out of catalog (s) %s"%(len(ccat),','.join(ccats))
 
 
-t = atpy.Table()
-results = {}
+
 for infile in args:
+    t = atpy.Table()
+    results = {}
     print "working on: %s"%infile
     hdulist = pf.open(infile)
     header = hdulist[0].header
     proj = wcs.Projection(header)
-    image = n.ma.masked_invalid(hdulist[0].data)
+    image = n.ma.masked_invalid(hdulist[0].data).squeeze()
+    iRA,iDec = n.mgrid[:image.shape[0],:image.shape[1]] #create an array to index the pixel locations
     print "WCS found types: ", proj.types
     print "WCS found units: ", proj.units
+    freq = proj.sub((proj.specaxnum)).toworld(n.array([1]))[0] #grab the 
     try:
-        map = proj.sub((proj.lonaxnum,proj.lataxnum))
+       MAP  = proj.sub((proj.lonaxnum,proj.lataxnum))
     except:
         print "Aborting program. Could not find (valid) spatial map."
         raise
     for srcname,src in ccat.iteritems():
         #get the pixels within opts.radius of input source
-        srcpos = n.array([src.ra,src.dec])*180/n.pi
+        P = src.get_params('*')
+        ra,dec = n.degrees(P['ra']),n.degrees(P['dec'])
+        catflux = P['jys']
+        srcpos = n.array([ra,dec])
         try:
-            pix = query_disc(proj,srcpos,opts.radius)
-            if pix.size<2:continue #skip if we don't get any pixels
+            pix = query_disc(MAP,srcpos,opts.radius)
+            if pix.size<2 or pix[:,0].max()<0 or pix[:,1].max()<0:
+                continue #skip if we don't get any pixels
         except:
-            #print "source not in image"
             continue
         pmax = pix[image[pix[:,1],pix[:,0]].argmax(),:]
         #check that the pixel is on the image
-        #print pmax
         if n.any(pmax<0):
-            #print "not in image"
             continue
         try:
-            RA,DEC = proj.toworld(pmax)
+            RA,DEC = MAP.toworld(pmax)
         except:
             continue
-        print "looking for ",srcname,"@",srcpos
+        #find the peak in the subset
         Flux = image[pix[:,1],pix[:,0]].max()
+        #find the location of the peak in the subset
+        lmax = image[pix[:,1],pix[:,0]].argmax()
+        lRA,lDec = iRA[pix[:,1],pix[:,0]].ravel()[lmax],iDec[pix[:,1],pix[:,0]].ravel()[lmax]
+        pRA,pDec = MAP.toworld(n.array([lRA,lDec]))
+        print "found ",srcname,"@",srcpos
+
         #get the pixels inside the surrounding annulus        
-        doughpix = query_disc(proj,srcpos,outer_radius)
-        holepix = query_disc(proj,srcpos,inner_radius)
+        doughpix = query_disc(MAP,srcpos,outer_radius)
+        holepix = query_disc(MAP,srcpos,inner_radius)
         donutpix = n.array([px for px in doughpix if px not in holepix])
         RMS = n.std(image[donutpix[:,1],donutpix[:,0]])
 
         #compute the pixel number (raveled index for the facet image instead of healpix index) 
         srcpx = n.ravel_multi_index(pmax,dims=image.shape)
         #record all the results  
-        if n.any(n.isnan([Flux,RMS])):continue
-        results[srcname] = [RA,DEC,Flux,RMS,srcpx]
-        
-        print n.array([RA,DEC,Flux,RMS,srcpx])
-
-#        cpix = proj.topixel(srcpos)
-#        I = 20
-#        print (cpix[0]-I,cpix[0]+I),(cpix[1]-I,cpix[1]+I)
-#        ra = n.clip((cpix[0]-I,cpix[0]+I),0,proj.naxis[0])
-#        dec = n.clip((cpix[1]-I,cpix[1]+I),0,proj.naxis[1])
-#        print ra,dec
-#        matshow(oimage[dec[0]:dec[1],
-#                    ra[0]:ra[1]])
-#        print image[dec[0]:dec[1],
-#                    ra[0]:ra[1]].max()
-#        show()
-        #find the peak
-        #return the coordinates of the peak
+        #if n.any(n.isnan([Flux,RMS])):continue
+        if not results.has_key(srcname): results[srcname] = []
+        try:
+            d = n.array([RA,DEC,pRA,pDec,RMS,srcpx,Flux,catflux,freq])
+        except(ValueError):
+            print [RA,DEC,pRA,pDec,RMS,srcpx,Flux,catflux,freq]
+            raise
+        TYPE = dtype([('RA','<f8',(1)),
+               ('DEC','<f8'),
+               ('pRA','<f8'),
+               ('pDEC','<f8'),
+               ('RMS','<f8'),
+               ('srcpx','<i8'),
+               ('Flux','<f8'),
+               ('catflux','<f8'),
+               ('freq','<f8')])
+        results[srcname] = d.view(TYPE)
     if opts.outfile is None: outfile = '.'.join(infile.split('.')[:-1]+['vot'])
     else: outfile = opts.outfile
     names = results.keys()
-    t.add_column('srcpx',[results[name][4] for name in names],dtype='i8',
+    
+    
+    
+    
+    #save the data points in a vot file    
+    t.add_column('srcpx',n.array([results[name]['srcpx'].squeeze() for name in names]),
             description='pixel number of peak.  do numpy.unravel_index(srcpx,dims=image.shape) to get pixel coords')
+    print len(names)
     t.add_column('Name',names,dtype='S14',
-            description='Name of source in finder catalog')
-    t.add_column('RA',[results[name][0] for name in names],dtype='<f8',
+            description='Name of source in %s catalog'%(opts.cat))
+    t.add_column('RA',n.array([results[name]['RA'] for name in names]).squeeze(),dtype='<f4',
             unit='deg',description='RA of peak')
-    t.add_column('DEC',[results[name][1] for name in names],dtype='<f8',
+    t.add_column('DEC',n.array([results[name]['DEC'] for name in names]).squeeze(),dtype='<f4',
             unit='deg',description='Dec of peak')
-    t.add_column('S_nu_',[results[name][2] for name in names],dtype='<f8',
+    t.add_column('S_nu_',n.array([results[name]['Flux'] for name in names]).squeeze(),dtype='<f4',
             unit='Jy',description='Magnitude of peak')
-    t.add_column('RMS',[results[name][3] for name in names],dtype='<f8',
+    t.add_column('RMS',n.array([results[name]['RMS'] for name in names]).squeeze(),dtype='<f4',
             unit='Jy',
             description='RMS in annulus between %d and %d of peak'%(inner_radius,outer_radius))
+    t.add_column('freq',n.array([results[name]['freq'] for name in names]).squeeze(),dtype='<f4',
+            unit='MHz',
+            description='Frequency in MHz of corresponding S_nu_ points.')        
+    t.add_column('S_cat',n.array([results[name]['catflux'] for name in names]).squeeze(),dtype='<f4',
+            unit='Jy',
+            description='%s flux (extrapolated to 150MHz)'%(opts.cat))
     print "Creating %s with %d sources"%(outfile,len(names))
-    t.write(outfile)
+    t.write(outfile,overwrite=True)
