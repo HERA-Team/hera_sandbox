@@ -106,48 +106,48 @@ def cov2(m1,m2):
     N = X1.shape[1]
     fact = float(N - 1)
     return (n.dot(X1, X2.T.conj()) / fact).squeeze()
-
-# Get a dict of all separations and the bls that contribute.0000
-#creates a dictionary of separations given a certain baseline
-#and vice versa, gives baselines for a given separation (returns list).
-bl2sep = {}
-sep2bl = {}
-for ri in range(ANTPOS.shape[0]):
-    for ci in range(ANTPOS.shape[1]):
-        for rj in range(ANTPOS.shape[0]):
-            for cj in range(ci,ANTPOS.shape[1]):
-                if ri >= rj and ci == cj: continue # exclude repeat +/- listings of certain bls
-                #sep = a.miriad.ij2bl(rj-ri, cj-ci)
-                sep = (cj-ci, rj-ri) #(dx,dy) in row spacing units
-                i,j = ANTPOS[ri,ci], ANTPOS[rj,cj]
-                bl = a.miriad.ij2bl(i,j)
-                if i > j: 
-                    i,j = j,i
-                    sep = (sep[0]*-1,sep[1]*-1)
-                bl2sep[bl] = sep
-                sep2bl[sep] = sep2bl.get(sep,[]) + [bl]
-#choose unit seperations corresponding to the bls I put in.
-if len(opts.ant.split('_'))>1: #if there are baselines requested
-    #get a list of miriad format bl ints
-    input_bls = [a.miriad.ij2bl(int(l.split('_')[0]),int(l.split('_')[1])) for l in opts.ant.split(',')]
-    print input_bls
-    myseps = list(set([bl2sep[bl] for bl in input_bls]))#get a list of the seps, one entry per 
-    print "based on input baselines, I am including the following seperations"
-    print myseps
-    mybls = []
-    for sep in myseps:
-        mybls += sep2bl[sep]
-        revsep = (-sep[0],-sep[1])
-        mybls += sep2bl[revsep] #don't forget the reverse seps. they count as the same!
-    print "found %d baselines"%len(mybls)
-    opts.ant = ','.join([miriadbl2str(bl) for bl in mybls])
-    print opts.ant
-#WARNING: The default is to do _all_ seps in the data.
-
-
-#checking that our grid indexing is working
-print [a.miriad.bl2ij(bl) for bl in sep2bl[(1,0)]]
-print len(sep2bl[(0,1)])
+if False: #turning off the auto sep selection in preperation for deletion
+    # Get a dict of all separations and the bls that contribute.0001
+    #creates a dictionary of separations given a certain baseline
+    #and vice versa, gives baselines for a given separation (returns list).
+    bl2sep = {}
+    sep2bl = {}
+    for ri in range(ANTPOS.shape[0]):
+        for ci in range(ANTPOS.shape[1]):
+            for rj in range(ANTPOS.shape[0]):
+                for cj in range(ci,ANTPOS.shape[1]):
+                    if ri >= rj and ci == cj: continue # exclude repeat +/- listings of certain bls
+                    #sep = a.miriad.ij2bl(rj-ri, cj-ci)
+                    sep = (cj-ci, rj-ri) #(dx,dy) in row spacing units
+                    i,j = ANTPOS[ri,ci], ANTPOS[rj,cj]
+                    bl = a.miriad.ij2bl(i,j)
+                    if i > j: 
+                        i,j = j,i
+                        sep = (sep[0]*-1,sep[1]*-1)
+                    bl2sep[bl] = sep
+                    sep2bl[sep] = sep2bl.get(sep,[]) + [bl]
+    #choose unit seperations corresponding to the bls I put in.
+    if len(opts.ant.split('_'))>1: #if there are baselines requested
+        #get a list of miriad format bl ints
+        input_bls = [a.miriad.ij2bl(int(l.split('_')[0]),int(l.split('_')[1])) for l in opts.ant.split(',')]
+        print input_bls
+        myseps = list(set([bl2sep[bl] for bl in input_bls]))#get a list of the seps, one entry per 
+        print "based on input baselines, I am including the following seperations"
+        print myseps
+        mybls = []
+        for sep in myseps:
+            mybls += sep2bl[sep]
+            revsep = (-sep[0],-sep[1])
+            mybls += sep2bl[revsep] #don't forget the reverse seps. they count as the same!
+        print "found %d baselines"%len(mybls)
+        opts.ant = ','.join([miriadbl2str(bl) for bl in mybls])
+        print opts.ant
+    #WARNING: The default is to do _all_ seps in the data.
+    
+    
+    #checking that our grid indexing is working
+    print [a.miriad.bl2ij(bl) for bl in sep2bl[(1,0)]]
+    print len(sep2bl[(0,1)])
 uv = a.miriad.UV(args[0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
@@ -203,14 +203,14 @@ for filename in args:
         #For 32 array inside 64 array. skip bls not in the subarray, but may be in the data set.
         if not (( i in ANTPOS ) and ( j in ANTPOS )) : continue
         bl = a.miriad.ij2bl(i,j)
-        sep = bl2sep[bl]
+        #sep = bl2sep[bl]
         #print i,j,':',sep
         #if n.abs(sep[0]) != 1 or sep[1] !=0:continue
         #print '-->',i,j
         sys.stdout.flush()
-        if sep[0] < 0:
+        #if sep[0] < 0:
             #print 'Conj:', a.miriad.bl2ij(bl)
-            d,sep = n.conj(d),-1*n.array(sep)
+        #    d,sep = n.conj(d),-1*n.array(sep)
         #take active data and convert from janksy's to temperature units. Current data is in janskys.
         d,f = d.take(chans), f.take(chans)
         w = n.logical_not(f).astype(n.float)
