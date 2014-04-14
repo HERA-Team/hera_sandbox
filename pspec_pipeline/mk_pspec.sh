@@ -1,4 +1,5 @@
 #! /bin/bash
+export PYTHONPATH='.'
 #PREFIX="OneDayFG"
 #
 ##chans=`python -c "print ' '.join(['%d_%d'%(i,i+39) for i in range(10,150,1)])"`
@@ -16,6 +17,7 @@
 (
 echo using config $*
 . $*
+~/scripts/pywhich $cal
 threadcount=`python -c "c=map(len,['${pols}'.split(),'${chans}'.split(),'${seps}'.split()]);print c[0]*c[1]*c[2]"`
 echo Running $threadcount threads
 PIDS=""
@@ -44,8 +46,8 @@ for chan in $chans; do
 
                 
                 cd ${sepdir}
-                
-                ${SCRIPTSDIR}/pspec_redmult_cov_gps.py -b ${NBOOT} -a ${sep} -c ${chan} -p ${pol} ${FILES} \
+                ANTS=`${SCRIPTSDIR}/grid2ant.py -C psa898_v003 ${sep}`
+                ${SCRIPTSDIR}/pspec_redmult_cov_gps.py -C ${cal} -b ${NBOOT} -a ${ANTS} -c ${chan} -p ${pol} ${FILES} \
                 | tee -a ${LOGFILE} && echo beginning bootstrap: `date` | tee -a ${LOGFILE} &&\
                 ${SCRIPTSDIR}/pspec_pk_k3pk_boot.py pspec_boot*npz | tee -a ${LOGFILE} &&\
                 echo complete! `date`| tee -a ${LOGFILE} 
