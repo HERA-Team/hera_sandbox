@@ -13,11 +13,11 @@ o = optparse.OptionParser()
 o.set_usage('plot_uv.py [options] *.uv')
 o.set_description(__doc__)
 a.scripting.add_standard_options(o, ant=True,cal=True,pol=True)
-o.add_option('-f', action='store_true',
+o.add_option('-f', action='store_true',default=False,
     help='Do freq derivative.')
-o.add_option('-t',action='store_true',
+o.add_option('-t',action='store_true',default=False,
     help='Do time derivative.')
-o.add_option('--plot',action='store_true',
+o.add_option('--plot',action='store_true',default=False,
     help='Plot.')
 o.add_option('-i',action='store_true',
     help='clear saved npz and rerun on data')
@@ -33,8 +33,10 @@ if opts.cal != None:
 else: aa = None
 uv = a.miriad.UV(args[0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan']).squeeze()
+print len(freqs)
 if opts.f:
     freqs = freqs[:-1]
+print len(freqs)
 if opts.v: print "print temp at f = ",freqs[len(freqs)/2],"GHz"
 del(uv)
 if not os.path.exists('diff_uv.npz') or opts.i:
@@ -47,33 +49,51 @@ if not os.path.exists('diff_uv.npz') or opts.i:
         curtime = 0
         for (uvw,t,(i,j)),d,f in uv.all(raw=True):
             bl = '%d,%d,%d' % (i,j,uv['pol'])
-            if opts.v: print t
+            #if opts.v: print t
             if opts.f:
                 d = n.ma.diff(d)
+                f = f[:-1]
             # if this a new time step, stop and add in the old data
             if curtime!=t and curtime!=0:
                 if opts.bl:
-                    D = n.sum([D[i]*(-1)**i for i in range(len(D))],axis=0)
+                    D = n.sum([D[i]*(-1)**i for i in range(len(D))],axis=0) #either sum the bls 
                 try:
-                    dif += n.ma.array(D).squeeze() * S
+                    dif += n.ma.array(D).squeeze() * S  #sum with signs (opposing if --dt)
+                    #if diffing in time , each diff counts towards half
                     w += n.logical_not(f).astype(n.float).squeeze()
-                    if opts.v:print S
+                    if opts.v: print t,S
                 except(NameError):
                     dif = n.ma.array(D).squeeze()
                     w = n.logical_not(f).astype(n.float).squeeze()
                     S = 1
                     if opts.v: print "RESET"
                 if opts.t: S *= -1 #flop the sign every time
-                if opts.v:
-                    print "Trms = ",n.ma.mean(n.sqrt(dif*n.conj(dif))*jy2T(freqs)/w)
             #accumulate differen bls and pols
             if t != curtime:
                 D = [d]
                 curtime = t
             else:
                 D.append(d) 
-    dif = dif.squeeze()
-    Trms = n.sqrt(n.real(dif*n.conj(dif))).squeeze()/w.squeeze()*jy2T(freqs)
+    if opts.v: print "CLEANUP"
+    if opts.bl:
+        D = n.sum([D[i]*(-1)**i for i in range(len(D))],axis=0) #either sum the bls 
+    if n.round(w.max())%2:#if we had an odd number of points        
+        dif += n.ma.array(D).squeeze() * S  #sum with signs (opposing if --dt)
+        w += n.logical_not(f).astype(n.float).squeeze()
+        print "evening it up!"
+    print dif.shape
+                
+    #if we diffed over baselines we should just have a spectrum
+    if opts.bl:
+        dif = dif.squeeze()
+        var = n.real(dif*n.conj(dif))
+    elif len(dif.shape)>1:
+        #if not, then we need to average over them
+        var = n.mean(dif*n.conj(dif),axis=0) #this should be the zero axis
+    else:
+        var = dif*n.conj(dif)
+    print len(freqs),len(var)
+    Trms = n.sqrt(var)/w.squeeze()*jy2T(freqs)
     n.savez('diff_uv.npz',freqs=freqs,dif=dif.filled(0),weights=w,Trms=Trms.filled(0),mask=Trms.mask)
 if opts.plot:
     #theoretical noise level
