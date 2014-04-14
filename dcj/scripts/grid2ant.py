@@ -21,7 +21,7 @@ exec("from %s import prms"%opts.cal)
 out = ''
 for arg in args:
     out += ','+grid2ij(prms['ant_layout'])[0][arg]
-print out
+print out[1:]
 
 
 
