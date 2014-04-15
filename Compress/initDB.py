@@ -1,6 +1,16 @@
 #! /usr/bin/env python
 
-import _mysql
+"""
+Creates a database object for parsing and descending into the paper database.
+>>> from initDB import pdb
+
+If run as a script, this will populate and print the schema of a new database.
+$ ./initDB.py
+
+DFM
+"""
+
+import MySQLdb
 
 #global definitions
 TEST=True
@@ -55,10 +65,15 @@ class table(object):
 
     def __init__(self, name):
         self.name = name
-        self.cols = []
+        self.cols = {}
 
-    def add(self, name, dtype, key=None):
-        self.cols.append(column(name,dtype,key))
+    def __getitem__(self, key):
+        return self.cols[key]
+
+    def addcol(self, name, dtype, key=None):
+        self.cols[name] = column(name,dtype,key)
+        if key=='pk':
+            self.pk = name
 
     def init(self):
         q = """CREATE TABLE IF NOT EXISTS %s ("""%self.name
@@ -76,15 +91,19 @@ class table(object):
         return q
 
 class db(object):
-
     def __init__(self,name):
         self.name = name
         self.tabs = {}
+        self.db = MySQLdb.connect(HOST, USER, PASSWD, DBNAME)
+        self.db.autocommit(True)
 
     def __getitem__(self, key):
         return self.tabs[key]
 
-    def add(self,name):
+    def __del__(self):
+        self.db.close()
+
+    def addtab(self,name):
         self.tabs[name] = table(name)
 
     def print_schema(self):
@@ -99,12 +118,9 @@ class db(object):
         print cout
 
     def initialize(self, test=False):
-        _db = _mysql.connect(HOST, USER, PASSWD, DBNAME)
-        _db.autocommit(True)
         #first create the tables:
         for t in self.tabs.keys():
             q = self[t].init()
-            print q
             _db.query(q)
         #next link foreign keys:
         for t in self.tabs.keys():
@@ -113,52 +129,79 @@ class db(object):
                 #a wrapper to deal with _mysql's inability to parse multiple commands on the same line.
                 if not _q == "":
                     _q += ";"
-                    print _q
-                    _db.query(_q)
+                    self.db.query(_q)
 
     def drop_tables(self):
-        _db = _mysql.connect(HOST, USER, PASSWD, DBNAME)
-        _db.autocommit(True)
         for t in self.tabs:
             q = "DROP TABLE IF EXISTS %s;"%t
             print q
-            _db.query(q)
+            self.db.query(q)
+
+    def has_record(self, tabname, primarykey):
+        """
+        Returns true if this table contains a row whose primary key is given by primarykey.
+        """
+        cursor = self.db.cursor()
+        q = "SELECT EXISTS(SELECT 1 FROM %s WHERE %s='%s');"%(tabname, self[tabname].pk, primarykey)
+        cursor.execute(q)
+        result = cursor.fetchone()[0]
+        return bool(int(result))
+
+    def addrow(self, tabname, values):
+        q = """INSERT INTO %s ("""%tabname
+        q += ", ".join(values.keys())
+        q += ") VALUES ("
+        q += ", ".join(self.format_values(tabname, values))
+        q += ");"
+        print q
+        self.db.query(q)
+
+    def format_values(self, tabname, v):
+        vret = []
+        for vi in v.keys():
+            if self[tabname][vi].dtype == 'string':
+                vret.append("'%s'"%v[vi])
+            elif self[tabname][vi].dtype == 'float':
+                vret.append(v[vi])
+            elif self[tabname][vi].dtype == 'datetime':
+                vret.append(v[vi])
+        return vret
 
 #manually enter schema
 
 pdb = db(DBNAME)
 
-pdb.add('files')
-pdb['files'].add('JD','float','fk:observations(JD)')
-pdb['files'].add('basefile','string')#,'fk:files(basefile)')
-pdb['files'].add('filename','string','pk')
-pdb['files'].add('md5','string')
-pdb['files'].add('created_on','datetime')
-pdb['files'].add('last_modified','datetime')
-pdb['files'].add('host','string','fk:hosts(hostname)')
+pdb.addtab('files')
+pdb['files'].addcol('JD','float','fk:observations(JD)')
+pdb['files'].addcol('basefile','string')#,'fk:files(basefile)')
+pdb['files'].addcol('filename','string','pk')
+pdb['files'].addcol('md5','string')
+pdb['files'].addcol('created_on','datetime')
+pdb['files'].addcol('last_modified','datetime')
+pdb['files'].addcol('host','string','fk:hosts(hostname)')
 
-pdb.add('hosts')
-pdb['hosts'].add('hostname','string','pk')
-pdb['hosts'].add('IP','string')
-pdb['hosts'].add('username','string')
-pdb['hosts'].add('key_file','string')
+pdb.addtab('hosts')
+pdb['hosts'].addcol('hostname','string','pk')
+pdb['hosts'].addcol('IP','string')
+pdb['hosts'].addcol('username','string')
+pdb['hosts'].addcol('key_file','string')
 
-pdb.add('history')
-pdb['history'].add('input','string', 'fk:files(filename)')
-pdb['history'].add('output','string','fk:files(filename)')
-pdb['history'].add('operation','string')
-pdb['history'].add('timestamp','datetime')
+pdb.addtab('history')
+pdb['history'].addcol('input','string', 'fk:files(filename)')
+pdb['history'].addcol('output','string','fk:files(filename)')
+pdb['history'].addcol('operation','string')
+pdb['history'].addcol('timestamp','datetime')
 
-pdb.add('observations')
-pdb['observations'].add('JD','float','pk')
-pdb['observations'].add('xx','string','fk:files(filename)')
-pdb['observations'].add('xy','string','fk:files(filename)')
-pdb['observations'].add('yx','string','fk:files(filename)')
-pdb['observations'].add('yy','string','fk:files(filename)')
-pdb['observations'].add('jd_hi','string')
-pdb['observations'].add('jd_lo','string')
-pdb['observations'].add('created_on','datetime')
-pdb['observations'].add('last_modified','datetime')
+pdb.addtab('observations')
+pdb['observations'].addcol('JD','float','pk')
+pdb['observations'].addcol('xx','string','fk:files(filename)')
+pdb['observations'].addcol('xy','string','fk:files(filename)')
+pdb['observations'].addcol('yx','string','fk:files(filename)')
+pdb['observations'].addcol('yy','string','fk:files(filename)')
+pdb['observations'].addcol('jd_hi','string')
+pdb['observations'].addcol('jd_lo','string')
+pdb['observations'].addcol('created_on','datetime')
+pdb['observations'].addcol('last_modified','datetime')
 
 
 if __name__ == '__main__':
