@@ -16,4 +16,3 @@ if pdb.has_record('hosts', cols['hostname']):
     print "Record exists!"
 else:
     pdb.addrow('hosts', cols)
-

@@ -26,18 +26,23 @@ else:
 
 sqltypes = {
     "string"  : "VARCHAR(256)",
-    "float"   : "FLOAT",
+    "float"   : "DOUBLE",
     "datetime": "TIMESTAMP"
 }
 
 class column(object):
-
+    """
+    Container for information to a single column in a database.
+    """
     def __init__(self, name, dtype, key=None):
         self.name = name
         self.dtype = dtype
         self.key = key
 
     def parse_key(self):
+        """
+        For initializing pdb. Adds the proper syntax for denoting the primary key of a table.
+        """
         try:
             if self.key.startswith("pk"):
                 return " PRIMARY KEY,"
@@ -47,11 +52,17 @@ class column(object):
             return ","
 
     def init(self):
+        """
+        Add an entry to the INSERT statment for the column using proper mysql syntax.
+        """
         q = " %s %s"%(self.name, sqltypes[self.dtype])
         q += self.parse_key()
         return q
 
     def link(self,tabname):
+        """
+        Adds a link (foreign key) to the column.
+        """
         try:
             if self.key.startswith("fk"):
                 ref = self.key.split(':')[-1]
@@ -62,7 +73,9 @@ class column(object):
             return None
 
 class table(object):
-
+    """
+    An object for information of a table in pdb.
+    """
     def __init__(self, name):
         self.name = name
         self.cols = {}
@@ -71,26 +84,38 @@ class table(object):
         return self.cols[key]
 
     def addcol(self, name, dtype, key=None):
+        """
+        Adds a column to the table object (Not the db). If it's the primary key, table.pk gets populated with the column name.
+        """
         self.cols[name] = column(name,dtype,key)
         if key=='pk':
             self.pk = name
 
     def init(self):
+        """
+        Write the command for creating the table in the database.
+        """
         q = """CREATE TABLE IF NOT EXISTS %s ("""%self.name
         for c in self.cols:
-            q += c.init()
+            q += self[c].init()
         q = q[:-1] + ");"
         return q
 
     def link(self):
+        """
+        Generate mysql command for adding links among tables.
+        """
         q = ""
         for c in self.cols:
-            _q = c.link(self.name)
+            _q = self[c].link(self.name)
             if not _q is None:
                 q += _q
         return q
 
 class db(object):
+    """
+    An object to handle the paper database.
+    """
     def __init__(self,name):
         self.name = name
         self.tabs = {}
@@ -104,24 +129,33 @@ class db(object):
         self.db.close()
 
     def addtab(self,name):
+        """
+        Add a table to the database object --- this doesn't add a new table to the actual database.
+        """
         self.tabs[name] = table(name)
 
     def print_schema(self):
+        """
+        Sends a human-readable schema of the database to stdout.
+        """
         cout = "%s\n"%self.name
         for tname in self.tabs.keys():
             cout += " --- %s\n"%tname
             for col in self[tname].cols:
-                cout += "\t --- %s (%s)"%(col.name,col.dtype)
-                if not col.key is None:
-                    cout += " [%s]"%col.key
+                cout += "\t --- %s (%s)"%(self[tname][col].name,self[tname][col].dtype)
+                if not self[tname][col].key is None:
+                    cout += " [%s]"%self[tname][col].key
                 cout += "\n"
         print cout
 
-    def initialize(self, test=False):
+    def initialize(self):
+        """
+        Populate an empty database with properly-linked tables.
+        """
         #first create the tables:
         for t in self.tabs.keys():
             q = self[t].init()
-            _db.query(q)
+            self.db.query(q)
         #next link foreign keys:
         for t in self.tabs.keys():
             q = self[t].link()
@@ -132,6 +166,9 @@ class db(object):
                     self.db.query(_q)
 
     def drop_tables(self):
+        """
+        Deletes all tables from the database. Good for testing.
+        """
         for t in self.tabs:
             q = "DROP TABLE IF EXISTS %s;"%t
             print q
@@ -139,7 +176,7 @@ class db(object):
 
     def has_record(self, tabname, primarykey):
         """
-        Returns true if this table contains a row whose primary key is given by primarykey.
+        Returns true if table pdb.tabname contains a row whose entry for the primary key is given by primarykey.
         """
         cursor = self.db.cursor()
         q = "SELECT EXISTS(SELECT 1 FROM %s WHERE %s='%s');"%(tabname, self[tabname].pk, primarykey)
@@ -148,6 +185,9 @@ class db(object):
         return bool(int(result))
 
     def addrow(self, tabname, values):
+        """
+        Adds a row to pdb.tabname whose column/value pairs are given as the key/value pairs of dictionary 'values'
+        """
         q = """INSERT INTO %s ("""%tabname
         q += ", ".join(values.keys())
         q += ") VALUES ("
@@ -157,6 +197,9 @@ class db(object):
         self.db.query(q)
 
     def format_values(self, tabname, v):
+        """
+        Converts python strings into something that mysql understands.
+        """
         vret = []
         for vi in v.keys():
             if self[tabname][vi].dtype == 'string':
@@ -172,7 +215,7 @@ class db(object):
 pdb = db(DBNAME)
 
 pdb.addtab('files')
-pdb['files'].addcol('JD','float','fk:observations(JD)')
+pdb['files'].addcol('JD','float')#,'fk:observations(JD)')
 pdb['files'].addcol('basefile','string')#,'fk:files(basefile)')
 pdb['files'].addcol('filename','string','pk')
 pdb['files'].addcol('md5','string')
@@ -205,5 +248,5 @@ pdb['observations'].addcol('last_modified','datetime')
 
 
 if __name__ == '__main__':
-    pdb.initialize(test=TEST)
+    pdb.initialize()
     pdb.print_schema()
