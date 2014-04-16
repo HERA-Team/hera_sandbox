@@ -11,6 +11,7 @@ import sys
 import re
 
 hostname = None
+prefix = None
 list_of_jds = []
 
 def file2jd(zenuv):
@@ -19,10 +20,13 @@ def file2jd(zenuv):
 for arg in sys.argv[1:]:
     if 'zen.245' in arg:
         jd = file2jd(arg)
+        if prefix is None:
+            prefix = '/'.join(arg.split('/')[:-1])
         if not jd in list_of_jds:
             list_of_jds.append(jd)
     else:
         hostname = arg
+
 list_of_jds.sort()
 
 #exit if the host is bad.
@@ -34,7 +38,7 @@ for i,jd in enumerate(list_of_jds):
     obscols['JD'] = jd
     for pi in 'xy':
         for pj in 'xy':
-            obscols[pi+pj] = "zen.%s.%s.uv"%(jd,pi+pj)
+            obscols[pi+pj] = "%s/zen.%s.%s.uv"%(prefix,jd,pi+pj)
             # add an entry to pdb.files here. Otherwise observations will break.
             filecols = {}
             filecols['JD'] = jd
@@ -48,11 +52,8 @@ for i,jd in enumerate(list_of_jds):
         obscols['jd_hi'] = list_of_jds[i+1]
     except(IndexError):
         pass
-    try:
+    if i >= 1:
         obscols['jd_lo'] = list_of_jds[i-1]
-        print
-    except(IndexError):
-        pass
 
     obscols['created_on'] = "NOW()"
     obscols['last_modified'] = "NOW()"

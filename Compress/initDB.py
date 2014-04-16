@@ -210,6 +210,25 @@ class db(object):
                 vret.append(v[vi])
         return vret
 
+    def get(self, target, tab, col, val):
+        """
+        retrieve target column of entries in table tab, whose column is equal to val.
+        """
+        q = """SELECT %s FROM %s WHERE %s=%s;"""%(target, tab, col, self.format_values(tab, {col:val})[0])
+        print q
+        cursor = self.db.cursor()
+        cursor.execute(q)
+        return cursor.fetchone()
+
+    def update(self, target_col, target_val, tab, col, val):
+        """
+        Change the entry of target_col to target_val in table tab for rows with col=val.
+        """
+        target_val = self.format_values(tab, {target_col: target_val})[0]
+        val = self.format_values(tab, {col: val})[0]
+        q = """UPDATE %s SET %s=%s WHERE %s=%s"""%(tab, target_col, target_val, col, val)
+        self.db.query(q)
+
 #manually enter schema
 
 pdb = db(DBNAME)
