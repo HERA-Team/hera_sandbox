@@ -30,6 +30,18 @@ sqltypes = {
     "datetime": "TIMESTAMP"
 }
 
+def unpack(xin):
+    """
+    descends into nested tuples and recasts as list
+    """
+    xout = []
+    for i in xin:
+        if not type(i) == tuple:
+            xout.append(i)
+        else:
+            xout.append(unpack(i))
+    return xout
+
 class column(object):
     """
     Container for information to a single column in a database.
@@ -218,7 +230,7 @@ class db(object):
         print q
         cursor = self.db.cursor()
         cursor.execute(q)
-        return cursor.fetchone()
+        return unpack(cursor.fetchall())
 
     def update(self, target_col, target_val, tab, col, val):
         """

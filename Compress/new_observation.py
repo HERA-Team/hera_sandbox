@@ -48,6 +48,13 @@ for i,jd in enumerate(list_of_jds):
             filecols['created_on'] = "NOW()"
             filecols['last_modified'] = "NOW()"
             pdb.addrow('files',filecols)
+            # update history to include created file.
+            histcols = {}
+            histcols['input'] = filecols['filename']
+            histcols['output'] = filecols['filename']
+            histcols['operation'] = "CREATED"
+            histcols['timestamp'] = "NOW()"
+            pdb.addrow('history',histcols)
     try:
         obscols['jd_hi'] = list_of_jds[i+1]
     except(IndexError):
@@ -59,3 +66,4 @@ for i,jd in enumerate(list_of_jds):
     obscols['last_modified'] = "NOW()"
 
     pdb.addrow('observations',obscols)
+

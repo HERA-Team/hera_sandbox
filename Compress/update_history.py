@@ -31,16 +31,16 @@ filecols['filename'] = outfile
 if not opts.host is None:
     filecols['host'] = opts.host
 else:
-    filecols['host'] = pdb.get('host', 'files', 'filename', infile)[0]
+    filecols['host'] = pdb.get('host', 'files', 'filename', infile)[0][0]
 
-filecols['basefile'] = pdb.get('basefile', 'files', 'filename', infile)[0]
+filecols['basefile'] = pdb.get('basefile', 'files', 'filename', infile)[0][0]
 filecols['md5'] = __import__('hashlib').md5(outfile).hexdigest()
 filecols['last_modified']="NOW()"
 
 #reject if the md5 checksum doesn't agree.
 insuffix  =  infile.split('.')[-1]
 outsuffix = outfile.split('.')[-1]
-if insuffix==outsuffix and not filecols['md5']==pdb.get('md5', 'files', 'filename', infile)[0]:
+if insuffix==outsuffix and not filecols['md5']==pdb.get('md5', 'files', 'filename', infile)[0][0]:
     print "md5 checksum failed. exiting"
     sys.exit(1)
 pdb.addrow('files',filecols)
