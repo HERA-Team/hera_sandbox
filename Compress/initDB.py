@@ -208,6 +208,15 @@ class db(object):
         print q
         self.db.query(q)
 
+    def delrow(self, tabname, pk):
+        """
+        deletes a record from pdb.tabname whose primary key is pk
+        """
+        pk = self.format_values(tabname, {self[tabname].pk:pk})[0]
+        q = """DELETE FROM %s WHERE %s=%s"""%(tabname, self[tabname].pk, pk)
+        print q
+        self.db.query(q)
+
     def format_values(self, tabname, v):
         """
         Converts python strings into something that mysql understands.
@@ -277,6 +286,11 @@ pdb['observations'].addcol('jd_lo','string')
 pdb['observations'].addcol('created_on','datetime')
 pdb['observations'].addcol('last_modified','datetime')
 
+pdb.addtab('proc')
+pdb['proc'].addcol('filename','string','pk')
+pdb['proc'].addcol('host','string','fk:hosts(hostname)')
+pdb['proc'].addcol('operation','string')
+pdb['proc'].addcol('starttime','datetime')
 
 if __name__ == '__main__':
     pdb.initialize()

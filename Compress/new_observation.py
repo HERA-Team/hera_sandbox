@@ -7,10 +7,11 @@ DFM
 """
 
 from initDB import pdb
+from socket import gethostname
 import sys
 import re
 
-hostname = None
+hostname = gethostname()
 prefix = None
 list_of_jds = []
 
@@ -24,8 +25,6 @@ for arg in sys.argv[1:]:
             prefix = '/'.join(arg.split('/')[:-1])
         if not jd in list_of_jds:
             list_of_jds.append(jd)
-    else:
-        hostname = arg
 
 list_of_jds.sort()
 
