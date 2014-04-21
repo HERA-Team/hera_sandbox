@@ -133,6 +133,7 @@ class db(object):
         self.tabs = {}
         self.db = MySQLdb.connect(HOST, USER, PASSWD, DBNAME)
         self.db.autocommit(True)
+        #read into database to populate tables. This should be an (optional) argument.
 
     def __getitem__(self, key):
         return self.tabs[key]
