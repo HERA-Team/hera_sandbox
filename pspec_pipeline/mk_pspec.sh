@@ -1,5 +1,5 @@
 #! /bin/bash
-export PYTHONPATH='.'
+export PYTHONPATH='.':$PYTHONPATH
 #PREFIX="OneDayFG"
 #
 ##chans=`python -c "print ' '.join(['%d_%d'%(i,i+39) for i in range(10,150,1)])"`
@@ -20,13 +20,15 @@ echo using config $*
 #set defaults to parameters which might not be set
 if [[ ! -n ${GAIN} ]]; then export GAIN="0.3"; fi
 
-#for posterity print the cal file we are using
-~/scripts/pywhich $cal
+#for posterity Print the cal file we are using
+
+pywhich $cal
+
 threadcount=`python -c "c=map(len,['${pols}'.split(),'${chans}'.split(),'${seps}'.split()]);print c[0]*c[1]*c[2]"`
 echo Running $threadcount pspecs
 PIDS=""
 
-FILES=`${SCRIPTSDIR}/lst_select.py -C ${cal} --ra=${RA} ${DATAPATH}`
+FILES=`lst_select.py -C ${cal} --ra=${RA} ${DATAPATH}`
 test -e ${PREFIX} || mkdir $PREFIX
 for chan in $chans; do
     chandir=${PREFIX}/${chan}
@@ -38,7 +40,7 @@ for chan in $chans; do
         if [ ! -e ${poldir}/pspec_${PREFIX}_${chan}_${pol}.png ]; then
             for sep in $seps; do
                 sepdir=${poldir}/${sep}
-                
+
                 test -e ${sepdir} || mkdir ${sepdir}
                 LOGFILE=`pwd`/${PREFIX}/${chan}_${pol}_${sep}.log
                 echo this is mk_pspec.sh with  |tee  ${LOGFILE}
@@ -49,20 +51,16 @@ for chan in $chans; do
                 echo gain: ${GAIN} | tee -a ${LOGFILE}
                 echo `date` | tee -a ${LOGFILE}
 
-                
-                cd -- ${sepdir}
-                ANTS=`${SCRIPTSDIR}/grid2ant.py -C ${cal} --seps="${sep}"`
+                ANTS=`grid2ant.py -C ${cal} --seps="${sep}"`
                 ${SCRIPTSDIR}/pspec_redmult_cov_gps.py -C ${cal} -b ${NBOOT} \
                     -a ${ANTS} -c ${chan} -p ${pol} \
-                    --gain=${GAIN} ${FILES} \
+                    --gain=${GAIN} --output=${sepdir} ${FILES} \
                 | tee -a ${LOGFILE} 
                 echo beginning bootstrap: `date` | tee -a ${LOGFILE} 
                 ${SCRIPTSDIR}/pspec_pk_k3pk_boot.py pspec_boot*npz | tee -a ${LOGFILE} 
                 echo complete! `date`| tee -a ${LOGFILE} 
 
                 PIDS="${PIDS} "$!
-               
-                cd -    
             done
         fi
     done

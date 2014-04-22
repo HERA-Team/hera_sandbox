@@ -20,6 +20,8 @@ o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 o.add_option('--gain', type='float', default=.3,
     help='gain parameter in approximation. .3 for 32, .1 for 64')
+o.add_option('--output', type='string', default='',
+    help='output directory for pspec_boot files (default "")')
 opts,args = o.parse_args(sys.argv[1:])
 
 
@@ -56,9 +58,9 @@ del(aa)
 #         [31,45, 8,11,36,60,39,46]])
 
 class CoV:
-    '''Covariance class. 
+    '''Covariance class.
         input : Data matrix and bls in set. (X, bls)
-        
+
         bls   = bls
         X     = data matrix
         nprms = number of channels/kmodes/prms
@@ -121,7 +123,7 @@ if False: #turning off the auto sep selection in preperation for deletion
                     sep = (cj-ci, rj-ri) #(dx,dy) in row spacing units
                     i,j = ANTPOS[ri,ci], ANTPOS[rj,cj]
                     bl = a.miriad.ij2bl(i,j)
-                    if i > j: 
+                    if i > j:
                         i,j = j,i
                         sep = (sep[0]*-1,sep[1]*-1)
                     bl2sep[bl] = sep
@@ -131,7 +133,7 @@ if False: #turning off the auto sep selection in preperation for deletion
         #get a list of miriad format bl ints
         input_bls = [a.miriad.ij2bl(int(l.split('_')[0]),int(l.split('_')[1])) for l in opts.ant.split(',')]
         print input_bls
-        myseps = list(set([bl2sep[bl] for bl in input_bls]))#get a list of the seps, one entry per 
+        myseps = list(set([bl2sep[bl] for bl in input_bls]))#get a list of the seps, one entry per
         print "based on input baselines, I am including the following seperations"
         print myseps
         mybls = []
@@ -143,8 +145,8 @@ if False: #turning off the auto sep selection in preperation for deletion
         opts.ant = ','.join([miriadbl2str(bl) for bl in mybls])
         print opts.ant
     #WARNING: The default is to do _all_ seps in the data.
-    
-    
+
+
     #checking that our grid indexing is working
     print [a.miriad.bl2ij(bl) for bl in sep2bl[(1,0)]]
     print len(sep2bl[(0,1)])
@@ -197,7 +199,7 @@ for filename in args:
         if len(times) == 0 or times[-1] != t:
             if len(times) % 8 == 0:
                 #For every 8th integration make random normal noise that is our eor model. Note for every block of 8, this noise is the same. 222
-                eor_mdl[t] = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size)) 
+                eor_mdl[t] = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size))
             else: eor_mdl[t] = eor_mdl[times[-1]]
             times.append(t)
         #For 32 array inside 64 array. skip bls not in the subarray, but may be in the data set.
@@ -388,9 +390,9 @@ for boot in xrange(NBOOT):
             c /= n.sqrt(d) * 2
         #g = .3 # for 1*7 baselines
         g = opts.gain # for 4*7 baselines
-        # begin with off-diagonal covariances to subtract off 
+        # begin with off-diagonal covariances to subtract off
         # (psuedo-inv for limit of small off-diagonal component)
-        _Cx,_Cn = -g*Cx, -g*Cn 
+        _Cx,_Cn = -g*Cx, -g*Cn
         ind = n.arange(SZ)
         # XXX do we also need to zero modes adjacent to diagonal, since removing them results in bigger signal loss?
         for b in xrange(L): # for each redundant baseline, zero out diagonal from covariance diagonalization. Sets each diagonal of each bl-bl covariance to 0.
@@ -398,7 +400,7 @@ for boot in xrange(NBOOT):
             _Cx[indb,indb+b*n_k] = _Cx[indb+b*n_k,indb] = 0
             _Cn[indb,indb+b*n_k] = _Cn[indb+b*n_k,indb] = 0
         _Cx[ind,ind] = _Cn[ind,ind] = 0 # set these to zero temporarily to avoid noise bias into cross terms
-        if True: # estimate and remove signal covariance from diagonalization process 
+        if True: # estimate and remove signal covariance from diagonalization process
             # do this twice: once for the signal (Cx) and once for the noise (Cn)
             # using the statistics of the signal and noise, respectively
             for _C in [_Cx,_Cn]:
@@ -407,7 +409,7 @@ for boot in xrange(NBOOT):
                 sub_C = n.zeros_like(_C)
                 # Choose a (i,j) baseline cross-multiple panel in the covariance matrix
                 for i in xrange(L):
-                    bli = bls_[i] 
+                    bli = bls_[i]
                     for j in xrange(L):
                         blj = bls_[j]
                         # even remove signal bias if bli == blj
@@ -436,7 +438,7 @@ for boot in xrange(NBOOT):
                                 _Csum += _C[i_,:,j_] # fixes indexing error in earlier ver
                                 _Cwgt += 1
                         try:
-                            sub_C[i,:,j] = _Csum / _Cwgt # fixes indexing error in earlier ver 
+                            sub_C[i,:,j] = _Csum / _Cwgt # fixes indexing error in earlier ver
                         except(ZeroDivisionError): #catches zero weights
                            # print gp
                            # print i,j,bli,blj
@@ -636,7 +638,7 @@ for boot in xrange(NBOOT):
     f1 = n.sqrt(n.sum(n.abs(navg_2d)**2)/n.sum(n.abs(n1avg_2d)**2))
     f2 = n.sqrt(n.sum(n.abs(navg_2d)**2)/n.sum(n.abs(n2avg_2d)**2))
     print 'Rescale factor (FINAL):', f1, f2
-    
+
     avg_2d = n.average(pspecs, axis=0) # average over baseline cross-multiples
     std_2d = n.std(pspecs, axis=0) # get distribution as a function of time
     wgt_2d = 1. / std_2d**2 # inverse variance weighting
@@ -651,7 +653,7 @@ for boot in xrange(NBOOT):
         p.subplot(133)
         C.arp.waterfall(avg_2d*wgt_2d, mode='log', drng=3)
         p.show()
-    
+
     #avg_1d = n.average(dspecs, axis=0)
     #p.subplot(133)
     if PLOT: p.plot(avg_1d.real,'.')
@@ -661,8 +663,11 @@ for boot in xrange(NBOOT):
     std_1d = n.std(avg_2d, axis=1) / n.sqrt(pspecs.shape[0]) # coarse estimate of errors.  bootstrapping will do better
     #std_1d = n.std(pspecs, axis=0) # in new noise subtraction, this remaining dither is essentially a bootstrap error, but with 5/7 of the data
 
-    print 'Writing pspec_boot%04d.npz' % boot
-    n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, pk=avg_1d, err=std_1d, scalar=scalar, times=n.array(times),freq=fq,
+    outfile = 'pspec_boot%04d.npz'%(boot)
+    if not opts.output == '':
+        outfile =opts.output+'/'+outfile
+    print "Writing", outfile
+    n.savez(outfile, kpl=kpl, pk=avg_1d, err=std_1d, scalar=scalar, times=n.array(times),freq=fq,
         pk_vs_t=avg_2d, err_vs_t=std_2d, temp_noise_var=temp_noise_var, nocov_vs_t=n.average(dspecs,axis=0),
         cmd=' '.join(sys.argv))
 if PLOT: p.show()
