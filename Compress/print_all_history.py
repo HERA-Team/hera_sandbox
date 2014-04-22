@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-from initDB import pdb
+from PDB import *
 import sys
 
 thisfile = sys.argv[1]
