@@ -58,6 +58,3 @@ histcols['output'] = outfile
 histcols['operation'] = opts.desc
 histcols['timestamp'] = "NOW()"
 pdb.addrow('history',histcols)
-
-#delete relevant entry of pdb.proc
-pdb.delrow('proc',infile)

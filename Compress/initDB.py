@@ -44,12 +44,6 @@ pdb['observations'].addcol('jd_lo','string')
 pdb['observations'].addcol('created_on','datetime')
 pdb['observations'].addcol('last_modified','datetime')
 
-pdb.addtab('proc')
-pdb['proc'].addcol('filename','string','pk')
-pdb['proc'].addcol('host','string','fk:hosts(hostname)')
-pdb['proc'].addcol('operation','string')
-pdb['proc'].addcol('starttime','datetime')
-
 if __name__ == '__main__':
     pdb.populate()
     pdb.print_schema()
