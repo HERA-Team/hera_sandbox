@@ -17,9 +17,13 @@ export PYTHONPATH='.'
 (
 echo using config $*
 . $*
+#set defaults to parameters which might not be set
+if [[ ! -n ${GAIN} ]]; then export GAIN="0.3"; fi
+
+#for posterity print the cal file we are using
 ~/scripts/pywhich $cal
 threadcount=`python -c "c=map(len,['${pols}'.split(),'${chans}'.split(),'${seps}'.split()]);print c[0]*c[1]*c[2]"`
-echo Running $threadcount threads
+echo Running $threadcount pspecs
 PIDS=""
 
 FILES=`${SCRIPTSDIR}/lst_select.py -C ${cal} --ra=${RA} ${DATAPATH}`
@@ -42,14 +46,18 @@ for chan in $chans; do
                 echo channels: ${chan}|tee -a ${LOGFILE}
                 echo polarization: ${pol}|tee -a ${LOGFILE}
                 echo separation: ${sep}|tee -a ${LOGFILE}
+                echo gain: ${GAIN} | tee -a ${LOGFILE}
                 echo `date` | tee -a ${LOGFILE}
 
                 
-                cd ${sepdir}
-                ANTS=`${SCRIPTSDIR}/grid2ant.py -C psa898_v003 ${sep}`
-                ${SCRIPTSDIR}/pspec_redmult_cov_gps.py -C ${cal} -b ${NBOOT} -a ${ANTS} -c ${chan} -p ${pol} ${FILES} \
-                | tee -a ${LOGFILE} && echo beginning bootstrap: `date` | tee -a ${LOGFILE} &&\
-                ${SCRIPTSDIR}/pspec_pk_k3pk_boot.py pspec_boot*npz | tee -a ${LOGFILE} &&\
+                cd -- ${sepdir}
+                ANTS=`${SCRIPTSDIR}/grid2ant.py -C psa898_v003 --seps="${sep}"`
+                ${SCRIPTSDIR}/pspec_redmult_cov_gps.py -C ${cal} -b ${NBOOT} \
+                    -a ${ANTS} -c ${chan} -p ${pol} \
+                    --gain=${GAIN} ${FILES} \
+                | tee -a ${LOGFILE} 
+                echo beginning bootstrap: `date` | tee -a ${LOGFILE} 
+                ${SCRIPTSDIR}/pspec_pk_k3pk_boot.py pspec_boot*npz | tee -a ${LOGFILE} 
                 echo complete! `date`| tee -a ${LOGFILE} 
 
                 PIDS="${PIDS} "$!
@@ -77,9 +85,10 @@ for chan in $chans; do
         poldir=${chandir}/${pol}
         #PLOT
         ${SCRIPTSDIR}/pspec_plot_pk_k3pk.py ${poldir}/*/pspec.npz
-        mv pspec_pk_k3pk.npz ${poldir}/
+        mv pspec_pk_k3pk.npz pspec_${PREFIX}_${chan}_${pol}.npz
         mv pspec.png pspec_${PREFIX}_${chan}_${pol}.png
         cp  pspec_${PREFIX}_${chan}_${pol}.png ${poldir}/
+        cp pspec_${PREFIX}_${chan}_${pol}.npz ${poldir}/
     done
 done
 )
