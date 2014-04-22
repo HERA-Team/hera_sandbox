@@ -186,7 +186,7 @@ print 'scalar:', scalar
 #window = a.dsp.gen_window(freqs.size, window=WINDOW)
 
 #T is a dictionary of the visibilities and N is the dictionary for noise estimates.
-T, N = {}, {}
+T, N, W = {}, {}, {}
 times = []
 eor_mdl = {}
 for filename in args:
@@ -239,7 +239,7 @@ for filename in args:
             #window /= np.sum(window)
             _Trms = n.fft.ifft(window * Trms)
             _Nrms = n.fft.ifft(window * Nrms)
-            _Wrms = n.fft.ifft(window * w)
+            _Wrms = n.fft.ifft(w)
         #gain = n.abs(_Wrms[0])
         #print 'Gain:', gain
         #if False and gain > 0: # XXX this inverts the blackmann harris out of the data completely
@@ -254,6 +254,7 @@ for filename in args:
         #    _Nrms = n.dot(_C, _Nrms).squeeze()
         _Trms = n.fft.fftshift(_Trms)
         _Nrms = n.fft.fftshift(_Nrms)
+        _Wrms = n.fft.fftshift(_Wrms)
         if False: # swap in a simulated signal post delay transform
             _Trms = n.random.normal(size=_Trms.size) * n.exp(2j*n.pi*n.random.uniform(size=_Trms.size))
             mask = n.ones(_Trms.size); mask[15:25] = 0
@@ -261,6 +262,7 @@ for filename in args:
         #Makes list of visibilities for each baseline for all times. number of integrations by number of channels.
         T[bl] = T.get(bl, []) + [_Trms]
         N[bl] = N.get(bl, []) + [_Nrms]
+        W[bl] = W.get(bl, []) + [_Wrms]
 
 #444
 n_k = chans.size / NTAPS
@@ -281,6 +283,9 @@ if False:
 #666
 Ts = n.concatenate([T[bl] for bl in bls], axis=-1).T
 Ns = n.concatenate([N[bl] for bl in bls], axis=-1).T
+Ws = n.concatenate([W[bl] for bl in bls],  axis=-1).T
+#print bl flagging
+
 if False:
     print 'Switching sign of alternate integrations to decorrelate sky'
     sign = 1
@@ -302,11 +307,13 @@ print times[300], times[500]
 print ' '.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in bls])
 if PLOT:
     #capo.arp.waterfall(cov(Ts), mode='log', drng=2); p.show()
-    p.subplot(131); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
+    p.subplot(141); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
     p.title('Vis in K. bls X ints.', fontsize = 8)
-    p.subplot(132); capo.arp.waterfall(Ns, mode='log')#, mx=1, drng=2); p.colorbar(shrink=.5)
+    p.subplot(142); capo.arp.waterfall(Ns, mode='log')#, mx=1, drng=2); p.colorbar(shrink=.5)
     p.title('FRF eor_model.', fontsize=8)
-    p.subplot(133); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
+    p.subplot(143); capo.arp.waterfall(Ws); p.colorbar(shrink=0.5)
+    p.title('Weights in samples bls x ints', fontsize=8)
+    p.subplot(144); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
     print cov(Ts).shape
     p.title('cov(Ts)', fontsize=8)
     p.show()
@@ -314,6 +321,7 @@ if PLOT:
     p.title('cov(Ts) real part', fontsize=8)
     p.subplot(122); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
     p.title('cov(Ts) log', fontsize=8)
+    p.tight_layout()
     p.show()
 
 for boot in xrange(NBOOT):
@@ -361,7 +369,7 @@ for boot in xrange(NBOOT):
 
     _Cxtot,_Cntot = 1, 1
     #PLT1,PLT2 = 4,4
-    PLT1,PLT2 = 3,3
+    PLT1,PLT2 = int(3*n.sqrt(0.3/opts.gain)),int(3*n.sqrt(0.3/opts.gain))#scale the number of steps by the gain? -dcj
     #PLT1,PLT2 = 2,2
     #PLT1,PLT2 = 1,2
     #888
@@ -370,6 +378,7 @@ for boot in xrange(NBOOT):
         if PLOT:
             p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log',  drng=3); p.colorbar(shrink=.5)
             #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
+            print "max(cov(Ts))",n.max(cov(Ts))
         SZ = Ts.shape[0]
         Cx,Cn = cov(Ts), cov(Ns)
         #999
