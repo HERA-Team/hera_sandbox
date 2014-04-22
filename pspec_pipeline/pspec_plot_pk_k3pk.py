@@ -83,7 +83,8 @@ def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.164, color=
         print '%6.3f, %9.5f (%9.5f +/- %9.5f)' % (_k, _k3pk+_k3err,_k3pk,_k3err)
     print '-'*20
     print "saving pspec_pk_k3pk.npz"
-    n.savez('pspec_pk_k3pk.npz',kpl=kpl,pk=pk,err=err,k=k[k0:], k3pk=k3[k0:]*pkfold, k3err=k3[k0:]*errfold)
+    print "output @ freq = ",f0
+    n.savez('pspec_pk_k3pk.npz',kpl=kpl,pk=pk,err=err,k=k[k0:], k3pk=k3[k0:]*pkfold, k3err=k3[k0:]*errfold,freq=f0)
     #pos = n.where(kpl >= 0, 1, 0)
     #neg = n.where(kpl <= 0, 1, 0)
     #posneg = 0.5*(k3pk.compress(pos) + k3pk.compress(neg)[::-1])
@@ -149,6 +150,7 @@ for filename in args:
             RS_VS_KPL_FOLD[filename][_kpl] = (_pk, _err)
             dsum_fold[_kpl] = dsum_fold.get(_kpl, 0) + _pk / _err**2
             dwgt_fold[_kpl] = dwgt_fold.get(_kpl, 0) + 1 / _err**2
+freq = f['freq']
 #RS_VS_KPL = {}
 if True:
     RS_VS_KPL['total'] = {}
@@ -256,7 +258,7 @@ for sep in RS_VS_KPL:
         nos = n.std(n.concatenate([d[:8], d[-8:]])) * n.ones_like(d)
     '''
     if d_fold.size == 0: d_fold,nos_fold = None, None
-    dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS) # 2-sigma error bars
+    dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS,f0=freq) # 2-sigma error bars
     #dual_plot(kpl, d, nos, color=colors[0], bins=BINS) # 2-sigma error bars
     colors = colors[1:] + colors[0]
 
