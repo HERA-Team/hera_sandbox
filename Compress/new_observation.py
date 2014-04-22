@@ -52,7 +52,8 @@ for i,jd in enumerate(list_of_jds):
             histcols['input'] = filecols['filename']
             histcols['output'] = filecols['filename']
             histcols['operation'] = "CREATED"
-            histcols['timestamp'] = "NOW()"
+            histcols['starttime'] = "NOW()"
+            histcols['stoptime'] = "NOW()"
             pdb.addrow('history',histcols)
     try:
         obscols['jd_hi'] = list_of_jds[i+1]

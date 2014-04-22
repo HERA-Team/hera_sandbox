@@ -124,8 +124,9 @@ class db(object):
     """
     An object to handle the paper database.
     """
-    def __init__(self,name):
+    def __init__(self,name,verbose=False):
         self.name = name
+        self.verbose = verbose
         self.tabs = {}
         self.db = MySQLdb.connect(HOST, USER, PASSWD, DBNAME)
         self.db.autocommit(True)
@@ -199,6 +200,7 @@ class db(object):
                 #a wrapper to deal with _mysql's inability to parse multiple commands on the same line.
                 if not _q == "":
                     _q += ";"
+                    if self.verbose: print _q
                     self.db.query(_q)
 
     def drop_tables(self):
@@ -207,15 +209,20 @@ class db(object):
         """
         for t in self.tabs:
             q = "DROP TABLE IF EXISTS %s;"%t
-            print q
+            if self.verbose: print q
             self.db.query(q)
 
-    def has_record(self, tabname, primarykey):
+    def has_record(self, tabname, key, col=None):
         """
-        Returns true if table pdb.tabname contains a row whose entry for the primary key is given by primarykey.
+        Returns true if table pdb.tabname contains a row whose entry for the column 'col' given by key. If no column is given, the primary key is
+        assumed.
         """
         cursor = self.db.cursor()
-        q = "SELECT EXISTS(SELECT 1 FROM %s WHERE %s='%s');"%(tabname, self[tabname].pk, primarykey)
+        if col is None:
+            q = "SELECT EXISTS(SELECT 1 FROM %s WHERE %s='%s');"%(tabname, self[tabname].pk, key)
+        else:
+            q = "SELECT EXISTS(SELECT 1 FROM %s WHERE %s='%s');"%(tabname, col, key)
+        if self.verbose: print q
         cursor.execute(q)
         result = cursor.fetchone()[0]
         return bool(int(result))
@@ -229,7 +236,7 @@ class db(object):
         q += ") VALUES ("
         q += ", ".join(self.format_values(tabname, values))
         q += ");"
-        print q
+        if self.verbose: print q
         self.db.query(q)
 
     def delrow(self, tabname, pk):
@@ -238,7 +245,7 @@ class db(object):
         """
         pk = self.format_values(tabname, {self[tabname].pk:pk})[0]
         q = """DELETE FROM %s WHERE %s=%s"""%(tabname, self[tabname].pk, pk)
-        print q
+        if self.verbose: print q
         self.db.query(q)
 
     def format_values(self, tabname, v):
@@ -260,7 +267,7 @@ class db(object):
         retrieve target column of entries in table tab, whose column is equal to val.
         """
         q = """SELECT %s FROM %s WHERE %s=%s;"""%(target, tab, col, self.format_values(tab, {col:val})[0])
-        print q
+        if self.verbose: print q
         cursor = self.db.cursor()
         cursor.execute(q)
         return unpack(cursor.fetchall())
@@ -272,9 +279,10 @@ class db(object):
         target_val = self.format_values(tab, {target_col: target_val})[0]
         val = self.format_values(tab, {col: val})[0]
         q = """UPDATE %s SET %s=%s WHERE %s=%s"""%(tab, target_col, target_val, col, val)
+        if self.verbose: print q
         self.db.query(q)
 
-pdb = db(DBNAME)
+pdb = db(DBNAME,verbose=TEST)
 
 if __name__ == "__main__":
     pdb.print_schema()
