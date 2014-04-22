@@ -51,7 +51,7 @@ for chan in $chans; do
 
                 
                 cd -- ${sepdir}
-                ANTS=`${SCRIPTSDIR}/grid2ant.py -C psa898_v003 --seps="${sep}"`
+                ANTS=`${SCRIPTSDIR}/grid2ant.py -C ${cal} --seps="${sep}"`
                 ${SCRIPTSDIR}/pspec_redmult_cov_gps.py -C ${cal} -b ${NBOOT} \
                     -a ${ANTS} -c ${chan} -p ${pol} \
                     --gain=${GAIN} ${FILES} \
