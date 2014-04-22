@@ -7,12 +7,12 @@ syntax:
 DFM
 """
 
-from initDB import pdb
+from PDB import *
 import sys
 
-cols = {}
-cols['hostname'], cols['IP'], cols['username'] = sys.argv[1:4]
-if pdb.has_record('hosts', cols['hostname']):
+hostcols = {}
+hostcols['hostname'], hostcols['IP'], hostcols['username'] = sys.argv[1:4]
+if pdb.has_record('hosts', hostcols['hostname']):
     print "Record exists!"
 else:
-    pdb.addrow('hosts', cols)
+    pdb.addrow('hosts', hostcols)

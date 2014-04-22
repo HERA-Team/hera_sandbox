@@ -4,7 +4,7 @@ Register a task in the proc table of pdb.
 $ record_launch.py <full path to file> <task>
 """
 
-from initDB import pdb
+from PDB import *
 from socket import gethostname
 import sys
 

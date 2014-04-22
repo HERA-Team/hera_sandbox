@@ -6,7 +6,7 @@ Add a row to the pdb.observations table and populate the pdb.files tables accord
 DFM
 """
 
-from initDB import pdb
+from PDB import *
 from socket import gethostname
 import sys
 import re

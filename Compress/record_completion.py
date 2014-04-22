@@ -6,7 +6,7 @@ Record the completion of a task
 3) delete the proper entry in pdb.proc
 """
 
-from initDB import pdb
+from PDB import *
 import sys
 import optparse
 import re

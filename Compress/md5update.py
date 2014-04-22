@@ -3,7 +3,7 @@
 Compute the md5 checksum and populate the md5 column of the pdb.files table.
 """
 
-from initDB import pdb
+from PDB import *
 import sys
 import hashlib
 
