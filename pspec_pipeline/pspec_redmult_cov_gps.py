@@ -144,12 +144,14 @@ if False: #turning off the auto sep selection in preperation for deletion
         print "found %d baselines"%len(mybls)
         opts.ant = ','.join([miriadbl2str(bl) for bl in mybls])
         print opts.ant
+        sys.stdout.flush()
     #WARNING: The default is to do _all_ seps in the data.
 
 
     #checking that our grid indexing is working
     print [a.miriad.bl2ij(bl) for bl in sep2bl[(1,0)]]
     print len(sep2bl[(0,1)])
+    sys.stdout.flush()
 uv = a.miriad.UV(args[0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
@@ -181,6 +183,7 @@ print 'Freq:',fq
 print 'z:', z
 print 'B:', B
 print 'scalar:', scalar
+sys.stdout.flush()
 
 #cen_fqs = n.arange(.115,.190,.005)
 #cen_fqs = n.array([.150])
@@ -305,8 +308,9 @@ if False:
 
 print Ts.shape
 print Ns.shape
-print times[300], times[500]
+#print times[300], times[500]
 print ' '.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in bls])
+sys.stdout.flush()
 if PLOT:
     #capo.arp.waterfall(cov(Ts), mode='log', drng=2); p.show()
     p.subplot(141); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
@@ -337,6 +341,7 @@ for boot in xrange(NBOOT):
         #GGG : divide number of bls by 4 for 64 dataset. This is 56 bls for sep01
         nblspg = nbls/4
         print 'Breaking %d bls into groups of %d'%(nbls, nblspg)
+        sys.stdout.flush()
         #gp1,gp2,gp3,gp4 = bls_[:7],bls_[7:14],bls_[14:21],bls_[21:] # for 28bl i.e. 32 antennas in a grid 4 X 8
         gp1,gp2,gp3,gp4 = bls_[:nblspg],bls_[nblspg:nblspg*2],bls_[nblspg*2:nblspg*3],bls_[nblspg*3:nblspg*4] # generic
         leftover = nbls - (nblspg*4)
@@ -368,6 +373,7 @@ for boot in xrange(NBOOT):
     #temp_noise_var = n.var(n.array([T[bl] for bl in bls_]), axis=0).T
     temp_noise_var = n.average(n.array([T[bl] for bl in bls_]), axis=0).T
     print Ts.shape, temp_noise_var.shape
+    sys.stdout.flush()
 
     _Cxtot,_Cntot = 1, 1
     #PLT1,PLT2 = 4,4
@@ -381,6 +387,7 @@ for boot in xrange(NBOOT):
             p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log',  drng=3); p.colorbar(shrink=.5)
             #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
             print "max(cov(Ts))",n.max(cov(Ts))
+            sys.stdout.flush()
         SZ = Ts.shape[0]
         Cx,Cn = cov(Ts), cov(Ns)
         #999
@@ -445,6 +452,7 @@ for boot in xrange(NBOOT):
                            # print i_,j_,bli_,blj_
                            # print _Cwgt
                             print 'weights are zero for %d_%d'%(i_,j_)
+                            sys.stdout.flush()
                             sub_C[i,:,j] = _Csum
                 _C.shape = sub_C.shape = (L*n_k,L*n_k)
                 _C -= sub_C
@@ -596,6 +604,7 @@ for boot in xrange(NBOOT):
             #f1 = n.sqrt((n.abs(nij)**2)/(n.abs(n1ij_)**2))
             #f2 = n.sqrt((n.abs(nij)**2)/(n.abs(n2ij_)**2))
             print 'Rescale factor:', f1, f2
+            sys.stdout.flush()
             #rescale = max(f1,f2)
             rescale = 1.
 
@@ -638,6 +647,7 @@ for boot in xrange(NBOOT):
     f1 = n.sqrt(n.sum(n.abs(navg_2d)**2)/n.sum(n.abs(n1avg_2d)**2))
     f2 = n.sqrt(n.sum(n.abs(navg_2d)**2)/n.sum(n.abs(n2avg_2d)**2))
     print 'Rescale factor (FINAL):', f1, f2
+    sys.stdout.flush()
 
     avg_2d = n.average(pspecs, axis=0) # average over baseline cross-multiples
     std_2d = n.std(pspecs, axis=0) # get distribution as a function of time

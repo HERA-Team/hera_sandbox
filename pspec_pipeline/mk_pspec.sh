@@ -55,7 +55,7 @@ for chan in $chans; do
                 ${SCRIPTSDIR}/pspec_redmult_cov_gps.py -C ${cal} -b ${NBOOT} \
                     -a ${ANTS} -c ${chan} -p ${pol} \
                     --gain=${GAIN} --output=${sepdir} ${FILES} \
-                | tee -a ${LOGFILE} 
+                | tee -a ${LOGFILE} & 
                 echo beginning bootstrap: `date` | tee -a ${LOGFILE} 
                 ${SCRIPTSDIR}/pspec_pk_k3pk_boot.py pspec_boot*npz | tee -a ${LOGFILE} 
                 echo complete! `date`| tee -a ${LOGFILE} 
