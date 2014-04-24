@@ -49,7 +49,6 @@ for tau in _fq:
     #p.colorbar(shrink=.5)
     #p.xlabel('L')
     #p.ylabel(r'$\nu$')
-
     #p.subplot(122)
     ##C.arp.waterfall(_d, extent=(_L[0],_L[-1],_fq[0],_fq[-1]), drng=10)
     ##C.arp.waterfall(_d, drng=10)
@@ -57,31 +56,26 @@ for tau in _fq:
     #p.colorbar(shrink=.5)
     #p.xlabel('u')
     #p.ylabel(r'$\eta$')
-
     #p.show()
-z2x_1 = n.array(z2x_1)
-z2x_2 = n.array(z2x_2)
-z2x = z2x_1; print 'z2x:', z2x.shape, z2x.dtype
-#z2x = z2x_2; print 'z2x:', z2x.shape, z2x.dtype
+
+#z2x = n.array(z2x_1); print 'z2x:', z2x.shape, z2x.dtype
+z2x = n.array(z2x_2); print 'z2x:', z2x.shape, z2x.dtype
 SH = (z2x.shape[1],urange[1]-urange[0])
 for i in range(z2x.shape[0]): p.plot(z2x[i].real)
 p.show()
 
 
-def random_signal(shape):
-    #amp = n.random.normal(size=shape)
-    amp = 1.
-    phs = n.exp(2j*n.pi*n.random.uniform(size=shape))
-    return amp * phs
+def random_phase(shape):
+    return n.exp(2j*n.pi*n.random.uniform(size=shape))
 
-z = random_signal(z2x.shape[-1]); z.shape = (z.size,1)
+z = random_phase(z2x.shape[-1]); z.shape = (z.size,1)
 amp = n.reshape(n.sin(n.arange(z.size).astype(n.float64)*2*n.pi/z.size),z.shape)
 z *= amp
 #z = amp
 x = n.dot(z2x, z) # worried about a conjugation here in z2x: doesn't matter b/c it gets squared
 p_true = n.abs(z)**2
-NOISE_AMP = 0.0
-x += random_signal(x.shape) * NOISE_AMP * n.random.normal(size=x.shape)
+NOISE_AMP = 0.01
+x += random_phase(x.shape) * NOISE_AMP * n.random.normal(size=x.shape)
 print 'x:', x.shape, x.dtype
 
 def dagger(M):
@@ -95,9 +89,7 @@ Cov = S + N; print 'C:', Cov.shape, Cov.dtype
 u,s,v = n.linalg.svd(Cov)
 # XXX the number of eigenmodes preserved here in proj and Cinv affects normalization later
 print n.around(n.abs(s), 4)
-Cinv = dagger(v).dot(n.diag(n.where(s>1e-5,1./s,0))).dot(dagger(u))
-#Cinv = dagger(v).dot(n.diag(n.where(s>1e-15,1./s,0))).dot(dagger(u))
-#print '|C|:', n.linalg.det(Cov)
+Cinv = dagger(v).dot(n.diag(n.where(s>1e-15,1./s,0))).dot(dagger(u))
 p.subplot(131); C.arp.waterfall(Cov, drng=3); p.colorbar(shrink=.5)
 p.subplot(132); C.arp.waterfall(Cinv, drng=3); p.colorbar(shrink=.5)
 p.subplot(133); C.arp.waterfall(n.dot(Cov,Cinv), drng=3); p.colorbar(shrink=.5)
@@ -116,13 +108,15 @@ else: # this renormalization works, regardless of the signularity/projection out
 pa = n.einsum('ij,ajk', x.T.conj(), n.einsum('aij,jk', Ea, x)); print 'pa:', pa.shape, pa.dtype
 ba = n.einsum('aji,ij', Ea, N); ba.shape = pa.shape; print 'ba:', ba.shape, ba.dtype
 pa -= ba
-p.subplot(131); p.plot(n.abs(z.flatten())); p.title('z')
-p.subplot(132); p.plot(n.abs(x.flatten())); p.title('x')
+pa, ba, p_true = pa.flatten(), ba.flatten(), p_true.flatten()
+p.subplot(131); p.plot(n.abs(z.flatten())**2); p.title('z')
+p.subplot(132); p.plot(n.abs(x.flatten())**2); p.title('x')
 p.subplot(133)
 p.title('pa')
-p.plot(p_true.flatten().real)
-p.plot(pa.flatten().real, '.')
-p.plot(ba.flatten())
+p.plot(p_true.real)
+p.plot(pa.real, '.')
+p.plot(ba.real)
+#p.plot(n.arange(pa.size-1) + .5, 0.5*(pa[1:] + pa[:-1]).real, '+')
 p.show()
 #QC = n.einsum('ij,ajk', Cinv, Qa); print 'QC:', QC.shape, QC.dtype
 #F = 0.5 * n.einsum('aji,bij', QC, QC); print 'F:', F.shape, F.dtype
