@@ -11,6 +11,8 @@ o.add_option('-m', '--mode', dest='mode', default='log',
     help='Plot mode can be log (logrithmic), lin (linear), phs (phase), real, or imag.')
 o.add_option('--res', dest='res', type='float', default=0.25,
     help="Resolution of plot (in degrees).  Default 0.25.")
+o.add_option('-i', '--interp',  action='store_true', 
+    help="Interpolate")
 
 def data_mode(data, mode='abs'):
     if mode.startswith('phs'): data = n.angle(data)
@@ -33,6 +35,7 @@ map = Basemap(projection='ortho',lat_0=90,lon_0=180,rsphere=1.)
 h = a.map.Map(fromfits=args[0])
 print 'SCHEME:', h.scheme()
 print 'NSIDE:', h.nside()
+if opts.interp: h.set_interpol(True)
 
 lons,lats,x,y = map.makegrid(360/opts.res,180/opts.res, returnxy=True)
 lons = 360 - lons
