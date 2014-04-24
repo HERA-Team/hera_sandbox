@@ -4,9 +4,6 @@ import numpy as n, aipy as a, pylab as p, capo as C
 
 F_c = .150
 B = .02
-drng = 12
-
-SCALE = 4.
 
 #urange = (535,550)
 #urange = (541,544)
@@ -58,23 +55,24 @@ for tau in _fq:
     #p.ylabel(r'$\eta$')
     #p.show()
 
-#z2x = n.array(z2x_1); print 'z2x:', z2x.shape, z2x.dtype
-z2x = n.array(z2x_2); print 'z2x:', z2x.shape, z2x.dtype
+z2x = n.array(z2x_1); print 'z2x:', z2x.shape, z2x.dtype
+#z2x = n.array(z2x_2); print 'z2x:', z2x.shape, z2x.dtype
+#z2x = n.identity(z2x.shape[0])
 SH = (z2x.shape[1],urange[1]-urange[0])
-for i in range(z2x.shape[0]): p.plot(z2x[i].real)
-p.show()
+#for i in range(z2x.shape[0]): p.plot(z2x[i].real)
+#p.show()
 
 
 def random_phase(shape):
     return n.exp(2j*n.pi*n.random.uniform(size=shape))
 
-z = random_phase(z2x.shape[-1]); z.shape = (z.size,1)
-amp = n.reshape(n.sin(n.arange(z.size).astype(n.float64)*2*n.pi/z.size),z.shape)
-z *= amp
-#z = amp
-x = n.dot(z2x, z) # worried about a conjugation here in z2x: doesn't matter b/c it gets squared
+z = random_phase(z2x.shape[-1])
+amp = n.sin(n.arange(z.size).astype(n.float64)*2*n.pi/z.size)
+#z *= amp
+z = amp
+x = n.einsum('ij,j', z2x, z) # worried about a conjugation here in z2x: doesn't matter b/c it gets squared
 p_true = n.abs(z)**2
-NOISE_AMP = 0.01
+NOISE_AMP = 0.0
 x += random_phase(x.shape) * NOISE_AMP * n.random.normal(size=x.shape)
 print 'x:', x.shape, x.dtype
 
@@ -83,29 +81,35 @@ def dagger(M):
     axes[-2],axes[-1] = axes[-1],axes[-2]
     return n.transpose(n.conj(M), axes)
 
-S = z2x.dot(z2x.T.conj()); print 'S:', S.shape, S.dtype
+#S = z2x.dot(z2x.T.conj()); print 'S:', S.shape, S.dtype
+S = n.einsum('ij,kj', z2x, z2x.conj()); print 'S:', S.shape, S.dtype
 N = n.identity(S.shape[0], dtype=n.complex128) * NOISE_AMP**2
 Cov = S + N; print 'C:', Cov.shape, Cov.dtype
 u,s,v = n.linalg.svd(Cov)
 # XXX the number of eigenmodes preserved here in proj and Cinv affects normalization later
 print n.around(n.abs(s), 4)
-Cinv = dagger(v).dot(n.diag(n.where(s>1e-15,1./s,0))).dot(dagger(u))
+#Cinv = dagger(v).dot(n.diag(n.where(s>1e-15,1./s,0))).dot(dagger(u))
+Cinv = n.einsum('jh,ji,ki', v.conj(), n.diag(n.where(s>1e-15,1./s,0)), u.conj())
 p.subplot(131); C.arp.waterfall(Cov, drng=3); p.colorbar(shrink=.5)
 p.subplot(132); C.arp.waterfall(Cinv, drng=3); p.colorbar(shrink=.5)
 p.subplot(133); C.arp.waterfall(n.dot(Cov,Cinv), drng=3); p.colorbar(shrink=.5)
 p.show()
 z2x_t = n.transpose(z2x); z2x_t.shape += (1,); print 'z2x_t:', z2x_t.shape, z2x_t.dtype
 Qa = z2x_t * dagger(z2x_t); print 'Qa:', Qa.shape, Qa.dtype
-Ea = 0.5 * n.einsum('ij,ajk', Cinv, n.einsum('aij,jk', Qa, Cinv)); print 'Ea:', Ea.shape, Ea.dtype
-W = n.einsum('aij,bji', Ea, Qa); print 'W:', W.shape, W.dtype
-#print n.average(Ea.sum(axis=-1))
-#print n.average(W.sum(axis=-1))
+Ea = 0.5 * n.einsum('ij,ajk,kl', Cinv, Qa, Cinv); print 'Ea:', Ea.shape, Ea.dtype
+EaC = n.einsum('aij,jk', Ea, Cov); print 'EaC:', EaC.shape, EaC.dtype
+Sab = 2*n.einsum('aij,bji', EaC, EaC); print 'Sab:', Sab.shape, Sab.dtype
+print n.diag(Sab)
+Wab = n.einsum('aij,bji', Ea, Qa); print 'Wab:', Wab.shape, Wab.dtype
+p.subplot(121); C.arp.waterfall(Wab, drng=3); p.colorbar(shrink=.5)
+p.subplot(122); C.arp.waterfall(Sab, drng=3); p.colorbar(shrink=.5)
+p.show()
 if False:# XXX this renormalization doesn't reproduce input signal for singular C
-    norm = W.sum(axis=-1); norm.shape += (1,1); print 'norm:', norm.shape
+    norm = Wab.sum(axis=-1); norm.shape += (1,1); print 'norm:', norm.shape
     Ea /= norm
 else: # this renormalization works, regardless of the signularity/projection out of modes in Cinv
     Ea /= 0.5
-pa = n.einsum('ij,ajk', x.T.conj(), n.einsum('aij,jk', Ea, x)); print 'pa:', pa.shape, pa.dtype
+pa = n.einsum('j,ajk,k', x.conj(), Ea, x); print 'pa:', pa.shape, pa.dtype
 ba = n.einsum('aji,ij', Ea, N); ba.shape = pa.shape; print 'ba:', ba.shape, ba.dtype
 pa -= ba
 pa, ba, p_true = pa.flatten(), ba.flatten(), p_true.flatten()
@@ -115,6 +119,8 @@ p.subplot(133)
 p.title('pa')
 p.plot(p_true.real)
 p.plot(pa.real, '.')
+#p.plot(pa.real+n.diag(Sab), '.')
+#p.plot(pa.real-n.diag(Sab), '.')
 p.plot(ba.real)
 #p.plot(n.arange(pa.size-1) + .5, 0.5*(pa[1:] + pa[:-1]).real, '+')
 p.show()
@@ -134,6 +140,7 @@ p.show()
 #norm = W.sum(axis=-1); norm.shape += (1,); print 'norm:', norm.shape
 #M /= norm 
 #W = n.dot(M, F)
+#pa = n.einsum('ba,aij', M, qa-na); print 'pa:', pa.shape, pa.dtype
 
 
 
