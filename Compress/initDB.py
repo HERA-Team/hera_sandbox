@@ -33,6 +33,8 @@ pdb['history'].addcol('output','string')
 pdb['history'].addcol('operation','string')
 pdb['history'].addcol('starttime','datetime')
 pdb['history'].addcol('stoptime','datetime')
+pdb['history'].addcol('pid','string')
+pdb['history'].addcol('host','string')
 
 pdb.addtab('observations')
 pdb['observations'].addcol('JD','float','pk')
