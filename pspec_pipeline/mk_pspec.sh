@@ -57,9 +57,9 @@ for chan in $chans; do
                     --gain=${GAIN} --output=${sepdir} ${FILES} \
                 | tee -a ${LOGFILE} 
                 echo beginning bootstrap: `date` | tee -a ${LOGFILE} 
-                ${SCRIPTSDIR}/pspec_pk_k3pk_boot.py pspec_boot*npz | tee -a ${LOGFILE} 
+                ${SCRIPTSDIR}/pspec_pk_k3pk_boot.py ${sepdir}/pspec_boot*npz | tee -a ${LOGFILE} 
                 echo complete! `date`| tee -a ${LOGFILE} 
-
+                mv pspec.npz ${sepdir}/
                 PIDS="${PIDS} "$!
             done
         fi
