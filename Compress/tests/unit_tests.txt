@@ -1,0 +1,11 @@
+List of functions and their unit test.
+
+pdb.initialize()
+--- initialize paper db. Use print_schema to manually inspect it.
+
+pdb.addrow()
+--- can I add a row to a table?
+pdb.has_record()
+--- can I tell if I have an entry?
+pdb.get()
+--- can I access the datum?
