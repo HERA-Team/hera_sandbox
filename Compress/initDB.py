@@ -33,9 +33,9 @@ pdb['history'].addcol('output','string')
 pdb['history'].addcol('operation','string')
 pdb['history'].addcol('starttime','datetime')
 pdb['history'].addcol('stoptime','datetime')
-pdb['history'].addcol('pid','string')
 pdb['history'].addcol('host','string')
 pdb['history'].addcol('log','string')
+pdb['history'].addcol('exit_status','int')
 
 pdb.addtab('observations')
 pdb['observations'].addcol('JD','float','pk')
@@ -53,5 +53,6 @@ pdb['orders'].addcol('filename', 'string', 'pk')
 pdb['orders'].addcol('status',   'string')
 
 if __name__ == '__main__':
+    pdb.drop_tables()
     pdb.populate()
     pdb.print_schema()

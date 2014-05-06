@@ -16,6 +16,7 @@ for f in $@; do
         record_completion.py ${outfile}
         rm -r ${f}
     else
-        echo "DO SOMETHING!"
+        rm -r ${f}cR
+        record_failure.py ${outfile}
     fi
 done

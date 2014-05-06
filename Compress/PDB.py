@@ -24,7 +24,8 @@ else:
 sqltypes = {
     "string"  : "VARCHAR(256)",
     "float"   : "DOUBLE",
-    "datetime": "TIMESTAMP"
+    "datetime": "TIMESTAMP",
+    "int"     : "TINYINT",
 }
 
 def unpack(xin):
@@ -264,6 +265,8 @@ class db(object):
                 vret.append(v[vi])
             elif self[tabname][vi].dtype in ['datetime','timestamp']:
                 vret.append(v[vi])
+            elif self[tabname][vi].dtype in ['int','tinyint(4)']:
+                vret.append(v[vi])
         return vret
 
     def get(self, target, tab, col, val):
@@ -282,7 +285,7 @@ class db(object):
         """
         target_val = self.format_values(tab, {target_col: target_val})[0]
         val = self.format_values(tab, {col: val})[0]
-        q = """UPDATE %s SET %s=%s WHERE %s=%s"""%(tab, target_col, target_val, col, val)
+        q = """UPDATE %s SET %s=%s WHERE %s=%s;"""%(tab, target_col, target_val, col, val)
         if self.verbose: print q
         self.db.query(q)
 

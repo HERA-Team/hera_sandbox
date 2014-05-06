@@ -60,6 +60,7 @@ for i,jd in enumerate(list_of_jds):
                 histcols['host'] = hostname
                 histcols['starttime'] = "NOW()"
                 histcols['stoptime'] = "NOW()"
+                histcols['exit_status'] = '0'
                 pdb.addrow('history',histcols)
 
                 ordercols = {}

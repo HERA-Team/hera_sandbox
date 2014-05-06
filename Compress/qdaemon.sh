@@ -49,14 +49,18 @@ do
                 for si in $allstills; do
                     if [[ ${ComputeNodes[$si]} == $still ]]; then
                         #2-RSYNC
-                        record_launch.py ${outfile} -i ${infile} -d '2-RSYNC'
-                        scp ${infile} ${outfile}
-                        if [[ $? ]]; then
-                            ssh ${still} "add_file.py ${outfile} -i ${infile}" 
-                            record_completion.py ${outfile} 
+                        if ssh ${still} test -e ${outfile##*:}; then
+                            continue
                         else
-                            ssh ${still} "rm -r ${outfile##*:}"
-                            record_failure.py ${outfile}
+                            record_launch.py ${outfile} -i ${infile} -d '2-RSYNC'
+                            scp ${infile} ${outfile}
+                            if [[ $? ]]; then
+                                ssh ${still} "add_file.py ${outfile} -i ${infile}" 
+                                record_completion.py ${outfile} 
+                            else
+                                ssh ${still} "rm -r ${outfile##*:}"
+                                record_failure.py ${outfile}
+                            fi
                         fi
                     fi
                 done

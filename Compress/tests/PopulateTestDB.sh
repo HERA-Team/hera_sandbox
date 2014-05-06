@@ -23,12 +23,13 @@ new_observation.py ${filelist}
 for f in $filelist; do
     infile=still3:${f}
     outfile=${pot}:/data/${f##*/}
-    #echo "md5update.py ${infile}"
     md5update.py ${infile}
-    #echo ssh ${pot} "record_launch.py -i ${infile} -d '1-RSYNC' ${outfile}"
-    ssh ${pot} "record_launch.py -i ${infile} -d '1-RSYNC' ${outfile}"
-    #echo scp ${infile} ${outfile}
+    record_launch.py -i ${infile} -d '1-RSYNC' ${outfile}
     scp ${infile} ${outfile}
-    #echo ssh ${pot} "record_completion.py ${outfile}"
-    ssh ${pot} "record_completion.py ${outfile}"
+    if [[ $? ]]; then
+        ssh ${pot} add_file.py ${outfile} -i ${infile}
+        record_completion.py ${outfile}
+    else
+        echo "DO SOMETHING!"
+    fi
 done

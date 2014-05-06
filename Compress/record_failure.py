@@ -13,5 +13,5 @@ if not pdb.has_record('history',outfile,col='output'):
     print "entry in the history column doesn't exist!"
     sys.exit(1)
 
-pdb.update('exit_status',"0",'history','output', outfile)
+pdb.update('exit_status',"1",'history','output', outfile)
 pdb.update('stoptime',"NOW()",'history','output', outfile)
