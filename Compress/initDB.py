@@ -48,6 +48,10 @@ pdb['observations'].addcol('jd_lo','string')
 pdb['observations'].addcol('created_on','datetime')
 pdb['observations'].addcol('last_modified','datetime')
 
+pdb.addtab('orders')
+pdb['orders'].addcol('filename', 'string', 'pk')
+pdb['orders'].addcol('status',   'string')
+
 if __name__ == '__main__':
     pdb.populate()
     pdb.print_schema()

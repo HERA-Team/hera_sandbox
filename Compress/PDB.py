@@ -7,10 +7,11 @@ DFM
 """
 
 import MySQLdb
+import hashlib
 
 #global definitions
 TEST=True
-HOST='localhost'
+HOSTIP='10.0.1.20'
 USER='obs'
 PASSWD='P9ls4R*@'
 if TEST:
@@ -30,13 +31,16 @@ def unpack(xin):
     """
     descends into nested tuples and recasts as list
     """
-    xout = []
-    for i in xin:
-        if not type(i) == tuple:
-            xout.append(i)
-        else:
-            xout.append(unpack(i))
-    return xout
+    if xin==None:
+        return []
+    else:
+        xout = []
+        for i in xin:
+            if not type(i) == tuple:
+                xout.append(i)
+            else:
+                xout.append(unpack(i))
+        return xout
 
 class column(object):
     """
@@ -128,7 +132,7 @@ class db(object):
         self.name = name
         self.verbose = verbose
         self.tabs = {}
-        self.db = MySQLdb.connect(HOST, USER, PASSWD, DBNAME)
+        self.db = MySQLdb.connect(HOSTIP, USER, PASSWD, DBNAME)
         self.db.autocommit(True)
         for tab in self.get_tables():
             self.addtab(tab)
@@ -282,7 +286,21 @@ class db(object):
         if self.verbose: print q
         self.db.query(q)
 
-pdb = db(DBNAME,verbose=TEST)
+pdb = db(DBNAME,verbose=False)
+
+def md5sum(fname):
+    """
+    calculate the md5 checksum of a file whose filename entry is fname.
+    """
+    fname = fname.split(':')[-1]
+    BLOCKSIZE=65536
+    hasher=hashlib.md5()
+    with open(fname, 'rb') as afile:
+        buf=afile.read(BLOCKSIZE)
+        while len(buf) >0:
+            hasher.update(buf)
+            buf=afile.read(BLOCKSIZE)
+    return hasher.hexdigest()
 
 if __name__ == "__main__":
     pdb.print_schema()

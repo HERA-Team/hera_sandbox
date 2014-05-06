@@ -17,12 +17,16 @@ o.add_option('-d','--desc',dest='desc', type='string',
 opts, args = o.parse_args()
 
 hostname = gethostname()
-infile = opts.infile
+infile  = opts.infile
 outfile = args[0]
 
 if not pdb.has_record('hosts', hostname):
+    if pdb.verbose:
+        print "Unidentified host %s, exiting (1)"%hostname
     sys.exit(1)
 if not pdb.has_record('files',infile):
+    if pdb.verbose:
+        print "Unidentified file %s, exiting (1)"%filename
     sys.exit(1)
 
 pdb.update('last_modified',"NOW()",'files','filename',infile)
@@ -31,6 +35,10 @@ pdb.update('last_modified',"NOW()",'files','filename',infile)
 histcols = {}
 histcols['input']  = infile
 histcols['output'] = outfile
+histcols['host'] = hostname
 histcols['operation'] = opts.desc
 histcols['starttime'] = "NOW()"
 pdb.addrow('history', histcols)
+
+#update order slip
+pdb.update('status',opts.desc,'orders','filename',infile)
