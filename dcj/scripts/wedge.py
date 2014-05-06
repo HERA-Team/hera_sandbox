@@ -16,15 +16,16 @@ WINDOW='blackman-harris'
 maxbl = 1000
 minbl = 0.01
 ns_per_m = 3.33564095
-singlebl = False
+singlebl = True
+VERB=True
 timeprint=False
 windowpad = 0.01 #window padding in Mpc^-1
 windowpad_ns = 60  # any additional window padding in ns
 int_count = 14 # sum this many integrations together before cleaning 
 dirty = False
 dophase=True
-T1 = 21
-T2 = 93
+T1 = 28
+T2 = 48
 def ram():
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024/1024 #return total ram usage in GB
 
@@ -62,14 +63,18 @@ def calcdelays(phase_center,uvws,times):
     return delays    
 def i2a(i):
     #convert from MWA to unit ant index
+    # assumes zero indexed antenna numbers 0-127
     tens = int(i/8)+1
-    ones = i%8
+    ones = i%8+1
     return tens*10+ones
 def a2i(a):
     #convert from unit to MWA ant index
+    #returns a zero indexed number 0-127
     eights = int(a/10)-1
     ones = a%10
-    return eights*8+ones
+    return eights*8+ones-1
+i2a = n.vectorize(i2a)
+a2i = n.vectorize(a2i)
 def gethdufreqs(D):
     nfreqs = D.header['NAXIS4']
     f0  = D.header['CRVAL4']
@@ -84,7 +89,6 @@ def gentle(dd, _w, tol=1e-1, area=None, stop_if_div=False,
         print "entering gentle clean"
     cc, info = a.deconv.clean(dd, _w, tol=tol, area=area, stop_if_div=False,
                     maxiter=maxiter,verbose=verbose)
-    #dd = info['res']
     cc = n.zeros_like(dd)
     inside_res = n.std(dd[area!=0])
     outside_res = n.std(dd[area==0])
@@ -94,6 +98,7 @@ def gentle(dd, _w, tol=1e-1, area=None, stop_if_div=False,
     if verbose:
         print "inside_res outside_res"
         print inside_res, outside_res
+    inside_res = 2*outside_res #just artifically bump up the inside res so the loop runs at least once
     while(inside_res>outside_res and maxiter>0):
         if verbose: print '.',
         _d_cl, info = a.deconv.clean(dd, _w, tol=tol, area=area, stop_if_div=False,
@@ -140,7 +145,7 @@ def loadfhdsav(savfile):
     ant2 =  uvfile['obs']['baseline_info'][0]['tile_b'][0]
     data =  uvfile['vis_ptr']
     #times = uvfile['obs']['baseline_info'][0]['jdate'][0]
-    baseline = ant2*256+ant1
+    baseline = a2i(ant2)*256+a2i(ant1)
     freqs = uvfile['obs']['baseline_info'][0]['freq'][0]
 
     print "loading alternate polarization",uvfile_altpol
@@ -222,11 +227,19 @@ for uvfile in sys.argv[1:]:
         Nfreqs = D.data.field('DATA').shape[3]
         Npol = D.data.field('DATA').shape[4]
         Nblt = D.data.field('DATA').shape[0] 
+        del(D)
+        ant2    = n.array(bls%256).astype(int)-1
+        ant1    = n.array((bls-ant2)/256).astype(int)-1
+        ant1,ant2 = n.array(map(i2a,ant1)),n.array(map(i2a,ant2))
     else:
-        uvws,ant1,ant2,baseline,times,freqs,DATA,weights = loadfhdsav(uvfile)
+        uvws,ant1,ant2,bls,times,freqs,DATA,weights = loadfhdsav(uvfile)
         MASK = (weights==0)
+    if singlebl and VERB: print "plotting a single bl. found nrecords= ",n.sum(n.logical_and(ant1==T1,ant2==T2))
+    Nblt = DATA.shape[0]
+    Npol = DATA.shape[-1]
+    Nfreqs = DATA.shape[-2]
     print "finished loading data, deleting intermediate object"
-    del(D)
+    
     print "total ram usage = ",ram(),"GB"
 
     """
@@ -238,9 +251,7 @@ for uvfile in sys.argv[1:]:
     totalt  = n.ceil((times.max() - times.min())*24*3600 + t_int)
     print "total observing time = ",totalt
     Ntimes  = n.ceil(totalt/t_int)
-    print "ntimes = ",Ntimes
-    ant2    = (bls%256).astype(int)
-    ant1    = ((bls-ant2)/256).astype(int)
+
     Nants   = len(set(ant2))
     Nmax    = ant2.max()
     z       = pspec.f2z(n.mean(freqs)/1e9)
@@ -257,15 +268,24 @@ for uvfile in sys.argv[1:]:
     #form up a list of baselines, sorted by length
     bl_lengths = []
     bls_sorted = []
+    uvw_sorted = []
+    ant1_sorted = []
+    ant2_sorted = []
     for i in range(Nblt):
         if bls[i] in bls_sorted:continue
         if length(uvws[i])>maxbl or length(uvws[i])<minbl:continue
         bl_lengths.append(length(uvws[i]))
+        uvw_sorted.append(uvws[i])
         bls_sorted.append(bls[i])
+        ant1_sorted.append(ant1[i])
+        ant2_sorted.append(ant2[i])
     #sort everything by baseline length    
     I = n.argsort(bl_lengths)
     bls_sorted = n.array(bls_sorted)[I]
     bl_lengths = n.array(bl_lengths)[I]
+    uvw_sorted = n.array(uvw_sorted)[I]
+    ant1_sorted = n.array(ant1_sorted)[I]
+    ant2_sorted = n.array(ant2_sorted)[I]
     ##### END VARIABLE SETUP
   
     #### BEGIN POWER SPECTRUM COMPUTATION
@@ -293,7 +313,9 @@ for uvfile in sys.argv[1:]:
     conj = []
     print "calculating the conjugations"
     for uvw in uvws:
-        if uvw[0]>0:conj.append(1)
+        #if uvw[0]>0:conj.append(1)
+        ang = n.angle(uvw[0]+1j*uvw[1])*180/n.pi
+        if (ang<(90+22.5)) & (ang>(-90+22.5)):conj.append(1)
         else:conj.append(0)
     conj = n.array(conj)
 
@@ -303,12 +325,13 @@ for uvfile in sys.argv[1:]:
     
     #INITIALIZE THE ACCUMULATORS!
     window = None
-    waterfall =[]
+    waterfall_res =[]
+    waterfall_cc = []
     accum = n.zeros((Nbl,Nfreqs,Npol)).astype(n.complex64)
     waccum = n.zeros_like(accum)
     naccum = n.zeros((Nbl,Npol))
-    ant1_sorted = n.zeros_like(bls_sorted)
-    ant2_sorted = n.zeros_like(bls_sorted)
+    #ant1_sorted = n.zeros_like(bls_sorted)
+    #ant2_sorted = n.zeros_like(bls_sorted)
 
     #SCAN THROUGH BASELINES
     bar = progressbar.ProgressBar()
@@ -316,12 +339,16 @@ for uvfile in sys.argv[1:]:
         bl = bls[i]
         bli = n.abs(bls_sorted-bl).argmin() #find the baseline length index
         if ant1[i]==ant2[i]:continue
-        if not (ant1[i]==a2i(T1) and ant2[i]==a2i(T2)) and singlebl:continue   
+        if not (ant1[i]==T1 and ant2[i]==T2) and singlebl:continue   
+        if singlebl: print '.'
         uvw = uvws[i]
-        if singlebl: print "|u| = ",length(uvw)
+        #if singlebl: print "|u| = ",length(uvw)
         bldelay = length(uvw) + windowpad_delay
 	#print "horizon:",length(uvw)," + extra",windowpad_delay
-        if bldelay>maxbl or bldelay<minbl:continue #throw out bls longer than 600m
+        if bldelay>maxbl or bldelay<minbl:
+            if singlebl: print "baseline length of ",bldelay," [ns] outside of limit",minbl,"-",maxbl
+            continue #throw out bls longer than 600m
+        if singlebl: print '-'
         #SCAN BY POL
         for pol in range(Npol):
             #grab the data from the big chunk of data in RAM
@@ -332,12 +359,16 @@ for uvfile in sys.argv[1:]:
                 #print delay
                 
                 data *= n.exp(2*n.pi * 1j * freqs/1e9 * delay)
-                if conj[i]: data = n.conj(data)
+                if conj[i]: 
+                    data = n.conj(data)
+                    uvws[bli] *= -1
+                    uvw *= -1
             mask = MASK[i,:,pol]#(D.data.field('DATA')[i,:,:,:,pol,2]==0).squeeze()
             if naccum[bli,pol]<int_count: #if we are within the integration window, accumulate
                 accum[bli,:,pol] += data
                 waccum[bli,:,pol] += 1 - mask.astype(n.float)
                 naccum[bli,pol] += 1
+                continue
             if naccum[bli,pol]==int_count:
                 data += accum[bli,:,pol]
                 w = waccum[bli,:,pol] + 1 - mask.astype(n.float)
@@ -349,26 +380,26 @@ for uvfile in sys.argv[1:]:
                 waccum[bli,:,pol] *= 0 
                 
             else:continue
+            if VERB: print "FFT", bl,pol,
             #compute the psf matrix
-            _w = n.fft.ifft(w/w.max())
-            if singlebl: print zip(1-mask.astype(n.float),w/w.max())
+            _w = n.fft.ifft(w)
             gain = n.abs(_w[0])  
-            if gain==0 or n.sum(data)==0:continue #skip on if theres no data!
+            if gain==0 or n.sum(data)==0:
+                if VERB:print "skipping due to lack of data",w
+                continue #skip on if theres no data!
             if window is None:
                 window = a.dsp.gen_window(data.shape[0],WINDOW)
             dd      =   n.fft.ifft(window*data)  #THE DELAY TRANSFORM
             area = n.zeros_like(dd).astype(n.int)
             area[n.abs(delays)<bldelay] = 1  #THE CLEAN BOX
             #BEGIN CLEANING
+            if singlebl: print "CLEANING"
             tic = time.time()
             maxiter=100
-            if singlebl:
-                plot(n.fft.fftshift(n.abs(dd)))
-                plot(n.fft.fftshift(area))
-                plot(n.fft.fftshift(_w))
+            if dirty: maxiter=0
             try:
                 _d_cl, info = gentle(dd, _w, tol=1e-1, area=area, stop_if_div=False,
-                    maxiter=maxiter,verbose=singlebl)
+                    maxiter=maxiter,verbose=(singlebl or VERB))
             except(KeyboardInterrupt):
                 print bl,ant1[i],ant2[i]
                 _d_cl, info = gentle(dd, _w, tol=1e-1, area=area, stop_if_div=False,
@@ -393,11 +424,6 @@ for uvfile in sys.argv[1:]:
             dd = n.fft.fftshift(dd)
             _d_cl = n.fft.fftshift(_d_cl)
             res = n.fft.fftshift(info['res'])
-            if singlebl:
-                plot(n.abs(res))
-                show()
-
-
             try:
                 P[bli,:,pol] += _d_cl + res
                 P2[bli,:,pol] += (_d_cl+ res) * n.conj(_d_cl+ res)
@@ -407,25 +433,25 @@ for uvfile in sys.argv[1:]:
             except IndexError as e:
                 print bli,pol,P.shape
                 raise(e)
-            #KEEP BACK THE ANTS. comment written post coding. not sure why this bit is here, but its probably important
-            try:
-                ant1_sorted[bli] = ant1[i]
-                ant2_sorted[bli] = ant2[i]
-            except(IndexError):
-                print bli,len(ant1_sorted)
             #SAVE A WATERFALL FOR PLOTTING PURPOSES
-            if ant1[i]==a2i(T1) and ant2[i]==a2i(T2):
-                waterfall.append(res)
-                #print ','
-    print "saving..."
-    waterfall = n.array(waterfall)
-    waterfall.shape = (waterfall.shape[0]/Npol,Npol,waterfall.shape[1])
-    n.savez(outfile+'.mybl.npz',waterfall=waterfall,delays=delays)
-    print "saving delays too!"
-    print "saved ",outfile+'.mybl.npz'  
+            if ant1[i]==T1 and ant2[i]==T2:
+                waterfall_res.append(res)
+                waterfall_cc.append(_d_cl)
+                if VERB: print 'appending to waterfall npoints:',len(res)
+    if len(waterfall_res)>0:
+        print "saving waterfall"
+        print "delay[0] = ",delays[0]
+        waterfall_res = n.array(waterfall_res)
+        waterfall_res.shape = (waterfall_res.shape[0]/Npol,Npol,waterfall_res.shape[1])
+        waterfall_cc = n.array(waterfall_cc)
+        waterfall_cc.shape = (waterfall_cc.shape[0]/Npol,Npol,waterfall_cc.shape[1])
+
+
+        n.savez(outfile+'.mybl.npz',waterfall_res=waterfall_res,delays=n.fft.fftshift(delays),waterfall_cc=waterfall_cc)
+        print "saving delays too!"
+        print "saved ",outfile+'.mybl.npz'  
 
     if not singlebl:
-        n.savez(outfile,P=P,P2=P2,P_res=P_res,P2_res=P2_res,C=C,delays=delays,bl_lengths=bl_lengths,freq=n.mean(freqs),ant1=ant1_sorted,ant2=ant2_sorted,initial_rms=n.array(initial_rms),final_rms=n.array(final_rms),ncycle=n.array(ncycle),uvws=uvws[I],windowpad=windowpad_delay)
+        n.savez(outfile,P=P,P2=P2,P_res=P_res,P2_res=P2_res,C=C,delays=delays,bl_lengths=bl_lengths,freq=n.mean(freqs),ant1=ant1_sorted,ant2=ant2_sorted,initial_rms=n.array(initial_rms),final_rms=n.array(final_rms),ncycle=n.array(ncycle),uvws=uvw_sorted,windowpad=windowpad_delay)
 #
 print "time to scan bls and dt = ",time.time()-tic
-
