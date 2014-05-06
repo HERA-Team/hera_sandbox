@@ -1,74 +1,64 @@
 #! /bin/bash
 
-"""
-daemon script overseeing compression.
- 1) read trigger file.
- 2) make new output directory for compression 
- 3) allocate files to each compute host. scp them.
- 4) begin compression on each host.
+#daemon script overseeing compression.
+# 1) read in the orders that the correlator sends.
+# 2) make new output directory for compression 
+# 3) allocate files to each compute host. scp them.
+# 4) begin compression on each host.
+#
+#To Do:
+#  --- Update plumbing step at the end. Should the correlator put files in their final resting place?
+#
+#DFM 
 
-To Do:
-  --- remove pol-specfic allocation
-  --- incorporate database interface.
-  --- Update plumbing step at the end. Should the correlator put files in their final resting place?
+TriggerRegexp='/home/obs/Compress/Trigger*' #TEST
+ARXIVDIR=/home/obs/logs #TEST
+SCRATCH=/data
 
-DFM 
-"""
-
-TriggerRegexp='Trigger*' #TEST
-ARXIVDIR=tests/grid_output #TEST
-SCRATCH=/scratch
-
-function format_qsub () {
-    echo `echo $1 | awk '{print $3}'`
-}
-
-POLS=('' 'xx' 'xy' 'yx' 'yy') #TEST
-CurrentJobs=('' '' '' '' '') #TEST
+declare -a ComputeNodes
+readarray -t ComputeNodes < /home/obs/groups/compute_nodes
+Nnodes=${#ComputeNodes[@]}
 
 while : 
 do
-    Trigger=`ls -1dr ${TriggerRegexp} 2> /dev/null | head -n 1`
-    if [[ $Trigger != "" ]]; then
-        thisJD=${Trigger##*_}; thisJD=${thisJD%%.txt}
-        echo "trigger ${Trigger} detected, beginning transfer"
+    #read in list of files to compress ---- store them in an array. 
+    Trigger=`get_recent_orders.py '1-RSYNC'`
+    
+    declare -a files2compress
+    files2compress=(${Trigger// / })
+    Nfiles=${#files2compress[@]}
+   
+    #only try to run if there are files to compress.
+    if [[ $Nfiles -gt 0 ]]; then
+        echo "${Nfiles} uncompressed files detected, beginning transfer"
         sleep 1
-        tstart=`date -u`
+
+        #generate a directory for log messages
         ustart=`date -u "+%F_%H.%M.%S"`
         OutputDir=${ARXIVDIR}/${ustart}
         test -e ${OutputDir} || mkdir ${OutputDir}
-
-        TRIGGER=${OutputDir}/${Trigger##*/}
-        echo; echo "Moving trigger $Trigger to archive $TRIGGER"; echo
-        for i in {1..4}; do #TEST --- change this to be more general
-            HOST=still${i}
-            QUEUE=S${i}.q
-            until [[ `qstat | grep ${CurrentJobs[$i]}` == "" ]]; do
-                sleep 3
-            done
-            echo "Wipint scratch from ${HOST}"
-            ssh -q -o ConnectTimeout=3 ${HOST} "rm -r ${SCRATCH}/*"
-            while read line; do
-                if ssh ${HOST} test -e ${SCRATCH}/${line##*} < /dev/null; then
-                    echo "Target File(${HOST}:${SCRATCH}/${line##*/}) Exists!"
-                else
-                    if [[ $line == /data0/* ]]; then
-                        scp -rp -c arcfour256 pot0:${line} ${HOST}:${SCRATCH}
-                    else
-                        scp -rp -c arcfour256 pot1:${line} ${HOST}:${SCRATCH}
+        
+        for still in ${ComputeNodes[@]}; do
+            for ((i=0;i<$Nfiles;i++)); do
+                allstills=`file2still.py ${i} ${Nnodes} ${Nfiles}`
+                infile=${files2compress[$i]}
+                outfile=${still}:${SCRATCH}/${infile##*/}
+                #pot=`get_host.py ${infile}`
+                for si in $allstills; do
+                    if [[ ${ComputeNodes[$si]} == $still ]]; then
+                        #2-RSYNC
+                        ssh ${still} "record_launch.py ${outfile} -i ${infile} -d '2-RSYNC'"
+                        scp ${infile} ${outfile}
+                        if [[ $? ]]; then
+                            ssh ${still} "add_file.py ${outfile} -i ${infile}" 
+                            ssh ${still} "record_completion.py ${outfile}" 
+                        else
+                            echo DO SOMETHING!
+                        fi
                     fi
-                fi
-                ssh ${HOST} test -e ${SCRATCH}/${line##*/} < /dev/null || echo $line >> ${OUtputDdir}/MIssingFiles.txt
-            done < $TRIGGER
-            jid1=`qsub -t 1:10 -q ${QUEUE} -o ${OutputDir} -j y correct_and_xrfi.sh`    
-            jid1=`format qsub "${jid1}"`
-            jid2=`qsub -t 1:10 -q ${QUEUE} -o ${OutputDir} -j y -hold_jid ${jid2} better_xrfi.sh`    
-            jid2=`format qsub "${jid12}"`
-            jid3=`qsub -t 1:10 -q ${QUEUE} -o ${OutputDir} -j y -hold_jid ${jid3} compress.sh`    
-            CurrentJobs[$i]=$jid3
+                done
+            done
+            ssh ${still} batch_compress.sh
         done
-        ssh -q -o ConnectTimeout=3 pot0 "/home/obs/daily_move_pot0.sh ${thisJD}"
-        tend=`date -u`
-        echo "Tx begin: ${tstart}\nTx end: ${tend}" > ${OutputDir}/TransferLog.txt
     fi
 done

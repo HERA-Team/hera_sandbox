@@ -2,6 +2,7 @@
 
 """
 Add a row to the pdb.observations table and populate the pdb.files tables accordingly.
+Add a row to pdb.orders indicating that compression needs done.
 
 DFM
 """
@@ -14,6 +15,7 @@ import re
 hostname = gethostname()
 prefix = None
 list_of_jds = []
+new_files=["%s:%s"%(hostname,a) for a in sys.argv[1:]]
 
 def file2jd(zenuv):
     return re.findall(r'\d+\.\d+', zenuv)[0]
@@ -30,6 +32,7 @@ list_of_jds.sort()
 
 #exit if the host is bad.
 if not pdb.has_record('hosts',hostname):
+    print "No entry for host %s exists. Exiting (1)"%hostname
     sys.exit(1)
 
 for i,jd in enumerate(list_of_jds):
@@ -37,24 +40,32 @@ for i,jd in enumerate(list_of_jds):
     obscols['JD'] = jd
     for pi in 'xy':
         for pj in 'xy':
-            obscols[pi+pj] = "%s/zen.%s.%s.uv"%(prefix,jd,pi+pj)
-            # add an entry to pdb.files here. Otherwise observations will break.
-            filecols = {}
-            filecols['JD'] = jd
-            filecols['filename'] = obscols[pi+pj]
-            filecols['basefile'] = obscols[pi+pj]
-            filecols['host'] = hostname
-            filecols['created_on'] = "NOW()"
-            filecols['last_modified'] = "NOW()"
-            pdb.addrow('files',filecols)
-            # update history to include created file.
-            histcols = {}
-            histcols['input'] = filecols['filename']
-            histcols['output'] = filecols['filename']
-            histcols['operation'] = "CREATED"
-            histcols['starttime'] = "NOW()"
-            histcols['stoptime'] = "NOW()"
-            pdb.addrow('history',histcols)
+            pol_fname = "%s:%s/zen.%s.%s.uv"%(hostname,prefix,jd,pi+pj)
+            if pol_fname in new_files:
+                obscols[pi+pj] = pol_fname
+                # add an entry to pdb.files here. Otherwise observations will break.
+                filecols = {}
+                filecols['JD'] = jd
+                filecols['filename'] = pol_fname
+                filecols['basefile'] = pol_fname
+                filecols['host'] = hostname
+                filecols['created_on'] = "NOW()"
+                filecols['last_modified'] = "NOW()"
+                pdb.addrow('files',filecols)
+                # update history to include created file.
+                histcols = {}
+                histcols['input'] = filecols['filename']
+                histcols['output'] = filecols['filename']
+                histcols['operation'] = "0-CREATED"
+                histcols['host'] = hostname
+                histcols['starttime'] = "NOW()"
+                histcols['stoptime'] = "NOW()"
+                pdb.addrow('history',histcols)
+
+                ordercols = {}
+                ordercols['filename'] = pol_fname
+                ordercols['status'] = 'CREATED'
+                pdb.addrow('orders', ordercols)
     try:
         obscols['jd_hi'] = list_of_jds[i+1]
     except(IndexError):
@@ -66,4 +77,3 @@ for i,jd in enumerate(list_of_jds):
     obscols['last_modified'] = "NOW()"
 
     pdb.addrow('observations',obscols)
-

@@ -30,9 +30,8 @@ filecols = {}
 filecols['JD'] = file2jd(outfile)
 filecols['filename'] = outfile
 filecols['host'] = hostname
-print pdb.get('basefile','files','filename',infile)
 filecols['basefile'] = pdb.get('basefile','files','filename',infile)[0][0]
-filecols['md5'] = __import__('hashlib').md5(outfile).hexdigest()
+filecols['md5'] = md5sum(outfile)
 filecols['last_modified']="NOW()"
 
 insuffix  =  infile.split('.')[-1]
