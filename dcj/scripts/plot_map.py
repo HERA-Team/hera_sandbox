@@ -373,6 +373,7 @@ def mk_arr(val, dtype=n.double):
 
 if opts.outfile != '':
     print 'Saving to', opts.outfile
+    p.subplots_adjust(0,0,1,1)
     p.savefig(opts.outfile,facecolor='k')
 else:
     # Add right-click functionality for finding locations/strengths in map.
