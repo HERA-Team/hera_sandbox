@@ -13,8 +13,8 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, ant=True, pol=True, src=True)
 o.add_option('--lst_res', type='float', default=10.,
     help='Resolution in seconds for binning in LST.  Default is 10.')
-o.add_option('--lst_rng', default='0_6.2832',
-    help='Range of LSTs to bin.')
+o.add_option('--lst_rng', default='0_23.999',
+    help='Range of LSTs to bin, hours. [default=0_23.999]')
 o.add_option('--tfile', type='float', default=600,
     help='Length of time spanned by each input file.  Helps in filtering out files that are not needed for the lst range being processed.')
 o.add_option('--altmax', type='float', default=0,
@@ -60,7 +60,8 @@ if not opts.src is None:
 opts.stats = map(str, opts.stats.split(','))
 
 # Create the lst bins inside the desired range
-opts.lst_rng = map(float, opts.lst_rng.split('_'))
+opts.lst_rng = map(lambda x: n.pi/12*(float(x)), opts.lst_rng.split('_'))
+print opts.lst_rng
 lstbins = n.arange(0, 2*n.pi, 2*n.pi*opts.lst_res/a.const.sidereal_day)
 lstbins = [lstbin(lst) for lst in lstbins if in_lst_range(lst)]
 

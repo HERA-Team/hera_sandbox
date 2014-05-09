@@ -33,8 +33,8 @@ for filename in args:
         temp_data[path] = []
         nocov_2d[path] = []
     if n.any(n.isnan(f['pk'])):
-        print 'skipping ', filename
-        continue
+        print 'skipping, has NaN ', filename
+        #continue
     pks[path].append(f['pk'])
     pk_2d[path].append(f['pk_vs_t'])
     scalar = f['scalar']
@@ -54,15 +54,21 @@ print kpl
 paths = pks.keys()
 print paths
 
-pks = n.array([pks[path] for path in paths]) # (bltype,bootstraps,kpls)
-pk_2d = n.array([pk_2d[path] for path in paths]) # (bltype,bootstraps,kpls,times)
-temp_data = n.array([temp_data[path] for path in paths]) # (bltype,bootstraps,kpls,times), T averaged over all bls
-nocov_2d = n.array([nocov_2d[path] for path in paths]) # (bltype,bootstraps,kpls,times), T averaged over all bls
-nos_std_2d = n.var(temp_data, axis=1) * scalar # (bltype,kpls,times), thermal noise err in pk_2d
+
+pks = n.ma.array([n.ma.array(pks[path], mask=n.isnan(pks[path])) for path in paths]) # (bltype,bootstraps,kpls)
+pk_2d = n.ma.array([n.ma.array(pk_2d[path], mask=n.isnan(pk_2d[path])) for path in paths]) # (bltype,bootstraps,kpls,times)
+temp_data = n.array([n.ma.array(temp_data[path], mask=n.isnan(temp_data[path])) for path in paths]) # (bltype,bootstraps,kpls,times), T averaged over all bls
+nocov_2d = n.array([n.ma.array(nocov_2d[path], mask=n.isnan(nocov_2d[path])) for path in paths]) # (bltype,bootstraps,kpls,times), T averaged over all bls
+nos_std_2d = n.ma.var(temp_data, axis=1) * scalar # (bltype,kpls,times), thermal noise err in pk_2d
+
+print pks.shape
+print pk_2d.shape
+print temp_data.shape
+print nocov_2d.shape
 #tot_std_2d = n.std(pk_2d, axis=1) # (bltype,kpls,times), total err in pk_2d
-avg_pk_2d = n.average(pk_2d, axis=1) # (bltype, kpls,times), best estimate of pk in each integration
+avg_pk_2d = n.ma.average(pk_2d, axis=1) # (bltype, kpls,times), best estimate of pk in each integration
 #avg_pk_1d = n.average(avg_pk_2d, axis=2).real
-wgts = n.ones_like(avg_pk_2d)
+wgts = n.ones_like(avg_pk_2d).data
 #avg_pk_1d.shape = avg_pk_1d.shape + (1,)
 ##wgts = 1./(nos_std_2d*tot_std_2d)
 #wgts = 1./(nos_std_1d*(avg_pk_1d + nos_std_1d))
@@ -92,9 +98,9 @@ if CLIP:
 else:
     for i in xrange(nos_std_2d.shape[0]):
       for j in xrange(nos_std_2d.shape[1]):
-        nos_std_2d[i,j] = n.convolve(nos_std_2d[i,j], n.ones((50,)), mode='same')
+        nos_std_2d[i,j] = n.ma.convolve(nos_std_2d[i,j], n.ma.ones((50,)), mode='same')
     wgts = 1./nos_std_2d**2
-    clsts = n.copy(lsts)
+    clsts = n.ma.copy(lsts)
 
 #import IPython
 #IPython.embed()
@@ -115,17 +121,17 @@ def make_xy_label():
     p.ylabel(r'$k_{\parallel}$')
 
 if True: # plot some stuff
-    plt1 = int(n.sqrt(len(paths)))
-    plt2 = int(n.ceil(len(paths)/float(plt1)))
+    plt1 = int(n.ma.sqrt(len(paths)))
+    plt2 = int(n.ma.ceil(len(paths)/float(plt1)))
     for cnt,path in enumerate(paths):
         print cnt, path
         p.subplot(plt2,plt1,cnt+1)
-        C.arp.waterfall(n.abs(n.average(temp_data[cnt], axis=0))**2 * scalar, mx=10, drng=3,extent=extents)
+        C.arp.waterfall(n.ma.abs(n.ma.average(temp_data[cnt], axis=0))**2 * scalar, mx=10, drng=3,extent=extents)
         p.colorbar(shrink=.5) 
     p.subplot(plt2,plt1,1); p.title(r'$|\langle\tilde V_b\rangle|^2$'); make_xy_label(); p.show()
     for cnt,path in enumerate(paths):
         p.subplot(plt2,plt1,cnt+1)
-        C.arp.waterfall(nos_std_2d[cnt], mx=10, drng=3, extent=extents)
+        C.arp.waterfall(n.ma.array(nos_std_2d[cnt]), mx=10, drng=3, extent=extents)
         p.colorbar(shrink=.5) 
     p.subplot(plt2,plt1,1); p.title('Thermal Noise [mK$^2$]'); make_xy_label(); p.show()
     for cnt,path in enumerate(paths):
@@ -133,7 +139,7 @@ if True: # plot some stuff
         #C.arp.waterfall(avg_pk_2d[cnt], mx=10, drng=3)
         #C.arp.waterfall(avg_pk_2d[cnt], mode='real', mx=1e8, drng=2e8)
         #C.arp.waterfall(avg_pk_2d[cnt], mode='real', extent=cextents)#, mx=1e8, drng=2e8)
-        C.arp.waterfall(avg_pk_2d[cnt], mode='real', extent=cextents, mx=1e9, drng=1e9)
+        C.arp.waterfall(n.ma.array(avg_pk_2d[cnt]), mode='real', extent=cextents, mx=1e9, drng=1e9)
         p.colorbar(shrink=.5) 
     p.subplot(plt2,plt1,1); p.title('Power Spectrum [mK$^2$]'); make_xy_label(); p.show()
     plt1,plt2 = len(paths),3
@@ -149,13 +155,13 @@ if True: # plot some stuff
         p.subplot(plt2,plt1,2*plt1+cnt+1)
         #C.arp.waterfall(n.cumsum(avg_pk_2d[cnt]*wgts[cnt],axis=1)/n.cumsum(wgts[cnt],axis=1), mx=10, drng=4)
         p.title('cumalative sum')
-        C.arp.waterfall(n.cumsum(avg_pk_2d[cnt]*wgts[cnt],axis=1)/n.cumsum(wgts[cnt],axis=1), mode='real', mx=1e8, drng=2e8)
+        C.arp.waterfall(n.ma.cumsum(avg_pk_2d[cnt]*wgts[cnt],axis=1)/n.ma.cumsum(wgts[cnt],axis=1), mode='real', mx=1e8, drng=2e8)
         p.colorbar(shrink=.5) 
     p.subplot(plt2,plt1,1); p.title('Weighted Power Spectrum [mK$^2$]'); p.show()
 
 print avg_pk_2d.shape, wgts.shape
 p.plot(avg_pk_2d[0,30])
-p.plot(n.cumsum(avg_pk_2d[0,30]*wgts[0,30])/n.cumsum(wgts[0,30]))
+p.plot(n.ma.cumsum(avg_pk_2d[0,30]*wgts[0,30])/n.ma.cumsum(wgts[0,30]))
 p.show()
 
 print pk_2d.shape
@@ -163,24 +169,27 @@ print wgts.shape
 pk_2d = pk_2d.transpose([1,2,3,0]).copy() # (bootstraps, kpls, times, bltypes)
 pk_2d.shape = pk_2d.shape[:-2] + (pk_2d.shape[-2] * pk_2d.shape[-1],) # (bootstraps, kpls, timebltypes)
 wgts = wgts.transpose([1,2,0]).copy() # (kpls, times, bltypes)
-wgts.shape = wgts.shape[:-2] + (wgts.shape[-2] * wgts.shape[-1],) # (bootstraps, kpls, timebltypes)
+wgts.shape = wgts.shape[:-2] + (wgts.shape[-2] * wgts.shape[-1],) # (kpls, timebltypes)
+
 
 #ntimes = pk_2d.shape[-1] / 2
-ntimes = pk_2d.shape[-1]
-print ntimes
 pk_boot = []
 pk_fold_boot = []
 for boot in xrange(NBOOT):
+    ntimes = pk_2d.shape[-1]
     if boot % 10 == 0: print boot
     dsum,dwgt = 0, 0
-    for t in xrange(ntimes):
+    while ntimes >= 0:
         t = random.choice(range(pk_2d.shape[-1]))
         b = random.choice(range(pk_2d.shape[0]))
         #dsum += avg_pk_2d[:,t] * wgts[:,t]
+    #    print n.ma.is_masked(pk_2d[b,:,t])
+        if n.ma.is_masked(pk_2d[b,:,t]):continue
         dsum += pk_2d[b,:,t] * wgts[:,t]
         dwgt += wgts[:,t]
-    pk_boot.append(dsum/dwgt)
-    k0 = n.abs(kpl).argmin()
+        ntimes -= 1
+    pk_boot.append(dsum.data/dwgt) #not completely correct but works, for now.
+    k0 = n.ma.abs(kpl).argmin()
     dsum_fold = dsum[k0:].copy()
     dwgt_fold = dwgt[k0:].copy()
     dsum_fold[1:] = 0
@@ -232,6 +241,8 @@ p.plot(n.median(pk_fold_boot,axis=1))
 p.plot(pk_fold+2*err_fold)
 p.show()
 
+import IPython
+IPython.embed()
 print 'Writing pspec.npz'
 n.savez('pspec.npz', kpl=kpl, pk=pk, err=err, pk_fold=pk_fold, err_fold=err_fold, cmd=cmd)
     

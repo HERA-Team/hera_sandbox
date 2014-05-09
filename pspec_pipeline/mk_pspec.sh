@@ -1,4 +1,5 @@
 #! /bin/bash
+export PYTHONPATH='.':$PYTHONPATH
 #PREFIX="OneDayFG"
 #
 ##chans=`python -c "print ' '.join(['%d_%d'%(i,i+39) for i in range(10,150,1)])"`
@@ -16,11 +17,18 @@
 (
 echo using config $*
 . $*
-threadcount=`python -c "opts='${pols} '+'${chans} '+'${seps}';print len(opts.split())"`
-echo Running $threadcount threads
+#set defaults to parameters which might not be set
+if [[ ! -n ${GAIN} ]]; then export GAIN="0.3"; fi
+
+#for posterity Print the cal file we are using
+
+pywhich $cal
+
+threadcount=`python -c "c=map(len,['${pols}'.split(),'${chans}'.split(),'${seps}'.split()]);print c[0]*c[1]*c[2]"`
+echo Running $threadcount pspecs
 PIDS=""
 
-FILES=`${SCRIPTSDIR}/lst_select.py -C ${cal} --ra=${RA} ${DATAPATH}`
+FILES=`lst_select.py -C ${cal} --ra=${RA} ${DATAPATH}`
 test -e ${PREFIX} || mkdir $PREFIX
 for chan in $chans; do
     chandir=${PREFIX}/${chan}
@@ -32,32 +40,53 @@ for chan in $chans; do
         if [ ! -e ${poldir}/pspec_${PREFIX}_${chan}_${pol}.png ]; then
             for sep in $seps; do
                 sepdir=${poldir}/${sep}
+
                 test -e ${sepdir} || mkdir ${sepdir}
-                echo "   Working on ${pol}: ${sep}"
-                cd ${sepdir}
-                ${SCRIPTSDIR}/pspec_redmult_cov_gps.py -b ${NBOOT} -a ${sep} -c ${chan} -p ${pol} ${FILES} \
-                    && ${SCRIPTSDIR}/pspec_pk_k3pk_boot.py pspec_boot*npz &
+                LOGFILE=`pwd`/${PREFIX}/${chan}_${pol}_${sep}.log
+                echo this is mk_pspec.sh with  |tee  ${LOGFILE}
+                echo experiment: ${PREFIX}|tee -a ${LOGFILE}
+                echo channels: ${chan}|tee -a ${LOGFILE}
+                echo polarization: ${pol}|tee -a ${LOGFILE}
+                echo separation: ${sep}|tee -a ${LOGFILE}
+                echo gain: ${GAIN} | tee -a ${LOGFILE}
+                echo `date` | tee -a ${LOGFILE}
+
+                ANTS=`grid2ant.py -C ${cal} --seps="${sep}"`
+                ${SCRIPTSDIR}/pspec_redmult_cov_gps.py -C ${cal} -b ${NBOOT} \
+                    -a ${ANTS} -c ${chan} -p ${pol} \
+                    --gain=${GAIN} --output=${sepdir} ${FILES} \
+                | tee -a ${LOGFILE} & 
+                echo beginning bootstrap: `date` | tee -a ${LOGFILE} 
+                ${SCRIPTSDIR}/pspec_pk_k3pk_boot.py pspec_boot*npz | tee -a ${LOGFILE} 
+                echo complete! `date`| tee -a ${LOGFILE} 
+
                 PIDS="${PIDS} "$!
-                cd -    
             done
         fi
     done
 done
 
-echo waiting on power spectra ${PIDS}
+echo waiting on `python -c "print len('${PIDS}'.split())"` power spectra threads ${PIDS} 
 wait $PIDS
+echo power spectrum complete
 
-echo averaging power spectra for channels
+
+
+
+
+
+echo averaging power spectra for pols/channels
 for chan in $chans; do
     chandir=${PREFIX}/${chan}
     for pol in $pols; do
         echo "Generating plots for ${chan}: ${pol}"
         poldir=${chandir}/${pol}
         #PLOT
-        ${SCRIPTSDIR}/pspec_plot_pk_k3pk.py ${PREFIX}/${chan}/pspec_*/pspec.npz
-        mv pspec_pk_k3pk.npz ${poldir}/
+        ${SCRIPTSDIR}/pspec_plot_pk_k3pk.py ${poldir}/*/pspec.npz
+        mv pspec_pk_k3pk.npz pspec_${PREFIX}_${chan}_${pol}.npz
         mv pspec.png pspec_${PREFIX}_${chan}_${pol}.png
         cp  pspec_${PREFIX}_${chan}_${pol}.png ${poldir}/
+        cp pspec_${PREFIX}_${chan}_${pol}.npz ${poldir}/
     done
 done
 )
