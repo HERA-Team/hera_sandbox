@@ -64,7 +64,7 @@ for i,jd in enumerate(list_of_jds):
                 pdb.addrow('history',histcols)
 
                 ordercols = {}
-                ordercols['filename'] = pol_fname
+                ordercols['basefile'] = pol_fname
                 ordercols['status'] = 'CREATED'
                 pdb.addrow('orders', ordercols)
     try:
