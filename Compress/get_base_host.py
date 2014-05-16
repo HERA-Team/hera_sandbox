@@ -12,4 +12,6 @@ import sys
 pdb.verbose=False #just in case...
 fname=sys.argv[1]
 basefile=pdb.get('basefile','files','filename',fname)[0][0]
-print basefile.split(':')[0]
+destination_dir = pdb.get('output','history',['operation','basefile'],['1-RSYNC',basefile])[0][0]
+
+print destination_dir.split(':')[0]
