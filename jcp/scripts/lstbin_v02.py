@@ -4,7 +4,7 @@ import sys, optparse, ephem
 import capo as C
 
 '''
-This is an update to the lst binner code that now produces meta data in an npz
+This is an update to the lst binner code that now produces meta data in the uv
 file, such as the number of integrations that went into each bin.  This allows
 the code to properly add new data to previously lst binned files.
 '''
@@ -20,7 +20,7 @@ o.add_option('--tfile', type='float', default=600,
 o.add_option('--altmax', type='float', default=0,
     help="Maximum allowed altitude of source, in degrees, before data are omitted.  Handy for omitting Sun data.  Default is 0.")
 o.add_option('--stats', default='all',
-    help="Statistics to include in npz meta data file.  Options are 'all' (default), 'cnt' (the number of integrations in each lst bin), 'minmax' (the min and max amplitude of the visibilities in each lst bin', 'median' (the median value in each lst bin), and 'var' (the variance in each lst bin).  Multiple values can be chosen with commas e.g. '--stats=minmax,var'.")
+    help="Statistics to include in npz meta data file.  Options are 'all' (default), 'cnt' (the number of integrations in each lst bin), 'min' and/or 'max' (the min and max amplitude of the visibilities in each lst bin', 'median' (the median value in each lst bin), and 'var' (the variance in each lst bin).  Multiple values can be chosen with commas e.g. '--stats=min,max,var'.")
 o.add_option('--median', action='store_true', dest='median', default=False,
     help="Use a median filter to remove outliers from each lst bin.")
 o.add_option('--nsig', type='float', default=3.,
@@ -109,6 +109,13 @@ files = {}
 for filename in nargs:
     uv = a.miriad.UV(filename)
     print 'Reading', filename
+    # Determine if file is lst binned already
+    if 'cnt' in uv.vars(): 
+        lstbinned = True
+        print 'Input file is lst binned'
+    else: 
+        lstbinned = False
+        print 'Input file is from one observation'
     sys.stdout.flush()
     a.scripting.uv_selector(uv, opts.ant, opts.pol)
     # Gather data from file
@@ -129,8 +136,16 @@ for filename in nargs:
         # Records coords of baseline in dict, for writing into uv file later
         blp = a.pol.ijp2blp(i,j,uv['pol'])
         crds[blp] = uvw
-        # Adds integration to bin
-        dat[lst][blp] = dat[lst].get(blp,[]) + [n.where(f,0,d)]
+        # Keep track of how many (unflagged) samples go into the data
+        # If input file already lstbinned, weight integrations and place in bin
+        # Otherwise, place in bin without weights
+        if not dat['lst'].has_key(blp): dat['lst'][blp] = {}
+        if lstbinned:
+            dat[lst][blp]['cnt'] = dat[lst][blp].get('cnt',[]) + [uv['cnt']]
+            dat[lst][blp]['vis'] = dat[lst][blp].get('vis',[]) + [uv['cnt']*n.where(f,0,d)]
+        else:
+            dat[lst][blp]['cnt'] = dat[lst][blp].get('cnt',[]) + [n.logical_not(f)]
+            dat[lst][blp]['vis'] = dat[lst][blp].get('vis',[]) + [n.where(f,0,d)]
 
 # Check that data actually got written
 lsts = lstbins
@@ -157,7 +172,7 @@ jd_start = jd_start + (lst_start - lsts[0]) * djd_dlst
 lst_start = lsts[0]
 
 # Initialize the output file
-uvi = a.miriad.UV(args[0])
+uvi = a.miriad.UV(args[0]) #XXX this will deliver bad functionality if input files are a mix of lst binned and non lst binned files
 filename=os.path.basename(args[0])
 # DCJ: This is for beamformed .bm_<srcname> files
 if filename.split('.')[-1].startswith('bm'):
@@ -174,14 +189,13 @@ uvo.init_from_uv(uvi)
 dzero = n.zeros(uvi['nchan'], dtype=n.complex64)
 fzero = n.ones(uvi['nchan'], dtype=n.int)
 
-# Add the variables for the statistics
-if opts.stats == ['all']: opts.stats = ['cnt','minmax','median','var']
-if 'cnt' in opts.stats: uvo.add_var('cnt', 'd')
-if 'minmax' in opts.stats: 
-    uvo.add_var('min', 'd')
-    uvo.add_var('max', 'd')
-if 'median' in opts.stats: uvo.add_var('median', 'c')
-if 'var' in opts.stats: uvo.add_var('var', 'd')
+# Add the variables for the statistics if needed
+if opts.stats == ['all']: opts.stats = ['cnt','min','max','median','var']
+if 'cnt' in opts.stats and 'cnt' not in uvo.vars(): uvo.add_var('cnt', 'd')
+if 'min' in opts.stats and 'min' not in uvo.vars(): uvo.add_var('min', 'd')
+if 'max' in opts.stats and 'max' not in uvo.vars(): uvo.add_var('max', 'd')
+if 'median' in opts.stats and 'median' not in uvo.vars(): uvo.add_var('median', 'c')
+if 'var' in opts.stats and 'var' not in uvo.vars(): uvo.add_var('var', 'd')
 
 # This section does the binning and statistics 
 for lst in lsts:
@@ -193,7 +207,8 @@ for lst in lsts:
         i,j,uvo['pol'] = a.pol.blp2ijp(blp)
         preamble = (crds[blp], t, (i,j))
         try:
-            d = n.array(dat[lst][blp])
+            d = n.array(dat[lst][blp]['vis'])
+            w = n.array(dat[lst][blp]['cnt'])
             d = n.ma.array(d, mask=n.where(d==0, 1, 0))
             # Applies median filter
             if opts.median:
@@ -204,12 +219,15 @@ for lst in lsts:
                 d_sig.shape = (1,) + d_sig.shape
                 d = n.ma.masked_where(d_res > opts.nsig * d_sig, d)
             # Calculate the statistics as needed
-            if 'cnt' in opts.stats: cnt = n.sum(n.logical_not(d.mask), axis=0)
-            if 'minmax' in opts.stats: dmin, dmax = n.ma.min(n.abs(d), axis=0).filled(0), n.ma.max(n.abs(d).filled(0), axis=0)
-            if 'median' in opts.stats: median = n.ma.median(d, axis=0).filled(0)
+            if 'cnt' in opts.stats: cnt = n.sum(w, axis=0)
+            if 'min' in opts.stats: dmin = n.ma.min(n.abs(d), axis=0).filled(0)
+            if 'max' in opts.stats: dmax = n.ma.max(n.abs(d), axis=0).filled(0)
+            if 'median' in opts.stats: median = n.ma.median(n.abs(d), axis=0).filled(0)
             if 'var' in opts.stats: var = n.ma.var(d, axis=0).filled(0)
             # Do the averaging
-            d = n.ma.mean(d, axis=0).filled(0)
+            #d = n.ma.mean(d, axis=0).filled(0)
+            #Weighted average
+            d = n.ma.sum(w*d,axis=0)/n.sum(w,axis=0)
             f = n.where(d == 0, 1, 0)
        # This happens if we are missing data for a desired LST bin
         except(KeyError): 
@@ -219,10 +237,19 @@ for lst in lsts:
             if 'median' in opts.stats: median = n.zeros_like(fzero)
             if 'var' in opts.stats: var = n.zeros_like(fzero)
         # Set the statistics variables in the uv object and write the data
-        if 'cnt' in opts.stats: uvo['cnt'] = cnt.astype(n.double)
-        if 'minmax' in opts.stats: uvo['min'], uvo['max'] = dmin.astype(n.double), dmax.astype(n.double)
-        if 'median' in opts.stats: uvo['median'] = median.astype(n.complex)
-        if 'var' in opts.stats: uvo['var'] = var.astype(n.double)
+        # Commands if input files DO NOT have vars to begin with
+        if 'cnt' in opts.stats and 'cnt' not in uvo.vars(): uvo['cnt'] = cnt.astype(n.double)
+        if 'min' in opts.stats and 'min' not in uvo.vars(): uvo['min'] = dmin.astype(n.double),
+        if 'max' in opts.stats and 'max' not in uvo.vars(): uvo['max'] = dmax.astype(n.double)
+        if 'median' in opts.stats and 'median' not in uvo.vars(): uvo['median'] = median.astype(n.double)
+        if 'var' in opts.stats and 'var' not in uvo.vars(): uvo['var'] = var.astype(n.double)
+        # Commands if input files ALREADY have vars
+        if 'cnt' in opts.stats and 'cnt' in uvo.vars(): uvo['cnt'] += cnt.astype(n.double)
+        if 'min' in opts.stats and 'min' in uvo.vars(): uvo['min'] = n.min(uvo['min'],dmin.astype(n.double))
+        if 'max' in opts.stats and 'max' in uvo.vars(): uvo['max'] = n.max(uvo['max'],dmax.astype(n.double))
+        #if 'median' in opts.stats and 'median' in uvo.vars(): uvo['median'] += median.astype(n.double) #XXX no idea what to do here
+        #if 'var' in opts.stats and 'var' in uvo.vars(): uvo['var'] += var.astype(n.double) #XXX no idea what to do here
+
         uvo.write(preamble, d, f)
 
 del(uvo)
