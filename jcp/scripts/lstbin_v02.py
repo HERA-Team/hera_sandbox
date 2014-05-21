@@ -198,7 +198,7 @@ if opts.stats == ['none']: opts.stats = []
 if 'cnt' in opts.stats and 'cnt' not in uvo.vars(): uvo.add_var('cnt', 'd')
 if 'min' in opts.stats and 'min' not in uvo.vars(): uvo.add_var('min', 'd')
 if 'max' in opts.stats and 'max' not in uvo.vars(): uvo.add_var('max', 'd')
-if 'median' in opts.stats and 'median' not in uvo.vars(): uvo.add_var('median', 'c')
+if 'median' in opts.stats and 'median' not in uvo.vars(): uvo.add_var('median', 'd')
 if 'var' in opts.stats and 'var' not in uvo.vars(): uvo.add_var('var', 'd')
 
 # This section does the binning and statistics 
@@ -234,7 +234,7 @@ for lst in lsts:
             d = n.ma.sum(w*d,axis=0)/n.sum(w,axis=0)
             f = n.where(d == 0, 1, 0)
        # This happens if we are missing data for a desired LST bin
-        except(KeyError): 
+        except(KeyError):
             d,f = dzero, fzero
             if 'cnt' in opts.stats: cnt = n.zeros_like(fzero)
             if 'minmax' in opts.stats: dmin, dmax = n.zeros_like(fzero), n.zeros_like(fzero)
@@ -243,14 +243,14 @@ for lst in lsts:
         # Set the statistics variables in the uv object and write the data
         # Commands if input files DO NOT have vars to begin with
         if 'cnt' in opts.stats and 'cnt' not in invars: uvo['cnt'] = cnt.astype(n.double)
-        if 'min' in opts.stats and 'min' not in invars: uvo['min'] = dmin.astype(n.double),
+        if 'min' in opts.stats and 'min' not in invars: uvo['min'] = dmin.astype(n.double)
         if 'max' in opts.stats and 'max' not in invars: uvo['max'] = dmax.astype(n.double)
         if 'median' in opts.stats and 'median' not in invars: uvo['median'] = median.astype(n.double)
         if 'var' in opts.stats and 'var' not in invars: uvo['var'] = var.astype(n.double)
         # Commands if input files ALREADY have vars
-        if 'cnt' in opts.stats and 'cnt' in invars: print opts.stats, uvo.vars(); uvo['cnt'] += cnt.astype(n.double)
-        if 'min' in opts.stats and 'min' in invars: uvo['min'] = n.min(uvo['min'],dmin.astype(n.double))
-        if 'max' in opts.stats and 'max' in invars: uvo['max'] = n.max(uvo['max'],dmax.astype(n.double))
+        if 'cnt' in opts.stats and 'cnt' in invars: uvo['cnt'] += cnt.astype(n.double)
+        if 'min' in opts.stats and 'min' in invars: uvo['min'] = n.minimum(uvo['min'],dmin.astype(n.double))
+        if 'max' in opts.stats and 'max' in invars: uvo['max'] = n.maximum(uvo['max'],dmax.astype(n.double))
         #if 'median' in opts.stats and 'median' in invars: uvo['median'] += median.astype(n.double) #XXX no idea what to do here
         #if 'var' in opts.stats and 'var' in invars: uvo['var'] += var.astype(n.double) #XXX this one should be doable?
 
