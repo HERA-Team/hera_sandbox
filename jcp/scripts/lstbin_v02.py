@@ -20,7 +20,7 @@ o.add_option('--tfile', type='float', default=600,
 o.add_option('--altmax', type='float', default=0,
     help="Maximum allowed altitude of source, in degrees, before data are omitted.  Handy for omitting Sun data.  Default is 0.")
 o.add_option('--stats', default='all',
-    help="Statistics to include in npz meta data file.  Options are 'all' (default), 'cnt' (the number of integrations in each lst bin), 'min' and/or 'max' (the min and max amplitude of the visibilities in each lst bin', 'median' (the median value in each lst bin), and 'var' (the variance in each lst bin).  Multiple values can be chosen with commas e.g. '--stats=min,max,var'.")
+    help="Statistics to include in meta data.  Options are 'all' (default), 'none', 'cnt' (the number of integrations in each lst bin), 'min' and/or 'max' (the min and max amplitude of the visibilities in each lst bin', 'median' (the median value in each lst bin), and 'var' (the variance in each lst bin).  Multiple values can be chosen with commas e.g. '--stats=min,max,var'.")
 o.add_option('--median', action='store_true', dest='median', default=False,
     help="Use a median filter to remove outliers from each lst bin.")
 o.add_option('--nsig', type='float', default=3.,
@@ -60,7 +60,7 @@ if not opts.src is None:
 opts.stats = map(str, opts.stats.split(','))
 
 # Create the lst bins inside the desired range
-opts.lst_rng = map(lambda x: n.pi/12*(float(x)), opts.lst_rng.split('_'))
+opts.lst_rng = map(lambda x: n.pi/12*(float(x)), opts.lst_rng.split('_')) #Hours
 print opts.lst_rng
 lstbins = n.arange(0, 2*n.pi, 2*n.pi*opts.lst_res/a.const.sidereal_day)
 lstbins = [lstbin(lst) for lst in lstbins if in_lst_range(lst)]
@@ -139,7 +139,7 @@ for filename in nargs:
         # Keep track of how many (unflagged) samples go into the data
         # If input file already lstbinned, weight integrations and place in bin
         # Otherwise, place in bin without weights
-        if not dat['lst'].has_key(blp): dat['lst'][blp] = {}
+        if not dat[lst].has_key(blp): dat[lst][blp] = {}
         if lstbinned:
             dat[lst][blp]['cnt'] = dat[lst][blp].get('cnt',[]) + [uv['cnt']]
             dat[lst][blp]['vis'] = dat[lst][blp].get('vis',[]) + [uv['cnt']*n.where(f,0,d)]
@@ -148,7 +148,8 @@ for filename in nargs:
             dat[lst][blp]['vis'] = dat[lst][blp].get('vis',[]) + [n.where(f,0,d)]
 
 # Check that data actually got written
-lsts = lstbins
+lsts = [lst for lst in dat if len(dat[lst]) > 0] # only record bins with data
+
 lsts.sort()
 if len(lsts) == 0:
     print 'No LST bins with data.  Exiting...'
@@ -172,7 +173,9 @@ jd_start = jd_start + (lst_start - lsts[0]) * djd_dlst
 lst_start = lsts[0]
 
 # Initialize the output file
-uvi = a.miriad.UV(args[0]) #XXX this will deliver bad functionality if input files are a mix of lst binned and non lst binned files
+#XXX this section of code assumes that all the input files look like the first one.  this will deliver BAD functionality if input files are a mix of lst binned and non lst binned files
+uvi = a.miriad.UV(args[0])
+invars = uvi.vars() #remember what variables were in the input files
 filename=os.path.basename(args[0])
 # DCJ: This is for beamformed .bm_<srcname> files
 if filename.split('.')[-1].startswith('bm'):
@@ -191,6 +194,7 @@ fzero = n.ones(uvi['nchan'], dtype=n.int)
 
 # Add the variables for the statistics if needed
 if opts.stats == ['all']: opts.stats = ['cnt','min','max','median','var']
+if opts.stats == ['none']: opts.stats = []
 if 'cnt' in opts.stats and 'cnt' not in uvo.vars(): uvo.add_var('cnt', 'd')
 if 'min' in opts.stats and 'min' not in uvo.vars(): uvo.add_var('min', 'd')
 if 'max' in opts.stats and 'max' not in uvo.vars(): uvo.add_var('max', 'd')
@@ -238,17 +242,17 @@ for lst in lsts:
             if 'var' in opts.stats: var = n.zeros_like(fzero)
         # Set the statistics variables in the uv object and write the data
         # Commands if input files DO NOT have vars to begin with
-        if 'cnt' in opts.stats and 'cnt' not in uvo.vars(): uvo['cnt'] = cnt.astype(n.double)
-        if 'min' in opts.stats and 'min' not in uvo.vars(): uvo['min'] = dmin.astype(n.double),
-        if 'max' in opts.stats and 'max' not in uvo.vars(): uvo['max'] = dmax.astype(n.double)
-        if 'median' in opts.stats and 'median' not in uvo.vars(): uvo['median'] = median.astype(n.double)
-        if 'var' in opts.stats and 'var' not in uvo.vars(): uvo['var'] = var.astype(n.double)
+        if 'cnt' in opts.stats and 'cnt' not in invars: uvo['cnt'] = cnt.astype(n.double)
+        if 'min' in opts.stats and 'min' not in invars: uvo['min'] = dmin.astype(n.double),
+        if 'max' in opts.stats and 'max' not in invars: uvo['max'] = dmax.astype(n.double)
+        if 'median' in opts.stats and 'median' not in invars: uvo['median'] = median.astype(n.double)
+        if 'var' in opts.stats and 'var' not in invars: uvo['var'] = var.astype(n.double)
         # Commands if input files ALREADY have vars
-        if 'cnt' in opts.stats and 'cnt' in uvo.vars(): uvo['cnt'] += cnt.astype(n.double)
-        if 'min' in opts.stats and 'min' in uvo.vars(): uvo['min'] = n.min(uvo['min'],dmin.astype(n.double))
-        if 'max' in opts.stats and 'max' in uvo.vars(): uvo['max'] = n.max(uvo['max'],dmax.astype(n.double))
-        #if 'median' in opts.stats and 'median' in uvo.vars(): uvo['median'] += median.astype(n.double) #XXX no idea what to do here
-        #if 'var' in opts.stats and 'var' in uvo.vars(): uvo['var'] += var.astype(n.double) #XXX no idea what to do here
+        if 'cnt' in opts.stats and 'cnt' in invars: print opts.stats, uvo.vars(); uvo['cnt'] += cnt.astype(n.double)
+        if 'min' in opts.stats and 'min' in invars: uvo['min'] = n.min(uvo['min'],dmin.astype(n.double))
+        if 'max' in opts.stats and 'max' in invars: uvo['max'] = n.max(uvo['max'],dmax.astype(n.double))
+        #if 'median' in opts.stats and 'median' in invars: uvo['median'] += median.astype(n.double) #XXX no idea what to do here
+        #if 'var' in opts.stats and 'var' in invars: uvo['var'] += var.astype(n.double) #XXX this one should be doable?
 
         uvo.write(preamble, d, f)
 
