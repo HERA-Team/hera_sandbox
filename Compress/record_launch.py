@@ -5,7 +5,6 @@ $ record_launch.py <full path to file> <task>
 """
 
 from PDB import *
-from socket import gethostname
 import optparse
 import sys
 
@@ -28,7 +27,6 @@ if not pdb.has_record('files',infile):
     if pdb.verbose:
         print "Unidentified file %s, exiting (1)"%filename
     sys.exit(1)
-
 pdb.update('last_modified',"NOW()",'files','filename',infile)
 
 #update history table
@@ -38,7 +36,9 @@ histcols['output'] = outfile
 histcols['host'] = hostname
 histcols['operation'] = opts.desc
 histcols['starttime'] = "NOW()"
+#get the infile basefile, note that we already checked that it exists in the files table.
+histcols['basefile'] = pdb.get('basefile','files','filename',infile)[0][0] #get basefile from files where filename=infile
+
+#histcols['log'] = whatever
 pdb.addrow('history', histcols)
 
-#update order slip
-pdb.update('status',opts.desc,'orders','filename',infile)

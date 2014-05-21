@@ -26,6 +26,7 @@ sqltypes = {
     "float"   : "DOUBLE",
     "datetime": "TIMESTAMP",
     "int"     : "TINYINT",
+    "txt"     : "MEDIUMTEXT",
 }
 
 def unpack(xin):
@@ -42,6 +43,11 @@ def unpack(xin):
             else:
                 xout.append(unpack(i))
         return xout
+
+def gethostname():
+    from subprocess import Popen,PIPE
+    hn = Popen(['bash','-cl','hostname'], stdout=PIPE).communicate()[0].strip()
+    return hn
 
 class column(object):
     """
@@ -256,24 +262,36 @@ class db(object):
     def format_values(self, tabname, v):
         """
         Converts python strings into something that mysql understands.
+          --- tabname is the table you're updating
+          --- v is a dictionary with {'column name': column value} pairs.
+              ---- example
+              ---- >>> python_hostname = "qmaster"
+              ---- >>> v = {'hostname': python_hostname}
         """
         vret = []
         for vi in v.keys():
-            if self[tabname][vi].dtype in ['string','varchar(256)']:
+            if self[tabname][vi].dtype in ['string','varchar(256)','txt','mediumtext']:
                 vret.append("'%s'"%v[vi])
-            elif self[tabname][vi].dtype in ['float','double']:
+            else:
                 vret.append(v[vi])
-            elif self[tabname][vi].dtype in ['datetime','timestamp']:
-                vret.append(v[vi])
-            elif self[tabname][vi].dtype in ['int','tinyint(4)']:
-                vret.append(v[vi])
+            #elif self[tabname][vi].dtype in ['float','double']:
+            #    vret.append(v[vi])
+            #elif self[tabname][vi].dtype in ['datetime','timestamp']:
+            #    vret.append(v[vi])
+            #elif self[tabname][vi].dtype in ['int','tinyint(4)']:
+            #    vret.append(v[vi])
         return vret
 
     def get(self, target, tab, col, val):
         """
         retrieve target column of entries in table tab, whose column is equal to val.
         """
-        q = """SELECT %s FROM %s WHERE %s=%s;"""%(target, tab, col, self.format_values(tab, {col:val})[0])
+        q = """SELECT %s FROM %s WHERE"""%(target,tab)
+        if type(col) is list:
+            constraints = [" %s=%s "%(c, self.format_values(tab, {c:v})[0]) for (c,v) in zip(col,val)]
+            q += 'and'.join(constraints)[:-1]+';'
+        else:
+            q+=" %s=%s;"%(col, self.format_values(tab, {col:val})[0])
         if self.verbose: print q
         cursor = self.db.cursor()
         cursor.execute(q)
@@ -298,11 +316,14 @@ def md5sum(fname):
     fname = fname.split(':')[-1]
     BLOCKSIZE=65536
     hasher=hashlib.md5()
-    with open(fname, 'rb') as afile:
+    try:
+        afile=open(fname, 'rb')
+    except(IOError):
+        afile=open("%s/visdata"%fname, 'rb')
+    buf=afile.read(BLOCKSIZE)
+    while len(buf) >0:
+        hasher.update(buf)
         buf=afile.read(BLOCKSIZE)
-        while len(buf) >0:
-            hasher.update(buf)
-            buf=afile.read(BLOCKSIZE)
     return hasher.hexdigest()
 
 if __name__ == "__main__":
