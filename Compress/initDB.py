@@ -37,6 +37,7 @@ pdb['history'].addcol('host','varchar(256)')
 pdb['history'].addcol('log', 'mediumtext')
 pdb['history'].addcol('exit_status','tinyint')
 pdb['history'].addcol('basefile','varchar(256)')
+pdb['history'].addcol('pid','int')
 
 pdb.addtab('observations')
 pdb['observations'].addcol('JD','double')
