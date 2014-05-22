@@ -11,7 +11,9 @@ for f in $@; do
     LOG="correct_and_XRFI.py -a 1 -t 80 --df=6 -c ${RFI_CHANS} ${f}  2>&1"
     LOG=${LOG}`date`${NL}
     LOG=${LOG}$(correct_and_XRFI.py -a 1 -t 80 --df=6 -c ${RFI_CHANS} ${f} 2>&1)${NL}
-    if [[ $? -eq 0 ]]; then 
+    STATUS=$?
+    PID=$!
+    if [[ $STATUS -eq 0 ]]; then 
         #echo add_file.py ${outfile} -i ${infile}
         add_file.py ${outfile} -i ${infile}
         #echo record_completion.py ${outfile}
