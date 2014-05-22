@@ -21,14 +21,6 @@ else:
 
 #construct objects to lay out database schema.
 
-sqltypes = {
-    "string"  : "VARCHAR(256)",
-    "float"   : "DOUBLE",
-    "datetime": "TIMESTAMP",
-    "int"     : "TINYINT",
-    "txt"     : "MEDIUMTEXT",
-}
-
 def unpack(xin):
     """
     descends into nested tuples and recasts as list
@@ -74,7 +66,7 @@ class column(object):
         """
         Add an entry to the INSERT statment for the column using proper mysql syntax.
         """
-        q = " %s %s"%(self.name, sqltypes[self.dtype])
+        q = " %s %s"%(self.name, self.dtype)
         q += self.parse_key()
         return q
 
@@ -270,16 +262,10 @@ class db(object):
         """
         vret = []
         for vi in v.keys():
-            if self[tabname][vi].dtype in ['string','varchar(256)','txt','mediumtext']:
+            if self[tabname][vi].dtype in ['varchar(256)','mediumtext']:
                 vret.append("'%s'"%v[vi])
             else:
                 vret.append(v[vi])
-            #elif self[tabname][vi].dtype in ['float','double']:
-            #    vret.append(v[vi])
-            #elif self[tabname][vi].dtype in ['datetime','timestamp']:
-            #    vret.append(v[vi])
-            #elif self[tabname][vi].dtype in ['int','tinyint(4)']:
-            #    vret.append(v[vi])
         return vret
 
     def get(self, target, tab, col, val):

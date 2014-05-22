@@ -20,8 +20,10 @@ for f in $files2proc; do
     LOG="ddr_filter_coarse.py -a all -p xx,xy,yx,yy --maxbl=301 --clean=1e-3 --nsections=20 $Rtriplet"${NL}
     LOG=${LOG}`date`${NL}
     stdout=$(ddr_filter_coarse.py -a all -p xx,xy,yx,yy --maxbl=300 --clean=1e-3 --nsections=20 ${Rtriplet} 2>&1)
+    PID=$!
+    STATUS=$?
     LOG=${LOG}${stdout}${NL}
-    if [[ $? -eq 0 ]]; then
+    if [[ $STATUS -eq 0 ]]; then
         for suffix in "D" "E" "F"; do
             test -e ${f}${suffix} && add_file.py ${outfile%E}${suffix} -i ${infile}
         done

@@ -18,7 +18,6 @@ opts, args = o.parse_args()
 hostname = gethostname()
 infile  = opts.infile
 outfile = args[0]
-
 if not pdb.has_record('hosts', hostname):
     if pdb.verbose:
         print "Unidentified host %s, exiting (1)"%hostname
@@ -39,6 +38,5 @@ histcols['starttime'] = "NOW()"
 #get the infile basefile, note that we already checked that it exists in the files table.
 histcols['basefile'] = pdb.get('basefile','files','filename',infile)[0][0] #get basefile from files where filename=infile
 
-#histcols['log'] = whatever
 pdb.addrow('history', histcols)
 
