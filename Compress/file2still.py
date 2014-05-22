@@ -1,4 +1,11 @@
 #! /usr/bin/env python
+"""
+input an index i, a number of nodes, and a number of files to distribute
+return a list of indices into any list of nodes
+
+This is a "multicast" algorithm. If a file is sent to the edge slot on a host, it is also sent to the next host in the list
+"""
+
 
 import sys
 
