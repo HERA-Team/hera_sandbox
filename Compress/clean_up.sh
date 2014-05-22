@@ -14,7 +14,9 @@ for f in `ls -d $SCRATCH/*`; do
             LOG="scp ${infile} ${outfile}\n"
             LOG=${LOG}`date`"\n"
             LOG=${LOG}$(scp -r -c arcfour256 ${infile} ${outfile} 2>&1)"\n"
-            if [[ $? -eq 0 ]]; then
+            PID=$!
+            STATUS=$?
+            if [[ $STATUS -eq 0 ]]; then
                 ssh ${pot} "add_file.py ${outfile} -i ${infile}"
                 record_completion.py ${outfile} --log="${LOG}"
             else
