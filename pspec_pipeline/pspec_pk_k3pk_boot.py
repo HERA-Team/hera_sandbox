@@ -31,7 +31,7 @@ for filename in args:
     scalar = f['scalar']
     temp_data[path].append(f['temp_noise_var'])
     nocov_2d[path].append(f['nocov_vs_t'])
-
+freq = f['freq']
 paths = pks.keys()
 print paths
 
@@ -188,7 +188,8 @@ if PLOT:
     p.savefig('pspec_boot_6.png')
 
 print 'Writing pspec.npz'
-n.savez('pspec.npz', kpl=kpl, pk=pk, err=err, pk_fold=pk_fold, err_fold=err_fold, cmd=cmd)
+print "saving freq=",freq
+n.savez('pspec.npz', kpl=kpl, pk=pk, err=err, pk_fold=pk_fold, err_fold=err_fold, cmd=cmd,freq=freq)
     
     
 
