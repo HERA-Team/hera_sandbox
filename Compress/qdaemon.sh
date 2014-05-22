@@ -31,9 +31,10 @@ do
     #read in list of files to compress ---- store them in an array. 
     Trigger=`get_recent_orders.py`
     
-    declare -a files2compress
+    #declare -a files2compress
     files2compress=(${Trigger// / })
-    Nfiles=${#files2compress[@]}
+    #files2compress=(`get_files_to_distill.py 300`)
+    Nfiles=${#files2compress[*]}
 
     #only try to run if there are files to compress.
     if [[ $Nfiles -gt 0 ]]; then
@@ -46,7 +47,6 @@ do
         test -e ${OutputDir} || mkdir ${OutputDir}
         
         for still in ${ComputeNodes[@]}; do
-            #TESTING ---- just try to push through once.
             for ((i=0;i<$Nfiles;i++)); do
                 allstills=`file2still.py ${i} ${Nnodes} ${Nfiles}`
                 infile=${files2compress[$i]}
@@ -63,7 +63,9 @@ do
                             LOG=${LOG}"scp -r -c arcfour256 ${infile} ${outfile}${NL}"
                             LOG=${LOG}`date`${NL}
                             LOG=${LOG}$(scp -r -c arcfour256 ${infile} ${outfile} 2>&1)
-                            if [[ $? -eq 0 ]]; then
+                            PID=$!
+                            STATUS=$?
+                            if [[ $STATUS -eq 0 ]]; then
                                 ssh ${still} "add_file.py ${outfile} -i ${infile}" 
                                 record_completion.py ${outfile} --log="${LOG}"
                             else
