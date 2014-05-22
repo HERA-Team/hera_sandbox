@@ -20,6 +20,8 @@ o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 o.add_option('--gain', type='float', default=.3,
     help='gain parameter in approximation. .3 for 32, .1 for 64')
+o.add_option('--usebls', action='store_true',
+    help='use the baselines give in the command line. Default is use all of the given separations.')
 opts,args = o.parse_args(sys.argv[1:])
 
 
@@ -127,22 +129,29 @@ for ri in range(ANTPOS.shape[0]):
                 bl2sep[bl] = sep
                 sep2bl[sep] = sep2bl.get(sep,[]) + [bl]
 #choose unit seperations corresponding to the bls I put in.
-if len(opts.ant.split('_'))>1: #if there are baselines requested
-    #get a list of miriad format bl ints
-    input_bls = [a.miriad.ij2bl(int(l.split('_')[0]),int(l.split('_')[1])) for l in opts.ant.split(',')]
-    print input_bls
-    myseps = list(set([bl2sep[bl] for bl in input_bls]))#get a list of the seps, one entry per 
-    print "based on input baselines, I am including the following seperations"
-    print myseps
-    mybls = []
-    for sep in myseps:
-        mybls += sep2bl[sep]
-        revsep = (-sep[0],-sep[1])
-        mybls += sep2bl[revsep] #don't forget the reverse seps. they count as the same!
-    print "found %d baselines"%len(mybls)
-    opts.ant = ','.join([miriadbl2str(bl) for bl in mybls])
-    print opts.ant
+
+if not opts.usebls:
+    if len(opts.ant.split('_'))>1: #if there are baselines requested
+        #get a list of miriad format bl ints
+        input_bls = [a.miriad.ij2bl(int(l.split('_')[0]),int(l.split('_')[1])) for l in opts.ant.split(',')]
+        print input_bls
+        myseps = list(set([bl2sep[bl] for bl in input_bls]))#get a list of the seps, one entry per 
+        print "based on input baselines, I am including the following seperations"
+        print myseps
+        mybls = []
+        for sep in myseps:
+            mybls += sep2bl[sep]
+            revsep = (-sep[0],-sep[1])
+            mybls += sep2bl[revsep] #don't forget the reverse seps. they count as the same!
+        print "found %d baselines"%len(mybls)
+        opts.ant = ','.join([miriadbl2str(bl) for bl in mybls])
+        print opts.ant
 #WARNING: The default is to do _all_ seps in the data.
+
+else:
+    print 'Using the following baselines'
+    print opts.ant.split(',')
+    print 'There are %d of them'%len(opts.ant.split(','))
 
 
 #checking that our grid indexing is working
