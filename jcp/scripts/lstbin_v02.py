@@ -173,7 +173,7 @@ jd_start = jd_start + (lst_start - lsts[0]) * djd_dlst
 lst_start = lsts[0]
 
 # Initialize the output file
-#XXX this section of code assumes that all the input files look like the first one.  this will deliver BAD functionality if input files are a mix of lst binned and non lst binned files
+#XXX this section of code assumes that all the input files look like the first one.  this will deliver BAD functionality if input files are a mix of lst binned and non lst binned files; will it work if the first file is always the lst binned file??
 uvi = a.miriad.UV(args[0])
 invars = uvi.vars() #remember what variables were in the input files
 filename=os.path.basename(args[0])
@@ -241,18 +241,11 @@ for lst in lsts:
             if 'median' in opts.stats: median = n.zeros_like(fzero)
             if 'var' in opts.stats: var = n.zeros_like(fzero)
         # Set the statistics variables in the uv object and write the data
-        # Commands if input files DO NOT have vars to begin with
-        if 'cnt' in opts.stats and 'cnt' not in invars: uvo['cnt'] = cnt.astype(n.double)
-        if 'min' in opts.stats and 'min' not in invars: uvo['min'] = dmin.astype(n.double)
-        if 'max' in opts.stats and 'max' not in invars: uvo['max'] = dmax.astype(n.double)
-        if 'median' in opts.stats and 'median' not in invars: uvo['median'] = median.astype(n.double)
-        if 'var' in opts.stats and 'var' not in invars: uvo['var'] = var.astype(n.double)
-        # Commands if input files ALREADY have vars
-        if 'cnt' in opts.stats and 'cnt' in invars: uvo['cnt'] += cnt.astype(n.double)
-        if 'min' in opts.stats and 'min' in invars: uvo['min'] = n.minimum(uvo['min'],dmin.astype(n.double))
-        if 'max' in opts.stats and 'max' in invars: uvo['max'] = n.maximum(uvo['max'],dmax.astype(n.double))
-        #if 'median' in opts.stats and 'median' in invars: uvo['median'] += median.astype(n.double) #XXX no idea what to do here
-        #if 'var' in opts.stats and 'var' in invars: uvo['var'] += var.astype(n.double) #XXX this one should be doable?
+        if 'cnt' in opts.stats: uvo['cnt'] = cnt.astype(n.double)
+        if 'min' in opts.stats: uvo['min'] = dmin.astype(n.double)
+        if 'max' in opts.stats: uvo['max'] = dmax.astype(n.double)
+        if 'median' in opts.stats: uvo['median'] = median.astype(n.double)
+        if 'var' in opts.stats: uvo['var'] = var.astype(n.double)
 
         uvo.write(preamble, d, f)
 
