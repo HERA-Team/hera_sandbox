@@ -1,52 +1,49 @@
 import time, logging
 # XXX deal with 'XXX' in code below
-# XXX need to deal with edge files being required on more than one still
-# although this isn't necessary for 4 stills, split by polarization
+# XXX how to deal with the first/last file in each day (i.e. only 1 of 2 neighbors)
 
 logger = logging.getLogger('scheduler')
 
 FILE_PROCESSING_STAGES  = { # dict linking file status to the next action
-    'UV-POT': ('UV-STILL',),
-    'UV-STILL': ('UVC',),
-    'UVC': ('CLEAN-UV-STILL',),
-    'CLEAN-UV-STILL': ('UVCR',),
+    'UV-POT': ('UV',),
+    'UV': ('UVC',),
+    'UVC': ('CLEAN-UV',),
+    'CLEAN-UV': ('UVCR',),
     'UVCR': ('CLEAN-UVC',),
-    'CLEAN-UVC': ('UVCRE',),
+    'CLEAN-UVC': ('ACQUIRE-NEIGHBORS',), # transfer UVCRs for neighbors not assigned to this still
+    'ACQUIRE-NEIGHBORS': ('UVCRE',),
     'UVCRE': ('UVCRR',),
     'UVCRR': ('NPZ-POT',),
     'NPZ-POT': ('CLEAN-UVCRE',),
-    'CLEAN-UVCRE':, ('UVCRRE-STILL',),
-    'UVCRRE-STILL': ('CLEAN-UVCRR',), # do we want uvcRRE to run on UVCR of neighbors, or UVCRR?  I think UVCR, because that's all we get for edge files.
-    'CLEAN-UVCRR': ('CLEAN-NPZ-STILL',),
-    'CLEAN-NPZ-STILL': ('UVCRRE-POT',),
+    'CLEAN-UVCRE': ('UVCRRE',),
+    'UVCRRE': ('CLEAN-UVCRR',), # do we want uvcRRE to run on UVCR of neighbors, or UVCRR?  I think UVCR, because that's all we get for edge files.
+    'CLEAN-UVCRR': ('CLEAN-NPZ',),
+    'CLEAN-NPZ': ('CLEAN-NEIGHBORS',),
+    'CLEAN-NEIGHBORS': ('UVCRRE-POT',), # clean UVCRs for neighbors not assigned to this still
     'UVCRRE-POT': ('CLEAN-UVCR',),
     'CLEAN-UVCR': ('COMPLETE',),
     'COMPLETE': None,
 }
 
-FILE_PROCESSING_PREREQS = { # link task to prerequisite state of neighbors
-    'UV-POT': None,
-    'UV-STILL': None,
-    'UVC': None,
-    'CLEAN-UV-STILL': None,
-    'UVCR': None,
-    'CLEAN-UVC': None,
-    'UVCRE': 'UVCR',
-    'UVCRR': None,
-    'NPZ-POT': None,
-    'CLEAN-UVCRE':, None,
-    'UVCRRE-STILL': 'UVCR',
-    'CLEAN-UVCRR': None,
-    'CLEAN-NPZ-STILL': None,
-    'UVCRRE-POT': None,
-    'CLEAN-UVCR': 'UVCRRE-STILL',
-    'COMPLETE': None,
+FILE_PROCESSING_PREREQS = { # link task to prerequisite state of neighbors, key not present assumes no prereqs
+    #'UV-POT': None,
+    #'UV-STILL': None,
+    #'UVC': None,
+    #'CLEAN-UV-STILL': None,
+    #'UVCR': None,
+    #'CLEAN-UVC': None,
+    'ACQUIRE-NEIGHBORS': 'UVCR',
+    #'UVCRE': None,
+    #'UVCRR': None,
+    #'NPZ-POT': None,
+    #'CLEAN-UVCRE':, None,
+    #'UVCRRE-STILL': 'UVCR',
+    #'CLEAN-UVCRR': None,
+    #'CLEAN-NPZ-STILL': None,
+    #'UVCRRE-POT': None,
+    'CLEAN-UVCR': 'UVCRRE',
+    #'COMPLETE': None,
 }
-
-def file_to_still(f, nstills):
-    '''Return the still that a file should be transferred to.'''
-    # XXX
-    return
 
 class Action:
     '''An Action performs a task on a file, and is scheduled by a Scheduler.'''
@@ -66,31 +63,39 @@ class Action:
         '''For the given task, check that neighbors are in prerequisite state.
         We don't check that the center file is in the prerequisite state, 
         since this action could not have been generated otherwise.'''
-        n_state = FILE_PROCESSING_PREREQS[self.task]
-        for n in neighbors:
+        try: n_state = FILE_PROCESSING_PREREQS[self.task]
+        except(KeyError): # this task has no prereqs
+            return True
+        for n in self.neighbors:
             status = dbi.get_file_status(n)
             if status != n_state: return False
         return True
-    def launch(self):
+    def launch(self, launch_time=None):
         '''Run this task.'''
-        self.launch_time = time.time()
-        # XXX need to actually run this task
+        if launch_time is None: launch_time = time.time()
+        self.launch_time = launch_time
+        self._command()
         return
-    def timed_out(self, timeout=3600.):
+    def _command(self):
+        '''Replace this function in a subclass to execute different tasks.'''
+        return
+    def timed_out(self, timeout=3600., curtime=None):
         assert(self.launch_time > 0) # Error out if action was not launched
-        return time.time() > self.launch_time + timeout
-        
+        if curtime is None: curtime = time.time()
+        return curtime > self.launch_time + timeout
         
 def action_cmp(x,y): return cmp(x.priority, y.priority)
 
 class Scheduler:
     '''A Scheduler reads a DataBaseInterface to determine what Actions can be
     taken, and then schedules them on stills according to priority.'''
-    def __init__(self, nstills=4, actions_per_still=8):
+    def __init__(self, nstills=4, actions_per_still=8, blocksize=10):
         '''nstills: # of stills in system, 
         actions_per_still: # of actions that can be scheduled simultaneously
                            per still.'''
+        self.nstills = nstills
         self.actions_per_still = actions_per_still
+        self.blocksize = blocksize
         self.active_files = []
         self._active_file_dict = {}
         self.action_queue = []
@@ -114,7 +119,10 @@ class Scheduler:
             self.clean_completed_actions(dbi)
     def pop_action_queue(self, still):
         '''Return highest priority action for the given still.'''
-        return self.launched_actions[still]
+        for i in xrange(len(self.action_queue)):
+            if self.action_queue[i].still == still:
+                return self.action_queue.pop(i)
+        raise IndexError('No actions available for still-%d\n' % still)
     def launch_action(self, a):
         '''Launch the specified Action and record its launch for tracking later.'''
         self.launched_actions[a.still].append(a)
@@ -126,10 +134,10 @@ class Scheduler:
             for cnt, a in enumerate(self.launched_actions[still]):
                 status = dbi.get_file_status(a.filename)
                 if status == a.task:
-                    logger.info('Task %s for file %s on still %d completed successfully.' % (a.task, a.filename, still)
+                    logger.info('Task %s for file %s on still %d completed successfully.' % (a.task, a.filename, still))
                     # not adding to updated_actions removes this from list of launched actions
                 elif a.timeout(): 
-                    logger.info('Task %s for file %s on still %d TIMED OUT.' % (a.task, a.filename, still)
+                    logger.info('Task %s for file %s on still %d TIMED OUT.' % (a.task, a.filename, still))
                     # XXX make db entry for documentation
                     # XXX actually kill the process if alive
                 else: # still active
@@ -160,34 +168,40 @@ class Scheduler:
         can be taken.'''
         actions = [self.get_action(dbi,f) for f in self.active_files]
         actions = [a for a in actions if not a is None] # remove unactionables
-        actions = [a for a in actions if self.already_launched(a)] # filter actions already launched
-        for i,a in enumerate(actions):
-            a.set_priority(self.determine_priority(a,i))
-        actions.sort(action_cmp) # place most important actions last
+        actions = [a for a in actions if not self.already_launched(a)] # filter actions already launched
+        for a in actions: a.set_priority(self.determine_priority(a,dbi))
+        actions.sort(action_cmp, reverse=True) # place most important actions first
         self.action_queue = actions # completely throw out previous action list
-    def get_action(self, dbi, f):
+    def get_action(self, dbi, f, ActionClass=None):
         '''Find the next actionable step for file f (one for which all
         prerequisites have been met.  Return None if no action is available.
         This function is allowed to return actions that have already been
-        launched.'''
+        launched.
+        ActionClass: a subclass of Action, for customizing actions.  
+            None defaults to the standard Action'''
         status = dbi.get_file_status(f)
-        next_step = FILE_PROCESSING_STAGES[status]
+        next_step = FILE_PROCESSING_STAGES[status][0]
         if next_step is None: return None # file is complete
         neighbors = dbi.get_neighbors(f)
-        nstills = len(self.launched_actions)
-        still = file_to_still(f, nstills) 
-        a = Action(f, next_step, neighbors, still)
+        still = self.file_to_still(f, dbi) 
+        if ActionClass is None: ActionClass = Action
+        a = ActionClass(f, next_step, neighbors, still)
         if a.has_prerequisites(dbi): return a
         else: return None
-    def determine_priority(self, action, fileorder):
+    def determine_priority(self, action, dbi):
         '''Assign a priority to an action based on its status and the time
         order of the file to which this action is attached.'''
-        return fileorder # prioritize any possible action on the newest file
+        return dbi.file_index(action.filename) # prioritize any possible action on the newest file
         # XXX might want to prioritize finishing a file already started before
         # moving to the latest one (at least, up to a point) to avoid a
         # build up of partial files.  But if you prioritize files already
         # started too excessively, then the queue could eventually fill with
         # partially completed tasks that are failing for some reason
+    def file_to_still(self, f, dbi):
+        '''Return the still that a file should be transferred to.'''
+        cnt = dbi.file_index(f)
+        return (cnt / self.blocksize) % self.nstills
+
         
                     
                     
