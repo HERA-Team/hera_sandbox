@@ -7,8 +7,8 @@ DFM
 """
 
 import MySQLdb
-import hashlib
-
+import hashlib,logging
+logger = logging.getLogger('PDB')
 #global definitions
 TEST=True
 HOSTIP='10.0.1.20'
@@ -40,6 +40,8 @@ def gethostname():
     from subprocess import Popen,PIPE
     hn = Popen(['bash','-cl','hostname'], stdout=PIPE).communicate()[0].strip()
     return hn
+def file2jd(zenuv):
+    return re.findall(r'\d+\.\d+', zenuv)[0]
 
 class column(object):
     """
@@ -292,8 +294,160 @@ class db(object):
         q = """UPDATE %s SET %s=%s WHERE %s=%s;"""%(tab, target_col, target_val, col, val)
         if self.verbose: print q
         self.db.query(q)
+    def count(self, target,table,column,value):
+        """
+        count the number of entries where table.column=value
+        """
+        q = """select count(*) from {table} where {column}={value};""".format(
+            table=table,
+            column=column,
+            value=value)
+        if self.verbose: print q
+        cursor = self.db.cursor()
+        cursor.execute(q)
+        return unpack(cursor.fetchall())[0][0]
+    def query(self,q)
+        cursor = self.db.cursor()
+        cursor.execute(q)
+        return unpack(cursor.fetchall())
+class StillDB(db):
+    def ordered_files(limit=1e5):
+        """
+        Get a list of files  return type is list of (observations or files. not sure)
+        note that filenames are defined as host:path pairs to convey the complete location coordinates.
+        """
+        return self.query("""select filename from history where exit_status=0 and 
+                    basefile not in (select basefile from history where status='COMPLETE');""")
+    def is_completed(filename):
+        """
+        checks the execution status of the input filename. 
+        Note: filename is not a primary key. Here we return only the most recent status
+        returns True (completed = succesful or error) or False (execution ongoing)
+        """
+        #select count(*) from history where filename=filename;
+        #if count>0
+        status = self.query("""select exit_status from history where filename={filename} order by stoptime desc
+        count=1;""".format(filename=filename))[0][0]
+        if status is not None: return True
+        else: return False
+    def get_file_status(filename):
+        """
+        returns the current status of the requested file.  NULL indicates currently running, None indicates that file
+        does not exist and is not currently scheduled
+        input: full filename "host:/path/to/file"
+        """
+        #first check if the filename exists
+        if self.count("history","filename",filename)==0:
+            return None
+        #select status from history where filename=filename
+        status = self.get('exit_status','history','status',filename)[0][0]
+        return status
 
-pdb = db(DBNAME,verbose=False)
+    def get_neighbors(filename):
+        """
+        returns neighbors of the input filename 
+        input: full filename "host:/path/to/file"
+        """
+        host=filename.split(':')[0]
+        #select neighbor observations
+        basefile    =   self.get('basefile','history','filename',filename)[0][0]
+        jd_lo       =   self.get('jd_lo','observations','basefile',basefile)[0][0]
+        basefile_lo =   self.get('basefile','observations','JD',jd_lo)[0][0]
+        jd_hi       =   self.get('jd_hi','observations','basefile',basefile)[0][0]
+        basefile_hi =   self.get('basefile','observations','JD',jd_hi)[0][0]
+        
+        #select neighbor files (if available)
+        q="""select outfile from history where exit_status=0 and (basefile='{basefile_hi}' or basefile='{basefile_lo}')
+        and host={host}';""".format(
+        basefile_hi=basefile_hi,
+        basefile_lo=basefile_lo,
+        filename=filename,
+        host=host)
+        neighbors = [b[0] for b in self.query(q)] #this line uncompresses the 2d result to a 1d list
+        return neighbors
+
+    def begin_task(infile,outfile,operation,pid):
+        """
+        registers a task with the database. 
+        input: infile, outfile, operation, pid
+        """
+        hostname = outfile.split(':')[0]
+        if not self.has_record('hosts', hostname):
+            if self.verbose:
+                logger.info("Unidentified host %s"%hostname)
+            return 1
+        if not self.has_record('files',infile):
+            if self.verbose:
+                logger.info("Unidentified file %s"%filename)
+            return 1
+        self.update('last_modified',"NOW()",'files','filename',infile) #update the files table entry
+        
+        #update history table
+        histcols = {}
+        histcols['input']  = infile
+        histcols['output'] = outfile
+        histcols['host'] = hostname
+        histcols['operation'] = operation
+        histcols['starttime'] = "NOW()"
+        #get the infile basefile, note that we already checked that it exists in the files table.
+        histcols['basefile'] = self.get('basefile','files','filename',infile)[0][0] #get basefile from files where filename=infile
+        
+        self.addrow('history', histcols)        
+        return True
+    def conclude_task(filename,log=None,exit_status=1)
+        """
+        registers a task as concluded. 
+        filename = host:/path/to/file
+        log=string log output from task
+        exit_status = exit status of script. $? environment variable in bash default=1 (generic error state)
+        returns True if successful
+        """
+        if not self.has_record('history',outfile,col='output'):
+            logger.info("entry in the history column doesn't exist!")
+        q = """update history set exit_status={exit_status} and stoptime=NOW() where filename={filename} and 
+                exit_status is NULL;""".format(
+            exit_status=exit_status,
+            filename=filename)
+        self.query(q)
+        if not opts.log is None:
+            self.update('log',log,'history','output',outfile)
+        return True
+    def add_file(filename):
+        """
+        adds a file to the file table and ties it back to the observations table.
+        This table is THE RECORD of data and where it can be found.
+        filename = host:/path/to/file
+        retunrs True if successful 
+        """
+        hostname = filename.split(':')[0]
+        
+        if not pdb.has_record('hosts', hostname):
+            print 'host not in pdb.hosts'
+            sys.exit(1)
+        JD = file2jd(filename)
+        pol = file2pol(filename)
+        filecols = {}
+        filecols['JD'] = JD
+        filecols['filename'] = filename
+        filecols['host'] = hostname
+        filecols['basefile'] = self.query("""select basefile from observations where JD={JD} and pol={pol};""")
+        filecols['md5'] = md5sum(hostname)
+        filecols['last_modified']="NOW()"
+        self.addrow('files', filecols)
+        return True
+    
+    def kill_task(filename)
+        """
+        kills any currently running task generating a file matching "filename"
+        """
+        tasks = self.get('PID','history',['filename','exit_status'],[filename,'NULL'])
+        host = filename.split(':')[0]
+        for task in tasks:
+            os.Popen("ssh {host} 'kill -9 {pid}'".format(host=host,pid=pid)) #note I am not 100% on this line here
+        self.conclude_task(filename,status="ERROR")
+        return True
+    
+pdb = StillDB(DBNAME,verbose=False)
 
 def md5sum(fname):
     """
