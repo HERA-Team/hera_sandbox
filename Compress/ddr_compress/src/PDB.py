@@ -306,7 +306,7 @@ class db(object):
         cursor = self.db.cursor()
         cursor.execute(q)
         return unpack(cursor.fetchall())[0][0]
-    def query(self,q)
+    def query(self,q):
         cursor = self.db.cursor()
         cursor.execute(q)
         return unpack(cursor.fetchall())
@@ -394,7 +394,7 @@ class StillDB(db):
         
         self.addrow('history', histcols)        
         return True
-    def conclude_task(filename,log=None,exit_status=1)
+    def conclude_task(filename,log=None,exit_status=1):
         """
         registers a task as concluded. 
         filename = host:/path/to/file
@@ -436,7 +436,7 @@ class StillDB(db):
         self.addrow('files', filecols)
         return True
     
-    def kill_task(filename)
+    def kill_task(filename):
         """
         kills any currently running task generating a file matching "filename"
         """
