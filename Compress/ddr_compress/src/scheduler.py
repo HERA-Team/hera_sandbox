@@ -4,50 +4,42 @@ import time, logging
 
 logger = logging.getLogger('scheduler')
 
-FILE_PROCESSING_STAGES  = { # dict linking file status to the next action
-    'UV-POT': ('UV',),
-    'UV': ('UVC',),
-    'UVC': ('CLEAN-UV',),
-    'CLEAN-UV': ('UVCR',),
-    'UVCR': ('CLEAN-UVC',),
-    'CLEAN-UVC': ('ACQUIRE-NEIGHBORS',), # transfer UVCRs for neighbors not assigned to this still
-    'ACQUIRE-NEIGHBORS': ('UVCRE',),
-    'UVCRE': ('UVCRR',),
-    'UVCRR': ('NPZ-POT',),
-    'NPZ-POT': ('CLEAN-UVCRE',),
-    'CLEAN-UVCRE': ('UVCRRE',),
-    'UVCRRE': ('CLEAN-UVCRR',), # do we want uvcRRE to run on UVCR of neighbors, or UVCRR?  I think UVCR, because that's all we get for edge files.
-    'CLEAN-UVCRR': ('CLEAN-NPZ',),
-    'CLEAN-NPZ': ('CLEAN-NEIGHBORS',),
-    'CLEAN-NEIGHBORS': ('UVCRRE-POT',), # clean UVCRs for neighbors not assigned to this still
-    'UVCRRE-POT': ('CLEAN-UVCR',),
-    'CLEAN-UVCR': ('COMPLETE',),
-    'COMPLETE': None,
-}
+FILE_PROCESSING_STAGES = ['UV-POT', 'UV', 'UVC', 'CLEAN-UV', 'UVCR', 'CLEAN-UVC',
+    'ACQUIRE-NEIGHBORS', 'UVCRE', 'UVCRR', 'NPZ-POT', 'CLEAN-UVCRE', 'UVCRRE',
+    'CLEAN-UVCRR', 'CLEAN-NPZ', 'CLEAN-NEIGHBORS', 'UVCRRE-POT', 'CLEAN-UVCR', 'COMPLETE']
+FILE_PROCESSING_LINKS = {}
+for i,k in enumerate(FILE_PROCESSING_STAGES[:-1]):
+    FILE_PROCESSING_LINKS[k] = FILE_PROCESSING_STAGES[i+1]
+FILE_PROCESSING_LINKS['COMPLETE'] = None
+#FILE_PROCESSING_STAGES  = { # dict linking file status to the next action
+#    'UV-POT': ('UV',),
+#    'UV': ('UVC',),
+#    'UVC': ('CLEAN-UV',),
+#    'CLEAN-UV': ('UVCR',),
+#    'UVCR': ('CLEAN-UVC',),
+#    'CLEAN-UVC': ('ACQUIRE-NEIGHBORS',), # transfer UVCRs for neighbors not assigned to this still
+#    'ACQUIRE-NEIGHBORS': ('UVCRE',),
+#    'UVCRE': ('UVCRR',),
+#    'UVCRR': ('NPZ-POT',),
+#    'NPZ-POT': ('CLEAN-UVCRE',),
+#    'CLEAN-UVCRE': ('UVCRRE',),
+#    'UVCRRE': ('CLEAN-UVCRR',), # do we want uvcRRE to run on UVCR of neighbors, or UVCRR?  I think UVCR, because that's all we get for edge files.
+#    'CLEAN-UVCRR': ('CLEAN-NPZ',),
+#    'CLEAN-NPZ': ('CLEAN-NEIGHBORS',),
+#    'CLEAN-NEIGHBORS': ('UVCRRE-POT',), # clean UVCRs for neighbors not assigned to this still
+#    'UVCRRE-POT': ('CLEAN-UVCR',),
+#    'CLEAN-UVCR': ('COMPLETE',),
+#    'COMPLETE': None,
+#}
 
 FILE_PROCESSING_PREREQS = { # link task to prerequisite state of neighbors, key not present assumes no prereqs
-    #'UV-POT': None,
-    #'UV-STILL': None,
-    #'UVC': None,
-    #'CLEAN-UV-STILL': None,
-    #'UVCR': None,
-    #'CLEAN-UVC': None,
-    'ACQUIRE-NEIGHBORS': 'UVCR',
-    #'UVCRE': None,
-    #'UVCRR': None,
-    #'NPZ-POT': None,
-    #'CLEAN-UVCRE':, None,
-    #'UVCRRE-STILL': 'UVCR',
-    #'CLEAN-UVCRR': None,
-    #'CLEAN-NPZ-STILL': None,
-    #'UVCRRE-POT': None,
-    'CLEAN-UVCR': 'UVCRRE',
-    #'COMPLETE': None,
+    'ACQUIRE-NEIGHBORS': (FILE_PROCESSING_STAGES.index('UVCR'), FILE_PROCESSING_STAGES.index('CLEAN-UVCR')),
+    'CLEAN-UVCR': (FILE_PROCESSING_STAGES.index('UVCRRE'),None),
 }
 
 class Action:
     '''An Action performs a task on a file, and is scheduled by a Scheduler.'''
-    def __init__(self, f, task, neighbors, still):
+    def __init__(self, f, task, neighbors, still, timeout=3600.):
         '''f:filename, task:target status, neighbor:adjacent files, 
         still:still action will run on.'''
         self.filename = f
@@ -56,6 +48,7 @@ class Action:
         self.still = still
         self.priority = 0
         self.launch_time = -1
+        self.timeout = timeout
     def set_priority(self, p):
         '''Assign a priority to this action.  Highest priorities are scheduled first.'''
         self.priority = p
@@ -63,26 +56,28 @@ class Action:
         '''For the given task, check that neighbors are in prerequisite state.
         We don't check that the center file is in the prerequisite state, 
         since this action could not have been generated otherwise.'''
-        try: n_state = FILE_PROCESSING_PREREQS[self.task]
+        try: index1,index2 = FILE_PROCESSING_PREREQS[self.task]
         except(KeyError): # this task has no prereqs
             return True
         for n in self.neighbors:
+            if n is None: continue # if no neighbor exists, don't wait on it
             status = dbi.get_file_status(n)
-            if status != n_state: return False
+            index = FILE_PROCESSING_STAGES.index(status)
+            if not index1 is None and index < index1: return False
+            if not index2 is None and index >= index2: return False
         return True
     def launch(self, launch_time=None):
         '''Run this task.'''
         if launch_time is None: launch_time = time.time()
         self.launch_time = launch_time
-        self._command()
-        return
+        return self._command()
     def _command(self):
         '''Replace this function in a subclass to execute different tasks.'''
         return
-    def timed_out(self, timeout=3600., curtime=None):
+    def timed_out(self, curtime=None):
         assert(self.launch_time > 0) # Error out if action was not launched
         if curtime is None: curtime = time.time()
-        return curtime > self.launch_time + timeout
+        return curtime > self.launch_time + self.timeout
         
 def action_cmp(x,y): return cmp(x.priority, y.priority)
 
@@ -101,13 +96,17 @@ class Scheduler:
         self.action_queue = []
         self.launched_actions = {}
         for still in xrange(nstills): self.launched_actions[still] = []
-    def start(self, dbi):
+        self._run = False
+    def quit(self):
+        self._run = False
+    def start(self, dbi, ActionClass=None):
         '''Begin scheduling (blocking).
         dbi: DataBaseInterface'''
         logger.info('Beginning scheduler loop')
-        while True: # XXX if threading, this should be a self.quit flag
+        self._run = True
+        while self._run: 
             self.get_new_active_files(dbi)
-            self.update_action_queue(dbi)
+            self.update_action_queue(dbi, ActionClass)
             # Launch actions that can be scheduled
             for still in self.launched_actions:
                 while len(self.launched_actions[still]) < self.actions_per_still:
@@ -136,7 +135,7 @@ class Scheduler:
                 if status == a.task:
                     logger.info('Task %s for file %s on still %d completed successfully.' % (a.task, a.filename, still))
                     # not adding to updated_actions removes this from list of launched actions
-                elif a.timeout(): 
+                elif a.timed_out(): 
                     logger.info('Task %s for file %s on still %d TIMED OUT.' % (a.task, a.filename, still))
                     # XXX make db entry for documentation
                     # XXX actually kill the process if alive
@@ -162,11 +161,11 @@ class Scheduler:
             if not dbi.is_completed(f) and not self._active_file_dict.has_key(f):
                     self._active_file_dict[f] = len(self.active_files)
                     self.active_files.append(f)
-    def update_action_queue(self, dbi):
+    def update_action_queue(self, dbi, ActionClass=None):
         '''Based on the current list of active files (which you might want
         to update first), generate a prioritized list of actions that 
         can be taken.'''
-        actions = [self.get_action(dbi,f) for f in self.active_files]
+        actions = [self.get_action(dbi,f,ActionClass=ActionClass) for f in self.active_files]
         actions = [a for a in actions if not a is None] # remove unactionables
         actions = [a for a in actions if not self.already_launched(a)] # filter actions already launched
         for a in actions: a.set_priority(self.determine_priority(a,dbi))
@@ -180,7 +179,7 @@ class Scheduler:
         ActionClass: a subclass of Action, for customizing actions.  
             None defaults to the standard Action'''
         status = dbi.get_file_status(f)
-        next_step = FILE_PROCESSING_STAGES[status][0]
+        next_step = FILE_PROCESSING_LINKS[status]
         if next_step is None: return None # file is complete
         neighbors = dbi.get_neighbors(f)
         still = self.file_to_still(f, dbi) 
