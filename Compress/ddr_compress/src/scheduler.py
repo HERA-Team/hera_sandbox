@@ -1,6 +1,4 @@
 import time, logging
-# XXX deal with 'XXX' in code below
-# XXX how to deal with the first/last file in each day (i.e. only 1 of 2 neighbors)
 
 logger = logging.getLogger('scheduler')
 
@@ -11,26 +9,6 @@ FILE_PROCESSING_LINKS = {}
 for i,k in enumerate(FILE_PROCESSING_STAGES[:-1]):
     FILE_PROCESSING_LINKS[k] = FILE_PROCESSING_STAGES[i+1]
 FILE_PROCESSING_LINKS['COMPLETE'] = None
-#FILE_PROCESSING_STAGES  = { # dict linking file status to the next action
-#    'UV-POT': ('UV',),
-#    'UV': ('UVC',),
-#    'UVC': ('CLEAN-UV',),
-#    'CLEAN-UV': ('UVCR',),
-#    'UVCR': ('CLEAN-UVC',),
-#    'CLEAN-UVC': ('ACQUIRE-NEIGHBORS',), # transfer UVCRs for neighbors not assigned to this still
-#    'ACQUIRE-NEIGHBORS': ('UVCRE',),
-#    'UVCRE': ('UVCRR',),
-#    'UVCRR': ('NPZ-POT',),
-#    'NPZ-POT': ('CLEAN-UVCRE',),
-#    'CLEAN-UVCRE': ('UVCRRE',),
-#    'UVCRRE': ('CLEAN-UVCRR',), # do we want uvcRRE to run on UVCR of neighbors, or UVCRR?  I think UVCR, because that's all we get for edge files.
-#    'CLEAN-UVCRR': ('CLEAN-NPZ',),
-#    'CLEAN-NPZ': ('CLEAN-NEIGHBORS',),
-#    'CLEAN-NEIGHBORS': ('UVCRRE-POT',), # clean UVCRs for neighbors not assigned to this still
-#    'UVCRRE-POT': ('CLEAN-UVCR',),
-#    'CLEAN-UVCR': ('COMPLETE',),
-#    'COMPLETE': None,
-#}
 
 FILE_PROCESSING_PREREQS = { # link task to prerequisite state of neighbors, key not present assumes no prereqs
     'ACQUIRE-NEIGHBORS': (FILE_PROCESSING_STAGES.index('UVCR'), FILE_PROCESSING_STAGES.index('CLEAN-UVCR')),
@@ -61,7 +39,9 @@ class Action:
             return True
         for n in self.neighbors:
             if n is None: continue # if no neighbor exists, don't wait on it
-            status = dbi.get_file_status(n)
+            status = dbi.get_obs_status(n)
+            if status is None: # indicates that file hasn't been entered into DB yet
+                return False
             index = FILE_PROCESSING_STAGES.index(status)
             if not index1 is None and index < index1: return False
             if not index2 is None and index >= index2: return False
@@ -131,7 +111,7 @@ class Scheduler:
         for still in self.launched_actions:
             updated_actions = []
             for cnt, a in enumerate(self.launched_actions[still]):
-                status = dbi.get_file_status(a.filename)
+                status = dbi.get_obs_status(a.filename)
                 if status == a.task:
                     logger.info('Task %s for file %s on still %d completed successfully.' % (a.task, a.filename, still))
                     # not adding to updated_actions removes this from list of launched actions
@@ -157,8 +137,8 @@ class Scheduler:
         #was called, clean_completed_actions() must be called first to ensure
         #that cleanup occurs before.  Is this true? if so, should add mechanism
         #to ensure ordering
-        for f in dbi.ordered_files():
-            if not dbi.is_completed(f) and not self._active_file_dict.has_key(f):
+        for f in dbi.list_observations():
+            if dbi.get_obs_status(f) != 'COMPLETE' and not self._active_file_dict.has_key(f):
                     self._active_file_dict[f] = len(self.active_files)
                     self.active_files.append(f)
     def update_action_queue(self, dbi, ActionClass=None):
@@ -178,7 +158,7 @@ class Scheduler:
         launched.
         ActionClass: a subclass of Action, for customizing actions.  
             None defaults to the standard Action'''
-        status = dbi.get_file_status(f)
+        status = dbi.get_obs_status(f)
         next_step = FILE_PROCESSING_LINKS[status]
         if next_step is None: return None # file is complete
         neighbors = dbi.get_neighbors(f)
@@ -190,7 +170,7 @@ class Scheduler:
     def determine_priority(self, action, dbi):
         '''Assign a priority to an action based on its status and the time
         order of the file to which this action is attached.'''
-        return dbi.file_index(action.filename) # prioritize any possible action on the newest file
+        return dbi.get_obs_index(action.filename) # prioritize any possible action on the newest file
         # XXX might want to prioritize finishing a file already started before
         # moving to the latest one (at least, up to a point) to avoid a
         # build up of partial files.  But if you prioritize files already
@@ -198,7 +178,7 @@ class Scheduler:
         # partially completed tasks that are failing for some reason
     def file_to_still(self, f, dbi):
         '''Return the still that a file should be transferred to.'''
-        cnt = dbi.file_index(f)
+        cnt = dbi.get_obs_index(f)
         return (cnt / self.blocksize) % self.nstills
 
         

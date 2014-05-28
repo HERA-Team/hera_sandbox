@@ -9,16 +9,14 @@ class FakeDataBaseInterface:
         self.files = {}
         for i in xrange(nfiles):
             self.files[str(i)] = 'UV-POT'
-    def get_file_status(self, filename):
+    def get_obs_status(self, filename):
         return self.files[filename]
-    def file_index(self, filename):
+    def get_obs_index(self, filename):
         return int(filename)
-    def ordered_files(self):
+    def list_observations(self):
         files = self.files.keys()
         files.sort()
         return files
-    def is_completed(self, filename):
-        return self.files[filename] == 'COMPLETE'
     def get_neighbors(self, filename):
         n = int(filename)
         n1,n2 = str(n-1), str(n+1)
@@ -131,14 +129,14 @@ class TestScheduler(unittest.TestCase):
                 dbi.files[self.filename] = self.task
         def all_done():
             for f in dbi.files:
-                if not dbi.is_completed(f): return False
+                if dbi.get_obs_status(f) != 'COMPLETE': return False
         s = sch.Scheduler(nstills=1, actions_per_still=1, blocksize=10)
         t = threading.Thread(target=s.start, args=(dbi, FakeAction))
         t.start()
         tstart = time.time()
         while not all_done() and time.time() - tstart < 1: time.sleep(.1)
         s.quit()
-        for f in dbi.files: self.assertTrue(dbi.is_completed(f))
+        for f in dbi.files: self.assertEqual(dbi.get_obs_status(f), 'COMPLETE')
     def test_faulty(self):
         for i in xrange(1):
             dbi = FakeDataBaseInterface(10)
@@ -149,7 +147,7 @@ class TestScheduler(unittest.TestCase):
                     if random.random() > .5: dbi.files[self.filename] = self.task
             def all_done():
                 for f in dbi.files:
-                    if not dbi.is_completed(f): return False
+                    if dbi.get_obs_status(f) != 'COMPLETE': return False
                 return True
             s = sch.Scheduler(nstills=1, actions_per_still=1, blocksize=10)
             t = threading.Thread(target=s.start, args=(dbi, FakeAction))
@@ -162,7 +160,7 @@ class TestScheduler(unittest.TestCase):
             s.quit()
             #for f in dbi.files:
             #    print f, dbi.files[f]
-            for f in dbi.files: self.assertTrue(dbi.is_completed(f))
+            for f in dbi.files: self.assertEqual(dbi.get_obs_status(f), 'COMPLETE')
         
 
 if __name__ == '__main__':
