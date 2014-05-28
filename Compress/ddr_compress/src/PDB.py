@@ -6,7 +6,7 @@ Creates a database object for parsing and descending into the paper database.
 DFM
 """
 
-import MySQLdb
+import MySQLdb,sqlite3
 import hashlib,logging
 logger = logging.getLogger('PDB')
 #global definitions
@@ -129,12 +129,13 @@ class db(object):
     """
     An object to handle the paper database.
     """
-    def __init__(self,name,verbose=False):
+    def __init__(self,name,verbose=False,test=False):
         self.name = name
         self.verbose = verbose
         self.tabs = {}
-        self.db = MySQLdb.connect(HOSTIP, USER, PASSWD, DBNAME)
-        self.db.autocommit(True)
+        self.test = test
+        if test: self.db = sqlite3.connect(':memory:')
+        else: self.db = MySQLdb.connect(HOSTIP, USER, PASSWD, DBNAME,autocommit=True)
         for tab in self.get_tables():
             self.addtab(tab)
             for col,dtype,key in self.get_cols(tab):
@@ -151,7 +152,8 @@ class db(object):
         return a list of table names in pdb.
         """
         c = self.db.cursor()
-        c.execute("SHOW TABLES;")
+        if self.test: c.execute("select name from sqlite_master;")
+        else: c.execute("SHOW TABLES;")
         return [t[0] for t in unpack(c.fetchall())]
 
     def get_cols(self, table):
@@ -159,7 +161,8 @@ class db(object):
         return a list of column name/datatype pairs for table 'table'
         """
         c = self.db.cursor()
-        c.execute("SHOW COLUMNS IN %s;"%table)
+        if self.test: c.execute('pragma table_info({table}'.format(table=table))
+        else: c.execute("SHOW COLUMNS IN %s;"%table)
         _cols = c.fetchall()
         cols = []
         for name,dtype,null,key,default,extra in _cols:
@@ -447,7 +450,7 @@ class StillDB(db):
         self.conclude_task(filename,status="ERROR")
         return True
     
-pdb = StillDB(DBNAME,verbose=False)
+pdb = StillDB(DBNAME,verbose=False,test=True)
 
 def md5sum(fname):
     """
