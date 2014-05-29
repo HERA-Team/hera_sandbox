@@ -102,7 +102,6 @@ for f in args:
     # Include the file is src is below altmax at beginning or end
     if src is None or (src_alt_start < opts.altmax or src_alt_end < opts.altmax):
         nargs.append(f)
-
 # Places the data into lst bins, but does not actually combine or average.
 jds = {}
 files = {}
@@ -166,7 +165,8 @@ for lst in jds.keys():
     jds[lst] = n.array(jds[lst])
     files[lst] = n.array(files[lst])
     jd_min = n.min(jds[lst])
-    if jd_min < jd_start:
+    #if jd_min < jd_start:
+    if lst < lst_start:
         lst_start, jd_start = lst, jd_min
 djd_dlst = a.const.sidereal_day / (2*n.pi) * a.ephem.second
 jd_start = jd_start + (lst_start - lsts[0]) * djd_dlst
@@ -201,7 +201,7 @@ if 'max' in opts.stats and 'max' not in uvo.vars(): uvo.add_var('max', 'd')
 if 'median' in opts.stats and 'median' not in uvo.vars(): uvo.add_var('median', 'd')
 if 'var' in opts.stats and 'var' not in uvo.vars(): uvo.add_var('var', 'd')
 
-# This section does the binning and statistics 
+# This section does the binning and statistics
 for lst in lsts:
     t = jd_start + (lst - lst_start) * djd_dlst
     print 'LST:', a.ephem.hours(lst), '(%f)' % lst, ' -> JD:', t
@@ -246,6 +246,7 @@ for lst in lsts:
         if 'max' in opts.stats: uvo['max'] = dmax.astype(n.double)
         if 'median' in opts.stats: uvo['median'] = median.astype(n.double)
         if 'var' in opts.stats: uvo['var'] = var.astype(n.double)
+
 
         uvo.write(preamble, d, f)
 
