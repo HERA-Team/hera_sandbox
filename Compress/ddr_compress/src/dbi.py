@@ -102,6 +102,10 @@ class databaseinterface(object):
                     'mysql://{username}:{password}@{hostip}:{port}/{dbname}'.format(
                                 dbinfo))
         self.Session = sessionmaker(bind=self.engine)
+    def list_observations(self):
+        s = self.Session()
+        observations = s.query(Observation)
+        return [obs.obsnum for obs in observations]
     def createdb(self):
         """
         creates the tables in the database. 

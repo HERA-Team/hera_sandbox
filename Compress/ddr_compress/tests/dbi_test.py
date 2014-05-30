@@ -105,15 +105,24 @@ class TestDBI(unittest.TestCase):
         First set up a likely triplet of observations
         """
         dt = 10/60./24  
-        jds = n.arange(0,3)*dt+2456446.1234
+        jds = n.arange(0,5)*dt+2456446.1234
         obsnums=[]
         for jd in jds:
             obsnum = self.dbi.add_observation(jd,self.pol,length=dt)
             obsnums.append(obsnum)
-        neighbors = self.dbi.get_neighbors(obsnums[1])
+        neighbors = self.dbi.get_neighbors(obsnums[2])
         self.assertEqual(len(neighbors),2)
-        self.assertEqual(neighbors[0],obsnums[0])
-        self.assertEqual(neighbors[1],obsnums[2])
+        self.assertEqual(neighbors[0],obsnums[1])
+        self.assertEqual(neighbors[1],obsnums[3])
+    def test_list_observations(self):
+        dt = 10/60./24  
+        jds = n.arange(0,10)*dt+2456446.1234
+        obsnums=[]
+        for jd in jds:
+            obsnum = self.dbi.add_observation(jd,self.pol,length=dt)
+            obsnums.append(obsnum)
+        observations = self.dbi.list_observations()
+        self.assertEqual(n.sum(n.array(observations)-n.array(obsnums)),0)
         
         
 
