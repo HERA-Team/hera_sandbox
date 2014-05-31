@@ -4,6 +4,7 @@ import logging, threading, subprocess, time
 logger = logging.getLogger('taskserver')
 
 PKT_LINE_LEN = 80
+STILL_PORT = 14204
 
 def pad(s, line_len=PKT_LINE_LEN):
     return (s + ' '*line_len)[:line_len]
@@ -34,8 +35,8 @@ class Task:
     def run(self):
         if not self.process is None:
             raise RuntimeError('Cannot run a Task that has been run already.')
-        self.record_launch()
         self.process = self._run()
+        self.record_launch()
     def _run(self):
         return subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd) # XXX d something with stdout stderr
     def poll(self):
@@ -45,54 +46,55 @@ class Task:
         if self.poll(): self.record_failure()
         else: self.record_completion()
     def kill(self):
+        self.record_failure()
         self.process.kill()
-    def record_launch(self): pass # XXX for monitor
-    def record_failure(self): pass # XXX for monitor
+    def record_launch(self): 
+        self.dbi.set_obs_pid(self.obs, self.process.pid)
+    def record_failure(self):
+        self.dbi.set_obs_pid(self.obs, -1)
     def record_completion(self):
-        self.dbi.set_obs_status(self.obs, self.task) # XXX change to match actual DBI 
-        
-'''
-    def do_UV(self):
-        return self._task('UV',['%s:%s'%(self.pot,self.f)])
-    def do_UVC(self):
-        return self._task('UVC',[self.f])
-    def do_CLEAN_UV(self):
-        return self._task('CLEAN_UV',[self.f])
-    def do_UVCR(self):
-        return self._task('UVCR',[self.f])
-    def do_CLEAN_UVC(self):
-        return self._task('CLEAN_UVC',[self.f])
-    def do_ACQUIRE_NEIGHBORS(self):
-        args = []
-        if len(self.n1) > 0: args.append(self.n1)
-        if len(self.n2) > 0: args.append(self.n2)
-        return self._task('ACQUIRE_NEIGHBORS',args) # these will need to have 'still' in filename
-    def do_UVCRE(self):
-        return self._task('UVCRE',[self.n1, self.f, self.n2])
-    def do_NPZ(self):
-        return self._task('NPZ',[self.f])
-    def do_UVCRR(self):
-        return self._task('UVCRR',[self.f])
-    def do_NPZ_POT(self):
-        return self._task('NPZ_POT',['%s:%s'%(self.pot,self.f)])
-    def do_CLEAN_UVCRE(self):
-        return self._task('CLEAN_UVCRE',[self.f])
-    def do_UVCRRE(self):
-        return self._task('UVCRRE',[self.n1, self.f, self.n2])
-    def do_CLEAN_UVCRR(self)t
-        return self._task('CLEAN_UVCRR',[self.f])
-    def do_CLEAN_NPZ(self):
-        return self._task('CLEAN_NPZ',[self.f])
-    def do_CLEAN_NEIGHBORS(self):
-        args = []
-        if len(self.n1) > 0: args.append(self.n1)
-        if len(self.n2) > 0: args.append(self.n2)
-        return self._task('CLEAN_NEIGHBORS',args)
-    def do_UVCRRE_POT(self):
-        return self._task('UVCRRE_POT',['%s:%s'%(self.pot,self.f)])
-    def do_CLEAN_UVCR(self):
-        return self._task('CLEAN_UVCR',[self.f])
-'''
+        self.dbi.set_obs_status(self.obs, self.task)
+
+class TaskClient:
+    def __init__(self, dbi, host, port=STILL_PORT):
+        self.dbi = dbi
+        self.host_port = (host,port)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    def _tx(self, task, obs, args):
+        pkt = to_pkt(task, obs, args)
+        self.sock.sendto(pkt, self.host_port)
+    def gen_args(self, task, obs):
+        pot,path,basename = self.dbi.get_input_file(obs)
+        outhost,outpath = self.dbi.get_output_path(obs)
+        stillhost,stillpath = self.dbi.get_still_host(obs), dbi.get_still_path(obs)
+        neighbors = [(self.dbi.get_still_host(n),self.dbi.get_still_path(n)) + self.dbi.get_input_file(n)
+            for n in self.dbi.get_neighbors(obs) if not n is None]
+        args = {
+            'UV': ['%s:%s/%s' % (pot,path,basename)],
+            'UVC': [basename],
+            'CLEAN_UV': [basename],
+            'UVCR': [basename+'c'],
+            'CLEAN_UVC': [basename+'c'],
+            'ACQUIRE_NEIGHBORS': ['%s:%s/%s' % (n[0], n[1], n[-1]+'cR') for n in neighbors if n[0] != stillhost],
+            'UVCRE': [neighbors[0][-1]+'cR', basename+'cR', neighbors[1][-1]+'cR'],
+            'NPZ': [basename+'cRE'],
+            'UVCRR': [basename+'cR'],
+            'NPZ_POT': [basename+'cRE.npz', '%s/%s' % (pot,path)],
+            'CLEAN_UVCRE': [basename+'cRE'],
+            'UVCRRE': [neighbors[0][-1]+'cR', basename+'cRR', neighbors[1][-1]+'cR'],
+            'CLEAN_UVCRR': [basename+'cRR'],
+            'CLEAN_NPZ': [basename+'cRE.npz'],
+            'CLEAN_NEIGHBORS': [n[-1]+'cR' for n in neighbors if n[0] != stillhost],
+            'UVCRRE_POT': [basename+'cRRE', '%s:%s' % (outhost,outpath)],
+            'CLEAN_UVCR': [basename+'cR'],
+            'CLEAN_UVCRRE': [basename+'cRRE'],
+        }
+        return args[task]
+    def tx(self, task, obs):
+        args = self.gen_args(task, obs)
+        self._tx(task, obs, args)
+    def tx_kill(self, obs):
+        self._tx('KILL', obs, [self.dbi.get_obs_pid(obs)])
 
 class TaskHandler(SocketServer.BaseRequestHandler):
     def setup(self):
@@ -100,24 +102,22 @@ class TaskHandler(SocketServer.BaseRequestHandler):
     def finish(self):
         logger.info('Disconnect: %s\n' % str(self.client_address))
     def get_pkt(self):
-        pkt = self.request.recv(PKT_LINE_LEN)
-        nlines = int(pkt)
-        pkt += self.request.recv((nlines-1) * PKT_LINE_LEN)
-        # XXX should check that pkt is at the correct length
+        pkt = self.request[0]
         task, obs, args = from_pkt(pkt)
         return task, obs, args
     def handle(self):
         task, obs, args = self.get_pkt()
+        if task == 'KILL':
+            self.server.kill(args[0])
+            return
         t = Task(task, obs, args, self.server.dbi, self.server.data_dir)
         self.server.append_task(t)
         t.run()
-        self.request.send(pad(str(t.pid))) # XXX send back PID for later kill requests?
 
-# XXX swtich to UDP
-class TaskServer(SocketServer.TCPServer):
+class TaskServer(SocketServer.UDPServer):
     allow_reuse_address = True
-    def __init__(self, dbi, data_dir='.', port=14204, handler=TaskHandler):
-        SocketServer.TCPServer.__init__(self, ('', port), handler)
+    def __init__(self, dbi, data_dir='.', port=STILL_PORT, handler=TaskHandler):
+        SocketServer.UDPServer.__init__(self, ('', port), handler)
         self.active_tasks_semaphore = threading.Semaphore()
         self.active_tasks = []
         self.dbi = dbi
@@ -156,5 +156,5 @@ class TaskServer(SocketServer.TCPServer):
         for t in self.active_tasks:
             try: t.process.kill()
             except(OSError): pass
-        SocketServer.TCPServer.shutdown(self)
+        SocketServer.UDPServer.shutdown(self)
 

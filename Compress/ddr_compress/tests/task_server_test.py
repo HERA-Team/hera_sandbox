@@ -13,8 +13,10 @@ class NullTask(ts.Task):
 class FakeDataBaseInterface:
     def __init__(self, nfiles=10):
         self.files = {}
+        self.pids = {}
         for i in xrange(nfiles):
-            self.files[str(i)] = 'UV-POT'
+            self.files[str(i)] = 'UV_POT'
+            self.pids[str(i)] = -1
     def get_obs_status(self, filename):
         return self.files[filename]
     def get_obs_index(self, filename):
@@ -31,6 +33,10 @@ class FakeDataBaseInterface:
         return (n1,n2)
     def set_obs_status(self, filename, status):
         self.files[filename] = status
+    def set_obs_pid(self, filename, pid):
+        self.pids[filename] = pid
+    def get_obs_pid(self, filename):
+        return self.pids[filename]
 
 class TestFunctions(unittest.TestCase):
     def test_pad(self):
@@ -83,7 +89,7 @@ class TestTask(unittest.TestCase):
         end_t = time.time()
         self.assertEqual(t.poll(), -9)
         self.assertLess(end_t-start_t, 100)
-        self.assertEqual(dbi.get_obs_status('1'), 'UV-POT')
+        self.assertEqual(dbi.get_obs_status('1'), 'UV_POT')
         
 class TestTaskServer(unittest.TestCase):
     def setUp(self):
@@ -124,10 +130,8 @@ class TestTaskServer(unittest.TestCase):
         try:
             self.assertEqual(len(s.active_tasks), 0)
             self.assertEqual(self.var, 0)
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect(('localhost', 14204))
-            sock.send('test')
-            sock.close()
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.sendto('test', ('localhost', ts.STILL_PORT))
             while self.var != 1: time.sleep(.1)
             self.assertEqual(self.var, 1)
             self.assertEqual(len(s.active_tasks), 1)
@@ -136,7 +140,7 @@ class TestTaskServer(unittest.TestCase):
             thd.join()
     def test_dbi(self):
         self.var = 0
-        for f in self.dbi.files: self.dbi.files[f] = 'UV-POT'
+        for f in self.dbi.files: self.dbi.files[f] = 'UV_POT'
         class NullHandler(ts.TaskHandler):
             def handle(me):
                 task, obs, args = me.get_pkt()
@@ -148,10 +152,8 @@ class TestTaskServer(unittest.TestCase):
         thd = threading.Thread(target=s.start)
         thd.start()
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect(('localhost', 14204))
-            sock.send(ts.to_pkt('UV','1',[]))
-            sock.close()
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.sendto(ts.to_pkt('UV','1',[]), ('localhost', ts.STILL_PORT))
             while self.var != 1: time.sleep(.6)
             self.assertEqual(self.var, 1)
             self.assertEqual(self.dbi.get_obs_status('1'), 'UV')
