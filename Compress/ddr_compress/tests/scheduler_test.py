@@ -8,7 +8,7 @@ class FakeDataBaseInterface:
     def __init__(self, nfiles=10):
         self.files = {}
         for i in xrange(nfiles):
-            self.files[str(i)] = 'UV-POT'
+            self.files[str(i)] = 'UV_POT'
     def get_obs_status(self, filename):
         return self.files[filename]
     def get_obs_index(self, filename):
@@ -117,7 +117,7 @@ class TestScheduler(unittest.TestCase):
         dbi = FakeDataBaseInterface(3)
         a = sch.Action('1', 'UV', ['0','2'], 0)
         self.assertTrue(a.has_prerequisites(dbi))
-        for k in dbi.files: dbi.files[k] = 'CLEAN-UVC'
+        for k in dbi.files: dbi.files[k] = 'CLEAN_UVC'
         a = sch.Action('1', 'ACQUIRE-NEIGHBORS', ['0','2'], 0)
         self.assertTrue(a.has_prerequisites(dbi))
         dbi.files['0'] = 'UV'
