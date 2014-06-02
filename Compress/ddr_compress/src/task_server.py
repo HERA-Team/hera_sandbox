@@ -1,5 +1,6 @@
 import SocketServer
 import logging, threading, subprocess, time
+import socket
 
 logger = logging.getLogger('taskserver')
 
@@ -66,7 +67,7 @@ class TaskClient:
     def gen_args(self, task, obs):
         pot,path,basename = self.dbi.get_input_file(obs)
         outhost,outpath = self.dbi.get_output_path(obs)
-        stillhost,stillpath = self.dbi.get_still_host(obs), dbi.get_still_path(obs)
+        stillhost,stillpath = self.dbi.get_still_host(obs), self.dbi.get_still_path(obs)
         neighbors = [(self.dbi.get_still_host(n),self.dbi.get_still_path(n)) + self.dbi.get_input_file(n)
             for n in self.dbi.get_neighbors(obs) if not n is None]
         args = {
