@@ -1,22 +1,25 @@
 import unittest, random, threading, time
 import ddr_compress.scheduler as sch
-
+from ddr_compress.dbi import DataBaseInterface
+import numpy as n
 class NullAction(sch.Action):
     def _command(self): return
 
 
 class PopulatedDataBaseInterface(DataBaseInterface):
-    def __init__(self,nobs):
-        DataBaseInterface.__init__(test=True)
+    def __init__(self,nobs,npols,test=True):
+        DataBaseInterface.__init__(self,test=test)
         self.length = 10/60./24
         self.host = 'pot0'
-        self.Add_Fake_Observations(nobs)
-    def Add_Fake_Observations(self,nobs):
+        print "making fake db" 
+        self.Add_Fake_Observations(nobs,npols)
+    def Add_Fake_Observations(self,nobs,npols):
             #form up the observation list
             obslist =[]
             jds = n.arange(0,nobs)*self.length+2456446.1234
             pols = ['xx','yy','xy','yx']
-            for pol in pols:
+            for i,pol in enumerate(pols):
+                if i>=npols:continue
                 for jdi in xrange(len(jds)):
                     obslist.append({'julian_date':jds[jdi],
                                     'pol':pol,
@@ -83,87 +86,48 @@ class TestAction(unittest.TestCase):
         actions.sort(cmp=sch.action_cmp)
         for cnt,a in enumerate(actions):
             self.assertEqual(a.priority, cnt)
+#need Action's that update the db
+# scheduler reads the state, decides which action to do and launches. 
+#  the action sends a message to the taskserver to launch a task
+# the task runs a script and then updates the db
+
+# I need an Action that does not launch a task, it just sets the current state to Action.state
+# taskserver sets the PID
         
 class TestScheduler(unittest.TestCase):
     def setUp(self):
-        self.nfiles = 10
-        dbi = FakeDataBaseInterface(self.nfiles)
-        class FakeAction(sch.Action):
-            def _command(self):
-                dbi.files[self.filename] = self.task
-        self.FakeAction = FakeAction
-        self.dbi = dbi
-    def test_attributes(self):
-        s = sch.Scheduler(nstills=1, actions_per_still=1)
-        self.assertEqual(s.launched_actions.keys(), [0])
+        self.ntimes = 10
+        self.npols = 4
+        self.dbi = PopulatedDataBaseInterface(self.ntimes,self.npols,test=True)
+        self.files = self.dbi.list_observations()
+    def test_populated(self): #do a couple of quick checks on my db population
+        obsnums =  self.dbi.list_observations()
+        self.assertEqual(len(obsnums),self.ntimes*self.npols)
+        self.assertEqual(len(set(obsnums)),self.ntimes*self.npols)
     def test_get_new_active_obs(self):
-        s = sch.Scheduler(nstills=1, actions_per_still=1)
-        s.get_new_active_obs(self.dbi)
-        for i in xrange(self.nfiles):
-            self.assertTrue(str(i) in s.active_obs)
-    def test_get_action(self):
-        s = sch.Scheduler(nstills=1, actions_per_still=1)
-        f = '1'
-        a = s.get_action(self.dbi, f, ActionClass=self.FakeAction)
-        self.assertNotEqual(a, None) # everything is actionable in this test
-        self.assertEqual(a.task, sch.FILE_PROCESSING_LINKS[self.dbi.files[f]]) # check this links to the next step
-    def test_update_action_queue(self):
         s = sch.Scheduler(nstills=1, actions_per_still=1, blocksize=10)
         s.get_new_active_obs(self.dbi)
-        s.update_action_queue(self.dbi)
-        self.assertEqual(len(s.action_queue), self.nfiles)
-        self.assertGreater(s.action_queue[0].priority, s.action_queue[-1].priority)
-        for a in s.action_queue: self.assertEqual(a.task, 'UV')
-    def test_launch(self):
-        dbi = FakeDataBaseInterface(10)
-        s = sch.Scheduler(nstills=1, actions_per_still=1, blocksize=10)
-        s.get_new_active_obs(self.dbi)
-        s.update_action_queue(self.dbi)
-        a = s.pop_action_queue(0)
-        s.launch_action(a)
-        self.assertEqual(s.launched_actions[0], [a])
-        self.assertNotEqual(a.launch_time, -1)
-        self.assertTrue(s.already_launched(a))
-        s.update_action_queue(self.dbi)
-        self.assertEqual(len(s.action_queue), self.nfiles-1) # make sure this action is excluded from list next time
-    def test_clean_completed_actions(self):
-        dbi = FakeDataBaseInterface(10)
-        class FakeAction(sch.Action):
-            def _command(self):
-                dbi.files[self.obs] = self.task
-        s = sch.Scheduler(nstills=1, actions_per_still=1, blocksize=10)
-        s.get_new_active_obs(self.dbi)
-        s.update_action_queue(self.dbi, ActionClass=FakeAction)
-        a = s.pop_action_queue(0)
-        s.launch_action(a)
-        self.assertEqual(len(s.launched_actions[0]), 1)
-        s.clean_completed_actions(dbi)
-        self.assertEqual(len(s.launched_actions[0]), 0)
-    def test_prereqs(self):
-        dbi = FakeDataBaseInterface(3)
-        a = sch.Action('1', 'UV', ['0','2'], 0)
-        self.assertTrue(a.has_prerequisites(dbi))
-        for k in dbi.files: dbi.files[k] = 'CLEAN-UVC'
-        a = sch.Action('1', 'ACQUIRE-NEIGHBORS', ['0','2'], 0)
-        self.assertTrue(a.has_prerequisites(dbi))
-        dbi.files['0'] = 'UV'
-        self.assertFalse(a.has_prerequisites(dbi))
+        self.assertEqual(len(s.active_obs),self.ntimes*self.npols)
     def test_start(self):
-        dbi = FakeDataBaseInterface(10)
-        class FakeAction(sch.Action):
-            def _command(self):
-                dbi.files[self.obs] = self.task
+        class SuccessAction(sch.Action):
+            def _command(me):
+                me.dbi = self.dbi
+                me.dbi.set_obs_status(me.task)
+    
         def all_done():
-            for f in dbi.files:
-                if dbi.get_obs_status(f) != 'COMPLETE': return False
+            for f in self.files:
+                if self.dbi.get_obs_status(f) != 'COMPLETE': return False
         s = sch.Scheduler(nstills=1, actions_per_still=1, blocksize=10)
-        t = threading.Thread(target=s.start, args=(dbi, FakeAction))
+        t = threading.Thread(target=s.start, args=(self.dbi, SuccessAction))
         t.start()
         tstart = time.time()
         while not all_done() and time.time() - tstart < 1: time.sleep(.1)
         s.quit()
-        for f in dbi.files: self.assertEqual(dbi.get_obs_status(f), 'COMPLETE')
+        for f in self.files: self.assertEqual(self.dbi.get_obs_status(f), 'COMPLETE')
     def test_faulty(self):
+        """
+        todo
+        """
         for i in xrange(1):
             dbi = FakeDataBaseInterface(10)
             class FakeAction(sch.Action):
@@ -187,6 +151,34 @@ class TestScheduler(unittest.TestCase):
             #for f in dbi.files:
             #    print f, dbi.files[f]
             for f in dbi.files: self.assertEqual(dbi.get_obs_status(f), 'COMPLETE')
+    def test_clean_completed_actions(self):
+        """
+        todo
+        """
+        dbi = FakeDataBaseInterface(10)
+        class FakeAction(sch.Action):
+            def _command(self):
+                dbi.files[self.obs] = self.task
+        s = sch.Scheduler(nstills=1, actions_per_still=1, blocksize=10)
+        s.get_new_active_obs(self.dbi)
+        s.update_action_queue(self.dbi, ActionClass=FakeAction)
+        a = s.pop_action_queue(0)
+        s.launch_action(a)
+        self.assertEqual(len(s.launched_actions[0]), 1)
+        s.clean_completed_actions(dbi)
+        self.assertEqual(len(s.launched_actions[0]), 0)
+    def test_prereqs(self):
+        """
+        todo
+        """
+        dbi = FakeDataBaseInterface(3)
+        a = sch.Action('1', 'UV', ['0','2'], 0)
+        self.assertTrue(a.has_prerequisites(dbi))
+        for k in dbi.files: dbi.files[k] = 'CLEAN-UVC'
+        a = sch.Action('1', 'ACQUIRE-NEIGHBORS', ['0','2'], 0)
+        self.assertTrue(a.has_prerequisites(dbi))
+        dbi.files['0'] = 'UV'
+        self.assertFalse(a.has_prerequisites(dbi))
         
 
 if __name__ == '__main__':
