@@ -1,6 +1,7 @@
 import unittest, threading
 import subprocess, os, time, socket
 import ddr_compress.task_server as ts
+import ddr_compress.scheduler as sch
 
 class SleepTask(ts.Task):
     def _run(self):
@@ -13,8 +14,12 @@ class NullTask(ts.Task):
 class FakeDataBaseInterface:
     def __init__(self, nfiles=10):
         self.files = {}
+        self.pids = {}
+        self.stills = {}
         for i in xrange(nfiles):
-            self.files[str(i)] = 'UV-POT'
+            self.files[str(i)] = 'UV_POT'
+            self.pids[str(i)] = -1
+            self.stills[str(i)] = 'localhost'
     def get_obs_status(self, filename):
         return self.files[filename]
     def get_obs_index(self, filename):
@@ -31,6 +36,18 @@ class FakeDataBaseInterface:
         return (n1,n2)
     def set_obs_status(self, filename, status):
         self.files[filename] = status
+    def set_obs_pid(self, filename, pid):
+        self.pids[filename] = pid
+    def get_obs_pid(self, filename):
+        return self.pids[filename]
+    def get_input_file(self, obsnum):
+        return 'localhost','.','test.uv'
+    def get_output_path(self, obsnum):
+        return 'localhost','.'
+    def get_still_host(self, obsnum):
+        return self.stills[obsnum]
+    def get_still_path(self, obsnum):
+        return '.'
 
 class TestFunctions(unittest.TestCase):
     def test_pad(self):
@@ -83,7 +100,7 @@ class TestTask(unittest.TestCase):
         end_t = time.time()
         self.assertEqual(t.poll(), -9)
         self.assertLess(end_t-start_t, 100)
-        self.assertEqual(dbi.get_obs_status('1'), 'UV-POT')
+        self.assertEqual(dbi.get_obs_status('1'), 'UV_POT')
         
 class TestTaskServer(unittest.TestCase):
     def setUp(self):
@@ -124,10 +141,8 @@ class TestTaskServer(unittest.TestCase):
         try:
             self.assertEqual(len(s.active_tasks), 0)
             self.assertEqual(self.var, 0)
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect(('localhost', 14204))
-            sock.send('test')
-            sock.close()
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.sendto('test', ('localhost', ts.STILL_PORT))
             while self.var != 1: time.sleep(.1)
             self.assertEqual(self.var, 1)
             self.assertEqual(len(s.active_tasks), 1)
@@ -136,7 +151,7 @@ class TestTaskServer(unittest.TestCase):
             thd.join()
     def test_dbi(self):
         self.var = 0
-        for f in self.dbi.files: self.dbi.files[f] = 'UV-POT'
+        for f in self.dbi.files: self.dbi.files[f] = 'UV_POT'
         class NullHandler(ts.TaskHandler):
             def handle(me):
                 task, obs, args = me.get_pkt()
@@ -148,10 +163,8 @@ class TestTaskServer(unittest.TestCase):
         thd = threading.Thread(target=s.start)
         thd.start()
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect(('localhost', 14204))
-            sock.send(ts.to_pkt('UV','1',[]))
-            sock.close()
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.sendto(ts.to_pkt('UV','1',[]), ('localhost', ts.STILL_PORT))
             while self.var != 1: time.sleep(.6)
             self.assertEqual(self.var, 1)
             self.assertEqual(self.dbi.get_obs_status('1'), 'UV')
@@ -159,7 +172,56 @@ class TestTaskServer(unittest.TestCase):
             s.shutdown()
             thd.join()
                 
-
+class TestTaskClient(unittest.TestCase):
+    def setUp(self):
+        self.dbi = FakeDataBaseInterface()
+    def test_attributes(self):
+        tc = ts.TaskClient(self.dbi, 'localhost')
+        self.assertEqual(tc.host_port, ('localhost', ts.STILL_PORT))
+    def test__tx(self):
+        self.pkt = ''
+        class SleepHandler(ts.TaskHandler):
+            def handle(me):
+                self.pkt = me.get_pkt()
+        s = ts.TaskServer(self.dbi, handler=SleepHandler)
+        thd = threading.Thread(target=s.start)
+        thd.start()
+        try:
+            tc = ts.TaskClient(self.dbi, 'localhost')
+            tc._tx('UV', '1', ['a','b','c'])
+        finally:
+            s.shutdown()
+            thd.join()
+        self.assertEqual(self.pkt, ('UV','1',['a','b','c']))
+    def test_gen_args(self):
+        tc = ts.TaskClient(self.dbi, 'localhost')
+        for task in sch.FILE_PROCESSING_STAGES[1:-1]:
+            args = tc.gen_args(task, '2')
+            if task in ['UVCRE','UVCRRE']:
+                self.assertEqual(len(args), 3)
+            elif task in ['UV','UVC','CLEAN_UV','CLEAN_UVC','NPZ','UVCRR',
+                    'CLEAN_UVCRE','CLEAN_UVCRR','CLEAN_NPZ','CLEAN_UVCR',
+                    'CLEAN_UVCRRE']:
+                self.assertEqual(len(args), 1)
+            elif task in ['ACQUIRE_NEIGHBORS','CLEAN_NEIGHBORS']:
+                self.assertEqual(len(args), 0)
+            elif task in ['NPZ_POT','UVCRRE_POT']:
+                self.assertEqual(len(args), 2)
+    def test_tx(self):
+        self.pkt = ''
+        class SleepHandler(ts.TaskHandler):
+            def handle(me):
+                self.pkt = me.get_pkt()
+        s = ts.TaskServer(self.dbi, handler=SleepHandler)
+        thd = threading.Thread(target=s.start)
+        thd.start()
+        try:
+            tc = ts.TaskClient(self.dbi, 'localhost')
+            tc.tx('UV', '1')
+        finally:
+            s.shutdown()
+            thd.join()
+        self.assertEqual(self.pkt, ('UV','1',['localhost:./test.uv']))
         
 
 if __name__ == '__main__':

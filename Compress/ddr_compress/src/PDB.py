@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 """
 Creates a database object for parsing and descending into the paper database.
->>> from initDB import pdb
 
 DFM
 """
@@ -314,30 +313,45 @@ class db(object):
         cursor.execute(q)
         return unpack(cursor.fetchall())
 class StillDB(db):
-    def ordered_files(limit=1e5):
+    def add_observations():
+        """
+        bring over from the python script of the same name.
+        """
+    def get_obs_index(basefile):
+        """
+        input:basefile
+        return: unique index based on JD and Pol
+        """
+
+    def list_observations(limit=1e5):
         """
         Get a list of files  return type is list of (observations or files. not sure)
         note that filenames are defined as host:path pairs to convey the complete location coordinates.
+        inputs:none
+        outputs:all basefiles in db
         """
-        return self.query("""select filename from history where exit_status=0 and 
-                    basefile not in (select basefile from history where status='COMPLETE');""")
-    def is_completed(filename):
-        """
-        checks the execution status of the input filename. 
-        Note: filename is not a primary key. Here we return only the most recent status
-        returns True (completed = succesful or error) or False (execution ongoing)
-        """
-        #select count(*) from history where filename=filename;
-        #if count>0
-        status = self.query("""select exit_status from history where filename={filename} order by stoptime desc
-        count=1;""".format(filename=filename))[0][0]
-        if status is not None: return True
-        else: return False
-    def get_file_status(filename):
+        #return self.query("""select filename from history where exit_status=0 and 
+        #            basefile not in (select basefile from history where status='COMPLETE');""")
+        return self.query("""select basefiles from observations;""")
+#    def is_completed(basefile):
+#        """
+#        checks the execution status of the input filename. 
+#        Note: filename is not a primary key. Here we return only the most recent status
+#        returns True (completed = succesful or error) or False (execution ongoing)
+#        """
+#        #select count(*) from history where filename=filename;
+#        #if count>0
+#        status = self.query("""select exit_status from history where filename={filename} order by stoptime desc
+#        count=1;""".format(filename=filename))[0][0]
+#        if status is not None: return True
+#        else: return False
+    def get_obs_status(basefile):
         """
         returns the current status of the requested file.  NULL indicates currently running, None indicates that file
         does not exist and is not currently scheduled
-        input: full filename "host:/path/to/file"
+        input: full basefile "host:/path/to/file"
+        return: valid and most recently complete FILE_PROCESSING_STAGE
+        TODO: update for new return. no more NULL
         """
         #first check if the filename exists
         if self.count("history","filename",filename)==0:
@@ -346,10 +360,13 @@ class StillDB(db):
         status = self.get('exit_status','history','status',filename)[0][0]
         return status
 
-    def get_neighbors(filename):
+    def get_neighbors(basefile):
         """
         returns neighbors of the input filename 
-        input: full filename "host:/path/to/file"
+        #input: full filename "host:/path/to/file"
+        input: basefile
+        return: neighboring basefiles. Always return two items.
+        TODO: update for new i/o
         """
         host=filename.split(':')[0]
         #select neighbor observations
@@ -360,7 +377,7 @@ class StillDB(db):
         basefile_hi =   self.get('basefile','observations','JD',jd_hi)[0][0]
         
         #select neighbor files (if available)
-        q="""select outfile from history where exit_status=0 and (basefile='{basefile_hi}' or basefile='{basefile_lo}')
+        q="""select basefile from history where (basefile='{basefile_hi}' or basefile='{basefile_lo}')
         and host={host}';""".format(
         basefile_hi=basefile_hi,
         basefile_lo=basefile_lo,
@@ -424,7 +441,7 @@ class StillDB(db):
         """
         hostname = filename.split(':')[0]
         
-        if not pdb.has_record('hosts', hostname):
+        if not self.has_record('hosts', hostname):
             print 'host not in pdb.hosts'
             sys.exit(1)
         JD = file2jd(filename)
