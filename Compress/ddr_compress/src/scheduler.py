@@ -170,7 +170,7 @@ class Scheduler:
     def determine_priority(self, action, dbi):
         '''Assign a priority to an action based on its status and the time
         order of the obs to which this action is attached.'''
-        return dbi.get_obs_index(action.obs) # prioritize any possible action on the newest obs
+        return action.obs#dbi.get_obs_index(action.obs) # prioritize any possible action on the newest obs
         # XXX might want to prioritize finishing a obs already started before
         # moving to the latest one (at least, up to a point) to avoid a
         # build up of partial obs.  But if you prioritize obs already
@@ -178,6 +178,6 @@ class Scheduler:
         # partially completed tasks that are failing for some reason
     def obs_to_still(self, f, dbi):
         '''Return the still that a obs should be transferred to.'''
-        cnt = dbi.get_obs_index(f)
+        cnt = f#dbi.get_obs_index(f)
         return (cnt / self.blocksize) % self.nstills
 
