@@ -17,6 +17,7 @@ FILE_PROCESSING_PREREQS = { # link task to prerequisite state of neighbors, key 
 
 class Action:
     '''An Action performs a task on an observation, and is scheduled by a Scheduler.'''
+    # XXX should put in neighbor status at construction
     def __init__(self, f, task, neighbors, still, timeout=3600.):
         '''f:obs, task:target status, neighbor:adjacent obs, 
         still:still action will run on.'''
@@ -164,6 +165,7 @@ class Scheduler:
         neighbors = dbi.get_neighbors(f)
         still = self.obs_to_still(f, dbi) 
         if ActionClass is None: ActionClass = Action
+        # XXX here is where neighbor status should be passed in
         a = ActionClass(f, next_step, neighbors, still)
         if a.has_prerequisites(dbi): return a
         else: return None

@@ -8,25 +8,22 @@ class FakeDataBaseInterface:
     def __init__(self, nfiles=10):
         self.files = {}
         for i in xrange(nfiles):
-            self.files[str(i)] = 'UV_POT'
-    def get_obs_status(self, filename):
-        return self.files[filename]
-    def get_obs_index(self, filename):
-        return int(filename)
+            self.files[i] = 'UV_POT'
+    def get_obs_status(self, obsnum):
+        return self.files[obsnum]
     def list_observations(self):
         files = self.files.keys()
         files.sort()
         return files
-    def get_neighbors(self, filename):
-        n = int(filename)
-        n1,n2 = str(n-1), str(n+1)
+    def get_neighbors(self, obsnum):
+        n1,n2 = obsnum-1, obsnum+1
         if not self.files.has_key(n1): n1 = None
         if not self.files.has_key(n2): n2 = None
         return (n1,n2)
 
 class TestAction(unittest.TestCase):
     def setUp(self):
-        self.files = ['1','2','3']
+        self.files = [1,2,3]
         self.still = 0
         self.task = 'UVC'
     def test_attributes(self):
@@ -74,10 +71,10 @@ class TestScheduler(unittest.TestCase):
         s = sch.Scheduler(nstills=1, actions_per_still=1)
         s.get_new_active_obs(self.dbi)
         for i in xrange(self.nfiles):
-            self.assertTrue(str(i) in s.active_obs)
+            self.assertTrue(i in s.active_obs)
     def test_get_action(self):
         s = sch.Scheduler(nstills=1, actions_per_still=1)
-        f = '1'
+        f = 1
         a = s.get_action(self.dbi, f, ActionClass=self.FakeAction)
         self.assertNotEqual(a, None) # everything is actionable in this test
         self.assertEqual(a.task, sch.FILE_PROCESSING_LINKS[self.dbi.files[f]]) # check this links to the next step
@@ -115,12 +112,12 @@ class TestScheduler(unittest.TestCase):
         self.assertEqual(len(s.launched_actions[0]), 0)
     def test_prereqs(self):
         dbi = FakeDataBaseInterface(3)
-        a = sch.Action('1', 'UV', ['0','2'], 0)
+        a = sch.Action(1, 'UV', ['0','2'], 0)
         self.assertTrue(a.has_prerequisites(dbi))
         for k in dbi.files: dbi.files[k] = 'CLEAN_UVC'
-        a = sch.Action('1', 'ACQUIRE-NEIGHBORS', ['0','2'], 0)
+        a = sch.Action(1, 'ACQUIRE-NEIGHBORS', [0,2], 0)
         self.assertTrue(a.has_prerequisites(dbi))
-        dbi.files['0'] = 'UV'
+        dbi.files[0] = 'UV'
         self.assertFalse(a.has_prerequisites(dbi))
     def test_start(self):
         dbi = FakeDataBaseInterface(10)
