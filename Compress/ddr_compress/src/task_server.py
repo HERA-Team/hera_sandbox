@@ -71,7 +71,7 @@ class TaskClient:
         neighbors = [(self.dbi.get_still_host(n),self.dbi.get_still_path(n)) + self.dbi.get_input_file(n)
             for n in self.dbi.get_neighbors(obs) if not n is None]
         args = {
-            'UV': ['%s:%s/%s' % (pot,path,basename)],
+            'UV': [basename, '%s:%s/%s' % (pot,path,basename)],
             'UVC': [basename],
             'CLEAN_UV': [basename],
             'UVCR': [basename+'c'],
@@ -80,7 +80,7 @@ class TaskClient:
             'UVCRE': [neighbors[0][-1]+'cR', basename+'cR', neighbors[1][-1]+'cR'],
             'NPZ': [basename+'cRE'],
             'UVCRR': [basename+'cR'],
-            'NPZ_POT': [basename+'cRE.npz', '%s/%s' % (pot,path)],
+            'NPZ_POT': [basename+'cRE.npz', '%s:%s' % (outhost,outpath)],
             'CLEAN_UVCRE': [basename+'cRE'],
             'UVCRRE': [neighbors[0][-1]+'cR', basename+'cRR', neighbors[1][-1]+'cR'],
             'CLEAN_UVCRR': [basename+'cRR'],
