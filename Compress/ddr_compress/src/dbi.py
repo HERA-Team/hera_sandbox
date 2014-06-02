@@ -2,6 +2,7 @@ from sqlalchemy import Table, Column, String, Integer, ForeignKey, Float,func,Da
 from sqlalchemy.orm import relationship, backref,sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool
 from ddr_compress.scheduler import FILE_PROCESSING_STAGES
 import aipy as a, os, numpy as n,sys
 #Based on example here: http://www.pythoncentral.io/overview-sqlalchemys-expression-language-orm-queries/
@@ -19,7 +20,7 @@ dbinfo = {'username':'obs',
 #   Useful helper functions 
 #
 #####
-def jdpol2obsnum(jd,pol,djd): #TODO would really like this to increment by 1
+def jdpol2obsnum(jd,pol,djd): 
     """
     input: julian date float, pol string. and length of obs in fraction of julian date
     output: a unique index
@@ -98,7 +99,7 @@ class File(Base):
 
 
     
-class DataBaseInterface(object):#todo change to camel case
+class DataBaseInterface(object):
     def __init__(self,test=False):
         """
         Connect to the database and initiate a session creator.
@@ -106,7 +107,9 @@ class DataBaseInterface(object):#todo change to camel case
         create a FALSE database
         """
         if test:
-            self.engine = create_engine('sqlite:///')
+            self.engine = create_engine('sqlite:///',
+                                        connect_args={'check_same_thread':False},
+                                        poolclass=StaticPool)
             Base.metadata.bind = self.engine
             Base.metadata.create_all()
         else:
@@ -116,8 +119,9 @@ class DataBaseInterface(object):#todo change to camel case
         self.Session = sessionmaker(bind=self.engine)
     def list_observations(self):
         s = self.Session()
-        observations = s.query(Observation)
-        return [obs.obsnum for obs in observations]
+        obsnums = [obs.obsnum for obs in s.query(Observation)]
+        s.close()
+        return obsnums
     def get_obs(self,obsnum):
         """
         retrieves an observation object.  
@@ -150,7 +154,7 @@ class DataBaseInterface(object):#todo change to camel case
         Base.metadata.create_all()
 
 
-    def add_observation(self,julian_date,pol,filename,host,length=10/60./24,status='UV-POT'):
+    def add_observation(self,julian_date,pol,filename,host,length=10/60./24,status='UV_POT'):
         """
         create a new observation entry.
         returns: obsnum  (see jdpol2obsnum)
@@ -180,7 +184,7 @@ class DataBaseInterface(object):#todo change to camel case
         s.close() #close the session
         return filenum
 
-    def add_observations(self,obslist,status='UV-POT'):
+    def add_observations(self,obslist,status='UV_POT'):
         """
         Add a whole set of observations.
         Handles linking neighboring observations.
@@ -339,11 +343,8 @@ class DataBaseInterface(object):#todo change to camel case
         """
         retrieve the status of an observation
         """
-        s = self.Session()
-        OBS = s.query(Observation).filter(obsnum==obsnum).one()
+        OBS = self.get_obs(obsnum)
         status = OBS.status
-        s.commit()
-        s.close()
         return status
 
 
