@@ -165,11 +165,12 @@ for lst in jds.keys():
     jds[lst] = n.array(jds[lst])
     files[lst] = n.array(files[lst])
     jd_min = n.min(jds[lst])
-    #if jd_min < jd_start:
-    if lst < lst_start:
+    if jd_min < jd_start:
+    #if lst < lst_start:
         lst_start, jd_start = lst, jd_min
 djd_dlst = a.const.sidereal_day / (2*n.pi) * a.ephem.second
-jd_start = jd_start + (lst_start - lsts[0]) * djd_dlst
+#jd_start = jd_start + (lst_start - lsts[0]) * djd_dlst
+jd_start = jd_start + (lsts[0] - lst_start) * djd_dlst #ARP fix
 lst_start = lsts[0]
 
 # Initialize the output file
