@@ -2,17 +2,17 @@ import time, logging
 
 logger = logging.getLogger('scheduler')
 
-FILE_PROCESSING_STAGES = ['NEW','UV-POT', 'UV', 'UVC', 'CLEAN-UV', 'UVCR', 'CLEAN-UVC',
-    'ACQUIRE-NEIGHBORS', 'UVCRE', 'NPZ', 'UVCRR', 'NPZ-POT', 'CLEAN-UVCRE', 'UVCRRE',
-    'CLEAN-UVCRR', 'CLEAN-NPZ', 'CLEAN-NEIGHBORS', 'UVCRRE-POT', 'CLEAN-UVCR', 'COMPLETE']
+FILE_PROCESSING_STAGES = ['NEW','UV_POT', 'UV', 'UVC', 'CLEAN_UV', 'UVCR', 'CLEAN_UVC',
+    'ACQUIRE_NEIGHBORS', 'UVCRE', 'NPZ', 'UVCRR', 'NPZ_POT', 'CLEAN_UVCRE', 'UVCRRE',
+    'CLEAN_UVCRR', 'CLEAN_NPZ', 'CLEAN_NEIGHBORS', 'UVCRRE_POT', 'CLEAN_UVCR', 'CLEAN_UVCRRE', 'COMPLETE']
 FILE_PROCESSING_LINKS = {}
 for i,k in enumerate(FILE_PROCESSING_STAGES[:-1]):
     FILE_PROCESSING_LINKS[k] = FILE_PROCESSING_STAGES[i+1]
 FILE_PROCESSING_LINKS['COMPLETE'] = None
 
 FILE_PROCESSING_PREREQS = { # link task to prerequisite state of neighbors, key not present assumes no prereqs
-    'ACQUIRE-NEIGHBORS': (FILE_PROCESSING_STAGES.index('UVCR'), FILE_PROCESSING_STAGES.index('CLEAN-UVCR')),
-    'CLEAN-UVCR': (FILE_PROCESSING_STAGES.index('UVCRRE'),None),
+    'ACQUIRE-NEIGHBORS': (FILE_PROCESSING_STAGES.index('UVCR'), FILE_PROCESSING_STAGES.index('CLEAN_UVCR')),
+    'CLEAN_UVCR': (FILE_PROCESSING_STAGES.index('UVCRRE'),None),
 }
 
 class Action:
@@ -158,7 +158,7 @@ class Scheduler:
         launched.
         ActionClass: a subclass of Action, for customizing actions.  
             None defaults to the standard Action'''
-        status = dbi.get_obs_status(f) # XXX change this to just get an Observation from dbi, which is stored in Action
+        status = dbi.get_obs_status(f) 
         next_step = FILE_PROCESSING_LINKS[status]
         if next_step is None: return None # obs is complete
         neighbors = dbi.get_neighbors(f)
@@ -181,7 +181,3 @@ class Scheduler:
         cnt = dbi.get_obs_index(f)
         return (cnt / self.blocksize) % self.nstills
 
-        
-                    
-                    
-                    
