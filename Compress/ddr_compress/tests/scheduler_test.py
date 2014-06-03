@@ -36,11 +36,11 @@ class TestAction(unittest.TestCase):
         a.set_priority(5)
         self.assertEqual(a.priority, 5)
     def test_prereqs(self):
-        a = sch.Action(self.files[1], self.task, [self.files[0],self.files[2]], self.still)
-        self.assertTrue(a.has_prerequisites(None))
+        a = sch.Action(self.files[1], self.task, ['UV',None], self.still)
+        self.assertTrue(a.has_prerequisites())
         # XXX more here
     def test_timeout(self):
-        a = NullAction(self.files[1], self.task, [self.files[0],self.files[2]], self.still, timeout=100)
+        a = NullAction(self.files[1], self.task, ['UV','UV'], self.still, timeout=100)
         self.assertRaises(AssertionError, a.timed_out)
         t0 = 1000
         a.launch(launch_time=t0)
@@ -112,13 +112,12 @@ class TestScheduler(unittest.TestCase):
         self.assertEqual(len(s.launched_actions[0]), 0)
     def test_prereqs(self):
         dbi = FakeDataBaseInterface(3)
-        a = sch.Action(1, 'UV', ['0','2'], 0)
-        self.assertTrue(a.has_prerequisites(dbi))
-        for k in dbi.files: dbi.files[k] = 'CLEAN_UVC'
-        a = sch.Action(1, 'ACQUIRE-NEIGHBORS', [0,2], 0)
-        self.assertTrue(a.has_prerequisites(dbi))
-        dbi.files[0] = 'UV'
-        self.assertFalse(a.has_prerequisites(dbi))
+        a = sch.Action(1, 'UV', ['UV','UV'], 0)
+        self.assertTrue(a.has_prerequisites())
+        a = sch.Action(1, 'ACQUIRE-NEIGHBORS', ['UVCR','UVCR'], 0)
+        self.assertTrue(a.has_prerequisites())
+        a = sch.Action(1, 'ACQUIRE-NEIGHBORS', ['UVCR','UV'], 0)
+        self.assertFalse(a.has_prerequisites())
     def test_start(self):
         dbi = FakeDataBaseInterface(10)
         class FakeAction(sch.Action):

@@ -17,13 +17,13 @@ FILE_PROCESSING_PREREQS = { # link task to prerequisite state of neighbors, key 
 
 class Action:
     '''An Action performs a task on an observation, and is scheduled by a Scheduler.'''
-    # XXX should put in neighbor status at construction
-    def __init__(self, f, task, neighbors, still, timeout=3600.):
-        '''f:obs, task:target status, neighbor:adjacent obs, 
+    def __init__(self, f, task, neighbor_status, still, timeout=3600.):
+        '''f:obs, task:target status, 
+        neighbor_status:status of adjacent obs (do not enter a status for a non-existent neighbor
         still:still action will run on.'''
         self.obs = f
         self.task = task
-        self.neighbors = neighbors
+        self.neighbor_status = neighbor_status
         self.still = still
         self.priority = 0
         self.launch_time = -1
@@ -31,16 +31,14 @@ class Action:
     def set_priority(self, p):
         '''Assign a priority to this action.  Highest priorities are scheduled first.'''
         self.priority = p
-    def has_prerequisites(self, dbi):
+    def has_prerequisites(self):
         '''For the given task, check that neighbors are in prerequisite state.
         We don't check that the center obs is in the prerequisite state, 
         since this action could not have been generated otherwise.'''
         try: index1,index2 = FILE_PROCESSING_PREREQS[self.task]
         except(KeyError): # this task has no prereqs
             return True
-        for n in self.neighbors:
-            if n is None: continue # if no neighbor exists, don't wait on it
-            status = dbi.get_obs_status(n)
+        for status in self.neighbor_status:
             if status is None: # indicates that obs hasn't been entered into DB yet
                 return False
             index = FILE_PROCESSING_STAGES.index(status)
@@ -163,11 +161,11 @@ class Scheduler:
         next_step = FILE_PROCESSING_LINKS[status]
         if next_step is None: return None # obs is complete
         neighbors = dbi.get_neighbors(f)
+        neighbor_status = [dbi.get_obs_status(n) for n in neighbors if not n is None]
         still = self.obs_to_still(f, dbi) 
         if ActionClass is None: ActionClass = Action
-        # XXX here is where neighbor status should be passed in
-        a = ActionClass(f, next_step, neighbors, still)
-        if a.has_prerequisites(dbi): return a
+        a = ActionClass(f, next_step, neighbor_status, still)
+        if a.has_prerequisites(): return a
         else: return None
     def determine_priority(self, action, dbi):
         '''Assign a priority to an action based on its status and the time
