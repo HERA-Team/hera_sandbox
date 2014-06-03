@@ -104,7 +104,7 @@ class TestTaskServer(unittest.TestCase):
         self.dbi = FakeDataBaseInterface()
     def test_basics(self):
         s = ts.TaskServer(self.dbi)
-        t = SleepTask('UV','1',[],self.dbi)
+        t = SleepTask('UV',1,[],self.dbi)
         s.append_task(t)
         self.assertEqual(len(s.active_tasks), 1)
         t.run()

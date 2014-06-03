@@ -39,6 +39,7 @@ class Task:
         self.process = self._run()
         self.record_launch()
     def _run(self):
+        logger.info('Task._run: (%s,%d) %s' % (self.task,self.obs,' '.join(['do_%s.sh' % self.task] + self.args)))
         return subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd) # XXX d something with stdout stderr
     def poll(self):
         return self.process.poll()
@@ -70,6 +71,14 @@ class TaskClient:
         stillhost,stillpath = self.dbi.get_still_host(obs), self.dbi.get_still_path(obs)
         neighbors = [(self.dbi.get_still_host(n),self.dbi.get_still_path(n)) + self.dbi.get_input_file(n)
             for n in self.dbi.get_neighbors(obs) if not n is None]
+        neighbors_base = list(self.dbi.get_neighbors(obs))
+        if not neighbors_base[0] is None: neighbors_base[0] = self.dbi.get_input_file(neighbors_base[0])[-1]
+        if not neighbors_base[1] is None: neighbors_base[1] = self.dbi.get_input_file(neighbors_base[1])[-1]
+        def interleave(filename, appendage='cR'):
+            rv = [filename]
+            if not neighbors_base[0] is None: rv = [neighbors_base[0]+appendage] + rv
+            if not neighbors_base[1] is None: rv = rv + [neighbors_base[1]+appendage]
+            return rv
         args = {
             'UV': [basename, '%s:%s/%s' % (pot,path,basename)],
             'UVC': [basename],
@@ -77,18 +86,19 @@ class TaskClient:
             'UVCR': [basename+'c'],
             'CLEAN_UVC': [basename+'c'],
             'ACQUIRE_NEIGHBORS': ['%s:%s/%s' % (n[0], n[1], n[-1]+'cR') for n in neighbors if n[0] != stillhost],
-            'UVCRE': [neighbors[0][-1]+'cR', basename+'cR', neighbors[1][-1]+'cR'],
+            'UVCRE': interleave(basename+'cR'),
             'NPZ': [basename+'cRE'],
             'UVCRR': [basename+'cR'],
             'NPZ_POT': [basename+'cRE.npz', '%s:%s' % (outhost,outpath)],
             'CLEAN_UVCRE': [basename+'cRE'],
-            'UVCRRE': [neighbors[0][-1]+'cR', basename+'cRR', neighbors[1][-1]+'cR'],
+            'UVCRRE': interleave(basename+'cRR'),
             'CLEAN_UVCRR': [basename+'cRR'],
             'CLEAN_NPZ': [basename+'cRE.npz'],
             'CLEAN_NEIGHBORS': [n[-1]+'cR' for n in neighbors if n[0] != stillhost],
             'UVCRRE_POT': [basename+'cRRE', '%s:%s' % (outhost,outpath)],
             'CLEAN_UVCR': [basename+'cR'],
             'CLEAN_UVCRRE': [basename+'cRRE'],
+            'COMPLETE': [],
         }
         return args[task]
     def tx(self, task, obs):
@@ -97,11 +107,23 @@ class TaskClient:
     def tx_kill(self, obs):
         self._tx('KILL', obs, [self.dbi.get_obs_pid(obs)])
 
+# XXX consider moving this class to a separate file
+import scheduler
+class Action(scheduler.Action):
+    def __init__(self, obs, task, neighbor_status, still, task_client, timeout=3600.):
+        scheduler.Action.__init__(self, obs, task, neighbor_status, still, timeout=timeout)
+        self.task_client = task_client
+    def _command(self):
+        logger.debug('Action: task_client(%s,%d)' % (self.task, self.obs))
+        self.task_client.tx(self.task, self.obs)
+
 class TaskHandler(SocketServer.BaseRequestHandler):
     def setup(self):
-        logger.info('Connect: %s\n' % str(self.client_address))
+        #logger.debug('Connect: %s\n' % str(self.client_address))
+        return
     def finish(self):
-        logger.info('Disconnect: %s\n' % str(self.client_address))
+        #logger.debug('Disconnect: %s\n' % str(self.client_address))
+        return
     def get_pkt(self):
         pkt = self.request[0]
         task, obs, args = from_pkt(pkt)
@@ -110,6 +132,9 @@ class TaskHandler(SocketServer.BaseRequestHandler):
         task, obs, args = self.get_pkt()
         if task == 'KILL':
             self.server.kill(args[0])
+            return
+        elif task == 'COMPLETE':
+            self.server.dbi.set_obs_status(obs, task)
             return
         t = Task(task, obs, args, self.server.dbi, self.server.data_dir)
         self.server.append_task(t)
