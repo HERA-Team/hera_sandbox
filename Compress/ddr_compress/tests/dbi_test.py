@@ -124,8 +124,10 @@ class TestDBI(unittest.TestCase):
                     obslist[-1]['neighbor_low'] = jds[jdi-1]
                 if jdi<len(jds[:-1]):
                     obslist[-1]['neighbor_high'] = jds[jdi+1]
-        obsnums = self.dbi.add_observations(obslist)   
+        obsnums = self.dbi.add_observations(obslist)  
+        tic = time.time()
         observations = self.dbi.list_observations()
+        print "time to execute list_observations",time.time()-tic,'s'
         self.assertEqual(n.sum(n.array(observations)-n.array(obsnums)),0)
 
 
@@ -152,7 +154,9 @@ class TestDBI(unittest.TestCase):
         obsnums.sort()
         i = 5# I have ten time stamps. this guys should have plenty of neighbors
         mytestobsnum = obsnums[i] #choose a middle obs
+        tic = time.time()
         neighbors = self.dbi.get_neighbors(mytestobsnum)
+        print "time to execute get_neighbors",time.time()-tic,'s'
         self.assertEqual(len(neighbors),2)
     
         self.assertEqual(neighbors[0],obsnums[i-1])#low
@@ -181,11 +185,21 @@ class TestDBI(unittest.TestCase):
         # then set the status to something else
         self.dbi.set_obs_status(obsnum,'UV')
         #then get the status back
+        tic = time.time()
         status = self.dbi.get_obs_status(obsnum)
+        print "time to execute get_obs_status",time.time()-tic,'s'
         self.assertEqual(status,'UV')
 
-
-
+    def test_time_transaction(self):
+        """
+        """
+        #first create an observation in the first place
+        obsnum = self.dbi.add_observation(
+                    self.jd,self.pol,self.filename,self.host)
+        # then set the status to something else
+        tic = time.time()
+        self.dbi.set_obs_status(obsnum,'UV')
+        print "time to execute set_obs_status",time.time() - tic,'s'
     def test_get_input_file(self):
         """
         create an observation

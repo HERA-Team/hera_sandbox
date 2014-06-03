@@ -92,7 +92,8 @@ class Scheduler:
         dbi: DataBaseInterface'''
         logger.info('Beginning scheduler loop')
         self._run = True
-        while self._run: 
+        while self._run:
+            tic = time.time()
             self.get_new_active_obs(dbi)
             self.update_action_queue(dbi, ActionClass, action_args)
             # Launch actions that can be scheduled
@@ -104,6 +105,7 @@ class Scheduler:
                         break # move on to next still
                     self.launch_action(a)
             self.clean_completed_actions(dbi)
+            time.sleep(.1)
     def pop_action_queue(self, still):
         '''Return highest priority action for the given still.'''
         for i in xrange(len(self.action_queue)):
