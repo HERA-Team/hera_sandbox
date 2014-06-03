@@ -2,7 +2,7 @@ import time, logging
 
 logger = logging.getLogger('scheduler')
 
-# XXX don't understand why NEW was added to stages
+# NEW is for db use internally.  Scheduler only ever gets UV_POT and onward from data base
 FILE_PROCESSING_STAGES = ['NEW','UV_POT', 'UV', 'UVC', 'CLEAN_UV', 'UVCR', 'CLEAN_UVC',
     'ACQUIRE_NEIGHBORS', 'UVCRE', 'NPZ', 'UVCRR', 'NPZ_POT', 'CLEAN_UVCRE', 'UVCRRE',
     'CLEAN_UVCRR', 'CLEAN_NPZ', 'CLEAN_NEIGHBORS', 'UVCRRE_POT', 'CLEAN_UVCRRE', 'CLEAN_UVCR', 'COMPLETE']
