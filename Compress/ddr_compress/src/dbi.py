@@ -2,7 +2,7 @@ from sqlalchemy import Table, Column, String, Integer, ForeignKey, Float,func,Da
 from sqlalchemy.orm import relationship, backref,sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import StaticPool,QueuePool
 from ddr_compress.scheduler import FILE_PROCESSING_STAGES
 import aipy as a, os, numpy as n,sys
 #Based on example here: http://www.pythoncentral.io/overview-sqlalchemys-expression-language-orm-queries/
@@ -73,7 +73,7 @@ class Observation(Base):
     pol = Column(String)
     obsnum = Column(BigInteger,default=updateobsnum,primary_key=True)
     status = Column(Enum(*FILE_PROCESSING_STAGES,name='FILE_PROCESSING_STAGES'))
-    last_update = Column(DateTime,server_default=func.now(),onupdate=func.current_timestamp())
+    #last_update = Column(DateTime,server_default=func.now(),onupdate=func.current_timestamp())
     length = Column(Float) #length of observation in fraction of a day
     currentpid = Column(Integer)
     stillhost = Column(String)
@@ -324,19 +324,16 @@ class DataBaseInterface(object):
         return host,path
 
 
-    def set_obs_status(self,obsnum,status,pid=None):
+    def set_obs_status(self,obsnum,status):
         """
         change the satus of obsnum to status
         input: obsnum (key into the observation table, returned by add_observation and others)
         """
-        s = self.Session()
-        OBS = s.query(Observation).filter(obsnum==obsnum).one()
+        OBS = self.get_obs(obsnum)
         OBS.status = status
-        if not pid is None:
-            OBS.currentpid = pid
-        s.commit()
-        s.close()
+        self.update_obs(OBS)
         return True
+
 
 
     def get_obs_status(self,obsnum): 
