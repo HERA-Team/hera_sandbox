@@ -117,6 +117,14 @@ class Action(scheduler.Action):
         logger.debug('Action: task_client(%s,%d)' % (self.task, self.obs))
         self.task_client.tx(self.task, self.obs)
 
+class Scheduler(scheduler.Scheduler):
+    def __init__(self, task_client, nstills=4, actions_per_still=8, blocksize=10):
+        scheduler.Scheduler.__init__(self, nstills=nstills, actions_per_still=actions_per_still, blocksize=blocksize)
+        self.task_client = task_client
+    def kill_action(self, a):
+        scheduler.Scheduler.kill_action(a)
+        self.task_client.tx_kill(a.obs)
+
 class TaskHandler(SocketServer.BaseRequestHandler):
     def setup(self):
         #logger.debug('Connect: %s\n' % str(self.client_address))
@@ -130,6 +138,7 @@ class TaskHandler(SocketServer.BaseRequestHandler):
         return task, obs, args
     def handle(self):
         task, obs, args = self.get_pkt()
+        logger.info('TaskHandler.handle: received (%s,%d) with args=%s' % (task,obs,' '.join(args)))
         if task == 'KILL':
             self.server.kill(args[0])
             return

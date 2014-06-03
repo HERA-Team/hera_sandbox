@@ -48,7 +48,7 @@ class TestTaskScheduler(unittest.TestCase):
         subprocess.call(['rm', '-rf','test*.uv*'], shell=True)
     def test_end_to_end(self):
         tc = ts.TaskClient(self.dbi, 'localhost')
-        s = sch.Scheduler(nstills=1, actions_per_still=1)
+        s = ts.Scheduler(tc, nstills=1, actions_per_still=1)
         thd = threading.Thread(target=s.start, args=(self.dbi,), kwargs={'ActionClass':ts.Action, 'action_args':(tc,)})
         thd.start()
         while self.dbi.get_obs_status(1) != 'COMPLETE': time.sleep(.1)
@@ -56,6 +56,7 @@ class TestTaskScheduler(unittest.TestCase):
         thd.join()
         for i in self.dbi.files:
             self.assertEqual(self.dbi.get_obs_status(i), 'COMPLETE')
+    # XXX need to test killing
 
 if __name__ == '__main__':
     unittest.main()
