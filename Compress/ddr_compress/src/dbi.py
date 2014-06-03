@@ -111,7 +111,7 @@ class DataBaseInterface(object):
                                         connect_args={'check_same_thread':False},
                                         poolclass=StaticPool)
             Base.metadata.bind = self.engine
-            Base.metadata.create_all()
+            Base.metadata.create_all() #tod use create_db()
         else:
             self.engine = create_engine(
                     'mysql://{username}:{password}@{hostip}:{port}/{dbname}'.format(
@@ -119,7 +119,8 @@ class DataBaseInterface(object):
         self.Session = sessionmaker(bind=self.engine)
     def list_observations(self):
         s = self.Session()
-        obsnums = [obs.obsnum for obs in s.query(Observation)]
+         #todo tests
+        obsnums = [obs.obsnum for obs in s.query(Observation).filter(Observation.status!='NEW')]
         s.close()
         return obsnums
     def get_obs(self,obsnum):
@@ -234,7 +235,7 @@ class DataBaseInterface(object):
         return: list of two obsnums
         If no neighbor, returns None the list entry
 
-        Todo: test
+        Todo: test. no close!!
         """
         s = self.Session()
         OBS = s.query(Observation).filter(Observation.obsnum==obsnum).one() 
@@ -242,6 +243,7 @@ class DataBaseInterface(object):
         except(IndexError):high = None
         try: low = OBS.low_neighbors[0].obsnum
         except(IndexError):low=None
+        s.close()
         return (low,high)
 
             
