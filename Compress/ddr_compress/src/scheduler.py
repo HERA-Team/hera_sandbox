@@ -114,6 +114,9 @@ class Scheduler:
         '''Launch the specified Action and record its launch for tracking later.'''
         self.launched_actions[a.still].append(a)
         a.launch()
+    def kill_action(self, a):
+        '''Subclass this to actually kill the process.'''
+        logger.info('Scheduler.kill_action: called on (%s,%d)' % (a.task, a.obs))
     def clean_completed_actions(self, dbi):
         '''Check launched actions for completion or timeout.'''
         for still in self.launched_actions:
@@ -125,8 +128,8 @@ class Scheduler:
                     # not adding to updated_actions removes this from list of launched actions
                 elif a.timed_out(): 
                     logger.info('Task %s for obs %s on still %d TIMED OUT.' % (a.task, a.obs, still))
+                    self.kill_action(a)
                     # XXX make db entry for documentation
-                    # XXX actually kill the process if alive
                 else: # still active
                     updated_actions.append(a)
             self.launched_actions[still] = updated_actions
