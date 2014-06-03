@@ -108,13 +108,6 @@ files = {}
 for filename in nargs:
     uv = a.miriad.UV(filename)
     print 'Reading', filename
-    # Determine if file is lst binned already
-    if 'cnt' in uv.vars(): 
-        lstbinned = True
-        print 'Input file is lst binned'
-    else: 
-        lstbinned = False
-        print 'Input file is from one observation'
     sys.stdout.flush()
     a.scripting.uv_selector(uv, opts.ant, opts.pol)
     # Gather data from file
@@ -139,9 +132,10 @@ for filename in nargs:
         # If input file already lstbinned, weight integrations and place in bin
         # Otherwise, place in bin without weights
         if not dat[lst].has_key(blp): dat[lst][blp] = {}
-        if lstbinned:
+        if 'cnt' in uv.vars():
             dat[lst][blp]['cnt'] = dat[lst][blp].get('cnt',[]) + [uv['cnt']]
-            dat[lst][blp]['vis'] = dat[lst][blp].get('vis',[]) + [uv['cnt']*n.where(f,0,d)]
+            #dat[lst][blp]['vis'] = dat[lst][blp].get('vis',[]) + [uv['cnt']*n.where(f,0,d)]
+            dat[lst][blp]['vis'] = dat[lst][blp].get('vis',[]) + [n.where(f,0,d)]
         else:
             dat[lst][blp]['cnt'] = dat[lst][blp].get('cnt',[]) + [n.logical_not(f)]
             dat[lst][blp]['vis'] = dat[lst][blp].get('vis',[]) + [n.where(f,0,d)]
@@ -166,11 +160,9 @@ for lst in jds.keys():
     files[lst] = n.array(files[lst])
     jd_min = n.min(jds[lst])
     if jd_min < jd_start:
-    #if lst < lst_start:
         lst_start, jd_start = lst, jd_min
 djd_dlst = a.const.sidereal_day / (2*n.pi) * a.ephem.second
-#jd_start = jd_start + (lst_start - lsts[0]) * djd_dlst
-jd_start = jd_start + (lsts[0] - lst_start) * djd_dlst #ARP fix
+jd_start = jd_start + (lsts[0] - lst_start) * djd_dlst #ARP fix; sign was wrong in original code
 lst_start = lsts[0]
 
 # Initialize the output file
