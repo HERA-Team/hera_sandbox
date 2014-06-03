@@ -102,17 +102,13 @@ class TestSchedulerDB(unittest.TestCase):
                 me.dbi.set_obs_status(me.obs,me.task)
         def all_done():
             for obsnum in obsnums:
-                try:
-                    if self.dbi.get_obs_status(obsnum) != 'COMPLETE': return False
-                except NoResultFound as e:
-                    print f
-                    print e
-                    raise(NoResultFound)
+                if self.dbi.get_obs_status(obsnum) != 'COMPLETE': return False
+                return True
         s = sch.Scheduler(nstills=1, actions_per_still=1, blocksize=10)
         t = threading.Thread(target=s.start, args=(self.dbi, SuccessAction))
         t.start()
         tstart = time.time()
-        completion_time = len(FILE_PROCESSING_STAGES)*3*0.4 #0.2 s per file per step
+        completion_time = len(FILE_PROCESSING_STAGES)*3*0.2 #0.2 s per file per step
         #print "time to completion:",completion_time,'s'
         while not all_done(): 
             if time.time() - tstart > completion_time: break
@@ -132,7 +128,7 @@ class TestSchedulerDB(unittest.TestCase):
                 return None
         s = sch.Scheduler(nstills=1, actions_per_still=1, blocksize=10)
         s.get_new_active_obs(self.dbi)
-        s.update_action_queue(self.dbi, ActionClass=CompleteAction)
+        s.update_action_queue(self.dbi, ActionClass=SuccessAction)
         a = s.pop_action_queue(0)
         s.launch_action(a)
         self.assertEqual(len(s.launched_actions[0]), 1)
@@ -140,46 +136,6 @@ class TestSchedulerDB(unittest.TestCase):
         s.clean_completed_actions(self.dbi)
         self.assertEqual(len(s.launched_actions[0]), 0)
 
-    def test_faulty(self):
-        """
-        todo
-        """
-        for i in xrange(1):
-            dbi = FakeDataBaseInterface(10)
-            class FakeAction(sch.Action):
-                def __init__(self, f, task, neighbors, still):
-                    sch.Action.__init__(self, f, task, neighbors, still, timeout=.01)
-                def _command(self):
-                    if random.random() > .5: dbi.files[self.obs] = self.task
-            def all_done():
-                for f in dbi.files:
-                    if dbi.get_obs_status(f) != 'COMPLETE': return False
-                return True
-            s = sch.Scheduler(nstills=1, actions_per_still=1, blocksize=10)
-            t = threading.Thread(target=s.start, args=(dbi, FakeAction))
-            t.start()
-            tstart = time.time()
-            while not all_done() and time.time() - tstart < 20:
-                #print s.launched_actions[0][0].obs, s.launched_actions[0][0].task
-                #print [(a.obs, a.task) for a in s.action_queue]
-                time.sleep(.1)
-            s.quit()
-            #for f in dbi.files:
-            #    print f, dbi.files[f]
-            for f in dbi.files: self.assertEqual(dbi.get_obs_status(f), 'COMPLETE')
-    def test_prereqs(self):
-        """
-        todo
-        """
-        dbi = FakeDataBaseInterface(3)
-        a = sch.Action('1', 'UV', ['0','2'], 0)
-        self.assertTrue(a.has_prerequisites(dbi))
-        for k in dbi.files: dbi.files[k] = 'CLEAN-UVC'
-        a = sch.Action('1', 'ACQUIRE-NEIGHBORS', ['0','2'], 0)
-        self.assertTrue(a.has_prerequisites(dbi))
-        dbi.files['0'] = 'UV'
-        self.assertFalse(a.has_prerequisites(dbi))
-        
 
 if __name__ == '__main__':
     unittest.main()
