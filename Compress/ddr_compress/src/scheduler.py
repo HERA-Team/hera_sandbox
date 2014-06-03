@@ -6,7 +6,6 @@ logger = logging.getLogger('scheduler')
 FILE_PROCESSING_STAGES = ['NEW','UV_POT', 'UV', 'UVC', 'CLEAN_UV', 'UVCR', 'CLEAN_UVC',
     'ACQUIRE_NEIGHBORS', 'UVCRE', 'NPZ', 'UVCRR', 'NPZ_POT', 'CLEAN_UVCRE', 'UVCRRE',
     'CLEAN_UVCRR', 'CLEAN_NPZ', 'CLEAN_NEIGHBORS', 'UVCRRE_POT', 'CLEAN_UVCRRE', 'CLEAN_UVCR', 'COMPLETE']
-#ENDFILE_PROCESSING_STAGES = FILE_PROCESSING_STAGES[:FILE_PROCESSING_STAGES.index('CLEAN_UVC')]+FILE_PROCESSING_STAGES[FILE_PROCESSING_STAGES.index('CLEAN_UVCR'):]
 FILE_PROCESSING_LINKS = {}
 for i,k in enumerate(FILE_PROCESSING_STAGES[:-1]):
     FILE_PROCESSING_LINKS[k] = FILE_PROCESSING_STAGES[i+1]
@@ -24,11 +23,11 @@ FILE_PROCESSING_PREREQS = { # link task to prerequisite state of neighbors, key 
 
 class Action:
     '''An Action performs a task on an observation, and is scheduled by a Scheduler.'''
-    def __init__(self, f, task, neighbor_status, still, timeout=3600.):
+    def __init__(self, obs, task, neighbor_status, still, timeout=3600.):
         '''f:obs, task:target status, 
         neighbor_status:status of adjacent obs (do not enter a status for a non-existent neighbor
         still:still action will run on.'''
-        self.obs = f
+        self.obs = obs
         self.task = task
         self.neighbor_status = neighbor_status
         self.still = still
@@ -160,24 +159,24 @@ class Scheduler:
         for a in actions: a.set_priority(self.determine_priority(a,dbi))
         actions.sort(action_cmp, reverse=True) # place most important actions first
         self.action_queue = actions # completely throw out previous action list
-    def get_action(self, dbi, f, ActionClass=None, action_args=()):
+    def get_action(self, dbi, obs, ActionClass=None, action_args=()):
         '''Find the next actionable step for obs f (one for which all
         prerequisites have been met.  Return None if no action is available.
         This function is allowed to return actions that have already been
         launched.
         ActionClass: a subclass of Action, for customizing actions.  
             None defaults to the standard Action'''
-        status = dbi.get_obs_status(f) 
+        status = dbi.get_obs_status(obs) 
         if status == 'COMPLETE': return None # obs is complete
-        neighbors = dbi.get_neighbors(f)
+        neighbors = dbi.get_neighbors(obs)
         if None in neighbors: # is this an end-file that can't be processed past UVCR?
             next_step = ENDFILE_PROCESSING_LINKS[status]
         else: # this is a normal file
             next_step = FILE_PROCESSING_LINKS[status]
         neighbor_status = [dbi.get_obs_status(n) for n in neighbors if not n is None]
-        still = self.obs_to_still(f, dbi) 
+        still = self.obs_to_still(obs, dbi) 
         if ActionClass is None: ActionClass = Action
-        a = ActionClass(f, next_step, neighbor_status, still, *action_args)
+        a = ActionClass(obs, next_step, neighbor_status, still, *action_args)
         if a.has_prerequisites(): return a
         else:
             #logging.debug('scheduler.get_action: (%s,%d) does not have prereqs' % (a.task, a.obs))
@@ -191,8 +190,7 @@ class Scheduler:
         # build up of partial obs.  But if you prioritize obs already
         # started too excessively, then the queue could eventually fill with
         # partially completed tasks that are failing for some reason
-    def obs_to_still(self, f, dbi):
+    def obs_to_still(self, obs, dbi):
         '''Return the still that a obs should be transferred to.'''
-        cnt = f#dbi.get_obs_index(f)
-        return (cnt / self.blocksize) % self.nstills
+        return (obs / self.blocksize) % self.nstills
 

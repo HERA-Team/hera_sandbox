@@ -114,9 +114,9 @@ class TestScheduler(unittest.TestCase):
         dbi = FakeDataBaseInterface(3)
         a = sch.Action(1, 'UV', ['UV','UV'], 0)
         self.assertTrue(a.has_prerequisites())
-        a = sch.Action(1, 'ACQUIRE-NEIGHBORS', ['UVCR','UVCR'], 0)
+        a = sch.Action(1, 'ACQUIRE_NEIGHBORS', ['UVCR','UVCR'], 0)
         self.assertTrue(a.has_prerequisites())
-        a = sch.Action(1, 'ACQUIRE-NEIGHBORS', ['UVCR','UV'], 0)
+        a = sch.Action(1, 'ACQUIRE_NEIGHBORS', ['UVCR','UV'], 0)
         self.assertFalse(a.has_prerequisites())
     def test_start(self):
         dbi = FakeDataBaseInterface(10)
