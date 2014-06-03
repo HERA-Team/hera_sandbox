@@ -142,13 +142,12 @@ class TaskHandler(SocketServer.BaseRequestHandler):
         logger.info('TaskHandler.handle: received (%s,%d) with args=%s' % (task,obs,' '.join(args)))
         if task == 'KILL':
             self.server.kill(args[0])
-            return
         elif task == 'COMPLETE':
             self.server.dbi.set_obs_status(obs, task)
-            return
-        t = Task(task, obs, args, self.server.dbi, self.server.data_dir)
-        self.server.append_task(t)
-        t.run()
+        else:
+            t = Task(task, obs, args, self.server.dbi, self.server.data_dir)
+            self.server.append_task(t)
+            t.run()
 
 class TaskServer(SocketServer.UDPServer):
     allow_reuse_address = True
