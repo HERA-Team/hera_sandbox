@@ -12,13 +12,13 @@ def pad(s, line_len=PKT_LINE_LEN):
 
 def to_pkt(task, obs, args):
     nlines = len(args) + 3
-    return ''.join(map(pad, [str(nlines), task, obs] + args))
+    return ''.join(map(pad, [str(nlines), task, str(obs)] + args))
 
 def from_pkt(pkt, line_len=PKT_LINE_LEN):
     nlines,pkt = pkt[:line_len].rstrip(), pkt[line_len:]
     nlines = int(nlines)
     task,pkt = pkt[:line_len].rstrip(), pkt[line_len:]
-    obs,pkt = pkt[:line_len].rstrip(), pkt[line_len:]
+    obs,pkt = int(pkt[:line_len].rstrip()), pkt[line_len:]
     args = []
     for i in xrange(nlines-3):
         arg,pkt = pkt[:line_len].rstrip(), pkt[line_len:]
