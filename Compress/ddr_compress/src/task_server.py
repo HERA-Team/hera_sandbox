@@ -42,7 +42,8 @@ class Task:
         logger.info('Task._run: (%s,%d) %s' % (self.task,self.obs,' '.join(['do_%s.sh' % self.task] + self.args)))
         return subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd) # XXX d something with stdout stderr
     def poll(self):
-        return self.process.poll()
+        if self.process is None: return None
+        else: return self.process.poll()
     def finalize(self):
         self.process.wait()
         if self.poll(): self.record_failure()
