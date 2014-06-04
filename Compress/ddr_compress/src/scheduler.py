@@ -57,7 +57,7 @@ class Action:
         '''Run this task.'''
         if launch_time is None: launch_time = time.time()
         self.launch_time = launch_time
-        logger.debug('Action: launching %s on %d' % (self.task, self.obs))
+        logger.debug('Action: launching (%s,%d) on still %d' % (self.task, self.obs, self.still))
         return self._command()
     def _command(self):
         '''Replace this function in a subclass to execute different tasks.'''
@@ -90,10 +90,10 @@ class Scheduler:
     def start(self, dbi, ActionClass=None, action_args=(), sleeptime=.1):
         '''Begin scheduling (blocking).
         dbi: DataBaseInterface'''
-        logger.info('Beginning scheduler loop')
         self._run = True
+        logger.info('Scheduler.start: entering loop')
         while self._run:
-            tic = time.time()
+            #tic = time.time()
             self.get_new_active_obs(dbi)
             self.update_action_queue(dbi, ActionClass, action_args)
             # Launch actions that can be scheduled
@@ -179,7 +179,7 @@ class Scheduler:
         else: # this is a normal file
             next_step = FILE_PROCESSING_LINKS[status]
         neighbor_status = [dbi.get_obs_status(n) for n in neighbors if not n is None]
-        still = self.obs_to_still(obs, dbi) 
+        still = self.obs_to_still(obs) 
         if ActionClass is None: ActionClass = Action
         a = ActionClass(obs, next_step, neighbor_status, still, *action_args)
         if a.has_prerequisites(): return a
@@ -195,7 +195,7 @@ class Scheduler:
         # build up of partial obs.  But if you prioritize obs already
         # started too excessively, then the queue could eventually fill with
         # partially completed tasks that are failing for some reason
-    def obs_to_still(self, obs, dbi):
+    def obs_to_still(self, obs):
         '''Return the still that a obs should be transferred to.'''
         return (obs / self.blocksize) % self.nstills
 

@@ -112,7 +112,7 @@ class TaskClient:
         args = self.gen_args(task, obs)
         self._tx(task, obs, args)
     def tx_kill(self, obs):
-        self._tx('KILL', obs, [self.dbi.get_obs_pid(obs)])
+        self._tx('KILL', obs, [str(self.dbi.get_obs_pid(obs))])
 
 # XXX consider moving this class to a separate file
 import scheduler
@@ -129,7 +129,7 @@ class Scheduler(scheduler.Scheduler):
         scheduler.Scheduler.__init__(self, nstills=nstills, actions_per_still=actions_per_still, blocksize=blocksize)
         self.task_clients = task_clients
     def kill_action(self, a):
-        scheduler.Scheduler.kill_action(a)
+        scheduler.Scheduler.kill_action(self, a)
         still = self.obs_to_still(a.obs)
         self.task_clients[still].tx_kill(a.obs)
 
@@ -148,7 +148,7 @@ class TaskHandler(SocketServer.BaseRequestHandler):
         task, obs, still, args = self.get_pkt()
         logger.info('TaskHandler.handle: received (%s,%d) with args=%s' % (task,obs,' '.join(args)))
         if task == 'KILL':
-            self.server.kill(args[0])
+            self.server.kill(int(args[0]))
         elif task == 'COMPLETE':
             self.server.dbi.set_obs_status(obs, task)
         else:

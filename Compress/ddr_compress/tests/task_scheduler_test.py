@@ -73,6 +73,38 @@ class TestTaskScheduler(unittest.TestCase):
             thd.join()
         for i in self.dbi.files:
             self.assertEqual(self.dbi.get_obs_status(i), 'COMPLETE')
+    def test_many_stills(self):
+        dbi = FakeDataBaseInterface()
+        try:
+            os.mkdir('still0')
+            os.mkdir('still1')
+        except(OSError): pass
+        ts0 = ts.TaskServer(dbi, data_dir='still0', port=4441)
+        ts1 = ts.TaskServer(dbi, data_dir='still1', port=4442)
+        ts0_thd = threading.Thread(target=ts0.start)
+        ts1_thd = threading.Thread(target=ts1.start)
+        tc = {0:ts.TaskClient(dbi, 'localhost', port=4441), 1:ts.TaskClient(dbi, 'localhost', port=4442)}
+        s = ts.Scheduler(tc, nstills=2, actions_per_still=2, blocksize=2)
+        s_thd = threading.Thread(target=s.start, args=(dbi,), kwargs={'ActionClass':ts.Action, 'action_args':(tc,30), 'sleeptime':0})
+        ts0_thd.start()
+        ts1_thd.start()
+        s_thd.start()
+        try:
+            def all_done():
+                for f in dbi.files:
+                    if dbi.get_obs_status(f) != 'COMPLETE': return False
+                return True
+            while not all_done(): time.sleep(.1)
+        finally:
+            s.quit()
+            ts0.shutdown()
+            ts1.shutdown()
+            s_thd.join()
+            ts0_thd.join()
+            ts1_thd.join()
+        for i in dbi.files:
+            self.assertEqual(dbi.get_obs_status(i), 'COMPLETE')
+        
     # XXX need to test killing
 
 if __name__ == '__main__':
