@@ -18,11 +18,6 @@ class TestDBI(unittest.TestCase):
         self.filename='/data0/zen.2456785.123456.uv'
         self.host = 'pot0'
         self.length = 10/60./24
-#    def test_obsnum(self):
-#        obsnum = jdpol2obsnum(self.jd,self.pol,self.length)
-#        outjd,outpol = obsnum2jdpol(obsnum,self.length)
-#        self.assertEqual(self.pol,outpol)
-#        self.assertEqual(self.jd,outjd)
     def test_obsnum_increment(self):
         dt = 10/60./24  
         jds = n.arange(0,5)*dt+2456446.1234
