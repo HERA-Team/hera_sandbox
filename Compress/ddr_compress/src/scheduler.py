@@ -87,7 +87,7 @@ class Scheduler:
         self._run = False
     def quit(self):
         self._run = False
-    def start(self, dbi, ActionClass=None, action_args=()):
+    def start(self, dbi, ActionClass=None, action_args=(), sleeptime=.1):
         '''Begin scheduling (blocking).
         dbi: DataBaseInterface'''
         logger.info('Beginning scheduler loop')
@@ -105,7 +105,7 @@ class Scheduler:
                         break # move on to next still
                     self.launch_action(a)
             self.clean_completed_actions(dbi)
-            time.sleep(.1)
+            time.sleep(sleeptime)
     def pop_action_queue(self, still):
         '''Return highest priority action for the given still.'''
         for i in xrange(len(self.action_queue)):

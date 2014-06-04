@@ -1,6 +1,6 @@
 import SocketServer
 import logging, threading, subprocess, time
-import socket
+import socket, os
 
 logger = logging.getLogger('taskserver')
 
@@ -10,25 +10,27 @@ STILL_PORT = 14204
 def pad(s, line_len=PKT_LINE_LEN):
     return (s + ' '*line_len)[:line_len]
 
-def to_pkt(task, obs, args):
-    nlines = len(args) + 3
-    return ''.join(map(pad, [str(nlines), task, str(obs)] + args))
+def to_pkt(task, obs, still, args):
+    nlines = len(args) + 4
+    return ''.join(map(pad, [str(nlines), task, str(obs), still] + args))
 
 def from_pkt(pkt, line_len=PKT_LINE_LEN):
     nlines,pkt = pkt[:line_len].rstrip(), pkt[line_len:]
     nlines = int(nlines)
     task,pkt = pkt[:line_len].rstrip(), pkt[line_len:]
     obs,pkt = int(pkt[:line_len].rstrip()), pkt[line_len:]
+    still,pkt = pkt[:line_len].rstrip(), pkt[line_len:]
     args = []
-    for i in xrange(nlines-3):
+    for i in xrange(nlines-4):
         arg,pkt = pkt[:line_len].rstrip(), pkt[line_len:]
         args.append(arg)
-    return task, obs, args
+    return task, obs, still, args
 
 class Task:
-    def __init__(self, task, obs, args, dbi, cwd='.'):
+    def __init__(self, task, obs, still, args, dbi, cwd='.'):
         self.task = task
         self.obs = obs
+        self.still = still
         self.args = args
         self.dbi = dbi
         self.cwd = cwd
@@ -36,6 +38,9 @@ class Task:
     def run(self):
         if not self.process is None:
             raise RuntimeError('Cannot run a Task that has been run already.')
+        if self.task == 'UV': # on first copy of data to still, record in db that obs is assigned here
+            self.dbi.set_obs_still_host(self.obs, self.still)
+            self.dbi.set_obs_still_path(self.obs, os.path.abspath(self.cwd))
         self.process = self._run()
         self.record_launch()
     def _run(self):
@@ -64,13 +69,14 @@ class TaskClient:
         self.host_port = (host,port)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     def _tx(self, task, obs, args):
-        pkt = to_pkt(task, obs, args)
+        pkt = to_pkt(task, obs, self.host_port[0], args)
         self.sock.sendto(pkt, self.host_port)
     def gen_args(self, task, obs):
         pot,path,basename = self.dbi.get_input_file(obs)
         outhost,outpath = self.dbi.get_output_path(obs)
-        stillhost,stillpath = self.dbi.get_still_host(obs), self.dbi.get_still_path(obs)
-        neighbors = [(self.dbi.get_still_host(n),self.dbi.get_still_path(n)) + self.dbi.get_input_file(n)
+        # hosts and paths are not used except for ACQUIRE_NEIGHBORS and CLEAN_NEIGHBORS
+        stillhost,stillpath = self.dbi.get_obs_still_host(obs), self.dbi.get_obs_still_path(obs)
+        neighbors = [(self.dbi.get_obs_still_host(n),self.dbi.get_obs_still_path(n)) + self.dbi.get_input_file(n)
             for n in self.dbi.get_neighbors(obs) if not n is None]
         neighbors_base = list(self.dbi.get_neighbors(obs))
         if not neighbors_base[0] is None: neighbors_base[0] = self.dbi.get_input_file(neighbors_base[0])[-1]
@@ -111,20 +117,21 @@ class TaskClient:
 # XXX consider moving this class to a separate file
 import scheduler
 class Action(scheduler.Action):
-    def __init__(self, obs, task, neighbor_status, still, task_client, timeout=3600.):
+    def __init__(self, obs, task, neighbor_status, still, task_clients, timeout=3600.):
         scheduler.Action.__init__(self, obs, task, neighbor_status, still, timeout=timeout)
-        self.task_client = task_client
+        self.task_client = task_clients[still]
     def _command(self):
         logger.debug('Action: task_client(%s,%d)' % (self.task, self.obs))
         self.task_client.tx(self.task, self.obs)
 
 class Scheduler(scheduler.Scheduler):
-    def __init__(self, task_client, nstills=4, actions_per_still=8, blocksize=10):
+    def __init__(self, task_clients, nstills=4, actions_per_still=8, blocksize=10):
         scheduler.Scheduler.__init__(self, nstills=nstills, actions_per_still=actions_per_still, blocksize=blocksize)
-        self.task_client = task_client
+        self.task_clients = task_clients
     def kill_action(self, a):
         scheduler.Scheduler.kill_action(a)
-        self.task_client.tx_kill(a.obs)
+        still = self.obs_to_still(a.obs)
+        self.task_clients[still].tx_kill(a.obs)
 
 class TaskHandler(SocketServer.BaseRequestHandler):
     def setup(self):
@@ -135,17 +142,17 @@ class TaskHandler(SocketServer.BaseRequestHandler):
         return
     def get_pkt(self):
         pkt = self.request[0]
-        task, obs, args = from_pkt(pkt)
-        return task, obs, args
+        task, obs, still, args = from_pkt(pkt)
+        return task, obs, still, args
     def handle(self):
-        task, obs, args = self.get_pkt()
+        task, obs, still, args = self.get_pkt()
         logger.info('TaskHandler.handle: received (%s,%d) with args=%s' % (task,obs,' '.join(args)))
         if task == 'KILL':
             self.server.kill(args[0])
         elif task == 'COMPLETE':
             self.server.dbi.set_obs_status(obs, task)
         else:
-            t = Task(task, obs, args, self.server.dbi, self.server.data_dir)
+            t = Task(task, obs, still, args, self.server.dbi, self.server.data_dir)
             self.server.append_task(t)
             t.run()
 
