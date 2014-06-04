@@ -1,5 +1,6 @@
 import unittest, random, threading, time
 import ddr_compress.scheduler as sch
+import logging; logging.basicConfig(level=logging.DEBUG)
 
 class NullAction(sch.Action):
     def _command(self): return
@@ -126,8 +127,9 @@ class TestScheduler(unittest.TestCase):
         def all_done():
             for f in dbi.files:
                 if dbi.get_obs_status(f) != 'COMPLETE': return False
+            return True
         s = sch.Scheduler(nstills=1, actions_per_still=1, blocksize=10)
-        t = threading.Thread(target=s.start, args=(dbi, FakeAction))
+        t = threading.Thread(target=s.start, args=(dbi, FakeAction), kwargs={'sleeptime':0})
         t.start()
         tstart = time.time()
         while not all_done() and time.time() - tstart < 1: time.sleep(.1)
@@ -146,10 +148,10 @@ class TestScheduler(unittest.TestCase):
                     if dbi.get_obs_status(f) != 'COMPLETE': return False
                 return True
             s = sch.Scheduler(nstills=1, actions_per_still=1, blocksize=10)
-            t = threading.Thread(target=s.start, args=(dbi, FakeAction))
+            t = threading.Thread(target=s.start, args=(dbi, FakeAction), kwargs={'sleeptime':0})
             t.start()
             tstart = time.time()
-            while not all_done() and time.time() - tstart < 20:
+            while not all_done() and time.time() - tstart < 10:
                 #print s.launched_actions[0][0].obs, s.launched_actions[0][0].task
                 #print [(a.obs, a.task) for a in s.action_queue]
                 time.sleep(.1)
