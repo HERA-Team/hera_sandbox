@@ -10,17 +10,17 @@ Base = declarative_base()
 
 dbinfo = {'username':'obs',
           'password':'\x50\x39\x6c\x73\x34\x52\x2a\x40',
-          'hostip':'10.0.1.20',
-          'port':5432,
+          'hostip':'qmaster',
+          'port':3306,
           'dbname':'test'}
 
 
 #########
-# 
-#   Useful helper functions 
+#
+#   Useful helper functions
 #
 #####
-def jdpol2obsnum(jd,pol,djd): 
+def jdpol2obsnum(jd,pol,djd):
     """
     input: julian date float, pol string. and length of obs in fraction of julian date
     output: a unique index
@@ -63,42 +63,42 @@ def md5sum(fname):
 ########
 
 neighbors = Table("neighbors", Base.metadata,
-    Column("low_neighbor_id", Integer, ForeignKey("observation.obsnum"), primary_key=True),
-    Column("high_neighbor_id", Integer, ForeignKey("observation.obsnum"), primary_key=True)
+    Column("low_neighbor_id", BigInteger, ForeignKey("observation.obsnum"), primary_key=True),
+    Column("high_neighbor_id", BigInteger, ForeignKey("observation.obsnum"), primary_key=True)
 )
 
 class Observation(Base):
     __tablename__ = 'observation'
     julian_date = Column(Float)
-    pol = Column(String)
+    pol = Column(String(4))
     obsnum = Column(BigInteger,default=updateobsnum,primary_key=True)
     status = Column(Enum(*FILE_PROCESSING_STAGES,name='FILE_PROCESSING_STAGES'))
     #last_update = Column(DateTime,server_default=func.now(),onupdate=func.current_timestamp())
     length = Column(Float) #length of observation in fraction of a day
     currentpid = Column(Integer)
-    stillhost = Column(String)
-    stillpath = Column(String)
-    outputpath = Column(String)
-    outputhost = Column(String)
+    stillhost = Column(String(100))
+    stillpath = Column(String(100))
+    outputpath = Column(String(100))
+    outputhost = Column(String(100))
     high_neighbors = relationship("Observation",
                         secondary=neighbors,
                         primaryjoin=obsnum==neighbors.c.low_neighbor_id,
                         secondaryjoin=obsnum==neighbors.c.high_neighbor_id,
-                        backref="low_neighbors")    
+                        backref="low_neighbors")
 
 class File(Base):
     __tablename__ = 'file'
     filenum = Column(Integer, primary_key=True)
-    filename = Column(String)
-    host = Column(String)
-    obsnum=Column(Integer,ForeignKey('observation.obsnum'))
+    filename = Column(String(100))
+    host = Column(String(100))
+    obsnum=Column(BigInteger,ForeignKey('observation.obsnum'))
     #this next line creates an attribute Observation.files which is the list of all
     #  files associated with this observation
     observation = relationship(Observation,backref=backref('files',uselist=True))
     md5sum = Column(Integer)
 
 
-    
+
 class DataBaseInterface(object):
     def __init__(self,test=False):
         """
@@ -114,8 +114,14 @@ class DataBaseInterface(object):
         else:
             self.engine = create_engine(
                     'mysql://{username}:{password}@{hostip}:{port}/{dbname}'.format(
-                                dbinfo))
+                                **dbinfo))
         self.Session = sessionmaker(bind=self.engine)
+    def test_db(self):
+        tables = Base.metadata.tables.keys()
+        print "found %i tables"%len(tables)
+        s = self.Session()
+        count = s.query(Observation).count()
+        print "found %i records"%(count)
     def list_observations(self):
         s = self.Session()
          #todo tests
@@ -124,8 +130,8 @@ class DataBaseInterface(object):
         return obsnums
     def get_obs(self,obsnum):
         """
-        retrieves an observation object.  
-        Errors if there are more than one of the same obsnum in the db. This is bad and should 
+        retrieves an observation object.
+        Errors if there are more than one of the same obsnum in the db. This is bad and should
         never happen
 
         todo:test
@@ -148,7 +154,7 @@ class DataBaseInterface(object):
 
     def createdb(self):
         """
-        creates the tables in the database. 
+        creates the tables in the database.
         """
         Base.metadata.bind = self.engine
         Base.metadata.create_all()
@@ -200,7 +206,7 @@ class DataBaseInterface(object):
 
         What it does:
         adds observations with status NEW
-        Links neighboring observations in the database 
+        Links neighboring observations in the database
         """
         neighbors = {}
         for obs in obslist:
@@ -214,12 +220,12 @@ class DataBaseInterface(object):
             if not neighbors[middleobsnum][0] is None:
                 L = s.query(Observation).filter(
                         Observation.julian_date==neighbors[middleobsnum][0],
-                        Observation.pol == OBS.pol).one()                    
+                        Observation.pol == OBS.pol).one()
                 OBS.low_neighbors = [L]
             if not neighbors[middleobsnum][1] is None:
                 H = s.query(Observation).filter(
                         Observation.julian_date==neighbors[middleobsnum][1],
-                        Observation.pol == OBS.pol).one()       
+                        Observation.pol == OBS.pol).one()
                 OBS.high_neighbors = [H]
                 sys.stdout.flush()
             OBS.status = status
@@ -237,7 +243,7 @@ class DataBaseInterface(object):
         Todo: test. no close!!
         """
         s = self.Session()
-        OBS = s.query(Observation).filter(Observation.obsnum==obsnum).one() 
+        OBS = s.query(Observation).filter(Observation.obsnum==obsnum).one()
         try: high = OBS.high_neighbors[0].obsnum
         except(IndexError):high = None
         try: low = OBS.low_neighbors[0].obsnum
@@ -245,14 +251,14 @@ class DataBaseInterface(object):
         s.close()
         return (low,high)
 
-            
+
     #todo this functions
     def get_obs_still_host(self,obsnum):
         """
         input: obsnum
         output: host
         """
-        
+
         OBS = self.get_obs(obsnum)
         return OBS.stillhost
     def set_obs_still_host(self,obsnum,host):
@@ -264,7 +270,7 @@ class DataBaseInterface(object):
         OBS.stillhost=host
         yay = self.update_obs(OBS)
         return yay
-        
+
     def get_obs_still_path(self,obsnum):
         """
         input: obsnum
@@ -283,7 +289,7 @@ class DataBaseInterface(object):
         return yay
     def get_obs_pid(self,obsnum):
         """
-        todo    
+        todo
         """
         OBS = self.get_obs(obsnum)
         return OBS.currentpid
@@ -337,7 +343,7 @@ class DataBaseInterface(object):
 
 
 
-    def get_obs_status(self,obsnum): 
+    def get_obs_status(self,obsnum):
         """
         retrieve the status of an observation
         """
@@ -349,7 +355,7 @@ class DataBaseInterface(object):
 
 
 
-            
+
 #    def get_neighbors(self,obsnum):
 #        """
 #        for now lets search for neighbors based on time
