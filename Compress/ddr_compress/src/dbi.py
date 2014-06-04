@@ -110,8 +110,7 @@ class DataBaseInterface(object):
             self.engine = create_engine('sqlite:///',
                                         connect_args={'check_same_thread':False},
                                         poolclass=StaticPool)
-            Base.metadata.bind = self.engine
-            Base.metadata.create_all() #tod use create_db()
+            self.createdb()
         else:
             self.engine = create_engine(
                     'mysql://{username}:{password}@{hostip}:{port}/{dbname}'.format(
