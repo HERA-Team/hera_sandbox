@@ -56,7 +56,7 @@ class Task:
     def kill(self):
         self.record_failure()
         self.process.kill()
-    def record_launch(self): 
+    def record_launch(self):
         self.dbi.set_obs_pid(self.obs, self.process.pid)
     def record_failure(self):
         self.dbi.set_obs_pid(self.obs, -1)
@@ -92,7 +92,7 @@ class TaskClient:
             'CLEAN_UV': [basename],
             'UVCR': [basename+'c'],
             'CLEAN_UVC': [basename+'c'],
-            'ACQUIRE_NEIGHBORS': ['%s:%s/%s' % (n[0], n[1], n[-1]+'cR') for n in neighbors if n[0] != stillhost],
+            'ACQUIRE_NEIGHBORS': ['%s:%s/%s' % (n[0], n[1], n[-1]+'cR') for n in neighbors if n[0] != stillhost or n[1] != stillpath],
             'UVCRE': interleave(basename+'cR'),
             'NPZ': [basename+'cRE'],
             'UVCRR': [basename+'cR'],
