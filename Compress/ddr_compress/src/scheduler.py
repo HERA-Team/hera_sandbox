@@ -189,7 +189,8 @@ class Scheduler:
     def determine_priority(self, action, dbi):
         '''Assign a priority to an action based on its status and the time
         order of the obs to which this action is attached.'''
-        return action.obs#dbi.get_obs_index(action.obs) # prioritize any possible action on the newest obs
+        pol, jdcnt = action.obs / 2**24, action.obs % 2**24
+        return jdcnt * 4 + pol # prioritize first by time, then by pol
         # XXX might want to prioritize finishing a obs already started before
         # moving to the latest one (at least, up to a point) to avoid a
         # build up of partial obs.  But if you prioritize obs already
