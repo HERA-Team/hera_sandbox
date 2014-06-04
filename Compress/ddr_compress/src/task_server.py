@@ -4,7 +4,7 @@ import socket, os
 
 logger = logging.getLogger('taskserver')
 
-PKT_LINE_LEN = 80
+PKT_LINE_LEN = 160
 STILL_PORT = 14204
 
 def pad(s, line_len=PKT_LINE_LEN):
@@ -69,6 +69,7 @@ class TaskClient:
         self.host_port = (host,port)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     def _tx(self, task, obs, args):
+        logger.debug('TaskClient._tx: sending (%s,%d) with args=%s' % (task, obs, ' '.join(args)))
         pkt = to_pkt(task, obs, self.host_port[0], args)
         self.sock.sendto(pkt, self.host_port)
     def gen_args(self, task, obs):
@@ -125,8 +126,9 @@ class Action(scheduler.Action):
         self.task_client.tx(self.task, self.obs)
 
 class Scheduler(scheduler.Scheduler):
-    def __init__(self, task_clients, nstills=4, actions_per_still=8, blocksize=10):
-        scheduler.Scheduler.__init__(self, nstills=nstills, actions_per_still=actions_per_still, blocksize=blocksize)
+    def __init__(self, task_clients, actions_per_still=8, blocksize=10):
+        scheduler.Scheduler.__init__(self, nstills=len(task_clients), 
+            actions_per_still=actions_per_still, blocksize=blocksize)
         self.task_clients = task_clients
     def kill_action(self, a):
         scheduler.Scheduler.kill_action(self, a)

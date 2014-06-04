@@ -59,7 +59,7 @@ class TestTaskScheduler(unittest.TestCase):
         subprocess.call(['rm', '-rf','test*.uv*'], shell=True)
     def test_end_to_end(self):
         tc = {0:ts.TaskClient(self.dbi, 'localhost')}
-        s = ts.Scheduler(tc, nstills=1, actions_per_still=1)
+        s = ts.Scheduler(tc, actions_per_still=1)
         thd = threading.Thread(target=s.start, args=(self.dbi,), kwargs={'ActionClass':ts.Action, 'action_args':(tc,), 'sleeptime':0})
         thd.start()
         try:
@@ -84,7 +84,7 @@ class TestTaskScheduler(unittest.TestCase):
         ts0_thd = threading.Thread(target=ts0.start)
         ts1_thd = threading.Thread(target=ts1.start)
         tc = {0:ts.TaskClient(dbi, 'localhost', port=4441), 1:ts.TaskClient(dbi, 'localhost', port=4442)}
-        s = ts.Scheduler(tc, nstills=2, actions_per_still=2, blocksize=2)
+        s = ts.Scheduler(tc, actions_per_still=2, blocksize=2)
         s_thd = threading.Thread(target=s.start, args=(dbi,), kwargs={'ActionClass':ts.Action, 'action_args':(tc,30), 'sleeptime':0})
         ts0_thd.start()
         ts1_thd.start()
@@ -104,8 +104,6 @@ class TestTaskScheduler(unittest.TestCase):
             ts1_thd.join()
         for i in dbi.files:
             self.assertEqual(dbi.get_obs_status(i), 'COMPLETE')
-        
-    # XXX need to test killing
 
 if __name__ == '__main__':
     unittest.main()
