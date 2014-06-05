@@ -2,7 +2,8 @@
 import ddr_compress as ddr
 import logging; logging.basicConfig(level=logging.INFO)
 
-STILLS = ['still0', 'still1', 'still2', 'still3']
+#STILLS = ['still0', 'still1', 'still2', 'still3']
+STILLS = ['still3', 'still4', 'still5'] # for RAL test system
 ACTIONS_PER_STILL = 8 # how many actions that run in parallel on a still
 BLOCK_SIZE = 10 # number of files that are sent together to a still
 TIMEOUT = 600 # seconds; how long a task is allowed to be running before it is assumed to have failed
