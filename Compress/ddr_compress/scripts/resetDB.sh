@@ -29,3 +29,9 @@ header "killing db"
 MYSQL $MYDB -e "${DELETEDB}"
 header "creating new db "$*
 mysql --password=${PW} -e "${CREATEDB}"
+
+python -c "from ddr_compress.dbi import DataBaseInterface; dbi = DataBaseInterface(); dbi.createdb()"
+
+echo "testing db"
+python -c "from ddr_compress.dbi import DataBaseInterface; dbi = DataBaseInterface(); dbi.test_db()"
+
