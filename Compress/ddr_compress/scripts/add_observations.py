@@ -53,7 +53,6 @@ for pol in pols:
             obsinfo[-1].update({'neighbor_low':file2jd(files[i-1])})
         if i!=(len(files)-1):
             obsinfo[-1].update({'neighbor_high':file2jd(files[i+1])})
-        #print obsinfo[-1]
 assert(len(obsinfo)==len(args))
 print "adding {len} observations to the still db".format(len=len(obsinfo))
 dbi.add_observations(obsinfo)

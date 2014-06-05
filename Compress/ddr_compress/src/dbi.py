@@ -1,4 +1,4 @@
-from sqlalchemy import Table, Column, String, Integer, ForeignKey, Float,func,DateTime,Enum,BigInteger
+from sqlalchemy import Table, Column, String, Integer, ForeignKey, Float,func,DateTime,Enum,BigInteger,Numeric
 from sqlalchemy.orm import relationship, backref,sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
@@ -28,8 +28,8 @@ def jdpol2obsnum(jd,pol,djd):
     dublinjd = jd - 2415020  #use Dublin Julian Date
     obsint = int(dublinjd/djd)  #divide up by length of obs
     polnum = a.miriad.str2pol[pol]+10
-    assert(obsint.bit_length()<24)
-    return int(obsint + polnum*(2**24))
+    assert(obsint.bit_length()<31)
+    return int(obsint + polnum*(2**32))
 
 def updateobsnum(context):
     """
@@ -55,7 +55,10 @@ def md5sum(fname):
         hasher.update(buf)
         buf=afile.read(BLOCKSIZE)
     return hasher.hexdigest()
-
+def gethostname():
+    from subprocess import Popen,PIPE
+    hn = Popen(['bash','-cl','hostname'], stdout=PIPE).communicate()[0].strip()
+    return hn
 #############
 #
 #   The basic definition of our database
@@ -69,7 +72,7 @@ neighbors = Table("neighbors", Base.metadata,
 
 class Observation(Base):
     __tablename__ = 'observation'
-    julian_date = Column(Float)
+    julian_date = Column(Numeric(16,8))
     pol = Column(String(4))
     obsnum = Column(BigInteger,default=updateobsnum,primary_key=True)
     status = Column(Enum(*FILE_PROCESSING_STAGES,name='FILE_PROCESSING_STAGES'))
@@ -122,6 +125,7 @@ class DataBaseInterface(object):
         s = self.Session()
         count = s.query(Observation).count()
         print "found %i records"%(count)
+        return (len(tables)==3)
     def list_observations(self):
         s = self.Session()
          #todo tests
@@ -173,6 +177,7 @@ class DataBaseInterface(object):
         obsnum = OBS.obsnum
         s.close()
         self.add_file(obsnum,host,filename)#todo test.
+        sys.stdout.flush()
         return obsnum
 
     def add_file(self,obsnum,host,filename):
