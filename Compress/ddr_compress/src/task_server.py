@@ -113,7 +113,11 @@ class TaskClient:
         args = self.gen_args(task, obs)
         self._tx(task, obs, args)
     def tx_kill(self, obs):
-        self._tx('KILL', obs, [str(self.dbi.get_obs_pid(obs))])
+        pid = self.dbi.get_obs_pid(obs)
+        if pid is None:
+            logger.debug('ActionClient.tx_kill: task running on %d is not alive' % obs)
+        else:
+            self._tx('KILL', obs, [str(pid)])
 
 # XXX consider moving this class to a separate file
 import scheduler
@@ -192,9 +196,11 @@ class TaskServer(SocketServer.UDPServer):
         self.is_running = True
         t = threading.Thread(target=self.finalize_tasks)
         t.start()
-        self.serve_forever()
-        for task in self.active_tasks: task.kill() # XXX is this cleanup necessary?
-        t.join()
+        try:
+            self.serve_forever()
+        finally:
+            self.shutdown()
+            t.join()
     def shutdown(self):
         self.is_running = False
         for t in self.active_tasks:

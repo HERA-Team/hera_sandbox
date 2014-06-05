@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import ddr_compress as ddr
-import logging; logging.basicConfig(level=logging.INFO)
+import logging; logging.basicConfig(level=logging.DEBUG)
 
 #STILLS = ['still0', 'still1', 'still2', 'still3']
 STILLS = ['still3', 'still4', 'still5'] # for RAL test system
