@@ -10,7 +10,7 @@ KEY NOTE: Assumes all files are contiguous.  I sort the files by jd and then mat
 
 
 from ddr_compress.dbi import DataBaseInterface,gethostname
-import optparse,os,sys,re
+import optparse,os,sys,re,numpy as n
 
 def file2jd(zenuv):
     return re.findall(r'\d+\.\d+', zenuv)[0]
@@ -19,10 +19,9 @@ def file2pol(zenuv):
 o = optparse.OptionParser()
 o.set_usage('add_observations.py *.uv')
 o.set_description(__doc__)
-o.add_option('--length',default=10,
-        help='length of the input observations in minutes [default=10]')
+o.add_option('--length',type=float,
+        help='length of the input observations in minutes [default=average difference between filenames]')
 opts, args = o.parse_args(sys.argv[1:])
-
 #connect to the database
 dbi = DataBaseInterface()
 
@@ -33,8 +32,15 @@ for filename in args:
 #now run through all the files and build the relevant information for the db
 # get the pols
 pols = []
+jds = []
 for filename in args:
     pols.append(file2pol(filename))
+    jds.append(float(file2jd(filename)))
+jds = n.array(jds)
+if not opts.length is None:
+    djd =  opts.length/60./24
+else:
+    djd = n.mean(n.diff(jds))
 pols = list(set(pols))#these are the pols I have to iterate over
 print "found the following pols",pols
 obsinfo = []
@@ -47,7 +53,7 @@ for pol in pols:
             'pol'     :     file2pol(filename),
             'host' :        gethostname(),
             'filename' :    filename,
-            'length'  :     opts.length/60./3600 #note the db likes jd for all time units
+            'length'  :     djd #note the db likes jd for all time units
                 })
         if i!=0:
             obsinfo[-1].update({'neighbor_low':file2jd(files[i-1])})
