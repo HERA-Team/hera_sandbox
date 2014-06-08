@@ -1,7 +1,8 @@
-from sqlalchemy import Table, Column, String, Integer, ForeignKey, Float,func,DateTime,Enum,BigInteger
+from sqlalchemy import Table, Column, String, Integer, ForeignKey, Float,func,DateTime,Enum,BigInteger,Numeric
 from sqlalchemy.orm import relationship, backref,sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool,QueuePool
 from ddr_compress.scheduler import FILE_PROCESSING_STAGES
 import aipy as a, os, numpy as n,sys
 #Based on example here: http://www.pythoncentral.io/overview-sqlalchemys-expression-language-orm-queries/
@@ -9,17 +10,17 @@ Base = declarative_base()
 
 dbinfo = {'username':'obs',
           'password':'\x50\x39\x6c\x73\x34\x52\x2a\x40',
-          'hostip':'10.0.1.20',
-          'port':5432,
+          'hostip':'qmaster',
+          'port':3306,
           'dbname':'test'}
 
 
 #########
-# 
-#   Useful helper functions 
+#
+#   Useful helper functions
 #
 #####
-def jdpol2obsnum(jd,pol,djd): #TODO would really like this to increment by 1
+def jdpol2obsnum(jd,pol,djd):
     """
     input: julian date float, pol string. and length of obs in fraction of julian date
     output: a unique index
@@ -27,8 +28,8 @@ def jdpol2obsnum(jd,pol,djd): #TODO would really like this to increment by 1
     dublinjd = jd - 2415020  #use Dublin Julian Date
     obsint = int(dublinjd/djd)  #divide up by length of obs
     polnum = a.miriad.str2pol[pol]+10
-    assert(obsint.bit_length()<24)
-    return int(obsint + polnum*(2**24))
+    assert(obsint.bit_length()<31)
+    return int(obsint + polnum*(2**32))
 
 def updateobsnum(context):
     """
@@ -54,7 +55,10 @@ def md5sum(fname):
         hasher.update(buf)
         buf=afile.read(BLOCKSIZE)
     return hasher.hexdigest()
-
+def gethostname():
+    from subprocess import Popen,PIPE
+    hn = Popen(['bash','-cl','hostname'], stdout=PIPE).communicate()[0].strip()
+    return hn
 #############
 #
 #   The basic definition of our database
@@ -62,43 +66,43 @@ def md5sum(fname):
 ########
 
 neighbors = Table("neighbors", Base.metadata,
-    Column("low_neighbor_id", Integer, ForeignKey("observation.obsnum"), primary_key=True),
-    Column("high_neighbor_id", Integer, ForeignKey("observation.obsnum"), primary_key=True)
+    Column("low_neighbor_id", BigInteger, ForeignKey("observation.obsnum"), primary_key=True),
+    Column("high_neighbor_id", BigInteger, ForeignKey("observation.obsnum"), primary_key=True)
 )
 
 class Observation(Base):
     __tablename__ = 'observation'
-    julian_date = Column(Float)
-    pol = Column(String)
+    julian_date = Column(Numeric(16,8))
+    pol = Column(String(4))
     obsnum = Column(BigInteger,default=updateobsnum,primary_key=True)
     status = Column(Enum(*FILE_PROCESSING_STAGES,name='FILE_PROCESSING_STAGES'))
-    last_update = Column(DateTime,server_default=func.now(),onupdate=func.current_timestamp())
+    #last_update = Column(DateTime,server_default=func.now(),onupdate=func.current_timestamp())
     length = Column(Float) #length of observation in fraction of a day
     currentpid = Column(Integer)
-    stillhost = Column(String)
-    stillpath = Column(String)
-    outputpath = Column(String)
-    outputhost = Column(String)
+    stillhost = Column(String(100))
+    stillpath = Column(String(100))
+    outputpath = Column(String(100))
+    outputhost = Column(String(100))
     high_neighbors = relationship("Observation",
                         secondary=neighbors,
                         primaryjoin=obsnum==neighbors.c.low_neighbor_id,
                         secondaryjoin=obsnum==neighbors.c.high_neighbor_id,
-                        backref="low_neighbors")    
+                        backref="low_neighbors")
 
 class File(Base):
     __tablename__ = 'file'
     filenum = Column(Integer, primary_key=True)
-    filename = Column(String)
-    host = Column(String)
-    obsnum=Column(Integer,ForeignKey('observation.obsnum'))
+    filename = Column(String(100))
+    host = Column(String(100))
+    obsnum=Column(BigInteger,ForeignKey('observation.obsnum'))
     #this next line creates an attribute Observation.files which is the list of all
     #  files associated with this observation
     observation = relationship(Observation,backref=backref('files',uselist=True))
     md5sum = Column(Integer)
 
 
-    
-class DataBaseInterface(object):#todo change to camel case
+
+class DataBaseInterface(object):
     def __init__(self,test=False):
         """
         Connect to the database and initiate a session creator.
@@ -106,22 +110,34 @@ class DataBaseInterface(object):#todo change to camel case
         create a FALSE database
         """
         if test:
-            self.engine = create_engine('sqlite:///')
-            Base.metadata.bind = self.engine
-            Base.metadata.create_all()
+            self.engine = create_engine('sqlite:///',
+                                        connect_args={'check_same_thread':False},
+                                        poolclass=StaticPool)
+            self.createdb()
         else:
             self.engine = create_engine(
                     'mysql://{username}:{password}@{hostip}:{port}/{dbname}'.format(
-                                dbinfo))
+                                **dbinfo),
+                                pool_size=20,
+                                max_overflow=40)
         self.Session = sessionmaker(bind=self.engine)
+    def test_db(self):
+        tables = Base.metadata.tables.keys()
+        print "found %i tables"%len(tables)
+        s = self.Session()
+        count = s.query(Observation).count()
+        print "found %i records"%(count)
+        return (len(tables)==3)
     def list_observations(self):
         s = self.Session()
-        observations = s.query(Observation)
-        return [obs.obsnum for obs in observations]
+         #todo tests
+        obsnums = [obs.obsnum for obs in s.query(Observation).filter(Observation.status!='NEW')]
+        s.close()
+        return obsnums
     def get_obs(self,obsnum):
         """
-        retrieves an observation object.  
-        Errors if there are more than one of the same obsnum in the db. This is bad and should 
+        retrieves an observation object.
+        Errors if there are more than one of the same obsnum in the db. This is bad and should
         never happen
 
         todo:test
@@ -144,13 +160,13 @@ class DataBaseInterface(object):#todo change to camel case
 
     def createdb(self):
         """
-        creates the tables in the database. 
+        creates the tables in the database.
         """
         Base.metadata.bind = self.engine
         Base.metadata.create_all()
 
 
-    def add_observation(self,julian_date,pol,filename,host,length=10/60./24,status='UV-POT'):
+    def add_observation(self,julian_date,pol,filename,host,length=10/60./24,status='UV_POT'):
         """
         create a new observation entry.
         returns: obsnum  (see jdpol2obsnum)
@@ -163,6 +179,7 @@ class DataBaseInterface(object):#todo change to camel case
         obsnum = OBS.obsnum
         s.close()
         self.add_file(obsnum,host,filename)#todo test.
+        sys.stdout.flush()
         return obsnum
 
     def add_file(self,obsnum,host,filename):
@@ -180,7 +197,7 @@ class DataBaseInterface(object):#todo change to camel case
         s.close() #close the session
         return filenum
 
-    def add_observations(self,obslist,status='UV-POT'):
+    def add_observations(self,obslist,status='UV_POT'):
         """
         Add a whole set of observations.
         Handles linking neighboring observations.
@@ -196,7 +213,7 @@ class DataBaseInterface(object):#todo change to camel case
 
         What it does:
         adds observations with status NEW
-        Links neighboring observations in the database 
+        Links neighboring observations in the database
         """
         neighbors = {}
         for obs in obslist:
@@ -210,12 +227,12 @@ class DataBaseInterface(object):#todo change to camel case
             if not neighbors[middleobsnum][0] is None:
                 L = s.query(Observation).filter(
                         Observation.julian_date==neighbors[middleobsnum][0],
-                        Observation.pol == OBS.pol).one()                    
+                        Observation.pol == OBS.pol).one()
                 OBS.low_neighbors = [L]
             if not neighbors[middleobsnum][1] is None:
                 H = s.query(Observation).filter(
                         Observation.julian_date==neighbors[middleobsnum][1],
-                        Observation.pol == OBS.pol).one()       
+                        Observation.pol == OBS.pol).one()
                 OBS.high_neighbors = [H]
                 sys.stdout.flush()
             OBS.status = status
@@ -230,24 +247,25 @@ class DataBaseInterface(object):#todo change to camel case
         return: list of two obsnums
         If no neighbor, returns None the list entry
 
-        Todo: test
+        Todo: test. no close!!
         """
         s = self.Session()
-        OBS = s.query(Observation).filter(Observation.obsnum==obsnum).one() 
+        OBS = s.query(Observation).filter(Observation.obsnum==obsnum).one()
         try: high = OBS.high_neighbors[0].obsnum
         except(IndexError):high = None
         try: low = OBS.low_neighbors[0].obsnum
         except(IndexError):low=None
+        s.close()
         return (low,high)
 
-            
+
     #todo this functions
     def get_obs_still_host(self,obsnum):
         """
         input: obsnum
         output: host
         """
-        
+
         OBS = self.get_obs(obsnum)
         return OBS.stillhost
     def set_obs_still_host(self,obsnum,host):
@@ -259,7 +277,7 @@ class DataBaseInterface(object):#todo change to camel case
         OBS.stillhost=host
         yay = self.update_obs(OBS)
         return yay
-        
+
     def get_obs_still_path(self,obsnum):
         """
         input: obsnum
@@ -278,7 +296,7 @@ class DataBaseInterface(object):#todo change to camel case
         return yay
     def get_obs_pid(self,obsnum):
         """
-        todo    
+        todo
         """
         OBS = self.get_obs(obsnum)
         return OBS.currentpid
@@ -320,37 +338,31 @@ class DataBaseInterface(object):#todo change to camel case
         return host,path
 
 
-    def set_obs_status(self,obsnum,status,pid=None):
+    def set_obs_status(self,obsnum,status):
         """
         change the satus of obsnum to status
         input: obsnum (key into the observation table, returned by add_observation and others)
         """
-        s = self.Session()
-        OBS = s.query(Observation).filter(obsnum==obsnum).one()
+        OBS = self.get_obs(obsnum)
         OBS.status = status
-        if not pid is None:
-            OBS.currentpid = pid
-        s.commit()
-        s.close()
+        self.update_obs(OBS)
         return True
 
 
-    def get_obs_status(self,obsnum): 
+
+    def get_obs_status(self,obsnum):
         """
         retrieve the status of an observation
         """
-        s = self.Session()
-        OBS = s.query(Observation).filter(obsnum==obsnum).one()
+        OBS = self.get_obs(obsnum)
         status = OBS.status
-        s.commit()
-        s.close()
         return status
 
 
 
 
 
-            
+
 #    def get_neighbors(self,obsnum):
 #        """
 #        for now lets search for neighbors based on time

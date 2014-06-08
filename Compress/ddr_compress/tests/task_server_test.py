@@ -16,83 +16,88 @@ class FakeDataBaseInterface:
         self.files = {}
         self.pids = {}
         self.stills = {}
+        self.paths = {}
         for i in xrange(nfiles):
-            self.files[str(i)] = 'UV_POT'
-            self.pids[str(i)] = -1
-            self.stills[str(i)] = 'localhost'
-    def get_obs_status(self, filename):
-        return self.files[filename]
-    def get_obs_index(self, filename):
-        return int(filename)
+            self.files[i] = 'UV_POT'
+            self.pids[i] = -1
+            self.stills[i] = 'localhost'
+            self.paths[i] = os.path.abspath('.')
+    def get_obs_status(self, obsnum):
+        return self.files[obsnum]
     def list_observations(self):
         files = self.files.keys()
         files.sort()
         return files
-    def get_neighbors(self, filename):
-        n = int(filename)
-        n1,n2 = str(n-1), str(n+1)
+    def get_neighbors(self, obsnum):
+        n1,n2 = obsnum-1, obsnum+1
         if not self.files.has_key(n1): n1 = None
         if not self.files.has_key(n2): n2 = None
         return (n1,n2)
-    def set_obs_status(self, filename, status):
-        self.files[filename] = status
-    def set_obs_pid(self, filename, pid):
-        self.pids[filename] = pid
-    def get_obs_pid(self, filename):
-        return self.pids[filename]
+    def set_obs_status(self, obs, status):
+        self.files[obs] = status
+    def set_obs_pid(self, obs, pid):
+        self.pids[obs] = pid
+    def get_obs_pid(self, obs):
+        return self.pids[obs]
     def get_input_file(self, obsnum):
         return 'localhost','.','test.uv'
-    def get_output_path(self, obsnum):
+    def get_output_location(self, obsnum):
         return 'localhost','.'
-    def get_still_host(self, obsnum):
+    def get_obs_still_host(self, obsnum):
         return self.stills[obsnum]
-    def get_still_path(self, obsnum):
-        return '.'
+    def get_obs_still_path(self, obsnum):
+        return self.paths[obsnum]
+    def set_obs_still_host(self, obsnum, host):
+        self.stills[obsnum] = host
+    def set_obs_still_path(self, obsnum, path):
+        self.paths[obsnum] = path
 
 class TestFunctions(unittest.TestCase):
     def test_pad(self):
         self.assertEqual(len(ts.pad('', 80)), 80)
         self.assertEqual(len(ts.pad('abc'*10, 30)), 30)
     def test_to_pkt(self):
-        pkt = ts.to_pkt('UV', 'filename', ['1','2','3'])
-        self.assertEqual(len(pkt), 6*ts.PKT_LINE_LEN)
-        self.assertEqual(pkt[:ts.PKT_LINE_LEN], ts.pad('6'))
+        pkt = ts.to_pkt('UV', 5, 'still', ['1','2','3'])
+        self.assertEqual(len(pkt), 7*ts.PKT_LINE_LEN)
+        self.assertEqual(pkt[:ts.PKT_LINE_LEN], ts.pad('7'))
     def test_from_pkt(self):
-        pkt = ts.pad('4') + ts.pad('UV') + ts.pad('filename') + ts.pad('1')
-        task, obs, args = ts.from_pkt(pkt)
+        pkt = ts.pad('5') + ts.pad('UV') + ts.pad('4') + ts.pad('still') + ts.pad('1')
+        task, obs, still, args = ts.from_pkt(pkt)
         self.assertEqual(task, 'UV')
-        self.assertEqual(obs, 'filename')
+        self.assertEqual(obs, 4)
+        self.assertEqual(still, 'still')
         self.assertEqual(args, ['1'])
     def test_to_from_pkt(self):
-        pkt = ts.to_pkt('UV', 'filename', ['1','2','3'])
-        task, obs, args = ts.from_pkt(pkt)
+        pkt = ts.to_pkt('UV', 5, 'still', ['1','2','3'])
+        task, obs, still, args = ts.from_pkt(pkt)
         self.assertEqual(task, 'UV')
-        self.assertEqual(obs, 'filename')
+        self.assertEqual(obs, 5)
+        self.assertEqual(still, 'still')
         self.assertEqual(args, ['1','2','3'])
-        
+
 class TestTask(unittest.TestCase):
     def setUp(self):
         self.var = 0
         class VarTask(ts.Task):
             def _run(me):
                 self.var += 1
-                return subprocess.Popen(['ls'], stdout=open(os.devnull,'w'), 
+                return subprocess.Popen(['ls'], stdout=open(os.devnull,'w'),
                     cwd=me.cwd)
         self.VarTask = VarTask
     def test_run(self):
         dbi = FakeDataBaseInterface()
-        t = self.VarTask('UV', '1', ['filename'], dbi)
+        t = self.VarTask('UV', 1, 'still', ['filename'], dbi)
         self.assertEqual(t.process, None)
         var = self.var
         t.run()
         self.assertEqual(self.var, var+1)
         self.assertTrue(type(t.process) is subprocess.Popen)
         t.finalize()
-        self.assertEqual(dbi.get_obs_status('1'), 'UV')
+        self.assertEqual(dbi.get_obs_status(1), 'UV')
         self.assertRaises(RuntimeError, t.run)
     def test_kill(self):
         dbi = FakeDataBaseInterface()
-        t = SleepTask('UV','1',[],dbi)
+        t = SleepTask('UV',1,'still',[],dbi)
         start_t = time.time()
         t.run()
         t.kill()
@@ -100,14 +105,14 @@ class TestTask(unittest.TestCase):
         end_t = time.time()
         self.assertEqual(t.poll(), -9)
         self.assertLess(end_t-start_t, 100)
-        self.assertEqual(dbi.get_obs_status('1'), 'UV_POT')
-        
+        self.assertEqual(dbi.get_obs_status(1), 'UV_POT')
+
 class TestTaskServer(unittest.TestCase):
     def setUp(self):
         self.dbi = FakeDataBaseInterface()
     def test_basics(self):
         s = ts.TaskServer(self.dbi)
-        t = SleepTask('UV','1',[],self.dbi)
+        t = SleepTask('UV',1,'still',[],self.dbi)
         s.append_task(t)
         self.assertEqual(len(s.active_tasks), 1)
         t.run()
@@ -132,7 +137,7 @@ class TestTaskServer(unittest.TestCase):
         class SleepHandler(ts.TaskHandler):
             def handle(me):
                 self.var += 1
-                t = SleepTask('UV','1',[],self.dbi)
+                t = SleepTask('UV',1,'still',[],self.dbi)
                 t.run()
                 me.server.append_task(t)
         s = ts.TaskServer(self.dbi, handler=SleepHandler)
@@ -154,8 +159,8 @@ class TestTaskServer(unittest.TestCase):
         for f in self.dbi.files: self.dbi.files[f] = 'UV_POT'
         class NullHandler(ts.TaskHandler):
             def handle(me):
-                task, obs, args = me.get_pkt()
-                t = NullTask(task, obs, args, self.dbi)
+                task, obs, still, args = me.get_pkt()
+                t = NullTask(task, obs, still, args, self.dbi)
                 me.server.append_task(t)
                 t.run()
                 self.var += 1
@@ -164,14 +169,14 @@ class TestTaskServer(unittest.TestCase):
         thd.start()
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.sendto(ts.to_pkt('UV','1',[]), ('localhost', ts.STILL_PORT))
+            sock.sendto(ts.to_pkt('UV',1,'still',[]), ('localhost', ts.STILL_PORT))
             while self.var != 1: time.sleep(.6)
             self.assertEqual(self.var, 1)
-            self.assertEqual(self.dbi.get_obs_status('1'), 'UV')
+            self.assertEqual(self.dbi.get_obs_status(1), 'UV')
         finally:
             s.shutdown()
             thd.join()
-                
+
 class TestTaskClient(unittest.TestCase):
     def setUp(self):
         self.dbi = FakeDataBaseInterface()
@@ -188,24 +193,24 @@ class TestTaskClient(unittest.TestCase):
         thd.start()
         try:
             tc = ts.TaskClient(self.dbi, 'localhost')
-            tc._tx('UV', '1', ['a','b','c'])
+            tc._tx('UV', 1, ['a','b','c'])
         finally:
             s.shutdown()
             thd.join()
-        self.assertEqual(self.pkt, ('UV','1',['a','b','c']))
+        self.assertEqual(self.pkt, ('UV',1,'localhost',['a','b','c']))
     def test_gen_args(self):
         tc = ts.TaskClient(self.dbi, 'localhost')
-        for task in sch.FILE_PROCESSING_STAGES[1:-1]:
-            args = tc.gen_args(task, '2')
+        for task in sch.FILE_PROCESSING_STAGES[2:-1]:
+            args = tc.gen_args(task, 2)
             if task in ['UVCRE','UVCRRE']:
                 self.assertEqual(len(args), 3)
-            elif task in ['UV','UVC','CLEAN_UV','CLEAN_UVC','NPZ','UVCRR',
+            elif task in ['UVC','CLEAN_UV','CLEAN_UVC','NPZ','UVCRR',
                     'CLEAN_UVCRE','CLEAN_UVCRR','CLEAN_NPZ','CLEAN_UVCR',
                     'CLEAN_UVCRRE']:
                 self.assertEqual(len(args), 1)
             elif task in ['ACQUIRE_NEIGHBORS','CLEAN_NEIGHBORS']:
                 self.assertEqual(len(args), 0)
-            elif task in ['NPZ_POT','UVCRRE_POT']:
+            elif task in ['UV','NPZ_POT','UVCRRE_POT']:
                 self.assertEqual(len(args), 2)
     def test_tx(self):
         self.pkt = ''
@@ -217,12 +222,12 @@ class TestTaskClient(unittest.TestCase):
         thd.start()
         try:
             tc = ts.TaskClient(self.dbi, 'localhost')
-            tc.tx('UV', '1')
+            tc.tx('UV', 1)
         finally:
             s.shutdown()
             thd.join()
-        self.assertEqual(self.pkt, ('UV','1',['localhost:./test.uv']))
-        
+        self.assertEqual(self.pkt, ('UV',1,'localhost',['test.uv', 'localhost:./test.uv']))
+
 
 if __name__ == '__main__':
     unittest.main()
