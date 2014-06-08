@@ -179,6 +179,8 @@ class Scheduler:
         else: # this is a normal file
             next_step = FILE_PROCESSING_LINKS[status]
         neighbor_status = [dbi.get_obs_status(n) for n in neighbors if not n is None]
+        # XXX shoudl check first if obs has been assigned to a still in the db already and continue to use that
+        # and only generate a new still # if it hasn't been assigned one already.
         still = self.obs_to_still(obs) 
         if ActionClass is None: ActionClass = Action
         a = ActionClass(obs, next_step, neighbor_status, still, *action_args)
@@ -189,7 +191,7 @@ class Scheduler:
     def determine_priority(self, action, dbi):
         '''Assign a priority to an action based on its status and the time
         order of the obs to which this action is attached.'''
-        pol, jdcnt = action.obs / 2**24, action.obs % 2**24
+        pol, jdcnt = action.obs / 2**32, action.obs % 2**32 # XXX maybe not make this have to explicitly match dbi bits
         return jdcnt * 4 + pol # prioritize first by time, then by pol
         # XXX might want to prioritize finishing a obs already started before
         # moving to the latest one (at least, up to a point) to avoid a
