@@ -117,7 +117,9 @@ class DataBaseInterface(object):
         else:
             self.engine = create_engine(
                     'mysql://{username}:{password}@{hostip}:{port}/{dbname}'.format(
-                                **dbinfo))
+                                **dbinfo),
+                                pool_size=20,
+                                max_overflow=40)
         self.Session = sessionmaker(bind=self.engine)
     def test_db(self):
         tables = Base.metadata.tables.keys()
