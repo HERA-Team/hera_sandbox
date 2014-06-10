@@ -64,19 +64,13 @@ def read_coeffs(calfile,na=32):
 	coeffs = coeffs[:na]
 	return baselines,freqs,coeffs
 
-def test_regress(calfile,gs=1,n_sig=5,na=32,readFromFile=False):
+def test_regress(baselines,coeffs,gs=1,n_sig=5,na=32,readFromFile=False):
 	"""
 	This function tests the linear regression method of recovering the global 
 	signal by generating a visibility VV with random normal noise of amplitude 
 	n_sig and then performing a linear regression on VV and the coefficients 
 	from get_coeffs(). 
 	"""
-	if readFromFile:
-		baselines,freqs,coeffs = read_coeffs(calfile,na=na)
-	else:
-		baselines,freqs,coeffs = get_coeffs(calfile,na=na,freqs=n.array([.1,]))
-		coeffs=coeffs[:,0]
-	#coeffs=coeffs.T
 	print coeffs.shape
 	VV = gs*coeffs + n.random.normal(loc=0.0,scale=n_sig,size=[len(coeffs),1])
 	VV = VV*n.exp(2*n.pi*1j*n.random.rand())
@@ -88,19 +82,13 @@ def test_regress(calfile,gs=1,n_sig=5,na=32,readFromFile=False):
 	print 'chi = ',redchi
 	return gs_recov, redchi
 
-def test_regress_thru_origin(calfile,gs=1,n_sig=5,na=32,readFromFile=False):
+def test_regress_thru_origin(baselines,coeffs,gs=1,n_sig=5,na=32,readFromFile=False):
 	"""
 	This function tests the linear regression method of recovering the global 
 	signal by generating a visibility VV with random normal noise of amplitude 
 	n_sig and then performing a linear regression on VV and the coefficients 
 	from get_coeffs(). 
 	"""
-	if readFromFile:
-		baselines,freqs,coeffs = read_coeffs(calfile,na=na)
-	else:
-		baselines,freqs,coeffs = get_coeffs(calfile,na=na,freqs=n.array([.1,]))
-		coeffs=coeffs[:,0]
-	
 	print coeffs.shape
 	VV = gs*coeffs + n.random.normal(loc=0.0,scale=n_sig,size=[len(coeffs),1])
 	VV = VV*n.exp(2*n.pi*1j*n.random.rand())
@@ -112,7 +100,7 @@ def test_regress_thru_origin(calfile,gs=1,n_sig=5,na=32,readFromFile=False):
 	print 'chi = ',redchi
 	return gs_recov, redchi
 
-def test_regress_vary_n(calfile,nants=32):
+def test_regress_vary_n(baselines,coeffs,nants=32,restrictChi=False):
 	for jj in n.arange(100):
 		gs_diff = n.zeros(20)
 		n_sigs = n.logspace(-3,1,num=20)
@@ -121,12 +109,14 @@ def test_regress_vary_n(calfile,nants=32):
 			#if ii==0 and jj==0:rFF=False 
 			#else:rFF=True
 			rFF=True
-			gs_recov, redchi = test_regress(calfile,gs=1,n_sig=n_sig,na=nants,readFromFile=rFF)
-			#gs_diff[ii] = gs_recov - 1
-			if n.absolute(redchi-1)<0.1:
-				gs_diff[ii] = gs_recov - 1.
+			gs_recov, redchi = test_regress(baselines,coeffs,gs=1,n_sig=n_sig,na=nants,readFromFile=rFF)
+			if restrictChi:
+				if n.absolute(redchi-1)<0.1:
+					gs_diff[ii] = gs_recov - 1.
+				else:
+					gs_diff[ii] = None
 			else:
-				gs_diff[ii] = None
+				gs_diff[ii] = gs_recov - 1.
 		p.scatter(n_sigs,n.absolute(gs_diff))
 		p.xscale('log')
 		p.yscale('log')
@@ -135,53 +125,74 @@ def test_regress_vary_n(calfile,nants=32):
 	#p.ylabel('Recovered global signal (true gs = 1)')
 	p.ylabel('Difference between true and recovered global signal')
 	#p.show()
-	p.savefig('./figures/gs_diff_vs_n_good_chi.pdf')
+	if restrictChi:
+		p.savefig('./figures/gs_diff_vs_n_good_chi.pdf')
+	else:
+		p.savefig('./figures/gs_diff_vs_n.pdf')
 	p.clf()
 
-def test_regress_vary_na(calfile,nants=32):
+def test_regress_vary_na(baselines,coeffs,nants=32,restrictChi=False):
 	for jj in n.arange(100):
 		nas = n.arange(2,nants)
 		gs_diff = n.zeros(len(nas))
 		for ii,na in enumerate(nas):
-			gs_recov, redchi = test_regress(calfile,gs=1,n_sig=.1,na=na,readFromFile=True)
-			#gs_diff[ii] = gs_recov - 1.
-			if n.absolute(redchi-1)<0.1:
-				gs_diff[ii] = gs_recov - 1.
+			gs_recov, redchi = test_regress(baselines,coeffs,gs=1,n_sig=.1,na=na,readFromFile=True)
+			if restrictChi:
+				if n.absolute(redchi-1)<0.1:
+					gs_diff[ii] = gs_recov - 1.
+				else:
+					gs_diff[ii] = None
 			else:
-				gs_diff[ii] = None
+				gs_diff[ii] = gs_recov - 1.
 		p.scatter(nas,gs_diff)
 	p.xlabel('Number of antenna')
 	p.ylabel('Difference between true and recovered global signal')
 	#p.show()
-	p.savefig('./figures/gs_diff_vs_na_goodchi.pdf')
+	if restrictChi:
+		p.savefig('./figures/gs_diff_vs_n_good_chi.pdf')
+	else:
+		p.savefig('./figures/gs_diff_vs_n.pdf')
 	p.clf()
 	
 
-def test_regress_vary_bsln(calfile,nants=32):
+def test_regress_vary_bsln(baselines,coeffs,nants=32,restrictChi=False):
 	for jj in n.arange(100):
 		nas = n.arange(2,nants)
 		gs_diff = n.zeros(len(nas))
 		for ii,na in enumerate(nas):
-			gs_recov, redchi = test_regress(calfile,gs=1,n_sig=.1,na=na,readFromFile=True)
-			#gs_diff[ii] = gs_recov - 1.
-			if n.absolute(redchi-1)<0.1:
-				gs_diff[ii] = gs_recov - 1.
+			gs_recov, redchi = test_regress(baselines,coeffs,gs=1,n_sig=.1,na=na,readFromFile=True)
+			if restrictChi:
+				if n.absolute(redchi-1)<0.1:
+					gs_diff[ii] = gs_recov - 1.
+				else:
+					gs_diff[ii] = None
 			else:
-				gs_diff[ii] = None
+				gs_diff[ii] = gs_recov - 1.
 		p.scatter(nas*(nas-1)/2,gs_diff)
 	p.xlabel('Number of baselines')
 	p.ylabel('Difference between true and recovered global signal')
 	#p.show()
-	p.savefig('./figures/gs_diff_vs_bsln_goodchi.pdf')
+	if restrictChi:
+		p.savefig('./figures/gs_diff_vs_n_good_chi.pdf')
+	else:
+		p.savefig('./figures/gs_diff_vs_n.pdf')
 	p.clf()
 
 
 if __name__=='__main__': 
 	calfile='psa898_v002'
 	#calfile='basic_amp_aa'
-	#get_coeffs(na=32,freqs=n.array([.1,]))
-	test_regress_vary_n(calfile,nants=32) 
-	test_regress_vary_na(calfile,nants=32)
-	test_regress_vary_bsln(calfile,nants=32)
+	#baselines,freqs,coeffs = get_coeffs(na=32,freqs=n.array([.1,]))
+	na=32
+	baselines,freqs,coeffs = read_coeffs(calfile,na=na)
+	test_regress_vary_n(baselines,coeffs,nants=na) 
+	test_regress_vary_na(baselines,coeffs,nants=na)
+	test_regress_vary_bsln(baselines,coeffs,nants=na)
 
 
+	# if readFromFile:
+	# 	baselines,freqs,coeffs = read_coeffs(calfile,na=na)
+	# else:
+	# 	baselines,freqs,coeffs = get_coeffs(calfile,na=na,freqs=n.array([.1,]))
+	# 	coeffs=coeffs[:,0]
+	
