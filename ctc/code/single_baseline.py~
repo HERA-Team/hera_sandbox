@@ -1,0 +1,109 @@
+## NAME: 
+#         single_baseline.py
+## PURPOSE: 
+#         Visibility simulator for a single baseline for all frequencies for 1 Sidereal day
+
+#------------------------------------------------------------------------------------------------
+
+import aipy
+import numpy
+import pylab
+import pyfits
+import matplotlib.pyplot as plt
+
+
+#get antenna array
+
+filename = 'psa898_v003'
+
+#get 3D image
+
+img3d = aipy.map.Map(fromfits = '/Users/carinacheng/Desktop/Carina/UCBResearch/images/lambda_haslam408_dsds_eq.fits') #reads in 3D image; default is nside=512 (3145728 pixels)
+
+#rescale frequency (Haslam map is 408GHz)
+
+r = 150.0/408
+f = r**-2.5 #synchrotron emission (spectral index -2.5)
+
+img3d.map.map *= f #3D image data rescaled
+
+#get eq coordinates
+
+baseline = 3000/aipy.const.len_ns #ns
+px = numpy.arange(img3d.npix()) #number of pixels in map
+crd3d = numpy.array(img3d.px2crd(px,ncrd=3)) #aipy.healpix.HealpixMap.px2crd?
+x3d,y3d,z3d = crd3d[0], crd3d[1], crd3d[2] #1D arrays of eq coordinates of 3Dimg (can define to be whatever coordinate system, but eq is most useful here)
+
+#miriad uv file set-up
+
+uv = aipy.miriad.UV('/Users/carinacheng/Desktop/Carina/UCBResearch/tables/single_baseline.uv', status='new')
+uv['history'] = 'Made from single_baseline.py.\n'
+uv.add_var('version'  ,'a');   uv['version'] = '0.0.1'
+uv.add_var('sdf'      ,'d')#;   uv['sdf'] = delta freq
+uv.add_var('inttime'  ,'r');   uv['inttime'] = 10.0
+uv.add_var('latitud'  ,'d')
+uv.add_var('dec'      ,'d')
+uv.add_var('obsdec'   ,'d')
+uv.add_var('longitu'  ,'d')
+uv.add_var('nants'    ,'i')
+uv.add_var('antpos'   ,'d')
+uv.add_var('coord'    ,'d')
+uv.add_var('time'     ,'d')
+uv.add_var('lst'      ,'d')
+uv.add_var('ra'       ,'d')
+uv.add_var('obsra'    ,'d')
+uv.add_var('baseline' ,'r')
+uv.add_var('pol'      ,'i')
+uv.add_var('sfreq'    ,'d')  
+
+#parameters used in loops
+
+frequencies = [0.1] #GHz (from 0.1-0.2)
+lsts = numpy.arange(numpy.pi/2,3*numpy.pi/2,0.01) #LST is RA of object at meridian
+vis = numpy.zeros(lsts.shape,dtype=numpy.complex) #visibility
+
+for f in range(len(frequencies)):
+
+    freq = numpy.asarray(frequencies[f]) #needs to be in array form, not list form
+    aa = aipy.cal.get_aa(filename, freq) #returns antenna array (length is 32)
+    uv['latitud'] = aa.lat
+    uv['dec'] = aa.lat
+    uv['obsdec'] = aa.lat
+    uv['longitu'] = aa.long
+    uv['nants'] = len(aa)
+    uv['antpos'] = (numpy.array([ant.pos for ant in aa], dtype = numpy.double)).transpose().flatten() #transpose is miriad convention
+    uv['sfreq'] = frequencies[f]
+
+    data = []
+
+    for ii,lst in enumerate(lsts): #ii in index, lst is value
+
+        t3d = aipy.coord.eq2top_m(lst,aa.lat) #topocentric conversion matrix (3x3)
+        tx3d, ty3d, tz3d = numpy.dot(t3d,crd3d) #topocentric coordinates
+        #bm3d = aa[0].bm_response((tx3d,ty3d,tz3d)) #beam response (makes code slow)
+        #bm3d = numpy.where(tz3d < 0, 0, bm3d) #gets rid of beam values below horizon
+        #sum_bm3d = numpy.sum(bm3d)
+ 
+        #XXX east-west baseline only
+        fringe3d = numpy.exp(-2j*numpy.pi*tx3d*baseline*freq) #fringe pattern
+
+        fluxes3d = img3d.map.map
+
+        p13d = fluxes3d*fringe3d#*bm3d
+        vis[ii] = numpy.sum(p13d) #/ sum_bm3d
+        data.append(vis[ii])
+
+        uv['lst'] = lst
+
+        for i, ai in enumerate(aa):
+            for j, aj in enumerate(aa):
+                if j < i: continue
+                crd = aa.get_baseline(i,j)
+                preamble = (crd, lst, (i,j))
+        
+    flags = numpy.zeros(data)
+
+    uv.write(preamble, data, flags)
+
+del(uv) #closes uv file
+
