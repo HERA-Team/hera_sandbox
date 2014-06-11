@@ -4,9 +4,11 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool,QueuePool
 from ddr_compress.scheduler import FILE_PROCESSING_STAGES
-import aipy as a, os, numpy as n,sys
+import aipy as a, os, numpy as n,sys,logging
+import configparser
 #Based on example here: http://www.pythoncentral.io/overview-sqlalchemys-expression-language-orm-queries/
 Base = declarative_base()
+logger = logging.getLogger('dbi')
 
 dbinfo = {'username':'obs',
           'password':'\x50\x39\x6c\x73\x34\x52\x2a\x40',
@@ -103,12 +105,24 @@ class File(Base):
 
 
 class DataBaseInterface(object):
-    def __init__(self,test=False):
+    def __init__(self,configfile='~/.ddr_compress/db.cfg',test=False):
         """
         Connect to the database and initiate a session creator.
          or
         create a FALSE database
+
+        db.cfg is the default setup. Config files live in ddr_compress/configs
+        To use a config file, copy the desired file ~/.paperstill/db.cfg
         """
+        if not configfile is None:
+            config = configparser.ConfigParser()
+            configfile = os.path.expanduser(configfile)
+            if os.path.exists(configfile):
+                logger.info('loading file '+configfile)
+                config.read(configfile)
+                self.dbinfo = config['dbinfo']
+            else:
+                logging.info(configfile+" Not Found")
         if test:
             self.engine = create_engine('sqlite:///',
                                         connect_args={'check_same_thread':False},
@@ -117,7 +131,7 @@ class DataBaseInterface(object):
         else:
             self.engine = create_engine(
                     'mysql://{username}:{password}@{hostip}:{port}/{dbname}'.format(
-                                **dbinfo),
+                                **self.dbinfo),
                                 pool_size=20,
                                 max_overflow=40)
         self.Session = sessionmaker(bind=self.engine)
