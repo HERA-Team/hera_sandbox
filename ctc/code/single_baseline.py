@@ -29,6 +29,9 @@ img3d.map.map *= f #3D image data rescaled
 
 #get eq coordinates
 
+# XXX ARP: should pull baseline from cal file:
+# aa = aipy.cal.get_aa(filename, arra_of_freqs)
+# bl = aa.get_baseline(0,16) # for antennas 0 and 16
 baseline = 3000/aipy.const.len_ns #ns
 px = numpy.arange(img3d.npix()) #number of pixels in map
 crd3d = numpy.array(img3d.px2crd(px,ncrd=3)) #aipy.healpix.HealpixMap.px2crd?
@@ -38,6 +41,8 @@ x3d,y3d,z3d = crd3d[0], crd3d[1], crd3d[2] #1D arrays of eq coordinates of 3Dimg
 
 uv = aipy.miriad.UV('/Users/carinacheng/Desktop/Carina/UCBResearch/tables/single_baseline.uv', status='new')
 
+# XXX ARP: should make some of these constants (like # of chans) a constant, e.g.
+# NCHAN = 256; uv['sdf'] = 0.1/NCHAN
 uv.add_var('telescop' ,'a');   uv['telescop'] = 'AIPY'
 uv.add_var('operator' ,'a');   uv['operator'] = 'AIPY'
 uv.add_var('version'  ,'a');   uv['version'] = '0.0.1'
@@ -53,6 +58,7 @@ uv.add_var('npol'     ,'i');   uv['npol'] = 1
 uv.add_var('nspect'   ,'i');   uv['nspect'] = 1
 uv.add_var('nants'    ,'i');   uv['nants'] = 32
 
+# XXX ARP: this is fine, but should be moved to top, and also used to extract baseline info
 aa = aipy.cal.get_aa(filename, uv['sdf'],uv['sfreq'],uv['nchan']) #don't know if this is correct?
 
 uv.add_var('latitud'  ,'d');   uv['latitud'] = aa.lat
@@ -74,6 +80,7 @@ uv.add_var('pol'      ,'i')
 #parameters used in loops
 
 times = numpy.arange(2454500., 2454500.001, uv['inttime']/aipy.const.s_per_day)
+# XXX ARP: once you build an antenna array, freqs is available at aa.get_afreqs()
 freqs = numpy.arange(0.1,0.2,uv['sdf'])
 
 for ii, t in enumerate(times):
@@ -88,12 +95,15 @@ for ii, t in enumerate(times):
     uv['obsra'] = aa.sidereal_time()
 
     t3d = aipy.coord.eq2top_m(aa.sidereal_time(),aa.lat)
+    # XXX ARP: topocentric coordinates don't change with time, so move outside of loop for speed-up
+    # XXX ARP: also, the beam stuff that uses these coords can be outside of loop
     tx3d, ty3d, tz3d = numpy.dot(t3d,crd3d) #topocentric coordinates
     #bm3d = aa[0].bm_response((tx3d,ty3d,tz3d)) #beam response (makes code slow)
     #bm3d = numpy.where(tz3d < 0, 0, bm3d) #gets rid of beam values below horizon
     #sum_bm3d = numpy.sum(bm3d)
     
     #XXX east-west baseline only
+    # XXX ARP: these fringes don't change versus time, so maybe compute them once outside time loop?
     for jj, f in enumerate(freqs):
         
         fringe3d = numpy.exp(-2j*numpy.pi*tx3d*baseline*f) #fringe pattern
@@ -106,12 +116,14 @@ for ii, t in enumerate(times):
 
     data = numpy.asarray(data)
 
+    # XXX ARP: only write out the baselines that you simulated (here you loop through all pairs of antennas)
     for i, ai in enumerate(aa):
         for j, aj in enumerate(aa):
             if j < i: continue
             crd = aa.get_baseline(i,j)
             preamble = (crd, t, (i,j))
             uv['pol'] = aipy.miriad.str2pol['xx']
+            # XXX ARP: building this array of zeros each time is inefficient.  do it once outside the loop
             flags = numpy.zeros((uv['nchan'],),dtype=numpy.int32)
             uv.write(preamble, data, flags)
 
