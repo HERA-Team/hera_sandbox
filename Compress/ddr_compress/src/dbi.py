@@ -121,6 +121,7 @@ class DataBaseInterface(object):
                 logger.info('loading file '+configfile)
                 config.read(configfile)
                 self.dbinfo = config['dbinfo']
+                self.dbinfo['password'] = self.dbinfo['password'].decode('string-escape')
             else:
                 logging.info(configfile+" Not Found")
         if test:
