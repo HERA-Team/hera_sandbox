@@ -4,7 +4,9 @@ from ddr_compress.dbi import Base,File,Observation
 from ddr_compress.dbi import DataBaseInterface,jdpol2obsnum
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine,func
-import numpy as n,os,sys
+import numpy as n,os,sys,logging
+#logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('dbi_test')
 
 """
 class MYSQLTest(unittest.TestCase):
@@ -37,6 +39,10 @@ class TestDBI(unittest.TestCase):
         self.filename='/data0/zen.2456785.123456.uv'
         self.host = 'pot0'
         self.length = 10.16639/60./24
+    def test_configparsing(self):
+        dbi = DataBaseInterface(test=True)
+        logger.info('Note: did you remember to do "cp configs/test.cfg ~/.paperstill/db.cfg" ? ')
+        self.assertEqual(dbi.dbinfo['hostip'],'memory')
     def test_obsnum_increment(self):
         dt = self.length
         jds = n.arange(0,10)*dt+self.jd
@@ -46,7 +52,6 @@ class TestDBI(unittest.TestCase):
         delta = n.diff(obsnums)
         for d in delta:
             self.assertEqual(d,1)
-        print "test_obsnum_increment adding obs"
         obsnum = self.dbi.add_observation(self.jd,self.pol,self.filename,self.host,length=self.length)
         self.assertEqual(obsnum,jdpol2obsnum(self.jd,self.pol,self.length))
 
@@ -145,7 +150,7 @@ class TestDBI(unittest.TestCase):
         obsnums = self.dbi.add_observations(obslist)
         tic = time.time()
         observations = self.dbi.list_observations()
-        print "time to execute list_observations",time.time()-tic,'s'
+        #print "time to execute list_observations",time.time()-tic,'s'
         self.assertEqual(n.sum(n.array(observations)-n.array(obsnums)),0)
 
 
@@ -174,7 +179,7 @@ class TestDBI(unittest.TestCase):
         mytestobsnum = obsnums[i] #choose a middle obs
         tic = time.time()
         neighbors = self.dbi.get_neighbors(mytestobsnum)
-        print "time to execute get_neighbors",time.time()-tic,'s'
+        #print "time to execute get_neighbors",time.time()-tic,'s'
         self.assertEqual(len(neighbors),2)
 
         self.assertEqual(neighbors[0],obsnums[i-1])#low
@@ -205,7 +210,7 @@ class TestDBI(unittest.TestCase):
         #then get the status back
         tic = time.time()
         status = self.dbi.get_obs_status(obsnum)
-        print "time to execute get_obs_status",time.time()-tic,'s'
+        #print "time to execute get_obs_status",time.time()-tic,'s'
         self.assertEqual(status,'UV')
 
     def test_time_transaction(self):
