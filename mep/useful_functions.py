@@ -10,8 +10,8 @@ def linear_fit(xdata,ydata):
 	nn = np.concatenate((np.ones_like(xdata),xdata),axis=1)
 	MM = np.matrix(nn)
 	bb = np.matrix(ydata)
-	hh = MM.T*MM
-	aa = hh.I*MM.T*bb
+	hh = MM.T.conjugate*MM
+	aa = hh.I*MM.T.conjugate*bb
 	B = aa[0,0] #intercept
 	A = aa[1,0] #slope
 
@@ -64,8 +64,8 @@ def power_law_lstsq_fit(xdata,ydata):
 	out = optimize.leastsq(errfunc, prm0, args=(logx, logy),full_output=1)#, logyerr), full_output=1)
 	prm = out[0] 
 	covar = out[1] 
-	print prm
-	print covar
+	#print prm
+	#print covar
 
 	index = prm[1]
 	amp = 10.0**prm[0]

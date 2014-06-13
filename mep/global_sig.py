@@ -72,8 +72,7 @@ def test_regress(baselines,coeffs,gs=1,n_sig=5,na=32,readFromFile=False):
 	from get_coeffs(). 
 	"""
 	print coeffs.shape
-	VV = gs*coeffs + n.random.normal(loc=0.0,scale=n_sig,size=[len(coeffs),1])
-	VV = VV*n.exp(2*n.pi*1j*n.random.rand())
+	VV = gs*coeffs + n.random.normal(loc=0.0,scale=n_sig,size=[len(coeffs),1])*n.exp(2*n.pi*1j*n.random.rand())
 	print VV.shape
 	gs_recov,n_recov,RR,redchi = uf.linear_fit(coeffs,VV)
 	print "true gs = {0}\trecovered gs = {1}".format(gs,gs_recov)
@@ -183,11 +182,11 @@ if __name__=='__main__':
 	calfile='psa898_v002'
 	#calfile='basic_amp_aa'
 	#baselines,freqs,coeffs = get_coeffs(na=32,freqs=n.array([.1,]))
-	na=32
+	na=10
 	baselines,freqs,coeffs = read_coeffs(calfile,na=na)
 	test_regress_vary_n(baselines,coeffs,nants=na) 
-	test_regress_vary_na(baselines,coeffs,nants=na)
-	test_regress_vary_bsln(baselines,coeffs,nants=na)
+	#test_regress_vary_na(baselines,coeffs,nants=na)
+	#test_regress_vary_bsln(baselines,coeffs,nants=na)
 
 
 	# if readFromFile:
