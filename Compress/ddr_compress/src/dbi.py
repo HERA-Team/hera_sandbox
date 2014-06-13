@@ -30,7 +30,7 @@ def jdpol2obsnum(jd,pol,djd):
     dublinjd = jd - 2415020  #use Dublin Julian Date
     obsint = int(dublinjd/djd)  #divide up by length of obs
     polnum = a.miriad.str2pol[pol]+10
-    assert(obsint.bit_length()<31)
+    assert(obsint < 2**31)
     return int(obsint + polnum*(2**32))
 
 def updateobsnum(context):
