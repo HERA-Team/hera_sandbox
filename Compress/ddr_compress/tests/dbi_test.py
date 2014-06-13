@@ -4,7 +4,28 @@ from ddr_compress.dbi import Base,File,Observation
 from ddr_compress.dbi import DataBaseInterface,jdpol2obsnum
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine,func
-import numpy as n,os,sys
+import numpy as n,os,sys,logging
+#logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('dbi_test')
+
+"""
+class MYSQLTest(unittest.TestCase):
+    def setUp(self):
+        self.dbi = DataBaseInterface()
+        print "NOTE: MYSQLTest will only work if the sql db setup referenced in ddr_compress.dbi is setup"
+        self.dbi.createdb()
+        self.jd = 2456892.20012000
+        self.pol = 'xx'
+        self.filename='/data0/zen.2456785.123456.uv'
+        self.host = 'pot0'
+        self.length = 10.16639/60./24
+    def test_db(self):
+        dbi.test_db()
+    def test_obsnum_increment(self):
+        obsnum = self.dbi.add_observation(self.jd,self.pol,self.filename,self.host,length=self.length)
+        print obsnum
+        self.assertEqual(obsnum,jdpol2obsnum(self.jd,self.pol,self.length))
+"""
 
 class TestDBI(unittest.TestCase):
     def setUp(self):
@@ -13,20 +34,26 @@ class TestDBI(unittest.TestCase):
         """
         self.dbi = DataBaseInterface(test=True)
         self.session = self.dbi.Session()
-        self.jd = 2456785.12345
+        self.jd = 2456892.20012000
         self.pol = 'xx'
         self.filename='/data0/zen.2456785.123456.uv'
         self.host = 'pot0'
-        self.length = 10/60./24
+        self.length = 10.16639/60./24
+    def test_configparsing(self):
+        dbi = DataBaseInterface(test=True)
+        logger.info('Note: did you remember to do "cp configs/test.cfg ~/.paperstill/db.cfg" ? ')
+        self.assertEqual(dbi.dbinfo['hostip'],'memory')
     def test_obsnum_increment(self):
-        dt = 10/60./24  
-        jds = n.arange(0,5)*dt+2456446.1234
+        dt = self.length
+        jds = n.arange(0,10)*dt+self.jd
         obsnums=[]
         for jd in jds:
-            obsnums.append(jdpol2obsnum(jd,'I',dt))
+            obsnums.append(jdpol2obsnum(jd,self.pol,dt))
         delta = n.diff(obsnums)
         for d in delta:
             self.assertEqual(d,1)
+        obsnum = self.dbi.add_observation(self.jd,self.pol,self.filename,self.host,length=self.length)
+        self.assertEqual(obsnum,jdpol2obsnum(self.jd,self.pol,self.length))
 
     def test_add_observation(self):
         """
@@ -35,9 +62,10 @@ class TestDBI(unittest.TestCase):
         but with the dbi wrapper
         """
         obsnum = self.dbi.add_observation(
-                    self.jd,self.pol,self.filename,self.host)
+                    self.jd,self.pol,self.filename,self.host,length=self.length)
         OBS = self.session.query(Observation).filter(Observation.obsnum==obsnum).one()
-        self.assertEqual(OBS.julian_date,self.jd)
+        self.assertEqual(float(OBS.julian_date),self.jd)
+        self.assertEqual(OBS.obsnum,jdpol2obsnum(self.jd,self.pol,self.length))
     def test_add_file(self):
         """
         todo update from code
@@ -98,10 +126,10 @@ class TestDBI(unittest.TestCase):
                         self.assertEqual(OBS.high_neighbors[0].julian_date,
                                         obs['neighbor_high'])
                     break
-                            
-                    
-                
-        
+
+
+
+
 
     def test_list_observations(self):
         #form up the observation list
@@ -119,10 +147,10 @@ class TestDBI(unittest.TestCase):
                     obslist[-1]['neighbor_low'] = jds[jdi-1]
                 if jdi<len(jds[:-1]):
                     obslist[-1]['neighbor_high'] = jds[jdi+1]
-        obsnums = self.dbi.add_observations(obslist)  
+        obsnums = self.dbi.add_observations(obslist)
         tic = time.time()
         observations = self.dbi.list_observations()
-        print "time to execute list_observations",time.time()-tic,'s'
+        #print "time to execute list_observations",time.time()-tic,'s'
         self.assertEqual(n.sum(n.array(observations)-n.array(obsnums)),0)
 
 
@@ -151,15 +179,15 @@ class TestDBI(unittest.TestCase):
         mytestobsnum = obsnums[i] #choose a middle obs
         tic = time.time()
         neighbors = self.dbi.get_neighbors(mytestobsnum)
-        print "time to execute get_neighbors",time.time()-tic,'s'
+        #print "time to execute get_neighbors",time.time()-tic,'s'
         self.assertEqual(len(neighbors),2)
-    
+
         self.assertEqual(neighbors[0],obsnums[i-1])#low
         self.assertEqual(neighbors[1],obsnums[i+1])#high
 
     def test_set_obs_status(self):
         """
-        set the status with the dbi function then check it with 
+        set the status with the dbi function then check it with
         under the hood stuff
         """
         #first create an observation in the first place
@@ -167,7 +195,7 @@ class TestDBI(unittest.TestCase):
                     self.jd,self.pol,self.filename,self.host)
         # then set the status to something else
         self.dbi.set_obs_status(obsnum,'UV')
-        # get the status back out 
+        # get the status back out
         OBS = self.session.query(Observation).filter(Observation.obsnum==obsnum).one()
         self.assertEqual(OBS.status,'UV')
     def test_get_obs_status(self):
@@ -182,7 +210,7 @@ class TestDBI(unittest.TestCase):
         #then get the status back
         tic = time.time()
         status = self.dbi.get_obs_status(obsnum)
-        print "time to execute get_obs_status",time.time()-tic,'s'
+        #print "time to execute get_obs_status",time.time()-tic,'s'
         self.assertEqual(status,'UV')
 
     def test_time_transaction(self):
@@ -221,7 +249,7 @@ class TestDBI(unittest.TestCase):
         host,path = self.dbi.get_output_location(obsnum)
         self.assertEqual(host,self.host)
         self.assertEqual(path,os.path.dirname(self.filename))
-       
+
     def test_still_path(self):
         """
         """

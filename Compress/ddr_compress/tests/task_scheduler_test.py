@@ -34,7 +34,7 @@ class FakeDataBaseInterface:
         return self.pids[obs]
     def get_input_file(self, obsnum):
         return 'localhost',os.getcwd()+'/data','test%d.uv' % (obsnum+1)
-    def get_output_path(self, obsnum):
+    def get_output_location(self, obsnum):
         return 'localhost','.'
     def get_obs_still_host(self, obsnum):
         return self.stills[obsnum]

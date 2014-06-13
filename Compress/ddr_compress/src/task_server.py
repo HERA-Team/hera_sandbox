@@ -74,7 +74,7 @@ class TaskClient:
         self.sock.sendto(pkt, self.host_port)
     def gen_args(self, task, obs):
         pot,path,basename = self.dbi.get_input_file(obs)
-        outhost,outpath = self.dbi.get_output_path(obs)
+        outhost,outpath = self.dbi.get_output_location(obs)
         # hosts and paths are not used except for ACQUIRE_NEIGHBORS and CLEAN_NEIGHBORS
         stillhost,stillpath = self.dbi.get_obs_still_host(obs), self.dbi.get_obs_still_path(obs)
         neighbors = [(self.dbi.get_obs_still_host(n),self.dbi.get_obs_still_path(n)) + self.dbi.get_input_file(n)
@@ -113,7 +113,11 @@ class TaskClient:
         args = self.gen_args(task, obs)
         self._tx(task, obs, args)
     def tx_kill(self, obs):
-        self._tx('KILL', obs, [str(self.dbi.get_obs_pid(obs))])
+        pid = self.dbi.get_obs_pid(obs)
+        if pid is None:
+            logger.debug('ActionClient.tx_kill: task running on %d is not alive' % obs)
+        else:
+            self._tx('KILL', obs, [str(pid)])
 
 # XXX consider moving this class to a separate file
 import scheduler
@@ -127,7 +131,7 @@ class Action(scheduler.Action):
 
 class Scheduler(scheduler.Scheduler):
     def __init__(self, task_clients, actions_per_still=8, blocksize=10):
-        scheduler.Scheduler.__init__(self, nstills=len(task_clients), 
+        scheduler.Scheduler.__init__(self, nstills=len(task_clients),
             actions_per_still=actions_per_still, blocksize=blocksize)
         self.task_clients = task_clients
     def kill_action(self, a):
@@ -192,9 +196,11 @@ class TaskServer(SocketServer.UDPServer):
         self.is_running = True
         t = threading.Thread(target=self.finalize_tasks)
         t.start()
-        self.serve_forever()
-        for task in self.active_tasks: task.kill() # XXX is this cleanup necessary?
-        t.join()
+        try:
+            self.serve_forever()
+        finally:
+            self.shutdown()
+            t.join()
     def shutdown(self):
         self.is_running = False
         for t in self.active_tasks:

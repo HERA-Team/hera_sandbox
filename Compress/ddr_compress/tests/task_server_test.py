@@ -41,7 +41,7 @@ class FakeDataBaseInterface:
         return self.pids[obs]
     def get_input_file(self, obsnum):
         return 'localhost','.','test.uv'
-    def get_output_path(self, obsnum):
+    def get_output_location(self, obsnum):
         return 'localhost','.'
     def get_obs_still_host(self, obsnum):
         return self.stills[obsnum]
@@ -74,14 +74,14 @@ class TestFunctions(unittest.TestCase):
         self.assertEqual(obs, 5)
         self.assertEqual(still, 'still')
         self.assertEqual(args, ['1','2','3'])
-        
+
 class TestTask(unittest.TestCase):
     def setUp(self):
         self.var = 0
         class VarTask(ts.Task):
             def _run(me):
                 self.var += 1
-                return subprocess.Popen(['ls'], stdout=open(os.devnull,'w'), 
+                return subprocess.Popen(['ls'], stdout=open(os.devnull,'w'),
                     cwd=me.cwd)
         self.VarTask = VarTask
     def test_run(self):
@@ -106,7 +106,7 @@ class TestTask(unittest.TestCase):
         self.assertEqual(t.poll(), -9)
         self.assertLess(end_t-start_t, 100)
         self.assertEqual(dbi.get_obs_status(1), 'UV_POT')
-        
+
 class TestTaskServer(unittest.TestCase):
     def setUp(self):
         self.dbi = FakeDataBaseInterface()
@@ -176,7 +176,7 @@ class TestTaskServer(unittest.TestCase):
         finally:
             s.shutdown()
             thd.join()
-                
+
 class TestTaskClient(unittest.TestCase):
     def setUp(self):
         self.dbi = FakeDataBaseInterface()
@@ -227,7 +227,7 @@ class TestTaskClient(unittest.TestCase):
             s.shutdown()
             thd.join()
         self.assertEqual(self.pkt, ('UV',1,'localhost',['test.uv', 'localhost:./test.uv']))
-        
+
 
 if __name__ == '__main__':
     unittest.main()
