@@ -97,15 +97,16 @@ class TaskClient:
             'UVCRE': interleave(basename+'cR'),
             'NPZ': [basename+'cRE'],
             'UVCRR': [basename+'cR'],
-            'NPZ_POT': [basename+'cRE.npz', '%s:%s' % (outhost,outpath)],
+            'NPZ_POT': [basename+'cRE.npz', '%s:%s' % (pot,path)],
             'CLEAN_UVCRE': [basename+'cRE'],
             'UVCRRE': interleave(basename+'cRR'),
             'CLEAN_UVCRR': [basename+'cRR'],
             'CLEAN_NPZ': [basename+'cRE.npz'],
             'CLEAN_NEIGHBORS': [n[-1]+'cR' for n in neighbors if n[0] != stillhost],
-            'UVCRRE_POT': [basename+'cRRE', '%s:%s' % (outhost,outpath)],
+            'UVCRRE_POT': [basename+'cRRE', '%s:%s' % (pot,path)],
             'CLEAN_UVCR': [basename+'cR'],
             'CLEAN_UVCRRE': [basename+'cRRE'],
+            'POT_TO_USA': ['%s:%s'%(outhost,outpath), '%s:%s/%s'%(pot,path,basename+'cRRE'), '%s:%s/%s'%(pot,path,basename+'cRE.npz')], # XXX add destination here? if so, need to decide how dbi distinguishes between location of pot and location of usa
             'COMPLETE': [],
         }
         return args[task]

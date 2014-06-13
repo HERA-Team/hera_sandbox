@@ -5,7 +5,8 @@ logger = logging.getLogger('scheduler')
 # NEW is for db use internally.  Scheduler only ever gets UV_POT and onward from data base
 FILE_PROCESSING_STAGES = ['NEW','UV_POT', 'UV', 'UVC', 'CLEAN_UV', 'UVCR', 'CLEAN_UVC',
     'ACQUIRE_NEIGHBORS', 'UVCRE', 'NPZ', 'UVCRR', 'NPZ_POT', 'CLEAN_UVCRE', 'UVCRRE',
-    'CLEAN_UVCRR', 'CLEAN_NPZ', 'CLEAN_NEIGHBORS', 'UVCRRE_POT', 'CLEAN_UVCRRE', 'CLEAN_UVCR', 'COMPLETE']
+    'CLEAN_UVCRR', 'CLEAN_NPZ', 'CLEAN_NEIGHBORS', 'UVCRRE_POT', 'CLEAN_UVCRRE', 'CLEAN_UVCR', 
+    'POT_TO_USA', 'COMPLETE']
 FILE_PROCESSING_LINKS = {}
 for i,k in enumerate(FILE_PROCESSING_STAGES[:-1]):
     FILE_PROCESSING_LINKS[k] = FILE_PROCESSING_STAGES[i+1]
@@ -29,6 +30,7 @@ class Action:
         still:still action will run on.'''
         self.obs = obs
         self.task = task
+        self.is_transfer = (task == 'POT_TO_USA') # XXX don't like hardcoded value here
         self.neighbor_status = neighbor_status
         self.still = still
         self.priority = 0
@@ -72,18 +74,20 @@ def action_cmp(x,y): return cmp(x.priority, y.priority)
 class Scheduler:
     '''A Scheduler reads a DataBaseInterface to determine what Actions can be
     taken, and then schedules them on stills according to priority.'''
-    def __init__(self, nstills=4, actions_per_still=8, blocksize=10):
+    def __init__(self, nstills=4, actions_per_still=8, transfers_per_still=2, blocksize=10):
         '''nstills: # of stills in system, 
         actions_per_still: # of actions that can be scheduled simultaneously
                            per still.'''
         self.nstills = nstills
         self.actions_per_still = actions_per_still
+        self.transfers_per_still = transfers_per_still
         self.blocksize = blocksize
         self.active_obs = []
         self._active_obs_dict = {}
         self.action_queue = []
         self.launched_actions = {}
-        for still in xrange(nstills): self.launched_actions[still] = []
+        for still in xrange(nstills):
+            self.launched_actions[still] = []
         self._run = False
     def quit(self):
         self._run = False
@@ -98,20 +102,29 @@ class Scheduler:
             self.update_action_queue(dbi, ActionClass, action_args)
             # Launch actions that can be scheduled
             for still in self.launched_actions:
-                while len(self.launched_actions[still]) < self.actions_per_still:
-                    try: a = self.pop_action_queue(still)
+                while len(self.get_launched_actions(still,tx=False)) < self.actions_per_still:
+                    try: a = self.pop_action_queue(still,tx=False)
+                    except(IndexError): # no actions can be taken on this still
+                        #logger.info('No actions available for still-%d\n' % still)
+                        break # move on to next still
+                    self.launch_action(a)
+                while len(self.get_launched_actions(still,tx=True)) < self.transfers_per_still:
+                    try: a = self.pop_action_queue(still,tx=True)
                     except(IndexError): # no actions can be taken on this still
                         #logger.info('No actions available for still-%d\n' % still)
                         break # move on to next still
                     self.launch_action(a)
             self.clean_completed_actions(dbi)
             time.sleep(sleeptime)
-    def pop_action_queue(self, still):
+    def pop_action_queue(self, still, tx=False):
         '''Return highest priority action for the given still.'''
         for i in xrange(len(self.action_queue)):
-            if self.action_queue[i].still == still:
+            a = self.action_queue[i]
+            if a.still == still and a.is_transfer == tx:
                 return self.action_queue.pop(i)
         raise IndexError('No actions available for still-%d\n' % still)
+    def get_launched_actions(self, still, tx=False):
+        return [a for a in self.launched_actions[still] if a.is_transfer == tx]
     def launch_action(self, a):
         '''Launch the specified Action and record its launch for tracking later.'''
         self.launched_actions[a.still].append(a)
