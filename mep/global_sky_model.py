@@ -62,7 +62,7 @@ def import_gsm_data(folderpath='/Users/mpresley/soft/gsm/data_100MHz_150MHz/',sa
 		if ii==0:
 			data = n.zeros([healmap.map.map.shape[0],nunum])
 		data[:,ii] = healmap.map.map
-	if savedata: n.savez(folderpath+'map_data',data=data,freqs=freqs)
+	if savedata: n.savez_compressed(folderpath+'map_data',data=data,freqs=freqs)
 	return data, freqs
 
 def power_fit_gsm_data(data,freqs,savefolderpath=None):
@@ -70,8 +70,8 @@ def power_fit_gsm_data(data,freqs,savefolderpath=None):
 	for ii in range(data.shape[0]):
 		print ii
 		# amp        index           redchi
-		params[0], params[1], _, _, params[2] = uf.power_law_lstsq_fit(freqs,data[ii,:])
-	if savefolderpath!=None: n.savez(folderpath+'power_fit_params',amp=params[0],index=params[1],redchi=params[2])
+		params[ii,0], params[ii,1], _, _, params[ii,2] = uf.power_law_lstsq_fit(freqs,data[ii,:])
+	if savefolderpath!=None: n.savez_compressed(savefolderpath+'power_fit_params',amp=params[:,0],index=params[:,1],redchi=params[:,2])
 	return params
 # make a healpix map 
 #name = a.map.Map(fromfits='/Users/mpresley/soft/gsm/data_100MHz_150MHz/hi1001.fits')
@@ -81,13 +81,23 @@ def power_fit_gsm_data(data,freqs,savefolderpath=None):
 # pulls up healpix code in ipython
 # aipy.healpix.HealpixMap??
 
+#indexmap = a.map.Map
+#indexmap.map.map = params[:,1]
+
 
 
 if __name__=='__main__':
 	#filename = '/Users/mpresley/soft/gsm/data_100MHz_150MHz/hi1001.dat'
 	#gsm_to_fits_loop('/Users/mpresley/soft/gsm/data_100MHz_150MHz/')
-	data,freqs = import_gsm_data()
-	p.plot(freqs,data[500,:])
+	#data,freqs = import_gsm_data()
+	#p.plot(freqs,data[500,:])
+	f = n.load('/Users/mpresley/soft/gsm/data_100MHz_150MHz/map_data.npz')
+	data = f['data']
+	freqs = f['freqs']
+	params = power_fit_gsm_data(data,freqs,savefolderpath='/Users/mpresley/soft/gsm/data_100MHz_150MHz/')
+	print params
+	p.plot(range(params.shape[0]),params[:,1],c='b')
+	p.plot(range(params.shape[0]),params[:,2],c='g')
 	p.show()
 
 	#n.savez('/Users/mpresley/soft/gsm/data_100MHz_150MHz/map_data',data=data,freqs=freqs)

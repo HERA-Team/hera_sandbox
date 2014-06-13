@@ -10,8 +10,8 @@ def linear_fit(xdata,ydata):
 	nn = np.concatenate((np.ones_like(xdata),xdata),axis=1)
 	MM = np.matrix(nn)
 	bb = np.matrix(ydata)
-	hh = MM.T.conjugate*MM
-	aa = hh.I*MM.T.conjugate*bb
+	hh = MM.H*MM
+	aa = hh.I*MM.H*bb
 	B = aa[0,0] #intercept
 	A = aa[1,0] #slope
 
@@ -26,6 +26,23 @@ def linear_fit(xdata,ydata):
 	redchi = np.sum(np.absolute((ydata-fdata))**2/sig)/(len(ydata) - 2 - 1)
 
 	return A,B,Rsq,redchi
+
+def linear_fit_new(xdata,ydata):
+	print xdata.shape,ydata.shape
+	fitfunc = lambda p, x: p[0] + p[1] * x
+	errfunc = lambda p, x, y: (y - fitfunc(p, x))
+
+	prm0 = np.array([1.0, -1.0]) #initial guess for parameters
+	out = optimize.leastsq(errfunc, prm0, args=(xdata, ydata),full_output=1)
+	intercept,slope = out[0] 
+	covar = out[1] 
+
+	# calculate reduced chi^2 value
+	fdata = slope*xdata+intercept
+	sig = np.sum(np.absolute((ydata-np.average(ydata)))**2)/len(ydata)
+	redchi = np.sum(np.absolute((ydata-fdata))**2/sig)/(len(ydata)-2-1)
+
+	return slope, intercept, redchi
 
 def line_thru_origin_fit(xdata,ydata):
 	# fitfunc = lambda p, x: p*x 

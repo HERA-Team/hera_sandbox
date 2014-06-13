@@ -74,7 +74,8 @@ def test_regress(baselines,coeffs,gs=1,n_sig=5,na=32,readFromFile=False):
 	print coeffs.shape
 	VV = gs*coeffs + n.random.normal(loc=0.0,scale=n_sig,size=[len(coeffs),1])*n.exp(2*n.pi*1j*n.random.rand())
 	print VV.shape
-	gs_recov,n_recov,RR,redchi = uf.linear_fit(coeffs,VV)
+	#gs_recov,n_recov,RR,redchi = uf.linear_fit(coeffs,VV)
+	gs_recov,n_recov,redchi = uf.linear_fit_new(coeffs,VV)
 	print "true gs = {0}\trecovered gs = {1}".format(gs,gs_recov)
 	print "true n = {0}\trecovered n = {1}".format(0.0,n_recov)
 	print "R = ",RR
@@ -148,9 +149,9 @@ def test_regress_vary_na(baselines,coeffs,nants=32,restrictChi=False):
 	p.ylabel('Difference between true and recovered global signal')
 	#p.show()
 	if restrictChi:
-		p.savefig('./figures/gs_diff_vs_n_good_chi.pdf')
+		p.savefig('./figures/gs_diff_vs_na_good_chi.pdf')
 	else:
-		p.savefig('./figures/gs_diff_vs_n.pdf')
+		p.savefig('./figures/gs_diff_vs_na.pdf')
 	p.clf()
 	
 
@@ -172,9 +173,9 @@ def test_regress_vary_bsln(baselines,coeffs,nants=32,restrictChi=False):
 	p.ylabel('Difference between true and recovered global signal')
 	#p.show()
 	if restrictChi:
-		p.savefig('./figures/gs_diff_vs_n_good_chi.pdf')
+		p.savefig('./figures/gs_diff_vs_bsln_good_chi.pdf')
 	else:
-		p.savefig('./figures/gs_diff_vs_n.pdf')
+		p.savefig('./figures/gs_diff_vs_bsln.pdf')
 	p.clf()
 
 
@@ -185,8 +186,8 @@ if __name__=='__main__':
 	na=10
 	baselines,freqs,coeffs = read_coeffs(calfile,na=na)
 	test_regress_vary_n(baselines,coeffs,nants=na) 
-	#test_regress_vary_na(baselines,coeffs,nants=na)
-	#test_regress_vary_bsln(baselines,coeffs,nants=na)
+	test_regress_vary_na(baselines,coeffs,nants=na)
+	test_regress_vary_bsln(baselines,coeffs,nants=na)
 
 
 	# if readFromFile:
