@@ -32,7 +32,8 @@ class TestDBI(unittest.TestCase):
         """
         create an in memory DB and open a connection to it
         """
-        self.dbi = DataBaseInterface(test=True)
+	filename=os.path.dirname(__file__)+'/../configs/test.cfg'
+        self.dbi = DataBaseInterface(test=True,configfile=filename)
         self.session = self.dbi.Session()
         self.jd = 2456892.20012000
         self.pol = 'xx'
@@ -40,9 +41,8 @@ class TestDBI(unittest.TestCase):
         self.host = 'pot0'
         self.length = 10.16639/60./24
     def test_configparsing(self):
-        dbi = DataBaseInterface(test=True)
-        logger.info('Note: did you remember to do "cp configs/test.cfg ~/.paperstill/db.cfg" ? ')
-        self.assertEqual(dbi.dbinfo['hostip'],'memory')
+        #dbi = DataBaseInterface(test=True,configfile=filename)
+        self.assertEqual(self.dbi.dbinfo['hostip'],'memory')
     def test_obsnum_increment(self):
         dt = self.length
         jds = n.arange(0,10)*dt+self.jd
