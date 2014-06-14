@@ -28,6 +28,9 @@ def linear_fit(xdata,ydata):
 	return A,B,Rsq,redchi
 
 def linear_fit_new(xdata,ydata):
+	"""
+	This doesn't work yet.
+	"""
 	print xdata.shape,ydata.shape
 	fitfunc = lambda p, x: p[0] + p[1] * x
 	errfunc = lambda p, x, y: (y - fitfunc(p, x))

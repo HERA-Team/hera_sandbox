@@ -74,8 +74,8 @@ def test_regress(baselines,coeffs,gs=1,n_sig=5,na=32,readFromFile=False):
 	print coeffs.shape
 	VV = gs*coeffs + n.random.normal(loc=0.0,scale=n_sig,size=[len(coeffs),1])*n.exp(2*n.pi*1j*n.random.rand())
 	print VV.shape
-	#gs_recov,n_recov,RR,redchi = uf.linear_fit(coeffs,VV)
-	gs_recov,n_recov,redchi = uf.linear_fit_new(coeffs,VV)
+	gs_recov,n_recov,RR,redchi = uf.linear_fit(coeffs,VV)
+	#gs_recov,n_recov,redchi = uf.linear_fit_new(coeffs,VV)
 	print "true gs = {0}\trecovered gs = {1}".format(gs,gs_recov)
 	print "true n = {0}\trecovered n = {1}".format(0.0,n_recov)
 	print "R = ",RR
@@ -101,6 +101,12 @@ def test_regress_thru_origin(baselines,coeffs,gs=1,n_sig=5,na=32,readFromFile=Fa
 	return gs_recov, redchi
 
 def test_regress_vary_n(baselines,coeffs,nants=32,restrictChi=False):
+	"""
+	This function runs many tests of the linear regression, varying the 
+	amount of noise introduced into the data. I hard-coded the global 
+	signal strength to be 1 so that it is easy to compare the magnitude
+	of the recovered and true global signals and the amplitude of the noise.
+	"""
 	for jj in n.arange(100):
 		gs_diff = n.zeros(20)
 		n_sigs = n.logspace(-3,1,num=20)
@@ -132,6 +138,10 @@ def test_regress_vary_n(baselines,coeffs,nants=32,restrictChi=False):
 	p.clf()
 
 def test_regress_vary_na(baselines,coeffs,nants=32,restrictChi=False):
+	"""
+	This function runs many tests of the linear regression, varying the number 
+	of antennae in the array. Again, the global signal is hard-coded to be 1.
+	"""
 	for jj in n.arange(100):
 		nas = n.arange(2,nants)
 		gs_diff = n.zeros(len(nas))
@@ -156,6 +166,11 @@ def test_regress_vary_na(baselines,coeffs,nants=32,restrictChi=False):
 	
 
 def test_regress_vary_bsln(baselines,coeffs,nants=32,restrictChi=False):
+	"""
+	This is the exact same function as test_regress_vary_na except that it 
+	plots the number of baselines on the x axis instead of the number of 
+	antennae.
+	"""
 	for jj in n.arange(100):
 		nas = n.arange(2,nants)
 		gs_diff = n.zeros(len(nas))
@@ -180,11 +195,12 @@ def test_regress_vary_bsln(baselines,coeffs,nants=32,restrictChi=False):
 
 
 if __name__=='__main__': 
-	calfile='psa898_v002'
-	#calfile='basic_amp_aa'
-	#baselines,freqs,coeffs = get_coeffs(na=32,freqs=n.array([.1,]))
-	na=10
-	baselines,freqs,coeffs = read_coeffs(calfile,na=na)
+	#calfile='psa898_v002'
+	calfile='basic_amp_aa'
+	na=8
+	baselines,freqs,coeffs = get_coeffs(calfile,na=na,freqs=n.array([.1,]))
+	#baselines,freqs,coeffs = read_coeffs(calfile,na=na)
+	print coeffs
 	test_regress_vary_n(baselines,coeffs,nants=na) 
 	test_regress_vary_na(baselines,coeffs,nants=na)
 	test_regress_vary_bsln(baselines,coeffs,nants=na)
