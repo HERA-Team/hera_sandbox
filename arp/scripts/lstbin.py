@@ -140,7 +140,7 @@ for lst in jds.keys():
     if jd_min < jd_start:
         lst_start, jd_start = lst, jd_min
 djd_dlst = a.const.sidereal_day / (2*n.pi) * a.ephem.second
-jd_start = jd_start + (lst_start - lsts[0]) * djd_dlst
+jd_start = jd_start + (lsts[0] - lst_start) * djd_dlst
 lst_start = lsts[0]
 #lst_start = lsts[0]
 #jd_start = jds[lst_start]
