@@ -74,13 +74,15 @@ def test_regress(baselines,coeffs,gs=1,n_sig=5,na=32,readFromFile=False):
 	print coeffs.shape
 	VV = gs*coeffs + n.random.normal(loc=0.0,scale=n_sig,size=[len(coeffs),1])*n.exp(2*n.pi*1j*n.random.rand())
 	print VV.shape
-	gs_recov,n_recov,RR,redchi = uf.linear_fit(coeffs,VV)
+	gs_recov,n_recov,RR,redchi,err = uf.linear_fit_with_err(coeffs,VV,n_sig**2)
+	#gs_recov,n_recov,RR,redchi = uf.linear_fit(coeffs,VV)
 	#gs_recov,n_recov,redchi = uf.linear_fit_new(coeffs,VV)
 	print "true gs = {0}\trecovered gs = {1}".format(gs,gs_recov)
 	print "true n = {0}\trecovered n = {1}".format(0.0,n_recov)
 	print "R = ",RR
 	print 'chi = ',redchi
-	return gs_recov, redchi
+	print "Error = ",err
+	return gs_recov, redchi, err
 
 def test_regress_thru_origin(baselines,coeffs,gs=1,n_sig=5,na=32,readFromFile=False):
 	"""
@@ -109,13 +111,15 @@ def test_regress_vary_n(baselines,coeffs,nants=32,restrictChi=False):
 	"""
 	for jj in n.arange(100):
 		gs_diff = n.zeros(20)
+		errors = n.zeros(20)
 		n_sigs = n.logspace(-3,1,num=20)
+		print n_sigs
 		for ii,n_sig in enumerate(n_sigs):
 			print ii
 			#if ii==0 and jj==0:rFF=False 
 			#else:rFF=True
 			rFF=True
-			gs_recov, redchi = test_regress(baselines,coeffs,gs=1,n_sig=n_sig,na=nants,readFromFile=rFF)
+			gs_recov, redchi, err = test_regress(baselines,coeffs,gs=1,n_sig=n_sig,na=nants,readFromFile=rFF)
 			if restrictChi:
 				if n.absolute(redchi-1)<0.1:
 					gs_diff[ii] = gs_recov - 1.
@@ -123,7 +127,9 @@ def test_regress_vary_n(baselines,coeffs,nants=32,restrictChi=False):
 					gs_diff[ii] = None
 			else:
 				gs_diff[ii] = gs_recov - 1.
+			errors[ii] = err
 		p.scatter(n_sigs,n.absolute(gs_diff))
+		p.scatter(n_sigs,errors,color="red")
 		p.xscale('log')
 		p.yscale('log')
 		p.xlim(1e-4,1e2)
@@ -146,7 +152,7 @@ def test_regress_vary_na(baselines,coeffs,nants=32,restrictChi=False):
 		nas = n.arange(2,nants)
 		gs_diff = n.zeros(len(nas))
 		for ii,na in enumerate(nas):
-			gs_recov, redchi = test_regress(baselines,coeffs,gs=1,n_sig=.1,na=na,readFromFile=True)
+			gs_recov, redchi, err = test_regress(baselines,coeffs,gs=1,n_sig=.1,na=na,readFromFile=True)
 			if restrictChi:
 				if n.absolute(redchi-1)<0.1:
 					gs_diff[ii] = gs_recov - 1.
@@ -175,7 +181,7 @@ def test_regress_vary_bsln(baselines,coeffs,nants=32,restrictChi=False):
 		nas = n.arange(2,nants)
 		gs_diff = n.zeros(len(nas))
 		for ii,na in enumerate(nas):
-			gs_recov, redchi = test_regress(baselines,coeffs,gs=1,n_sig=.1,na=na,readFromFile=True)
+			gs_recov, redchi, err = test_regress(baselines,coeffs,gs=1,n_sig=.1,na=na,readFromFile=True)
 			if restrictChi:
 				if n.absolute(redchi-1)<0.1:
 					gs_diff[ii] = gs_recov - 1.
@@ -202,8 +208,8 @@ if __name__=='__main__':
 	#baselines,freqs,coeffs = read_coeffs(calfile,na=na)
 	print coeffs
 	test_regress_vary_n(baselines,coeffs,nants=na) 
-	test_regress_vary_na(baselines,coeffs,nants=na)
-	test_regress_vary_bsln(baselines,coeffs,nants=na)
+	#	test_regress_vary_na(baselines,coeffs,nants=na)
+#test_regress_vary_bsln(baselines,coeffs,nants=na)
 
 
 	# if readFromFile:
