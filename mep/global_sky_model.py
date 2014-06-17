@@ -4,7 +4,7 @@
 import aipy as a, numpy as n, pylab as p
 import capo as C
 import useful_functions as uf
-import os
+import os,subprocess
 
 # in gsm directory run
 # $ gfortran -ffixed-line-length-none gsmmanyfreqs.f -o gsmmf.sh
@@ -73,6 +73,13 @@ def power_fit_gsm_data(data,freqs,savefolderpath=None):
 		params[ii,0], params[ii,1], _, _, params[ii,2] = uf.power_law_lstsq_fit(freqs,data[ii,:])
 	if savefolderpath!=None: n.savez_compressed(savefolderpath+'power_fit_params',amp=params[:,0],index=params[:,1],redchi=params[:,2])
 	return params
+
+def map_spectral_index(index):
+	indexmap = a.map.Map(nside=512)
+	indexmap.map.map = index
+	indexmap.to_fits('/Users/mpresley/soft/gsm/data_100MHz_150MHz/spectral_index.fits',clobber=True)
+	subprocess.call(['plot_map.py','-m lin','/Users/mpresley/soft/gsm/data_100MHz_150MHz/spectral_index.fits'])
+
 # make a healpix map 
 #name = a.map.Map(fromfits='/Users/mpresley/soft/gsm/data_100MHz_150MHz/hi1001.fits')
 # data component of map -- numpy array
@@ -91,14 +98,16 @@ if __name__=='__main__':
 	#gsm_to_fits_loop('/Users/mpresley/soft/gsm/data_100MHz_150MHz/')
 	#data,freqs = import_gsm_data()
 	#p.plot(freqs,data[500,:])
-	f = n.load('/Users/mpresley/soft/gsm/data_100MHz_150MHz/map_data.npz')
-	data = f['data']
-	freqs = f['freqs']
-	params = power_fit_gsm_data(data,freqs,savefolderpath='/Users/mpresley/soft/gsm/data_100MHz_150MHz/')
-	print params
-	p.plot(range(params.shape[0]),params[:,1],c='b')
-	p.plot(range(params.shape[0]),params[:,2],c='g')
-	p.show()
+	#f = n.load('/Users/mpresley/soft/gsm/data_100MHz_150MHz/map_data.npz')
+	#data = f['data']
+	#freqs = f['freqs']
+	#params = power_fit_gsm_data(data,freqs,savefolderpath='/Users/mpresley/soft/gsm/data_100MHz_150MHz/')
+	params = n.load('/Users/mpresley/soft/gsm/data_100MHz_150MHz/power_fit_params.npz')
+	print params['index']
+	map_spectral_index(params['index'])
+	#p.plot(range(params['index'].shape[0]),params['index'],c='b')
+	#p.plot(range(params.shape[0]),params[:,2],c='g')
+	#p.show()
 
 	#n.savez('/Users/mpresley/soft/gsm/data_100MHz_150MHz/map_data',data=data,freqs=freqs)
 
