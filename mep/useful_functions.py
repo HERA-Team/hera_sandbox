@@ -2,7 +2,31 @@ import pylab as plt
 import numpy as np
 from scipy import optimize
 
-def general_lstsq_fit_with_err(xdata,ydata,noiseCovar,nparam):
+
+def general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar):
+    """
+    This function takes in x and y data, Q, and a full noise covariance 
+    matrix. The function returns <\hat x> and the covariance matrix of 
+    the fit.
+    """
+    xdata = np.array(xdata)
+    Q = np.matrix(Q)
+    Ninv = np.matrix(noiseCovar).I
+    AA = Q.H*Ninv*Q
+    AAinv = AA.I
+    params = AAinv*Q.H*Ninv*np.matrix(ydata) # params should be 1 by nparam
+    return np.array(params), np.array(AAinv)
+
+def line_thru_origin_lstsq_fit_with_err(xdata,ydata,noiseCovar):
+    xdata = np.array(xdata)
+    gridnum = len(xdata)
+    Q = np.matrix(np.zeros([gridnum,1],dtype='complex'))
+    for ii in range(gridnum):
+        Q[ii] = xdata[ii][0]
+    params, variance = general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar)
+    return params, variance
+
+def poly_lstsq_fit_with_err(xdata,ydata,noiseCovar,nparam):
     """
     This function takes in x and y data, a full noise covariance matrix,
     and the degree of the polynomial it will fit (nparam). It fits to a 
@@ -11,17 +35,18 @@ def general_lstsq_fit_with_err(xdata,ydata,noiseCovar,nparam):
     the fit.
     """
     xdata = np.array(xdata)
-    print xdata[5][0]
     gridnum = len(xdata)
     Q = np.matrix(np.zeros([gridnum,nparam],dtype='complex'))
     for ii in range(gridnum):
         for jj in range(nparam):
             Q[ii,jj] = xdata[ii][0]**jj
-    Ninv = np.matrix(noiseCovar).I
-    AA = Q.H*Ninv*Q
-    AAinv = AA.I
-    params = AAinv*Q.H*Ninv*np.matrix(ydata) # params should be 1 by nparam
-    return np.array(params), np.array(AAinv)
+    params, variance = general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar)
+    return params, variance
+    # Ninv = np.matrix(noiseCovar).I
+    # AA = Q.H*Ninv*Q
+    # AAinv = AA.I
+    # params = AAinv*Q.H*Ninv*np.matrix(ydata) # params should be 1 by nparam
+    # return np.array(params), np.array(AAinv)
 
 def linear_fit(xdata,ydata):
     if len(xdata.shape)==1: 

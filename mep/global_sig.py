@@ -14,6 +14,7 @@ def get_coeffs(calfile,na = 32,freqs = n.arange(.1,.2,.01)):
     tx,ty,tz = im.get_top(center=(200,200)) #get coords of the zenith?
     valid = n.logical_not(tx.mask)
     tx,ty,tz = tx.flatten(),ty.flatten(),tz.flatten()
+    print tx,ty
     #beam response for an antenna pointing at (tx,ty,tz) with a polarization in x direction
     #amp = A(theta) in notes
     amp = aa[0].bm_response((tx,ty,tz),pol='x')**2 
@@ -115,11 +116,11 @@ def test_regress_thru_origin(baselines,coeffs,gs=1,n_sig=5,na=32,readFromFile=Fa
     VV = VV*n.exp(2*n.pi*1j*n.random.rand())
     print VV.shape
 
-    gs_recov,Rsq,redchi,err = uf.line_thru_origin_with_err(coeffs,VV,n_sig**2)
-
-    print "true gs = {0}\trecovered gs = {1}".format(gs,gs_recov)
-    print 'chi = ',redchi
-    return gs_recov, redchi, err
+    gs_recov,covar = uf.line_thru_origin_lstsq_fit_with_err(coeffs,VV,n_sig**2*n.identity(len(coeffs)))
+    err = n.sqrt(n.array(covar)*n.array(n.identity(covar.shape[0])))[0][0]
+    print "true gs = {0}\trecovered gs = {1}".format(gs,gs_recov[0][0])
+    print "Error = ",err
+    return gs_recov[0][0], err
 
 def test_regress_vary_n(baselines,coeffs,nants=32,restrictChi=False):
     """
@@ -139,7 +140,7 @@ def test_regress_vary_n(baselines,coeffs,nants=32,restrictChi=False):
             #else:rFF=True
             rFF=True
             #gs_recov, redchi, err = test_regress(baselines,coeffs,gs=1,n_sig=n_sig,na=nants,readFromFile=rFF)
-            gs_recov, err = test_regress_general_lstsq(baselines,coeffs,2,gs=1,n_sig=n_sig,na=nants,readFromFile=rFF)
+            gs_recov, err = test_regress_thru_origin(baselines,coeffs,gs=1,n_sig=n_sig,na=nants,readFromFile=rFF)
             if restrictChi:
                 if n.absolute(redchi-1)<0.1:
                     gs_diff[ii] = gs_recov - 1.
@@ -160,7 +161,7 @@ def test_regress_vary_n(baselines,coeffs,nants=32,restrictChi=False):
     if restrictChi:
         p.savefig('./figures/gs_diff_vs_n_good_chi.pdf')
     else:
-        p.savefig('./figures/gs_diff_vs_n.pdf')
+        p.savefig('./figures/gs_diff_vs_n_thru_origin.pdf')
     p.clf()
 
 def test_regress_vary_na(baselines,coeffs,nants=32,restrictChi=False):
@@ -227,7 +228,7 @@ if __name__=='__main__':
     baselines,freqs,coeffs = get_coeffs(calfile,na=na,freqs=n.array([.1,]))
     #baselines,freqs,coeffs = read_coeffs(calfile,na=na)
     print coeffs
-    test_regress_vary_n(baselines,coeffs,nants=na) 
+    #test_regress_vary_n(baselines,coeffs,nants=na) 
     #   test_regress_vary_na(baselines,coeffs,nants=na)
 #test_regress_vary_bsln(baselines,coeffs,nants=na)
 
