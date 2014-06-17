@@ -1,3 +1,4 @@
+#! /usr/bin/env python
 ## NAME: 
 #         single_baseline.py
 ## PURPOSE: 
@@ -10,8 +11,14 @@ import numpy
 import pylab
 import pyfits
 import matplotlib.pyplot as plt
+import sys, optparse
 
-root = '/Users/carinacheng/capo/ctc/'
+o = optparse.OptionParser()
+p.add_option('-r', '--root', default='/Users/carinacheng/capo/ctc/',
+    help='directory containing gsm healpix files')
+opts,args = o.parse_args(sys.argv[1:])
+
+root = opts.root
 
 #miriad uv file set-up
 
@@ -88,6 +95,13 @@ x3d,y3d,z3d = crd3d[0], crd3d[1], crd3d[2] #1D arrays of eq coordinates of 3Dimg
 times = numpy.arange(2454500., 2454501., 0.1)#uv['inttime']/aipy.const.s_per_day)
 flags = numpy.zeros((uv['nchan'],),dtype=numpy.int32)
 
+# XXX ARP: moved this out of the loop
+img3d = {}
+fng = {}
+for jj, f in enumerate(freqs):
+    img3d[f] = aipy.map.Map(fromfits = root + 'images/gsm/gsm256/gsm1' + str(jj+1).zfill(3) + '.fits') 
+    fng[f] = numpy.exp(-2j*numpy.pi*tx3d*baseline[0]*f) # fringe pattern
+
 for ii, t in enumerate(times):
 
     print 'Timestep %d/%d' %(ii+1, len(times))
@@ -109,12 +123,13 @@ for ii, t in enumerate(times):
 
         #data calculation and getting global sky model
 
-        img3d = aipy.map.Map(fromfits = root + 'images/gsm/gsm256/gsm1' + str(jj+1).zfill(3) + '.fits') 
+        #img3d = aipy.map.Map(fromfits = root + 'images/gsm/gsm256/gsm1' + str(jj+1).zfill(3) + '.fits') 
         #XXX east-west baseline only
         
-        fringe3d = numpy.exp(-2j*numpy.pi*tx3d*baseline[0]*f) #fringe pattern
+        #fringe3d = numpy.exp(-2j*numpy.pi*tx3d*baseline[0]*f) #fringe pattern
+        fringe3d = fng[f]
 
-        fluxes3d = img3d.map.map
+        fluxes3d = img3d[f].map.map
 
         p13d = fluxes3d*fringe3d#*bm3d
         sump13d = numpy.sum(p13d)#/sum_bm3d
