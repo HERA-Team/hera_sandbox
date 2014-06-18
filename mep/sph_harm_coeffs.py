@@ -16,9 +16,11 @@ def get_coeffs_lm(calfile,l,m,na = 32,freqs = n.arange(.1,)):
     tx,ty,tz = im.get_top(center=(200,200)) #get coords of the zenith?
     valid = n.logical_not(tx.mask)
     tx,ty,tz = tx.flatten(),ty.flatten(),tz.flatten()
-    print tx,ty
     theta = n.arcsin(ty/tx) # using math convention of theta=[0,2pi], phi=[0,pi]
     phi = n.arccos(n.sqrt(1-tx*tx-ty*ty))
+    #n.set_printoptions(threshold='nan')
+    #print theta,phi
+    #quit()
 
     #beam response for an antenna pointing at (tx,ty,tz) with a polarization in x direction
     #amp = A(theta) in notes
@@ -40,11 +42,15 @@ def get_coeffs_lm(calfile,l,m,na = 32,freqs = n.arange(.1,)):
             for fq in freqs: #loop over frequencies
                 phs = n.exp(-2j*n.pi*fq * (bx*tx+by*ty+bz*tz)) #fringe pattern
                 Y = special.sph_harm(m,l,theta,phi)/Ynorm #using math convention of theta=[0,2pi], phi=[0,pi]
-                print Y
-                Y.shape = phs.shape = amp.shape = im.uv.shape 
+                Y.shape = phs.shape = amp.shape = im.uv.shape
                 amp = n.where(valid, amp, 0)
                 phs = n.where(valid, phs, 0)
-                Y = n.where(valid, Y, 0)
+                
+                Y = n.where(valid, Y, 0) # What in the world???? Before this line, Y is masked or one. After this line, Y is zero or 0.282
+
+                n.set_printoptions(threshold='nan')
+                print Y
+                quit() 
 
                 dc_response = n.sum(amp*Y*phs)/n.sum(amp) #this integrates the amplitude * fringe pattern; units mK?
                 jy_response = n.real(dc_response * 100 / C.pspec.jy2T(fq)) # jy2T converts flux density in jansky to temp in mK
