@@ -58,11 +58,18 @@ def get_coeffs_lm(calfile,l,m,na = 32,freqs = n.array([.1,]),savefolderpath=None
     if savefolderpath!=None: n.savez_compressed('{0}{1}_data_l_{1}_m_{2}'.format(savefolderpath,calfile,l,m),baselines=baselines,frequencies=freqs,coeffs=coeffs)
     return baselines,freqs,coeffs
 
-def get_Q(calfile,min_l,max_l,savefolderpath=None):
+def get_Q(calfile,min_l,max_l,na=10,savefolderpath=None):
+    """
+    This function creates a Q matrix for the antenna array in the calfile.
+    Note that although a 'full' Q matrix would vary l from 0 to max_l, this
+    function gives the option of starting from a higher l. This enables you 
+    to calculate the Q matrix in chunks since the computation takes a while
+    (about 33 sec per element in the Q matrix).
+    """
     for l in range(min_l,max_l+1):
         for m in range(-l,l+1):
             print l,m
-            baselines,freqs,coeffs = get_coeffs_lm(calfile,l,m,na = 2,freqs = n.array([.1,]))
+            baselines,freqs,coeffs = get_coeffs_lm(calfile,l,m,na = na,freqs = n.array([.1,]))
             if l==min_l and m==-min_l: Q = coeffs
             else: Q = n.hstack((Q,coeffs))
             if l==min_l and m==-min_l: lms = n.array([l,m])
@@ -71,19 +78,17 @@ def get_Q(calfile,min_l,max_l,savefolderpath=None):
     if savefolderpath!=None: n.savez_compressed(savefolderpath+'{0}_Q_min_l_{1}_max_l_{2}'.format(calfile,min_l,max_l),Q=Q,baselines=baselines,lms=lms)
     return Q,baselines,lms
 
-def plot_Q():#Q,lms):
+def plot_Q(Q,lms):
     # n.savez_compressed('./coeff_data/basic_amp_aa_Q_min_l_0_max_l_8',
 
-    Qstuff = n.load('./coeff_data/basic_amp_aa_Q_min_l_0_max_l_10.npz')
-    Q = Qstuff['Q']
-    lms = Qstuff['lms']
     p.scatter(lms[:,0],n.absolute(Q[0,:]),c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
     p.yscale('log')
     p.ylim([10**-5,10**0.2])
     p.xlabel('l (color is m)')
     p.ylabel('Q for a baseline (1,1,0)')
     p.colorbar()
-    p.show()
+    p.savefig('./figures/Q_matrix_elements.pdf')
+    #p.show()
 
 def combine_Q(Q1file,Q2file,newfile):
     Q1stuff = n.load(Q1file)
@@ -94,16 +99,70 @@ def combine_Q(Q1file,Q2file,newfile):
     n.savez_compressed(newfile,Q=Q,baselines=baselines,lms=lms)
     return Q, baselines, lms
 
+def test_recover_gs(Q,baselines,lms,n_sig=5):
+    print lms[:,0].shape
+    a = get_a_from_gsm(lms[:,0]) # this is the sky, i.e. the x in y=Qx+n 
+    a.shape = (a.shape[0],1)
+    print Q.shape
+    print a.shape
+    VV = n.array(n.matrix(Q)*n.matrix(a))+n.random.normal(loc=0.0,scale=n_sig,size=[Q.shape[0],1])*n.exp(2*n.pi*1j*n.random.rand())
+    print a.shape
+    print VV.shape
+    ahat,covar = uf.general_lstsq_fit_with_err(a,VV,Q,(n_sig**2)*n.identity(Q.shape[0]))
+    print covar
+    err = n.sqrt(n.array(covar)*n.array(n.identity(covar.shape[0])))
+    print err.shape
+    print "true      gs = {0}\nrecovered gs = {1}".format(a[0],ahat[0])
+    print "Error = ",err
+    return ahat[0], err[0,0]
+
+def get_a_from_gsm(l):
+    print l.shape
+    C = n.where(l<=8, n.exp(-1.450*l+0.1003*l*l), 0.7666*(l**(-2.365))) # gsm power_spectrum from http://arxiv.org/pdf/1404.2596v2.pdf pg. 13
+    print C.shape
+    a = n.zeros_like(C,dtype='complex')
+    for ii in range(len(l)):
+        a[ii] = n.random.normal(loc=0.0,scale=C[ii]/2) + 1j*n.random.normal(loc=0.0,scale=C[ii]/2)
+    return a
+
+def info_matrix(Q,N,lms,baselines):
+    Q = n.matrix(Q); N = n.matrix(N)
+    info = Q.H*N.I*Q
+    print info
+    
+    # p.scatter(lms[:,0],n.diag(info),c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
+    # p.xlabel('l (color is m)')
+    # p.ylabel('diagonal elements of info matrix')
+    # p.colorbar()
+    # p.savefig('./figures/info_matrix_diagonal.pdf')
+    # p.clf()
+    first_row = n.array(n.absolute(info[0,:]))
+    p.scatter(lms[:,0],first_row,c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
+    p.xlabel('l (color is m)')
+    p.ylabel('Abs val of first row of info matrix')
+    p.colorbar()
+    p.savefig('./figures/info_matrix_first_row.pdf')
+
 if __name__=='__main__':
-    calfile='basic_amp_aa'
-    #na=8
+    calfile='basic_amp_aa_circle'
+    na=9
     #baselines,freqs,coeffs = get_coeffs_lm(calfile,0,0,na=na,freqs=n.array([.1,]))
     #print coeffs
-    #Q,baselines,lms = get_Q(calfile,9,10,savefolderpath='./coeff_data/')
-    # Q, baselines, lms = combine_Q('./coeff_data/basic_amp_aa_Q_min_l_0_max_l_4.npz',
-    #                             './coeff_data/basic_amp_aa_Q_min_l_5_max_l_8.npz',
+    #Q,baselines,lms = get_Q('basic_amp_aa_circle',0,3,na=9,savefolderpath='./coeff_data/circle/')
+    #Q,baselines,lms = get_Q('basic_amp_aa_circle',4,5,na=9,savefolderpath='./coeff_data/circle/')
+    #Q,baselines,lms = get_Q('basic_amp_aa_circle',6,7,na=9,savefolderpath='./coeff_data/circle/')
+
+    # Q, baselines, lms = combine_Q('./coeff_data/basic_amp_aa_Q_min_l_0_max_l_5.npz',
+    #                             './coeff_data/basic_amp_aa_Q_min_l_6_max_l_8.npz',
     #                             './coeff_data/basic_amp_aa_Q_min_l_0_max_l_8')
     # Q, baselines, lms = combine_Q('./coeff_data/basic_amp_aa_Q_min_l_0_max_l_8.npz',
     #                             './coeff_data/basic_amp_aa_Q_min_l_9_max_l_10.npz',
     #                             './coeff_data/basic_amp_aa_Q_min_l_0_max_l_10')
-    plot_Q()#Q,lms)
+    #plot_Q(Q,lms)
+    Qstuff = n.load('./coeff_data/basic_amp_aa_Q_min_l_0_max_l_5.npz')
+    Q = Qstuff['Q']
+    lms = Qstuff['lms']
+    baselines = Qstuff['baselines']
+    N = (1.0**2)*n.identity(Q.shape[0])
+    #info_matrix(Q,N,lms,baselines)
+    test_recover_gs(Q,baselines,lms,n_sig=.1)
