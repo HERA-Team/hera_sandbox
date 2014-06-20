@@ -3,7 +3,7 @@ import numpy as np
 from scipy import optimize
 
 
-def general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar):
+def general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar,pseudo=False):
     """
     This function takes in x and y data, Q, and a full noise covariance 
     matrix. The function returns <\hat x> and the covariance matrix of 
@@ -13,7 +13,8 @@ def general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar):
     Q = np.matrix(Q)
     Ninv = np.matrix(noiseCovar).I
     AA = Q.H*Ninv*Q
-    AAinv = AA.I
+    if pseudo: AAinv = np.linalg.pinv(AA)
+    else: AAinv = AA.I
     params = AAinv*Q.H*Ninv*np.matrix(ydata) # params should be 1 by nparam
     return np.array(params), np.array(AAinv)
 
