@@ -25,7 +25,7 @@ def get_baselines(aa, nb=None):
     if nb!=None: sorted_baselines = sorted_baselines[0:nb,:]
     return sorted_baselines
 
-def get_coeffs_lm_fewer_baselines(aa,baselines,l,m,na = 32,freqs = n.array([.1,]),savefolderpath=None):
+def get_coeffs_lm_fewer_baselines(aa,baselines,l,m,freqs = n.array([.1,]),savefolderpath=None):
     """
     This function calculates the coefficients in front of the lm spherical
     harmonic for the antenna array described in the calfile. The coefficients 
@@ -47,6 +47,7 @@ def get_coeffs_lm_fewer_baselines(aa,baselines,l,m,na = 32,freqs = n.array([.1,]
     #beam response for an antenna pointing at (tx,ty,tz) with a polarization in x direction
     #amp = A(theta) in notes
     amp = aa[0].bm_response((tx,ty,tz),pol='x')**2 
+    na = len(aa.ants) # number of antennas
     #coefficient array: rows baselines; cols frequencies
     coeffs = n.zeros([(na*na-na)/2,len(freqs)],dtype=n.complex)
     # compute normalization for spherical harmonics
@@ -75,7 +76,7 @@ def get_coeffs_lm_fewer_baselines(aa,baselines,l,m,na = 32,freqs = n.array([.1,]
     return baselines,freqs,coeffs
 
 
-def get_coeffs_lm(calfile,l,m,na = 32,freqs = n.array([.1,]),savefolderpath=None):
+def get_coeffs_lm(calfile,l,m,freqs = n.array([.1,]),savefolderpath=None):
     """
     This function calculates the coefficients in front of the lm spherical
     harmonic for the antenna array described in the calfile. The coefficients 
@@ -95,6 +96,7 @@ def get_coeffs_lm(calfile,l,m,na = 32,freqs = n.array([.1,]),savefolderpath=None
     #beam response for an antenna pointing at (tx,ty,tz) with a polarization in x direction
     #amp = A(theta) in notes
     amp = aa[0].bm_response((tx,ty,tz),pol='x')**2 
+    na = len(aa.ants) # number of antennas
     #coefficient array: rows baselines; cols frequencies
     coeffs = n.zeros([(na*na-na)/2,len(freqs)],dtype=n.complex)
     # compute normalization for spherical harmonics
@@ -129,7 +131,7 @@ def get_coeffs_lm(calfile,l,m,na = 32,freqs = n.array([.1,]),savefolderpath=None
     if savefolderpath!=None: n.savez_compressed('{0}{1}_data_l_{1}_m_{2}'.format(savefolderpath,calfile,l,m),baselines=baselines,frequencies=freqs,coeffs=coeffs)
     return baselines,freqs,coeffs
 
-def get_coeffs_lm_baselines_from_origin(calfile,l,m,na = 32,freqs = n.array([.1,]),savefolderpath=None):
+def get_coeffs_lm_baselines_from_origin(calfile,l,m,freqs = n.array([.1,]),savefolderpath=None):
     """
     This function calculates the coefficients in front of the lm spherical
     harmonic for the antenna array described in the calfile. The coefficients 
@@ -152,6 +154,7 @@ def get_coeffs_lm_baselines_from_origin(calfile,l,m,na = 32,freqs = n.array([.1,
     #beam response for an antenna pointing at (tx,ty,tz) with a polarization in x direction
     #amp = A(theta) in notes
     amp = aa[0].bm_response((tx,ty,tz),pol='x')**2 
+    na = len(aa.ants) # number of antennas
     #coefficient array: rows baselines; cols frequencies
     coeffs = n.zeros([(na*na-na)/2,len(freqs)],dtype=n.complex)
     # compute normalization for spherical harmonics
@@ -185,7 +188,7 @@ def get_coeffs_lm_baselines_from_origin(calfile,l,m,na = 32,freqs = n.array([.1,
     if savefolderpath!=None: n.savez_compressed('{0}{1}_data_l_{1}_m_{2}'.format(savefolderpath,calfile,l,m),baselines=baselines,frequencies=freqs,coeffs=coeffs)
     return baselines,freqs,coeffs
 
-def get_Q(calfile,min_l,max_l,na=10,nb=6,savefolderpath=None):
+def get_Q(calfile,min_l,max_l,nb=6,savefolderpath=None):
     """
     This function creates a Q matrix for the antenna array in the calfile.
     Note that although a 'full' Q matrix would vary l from 0 to max_l, this
@@ -198,7 +201,7 @@ def get_Q(calfile,min_l,max_l,na=10,nb=6,savefolderpath=None):
     for l in range(min_l,max_l+1):
         for m in range(-l,l+1):
             print l,m
-            baselines,freqs,coeffs = get_coeffs_lm_fewer_baselines(aa,baselines,l,m,na=na,freqs=n.array([.1,]))
+            baselines,freqs,coeffs = get_coeffs_lm_fewer_baselines(aa,baselines,l,m,freqs=n.array([.1,]))
             if l==min_l and m==-min_l: Q = coeffs
             else: Q = n.hstack((Q,coeffs))
             if l==min_l and m==-min_l: lms = n.array([l,m])
@@ -207,7 +210,7 @@ def get_Q(calfile,min_l,max_l,na=10,nb=6,savefolderpath=None):
     if savefolderpath!=None: n.savez_compressed(savefolderpath+'{0}_Q_min_l_{1}_max_l_{2}'.format(calfile,min_l,max_l),Q=Q,baselines=baselines,lms=lms)
     return Q,baselines,lms
 
-def plot_Q(Q,lms):
+def plot_Q(Q,lms,save_tag=None):
     # n.savez_compressed('./coeff_data/basic_amp_aa_Q_min_l_0_max_l_8',
 
     p.scatter(lms[:,0],n.absolute(Q[0,:]),c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
@@ -216,7 +219,7 @@ def plot_Q(Q,lms):
     p.xlabel('l (color is m)')
     p.ylabel('First row of Q matrix')
     p.colorbar()
-    p.savefig('./figures/circle_rim_Q_matrix_elements.pdf')
+    p.savefig('./figures/{0}_10_Q_matrix_elements.pdf'.format(save_tag))
     p.clf()
     #p.show()
 
@@ -275,7 +278,7 @@ def test_recover_gs_vary_n(Q,baselines,lms):
     #p.ylabel('Recovered global signal (true gs = 1)')
     p.ylabel('Difference between true and recovered global signal')
     #p.show()
-    p.savefig('./figures/Q_pinv_gs_diff_vs_n.pdf')
+    p.savefig('./figures/circle10_Q_pinv_gs_diff_vs_n.pdf')
     p.clf()
 
 def get_a_from_gsm(l):
@@ -287,34 +290,34 @@ def get_a_from_gsm(l):
         a[ii] = n.random.normal(loc=0.0,scale=C[ii]/2) + 1j*n.random.normal(loc=0.0,scale=C[ii]/2)
     return a
 
-def info_matrix(Q,N,lms):
+def info_matrix(Q,N,lms,save_tag=None):
     Q = n.matrix(Q); N = n.matrix(N)
     info = Q.H*N.I*Q
     #print info
     
-    # p.scatter(lms[:,0],n.diag(info),c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
-    # p.xlabel('l (color is m)')
-    # p.ylabel('diagonal elements of info matrix')
-    # p.colorbar()
-    # p.savefig('./figures/circle_rim_info_matrix_diagonal.pdf')
-    # p.clf()
+    p.scatter(lms[:,0],n.diag(info),c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
+    p.xlabel('l (color is m)')
+    p.ylabel('diagonal elements of info matrix')
+    p.colorbar()
+    p.savefig('./figures/{0}_10_info_matrix_diagonal.pdf'.format(save_tag))
+    p.clf()
     
-    # first_row = n.array(n.absolute(info[0,:]))
-    # p.scatter(lms[:,0],first_row,c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
-    # p.xlabel('l (color is m)')
-    # p.ylabel('Abs val of first row of info matrix')
-    # p.colorbar()
-    # p.savefig('./figures/circle_rim_info_matrix_first_row.pdf')
-    # p.clf()
+    first_row = n.array(n.absolute(info[0,:]))
+    p.scatter(lms[:,0],first_row,c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
+    p.xlabel('l (color is m)')
+    p.ylabel('Abs val of first row of info matrix')
+    p.colorbar()
+    p.savefig('./figures/{0}_10_info_matrix_first_row.pdf'.format(save_tag))
+    p.clf()
 
 
 
     eig_vals,eig_vecs = n.linalg.eig(info)
-    # p.scatter(range(len(eig_vals)),eig_vals,s=50)
-    # p.xlabel('index of eigenvalue array (I dont think they are in any particular order)')
-    # p.ylabel('eigenvalue')
-    # p.savefig('./figures/circle_rim_info_matrix_eig_vals.pdf')
-    # p.clf()
+    p.scatter(range(len(eig_vals)),eig_vals,s=50)
+    p.xlabel('index of eigenvalue array (I dont think they are in any particular order)')
+    p.ylabel('eigenvalue')
+    p.savefig('./figures/{0}_10_info_matrix_eig_vals.pdf'.format(save_tag))
+    p.clf()
     
     foo = n.array(n.absolute(eig_vecs[:,0]))
     p.scatter(lms[:,0],foo,c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
@@ -322,12 +325,12 @@ def info_matrix(Q,N,lms):
     p.ylabel('coefficient of a_l,m for the largest eigenvector')
     # p.yscale('log')
     # p.ylim([10**-6,1])
-    p.savefig('./figures/circle_info_matrix_eig_vec.pdf')
+    p.savefig('./figures/{0}_10_info_matrix_eig_vec.pdf'.format(save_tag))
     print eig_vals.shape
     print 'eig_vals = ',eig_vals[0]
     print 'eig_vecs = ',eig_vecs[:,0]
 
-def window_function_matrix(Q,N,lms):
+def window_function_matrix(Q,N,lms,save_tag=None):
     M = n.matrix(n.zeros_like(Q))
     Q = n.matrix(Q); N = n.matrix(N)
     Ninv = N.I
@@ -344,34 +347,33 @@ def window_function_matrix(Q,N,lms):
     p.xlabel('l (color is m)')
     p.ylabel('first row of Window Function Matrix')
     p.colorbar()
-    p.savefig('./figures/circle_rim_W_pinv_matrix_elements.pdf')
+    p.savefig('./figures/{0}_10_W_pinv_matrix_elements.pdf'.format(save_tag))
     p.clf()
 
 
 if __name__=='__main__':
-    calfile='basic_amp_aa_circle'
-    na=9
-    #baselines,freqs,coeffs = get_coeffs_lm(calfile,0,0,na=na,freqs=n.array([.1,]))
+    #calfile='basic_amp_aa_grid'
+    #baselines,freqs,coeffs = get_coeffs_lm(calfile,0,0,freqs=n.array([.1,]))
     #print coeffs
-    #Q,baselines,lms = get_Q('basic_amp_aa_circle',0,3,na=9,savefolderpath='./coeff_data/circle_rim/')
-    #Q,baselines,lms = get_Q('basic_amp_aa_circle',4,5,na=9,savefolderpath='./coeff_data/circle_rim/')
-    #Q,baselines,lms = get_Q('basic_amp_aa_circle',6,7,na=9,savefolderpath='./coeff_data/circle_rim/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_grid',0,3,savefolderpath='./coeff_data/grid/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_grid',4,5,savefolderpath='./coeff_data/grid/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_grid',6,7,savefolderpath='./coeff_data/grid/')
 
-    # Q, baselines, lms = combine_Q('./coeff_data/circle_rim/basic_amp_aa_circle_Q_min_l_0_max_l_3.npz',
-    #                             './coeff_data/circle_rim/basic_amp_aa_circle_Q_min_l_4_max_l_5.npz',
-    #                             './coeff_data/circle_rim/basic_amp_aa_circle_Q_min_l_0_max_l_5')
-    # Q, baselines, lms = combine_Q('./coeff_data/circle_rim/basic_amp_aa_circle_Q_min_l_0_max_l_5.npz',
-    #                             './coeff_data/circle_rim/basic_amp_aa_circle_Q_min_l_6_max_l_7.npz',
-    #                             './coeff_data/circle_rim/basic_amp_aa_circle_Q_min_l_0_max_l_7')
-    Qstuff = n.load('./coeff_data/circle/basic_amp_aa_circle_Q_min_l_0_max_l_7.npz')
+    Q, baselines, lms = combine_Q('./coeff_data/grid/basic_amp_aa_grid_Q_min_l_0_max_l_3.npz',
+                                './coeff_data/grid/basic_amp_aa_grid_Q_min_l_4_max_l_5.npz',
+                                './coeff_data/grid/basic_amp_aa_grid_Q_min_l_0_max_l_5')
+    Q, baselines, lms = combine_Q('./coeff_data/grid/basic_amp_aa_grid_Q_min_l_0_max_l_5.npz',
+                                './coeff_data/grid/basic_amp_aa_grid_Q_min_l_6_max_l_7.npz',
+                                './coeff_data/grid/basic_amp_aa_grid_Q_min_l_0_max_l_7')
+    Qstuff = n.load('./coeff_data/grid/basic_amp_aa_grid_Q_min_l_0_max_l_5.npz')
     Q = Qstuff['Q']
     lms = Qstuff['lms']
     baselines = Qstuff['baselines']
 
-    #plot_Q(Q,lms)
+    plot_Q(Q,lms,save_tag='grid')
     
     N = (1.0**2)*n.identity(Q.shape[0])
-    #test_recover_gs_vary_n(Q,baselines,lms)
-    #window_function_matrix(Q,N,lms)
-    info_matrix(Q,N,lms)
+    window_function_matrix(Q,N,lms,save_tag='grid')
+    info_matrix(Q,N,lms,save_tag='grid')
+    test_recover_gs_vary_n(Q,baselines,lms)
     #test_recover_gs(Q,baselines,lms,n_sig=.1)
