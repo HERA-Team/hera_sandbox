@@ -83,6 +83,7 @@ class TaskClient:
         if not neighbors_base[0] is None: neighbors_base[0] = self.dbi.get_input_file(neighbors_base[0])[-1]
         if not neighbors_base[1] is None: neighbors_base[1] = self.dbi.get_input_file(neighbors_base[1])[-1]
         def interleave(filename, appendage='cR'):
+            # make sure this is in sync with do_X.sh task scripts.
             rv = [filename]
             if not neighbors_base[0] is None: rv = [neighbors_base[0]+appendage] + rv
             if not neighbors_base[1] is None: rv = rv + [neighbors_base[1]+appendage]

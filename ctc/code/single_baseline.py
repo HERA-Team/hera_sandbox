@@ -13,6 +13,7 @@ import pyfits
 import matplotlib.pyplot as plt
 import sys, optparse
 
+<<<<<<< Updated upstream
 o = optparse.OptionParser()
 p.add_option('-r', '--root', default='/Users/carinacheng/capo/ctc/',
     help='directory containing gsm healpix files')
@@ -20,6 +21,8 @@ opts,args = o.parse_args(sys.argv[1:])
 
 root = opts.root
 
+=======
+>>>>>>> Stashed changes
 #miriad uv file set-up
 
 uv = aipy.miriad.UV(root + 'tables/single_baseline.uv', status='new')
@@ -54,9 +57,13 @@ uv.add_var('pol'      ,'i')
 filename = 'psa898_v003'
 aa = aipy.cal.get_aa(filename, uv['sdf'],uv['sfreq'],uv['nchan'])
 freqs = aa.get_afreqs()
+<<<<<<< Updated upstream
 i = 0
 j = 16
 baseline = aa.get_baseline(i,j) #for antennas 0 and 16; array of length 3 in ns
+=======
+baseline = aa.get_baseline(0,16) #for antennas 0 and 16; array of length 3 in ns
+>>>>>>> Stashed changes
 
 #more miriad variables
 
@@ -65,6 +72,7 @@ uv.add_var('dec'      ,'d');   uv['dec'] = aa.lat
 uv.add_var('obsdec'   ,'d');   uv['obsdec'] = aa.lat
 uv.add_var('longitu'  ,'d');   uv['longitu'] = aa.long
 uv.add_var('antpos'   ,'d');   uv['antpos'] = (numpy.array([ant.pos for ant in aa], dtype = numpy.double)).transpose().flatten() #transpose is miriad convention
+<<<<<<< Updated upstream
 
 """
 
@@ -103,14 +111,31 @@ for jj, f in enumerate(freqs):
     fng[f] = numpy.exp(-2j*numpy.pi*tx3d*baseline[0]*f) # fringe pattern
 
 for ii, t in enumerate(times):
+=======
+>>>>>>> Stashed changes
 
-    print 'Timestep %d/%d' %(ii+1, len(times))
-    aa.set_jultime(t)
-    uv['time'] = t
-    uv['lst'] = aa.sidereal_time()
-    uv['ra'] = aa.sidereal_time()
-    uv['obsra'] = aa.sidereal_time()
+"""
 
+#get Haslam map
+
+img3d = aipy.map.Map(fromfits = '/Users/carinacheng/Desktop/Carina/UCBResearch/images/lambda_haslam408_dsds_eq.fits') #reads in 3D image; default is nside=512 (3145728 pixels)
+
+#rescale frequency (Haslam map is 408GHz)
+
+r = 150.0/408
+f = r**-2.5 #synchrotron emission (spectral index -2.5)
+
+img3d.map.map *= f #3D image data rescaled (array of size 3145728)
+
+"""
+
+#get eq coordinates
+
+px = numpy.arange(img3d.npix()) #number of pixels in map
+crd3d = numpy.array(img3d.px2crd(px,ncrd=3)) #aipy.healpix.HealpixMap.px2crd?
+x3d,y3d,z3d = crd3d[0], crd3d[1], crd3d[2] #1D arrays of eq coordinates of 3Dimg (can define to be whatever coordinate system, but eq is most useful here)
+
+<<<<<<< Updated upstream
     t3d = aipy.coord.eq2top_m(aa.sidereal_time(),aa.lat)
     tx3d, ty3d, tz3d = numpy.dot(t3d,crd3d) #topocentric coordinates
     #bm3d = aa[0].bm_response((tx3d,ty3d,tz3d)) #beam response (makes code slow)
@@ -130,11 +155,34 @@ for ii, t in enumerate(times):
         fringe3d = fng[f]
 
         fluxes3d = img3d[f].map.map
+=======
+t3d = aipy.coord.eq2top_m(aa.sidereal_time(),aa.lat)
+tx3d, ty3d, tz3d = numpy.dot(t3d,crd3d) #topocentric coordinates
+#bm3d = aa[0].bm_response((tx3d,ty3d,tz3d)) #beam response (makes code slow)
+#bm3d = numpy.where(tz3d < 0, 0, bm3d) #gets rid of beam values below horizon
+#sum_bm3d = numpy.sum(bm3d)
 
-        p13d = fluxes3d*fringe3d#*bm3d
-        sump13d = numpy.sum(p13d)#/sum_bm3d
-        data.append(sump13d)
+#data calculation and getting global sky model
+    #XXX east-west baseline only
 
+data = []
+
+bl = baseline[0] #baseline is in ns
+
+for jj, f in enumerate(freqs):
+
+    img3d = aipy.map.Map(fromfits = '/Users/carinacheng/Desktop/Carina/UCBResearch/images/gsm/gsm256/gsm1' + str(jj+1).zfill(3) + '.fits') 
+        
+    fringe3d = numpy.exp(-2j*numpy.pi*tx3d*bl*f) #fringe pattern
+
+    fluxes3d = img3d.map.map
+>>>>>>> Stashed changes
+
+    p13d = fluxes3d*fringe3d#*bm3d
+    sump13d = numpy.sum(p13d)#/sum_bm3d
+    data.append(sump13d)
+
+<<<<<<< Updated upstream
         print 'Data completed for freq = ' + str(f) + ' GHz'
     
     data = numpy.asarray(data)
@@ -142,8 +190,33 @@ for ii, t in enumerate(times):
     preamble = (baseline, t, (i,j))
     uv['pol'] = aipy.miriad.str2pol['xx']
     uv.write(preamble, data, flags)
+=======
+    print 'Data completed for freq = ' + str(f) + ' GHz'
+
+data = numpy.asarray(data) #array of length nchan
+>>>>>>> Stashed changes
+
+#loop through time
+
+times = numpy.arange(2454500., 2454501., uv['inttime']/aipy.const.s_per_day)
+flags = numpy.zeros((uv['nchan'],),dtype=numpy.int32)
+i = 0
+j = 16 #antennas simulated
+crd = aa.get_baseline(i,j)
+
+for ii, t in enumerate(times):
+
+    print 'Timestep %d/%d' %(ii+1, len(times))
+    aa.set_jultime(t)
+    uv['time'] = t
+    uv['lst'] = aa.sidereal_time()
+    uv['ra'] = aa.sidereal_time()
+    uv['obsra'] = aa.sidereal_time()
+
+    preamble = (crd, t, (i,j))
+    uv['pol'] = aipy.miriad.str2pol['xx']
+    uv.write(preamble, data, flags)
 
 del(uv)
-
 
 
