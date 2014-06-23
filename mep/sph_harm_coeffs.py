@@ -337,7 +337,12 @@ def window_function_matrix(Q,N,lms,save_tag=None):
     info = Q.H*Ninv*Q
     # for ii in range(M.shape[0]):
     #     M[ii,ii] = 1/info[ii,ii]
-    M = n.linalg.pinv(info)
+    #M = n.linalg.pinv(info)
+    M = uf.pseudo_inverse(info,num_remov=1)
+    n.set_printoptions(threshold='nan')
+    print M*info
+    #BB = n.absolute(n.absolute(M*info)-n.identity(M.shape[0]))
+    #print n.amax(BB)
     W = M*Q.H*Ninv*Q
 
     foo = n.array(n.absolute(W[0,:]))
@@ -355,9 +360,9 @@ if __name__=='__main__':
     #calfile='basic_amp_aa_grid'
     #baselines,freqs,coeffs = get_coeffs_lm(calfile,0,0,freqs=n.array([.1,]))
     #print coeffs
-    #Q,baselines,lms = shc.get_Q('basic_amp_aa_grid',0,3,savefolderpath='./coeff_data/grid/')
-    #Q,baselines,lms = shc.get_Q('basic_amp_aa_grid',4,5,savefolderpath='./coeff_data/grid/')
-    #Q,baselines,lms = shc.get_Q('basic_amp_aa_grid',6,7,savefolderpath='./coeff_data/grid/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_long',0,3,savefolderpath='./coeff_data/long/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_long',4,5,savefolderpath='./coeff_data/long/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_long',6,7,savefolderpath='./coeff_data/long/')
 
     Q, baselines, lms = combine_Q('./coeff_data/grid/basic_amp_aa_grid_Q_min_l_0_max_l_3.npz',
                                 './coeff_data/grid/basic_amp_aa_grid_Q_min_l_4_max_l_5.npz',
@@ -370,10 +375,10 @@ if __name__=='__main__':
     lms = Qstuff['lms']
     baselines = Qstuff['baselines']
 
-    plot_Q(Q,lms,save_tag='grid')
+    #plot_Q(Q,lms,save_tag='grid')
     
     N = (1.0**2)*n.identity(Q.shape[0])
     window_function_matrix(Q,N,lms,save_tag='grid')
-    info_matrix(Q,N,lms,save_tag='grid')
-    test_recover_gs_vary_n(Q,baselines,lms)
+    #info_matrix(Q,N,lms,save_tag='grid')
+    #test_recover_gs_vary_n(Q,baselines,lms)
     #test_recover_gs(Q,baselines,lms,n_sig=.1)

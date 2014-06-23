@@ -18,6 +18,40 @@ def general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar,pseudo=False):
     params = AAinv*Q.H*Ninv*np.matrix(ydata) # params should be 1 by nparam
     return np.array(params), np.array(AAinv)
 
+def pseudo_inverse(MM,num_remov=2):
+    """
+    Computes a matrix pseudo inverse based on equation A4 in Max Tegmark's 
+    1997 paper "How to measure the CMB power spectra without losing information"
+
+    Not currently working
+    """
+    eta = np.average(MM)
+    print eta
+    MM = np.matrix(MM)
+    eig_vals, eig_vecs = np.linalg.eig(MM)
+    sorted_ind = np.argsort(eig_vals)
+    sorted_vecs = eig_vecs[sorted_ind]
+    print 'eig vecs = ',sorted_vecs
+    Z = sorted_vecs[:,-num_remov:]
+    Z = np.matrix(Z)
+    print 'Z = ',Z
+    PP = np.identity(eig_vals.shape[0]) - np.dot(Z,Z.H)
+    AA = np.dot(PP,np.dot(MM,PP.H)) + eta*np.dot(Z,Z.H) 
+    AAinv = np.linalg.inv(AA)
+    #np.set_printoptions(threshold='nan')
+    #print AAinv*AA
+    MM_inv = np.dot(PP,np.dot(AAinv,PP.H)) 
+
+    # test the inverse
+    v = sorted_vecs[:,0]
+    print 'test vector = ',v
+    vp = np.dot(np.dot(MM_inv,PP*MM*PP.H),np.array(v))
+    print 'recovered vector = ',vp
+
+    return MM_inv
+
+
+
 def line_thru_origin_lstsq_fit_with_err(xdata,ydata,noiseCovar):
     xdata = np.array(xdata)
     gridnum = len(xdata)
