@@ -1,7 +1,6 @@
 #!/bin/bash
 #
 RETVAL=0;
-echo $1
 
 start() {
 echo “Starting still_task_server”
