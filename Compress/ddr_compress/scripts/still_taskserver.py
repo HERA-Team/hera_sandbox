@@ -9,9 +9,16 @@ o.set_usage('still_taskserver [options] *.uv')
 o.set_description(__doc__)
 o.add_option('--port',default=14204,type=int,
             help='set port number [default=14204]')
+o.add_option('--logfile',
+            help="optionally send logs to a file instead")
 opts, args = o.parse_args(sys.argv[1:])
 DATA_DIR = args[0]
-
+if not opts.logfile is None:
+    fh = logging.FileHandler(opts.logfile)
+    fh.setLevel(logging.DEBUG)
+    logger = logging.getLogger('taskserver')
+    logger.addHandler(fh)
+    logger.debug('Starting log file')
 dbi = ddr.dbi.DataBaseInterface()
 task_server = ddr.task_server.TaskServer(dbi, data_dir=DATA_DIR,port=opts.port)
 task_server.start()
