@@ -188,7 +188,7 @@ def get_coeffs_lm_baselines_from_origin(calfile,l,m,freqs = n.array([.1,]),savef
     if savefolderpath!=None: n.savez_compressed('{0}{1}_data_l_{1}_m_{2}'.format(savefolderpath,calfile,l,m),baselines=baselines,frequencies=freqs,coeffs=coeffs)
     return baselines,freqs,coeffs
 
-def get_Q(calfile,min_l,max_l,nb=6,savefolderpath=None):
+def get_Q(calfile,min_l,max_l,mvals=None,nb=6,savefolderpath=None):
     """
     This function creates a Q matrix for the antenna array in the calfile.
     Note that although a 'full' Q matrix would vary l from 0 to max_l, this
@@ -199,7 +199,8 @@ def get_Q(calfile,min_l,max_l,nb=6,savefolderpath=None):
     aa = a.cal.get_aa(calfile, n.array([.150])) #get antenna array
     baselines = get_baselines(aa,nb=nb)
     for l in range(min_l,max_l+1):
-        for m in range(-l,l+1):
+        if mvals==None: mvals = range(-l,l+1)
+        for m in mvals:
             print l,m
             baselines,freqs,coeffs = get_coeffs_lm_fewer_baselines(aa,baselines,l,m,freqs=n.array([.1,]))
             if l==min_l and m==-min_l: Q = coeffs
@@ -298,20 +299,20 @@ def info_matrix(Q,N,lms,save_tag=None):
     p.scatter(lms[:,0],n.diag(info),c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
     p.xlabel('l (color is m)')
     p.ylabel('diagonal elements of info matrix')
-    p.yscale('log')
-    p.ylim([10**-6,1])
+    # p.yscale('log')
+    # p.ylim([10**-5,10])
     p.colorbar()
-    p.savefig('./figures/{0}_10_info_matrix_diagonal.pdf'.format(save_tag))
+    p.savefig('./figures/{0}_info_matrix_diagonal.pdf'.format(save_tag))
     p.clf()
     
     first_row = n.array(n.absolute(info[0,:]))
     p.scatter(lms[:,0],first_row,c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
     p.xlabel('l (color is m)')
     p.ylabel('Abs val of first row of info matrix')
-    p.yscale('log')
-    p.ylim([10**-8,1])
+    # p.yscale('log')
+    # p.ylim([10**-5,10])
     p.colorbar()
-    p.savefig('./figures/{0}_10_info_matrix_first_row.pdf'.format(save_tag))
+    p.savefig('./figures/{0}_info_matrix_first_row.pdf'.format(save_tag))
     p.clf()
 
 
@@ -322,16 +323,16 @@ def info_matrix(Q,N,lms,save_tag=None):
     p.ylabel('eigenvalue')
     # p.yscale('log')
     # p.ylim([10**-10,10**-2])
-    p.savefig('./figures/{0}_10_info_matrix_eig_vals.pdf'.format(save_tag))
+    p.savefig('./figures/{0}_info_matrix_eig_vals.pdf'.format(save_tag))
     p.clf()
     
     foo = n.array(n.absolute(eig_vecs[:,0]))
     p.scatter(lms[:,0],foo,c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
     p.xlabel('l (color is m)')
     p.ylabel('coefficient of a_l,m for the largest eigenvector')
-    p.yscale('log')
-    p.ylim([10**-6,1])
-    p.savefig('./figures/{0}_10_info_matrix_eig_vec.pdf'.format(save_tag))
+    # p.yscale('log')
+    # p.ylim([10**-5,10])
+    p.savefig('./figures/{0}_info_matrix_eig_vec.pdf'.format(save_tag))
     print eig_vals.shape
     print 'eig_vals = ',eig_vals[0]
     print 'eig_vecs = ',eig_vecs[:,0]
@@ -353,8 +354,8 @@ def window_function_matrix(Q,N,lms,save_tag=None):
 
     foo = n.array(n.absolute(W[0,:]))
     p.scatter(lms[:,0],foo,c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
-    p.yscale('log')
-    p.ylim([10**-3,10**0.2])
+    #p.yscale('log')
+    #p.ylim([10**-3,10**0.2])
     p.xlabel('l (color is m)')
     p.ylabel('first row of Window Function Matrix')
     p.colorbar()
@@ -366,11 +367,11 @@ if __name__=='__main__':
     #calfile='basic_amp_aa_grid'
     #baselines,freqs,coeffs = get_coeffs_lm(calfile,0,0,freqs=n.array([.1,]))
     #print coeffs
-    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss',0,3,savefolderpath='./coeff_data/circle_gauss/')
-    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss',4,5,savefolderpath='./coeff_data/circle_gauss/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_long',50,51,mvals=(0,25,50),savefolderpath='./coeff_data/long/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_long',100,101,mvals=(0,50,100),savefolderpath='./coeff_data/long/')
     #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss',6,7,savefolderpath='./coeff_data/circle_gauss/')
 
-    keyword = 'circle'
+    keyword = 'circle_gauss'
     Q, baselines, lms = combine_Q('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_3.npz'.format(keyword,keyword),
                                 './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_4_max_l_5.npz'.format(keyword,keyword),
                                 './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_5'.format(keyword,keyword))

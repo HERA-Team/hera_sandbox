@@ -18,40 +18,45 @@ def general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar,pseudo=False):
     params = AAinv*Q.H*Ninv*np.matrix(ydata) # params should be 1 by nparam
     return np.array(params), np.array(AAinv)
 
-def pseudo_inverse(MM,num_remov=2):
+def pseudo_inverse(MM,num_remov=1):
     """
     Computes a matrix pseudo inverse based on equation A4 in Max Tegmark's 
     1997 paper "How to measure the CMB power spectra without losing information"
-
-    Not currently working
     """
-    eta = 1#np.average(MM)
-    print 'eta = ',eta
+    eta = np.average(MM)
+    #print 'eta = ',eta
     MM = np.matrix(MM)
-    eig_vals, eig_vecs = np.linalg.eig(MM)
+    #print 'MM = \n',MM
+    eig_vals, eig_vecs = np.linalg.eig(MM) # checked
     sorted_ind = np.argsort(np.absolute(eig_vals))
     sorted_vecs = eig_vecs[sorted_ind]
-    print 'eig_vals = ',eig_vals[sorted_ind]
-    print 'eig vecs = \n',sorted_vecs
-    Z = sorted_vecs[:,0:num_remov]
+    #print 'eig_vals = \n',eig_vals[sorted_ind]
+    #print 'eig vecs = \n',sorted_vecs
+    Z = sorted_vecs[:,0:num_remov] #checked
     Z = np.matrix(Z)
-    print 'Z = \n',Z
+    #print 'Z = \n',Z
     PP = np.identity(eig_vals.shape[0]) - np.dot(Z,Z.H) #checked by hand
-    print 'PP = \n',PP
-    MM_tilde = np.dot(PP,np.dot(MM,PP.H))
-    print 'MM_tilde = \n',MM_tilde
+    #print 'PP = \n',PP
+    MM_tilde = np.dot(PP,np.dot(MM,PP.H)) #checked
+    #print 'MM_tilde = \n',MM_tilde
     AA = MM_tilde + eta*np.dot(Z,Z.H) 
-    print 'AA = \n',AA
+    #print 'AA = \n',AA
     AAinv = np.linalg.inv(AA)
     #np.set_printoptions(threshold='nan')
-    print '\nAAinv = \n',AAinv
+    #print '\nAAinv = \n',AAinv
     MM_inv = np.dot(PP,np.dot(AAinv,PP.H)) 
+    #print 'MM_inv = \n',MM_inv
 
     # test the inverse
-    v = sorted_vecs[:,-1]
-    print 'test vector = ',v
-    vp = np.dot(np.dot(MM_inv,PP*MM*PP.H),np.array(v))
-    print 'recovered vector = ',vp
+    # v1 = sorted_vecs[:,-1]#+ sorted_vecs[:,-2]
+    # v2 = Z[:,0]
+    # dotprod = np.dot(v1.H,v2)
+    # print dotprod[0,0]
+    # v = v1 - np.dot(v1.H,v2)[0,0]*v2
+    # print np.dot(v.H,v2)
+    # print 'test vector = \n',v
+    # vp = np.dot(np.dot(MM_inv,MM_tilde),np.array(v))
+    # print 'recovered vector = \n',vp
 
     return MM_inv
 
