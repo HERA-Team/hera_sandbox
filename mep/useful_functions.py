@@ -29,10 +29,11 @@ def pseudo_inverse(MM,num_remov=2):
     print eta
     MM = np.matrix(MM)
     eig_vals, eig_vecs = np.linalg.eig(MM)
-    sorted_ind = np.argsort(eig_vals)
+    sorted_ind = np.argsort(np.absolute(eig_vals))
     sorted_vecs = eig_vecs[sorted_ind]
+    print 'eig_vals = ',eig_vals[sorted_ind]
     print 'eig vecs = ',sorted_vecs
-    Z = sorted_vecs[:,-num_remov:]
+    Z = sorted_vecs[:,0:num_remov]
     Z = np.matrix(Z)
     print 'Z = ',Z
     PP = np.identity(eig_vals.shape[0]) - np.dot(Z,Z.H)
@@ -43,7 +44,7 @@ def pseudo_inverse(MM,num_remov=2):
     MM_inv = np.dot(PP,np.dot(AAinv,PP.H)) 
 
     # test the inverse
-    v = sorted_vecs[:,0]
+    v = sorted_vecs[:,-1]
     print 'test vector = ',v
     vp = np.dot(np.dot(MM_inv,PP*MM*PP.H),np.array(v))
     print 'recovered vector = ',vp
