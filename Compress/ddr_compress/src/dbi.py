@@ -30,7 +30,7 @@ def jdpol2obsnum(jd,pol,djd):
     dublinjd = jd - 2415020  #use Dublin Julian Date
     obsint = int(dublinjd/djd)  #divide up by length of obs
     polnum = a.miriad.str2pol[pol]+10
-    assert(obsint.bit_length()<31)
+    assert(obsint < 2**31)
     return int(obsint + polnum*(2**32))
 
 def updateobsnum(context):
@@ -335,7 +335,7 @@ class DataBaseInterface(object):
         OBS = s.query(Observation).filter(Observation.obsnum==obsnum).one()
         POTFILE = s.query(File).filter(
             File.observation==OBS,
-            File.host.like('%pot%'),
+            #File.host.like('%pot%'), # XXX temporarily commenting this out.  need a better solution for finding original file
             File.filename.like('%uv')).one()
         host = POTFILE.host
         path = os.path.dirname(POTFILE.filename)

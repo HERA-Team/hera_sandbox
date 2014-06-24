@@ -21,7 +21,7 @@ statusscr = curses.newwin(statheight,200,5,0)
 statusscr.keypad(1)
 statusscr.nodelay(1)
 curline = 2
-colwidth = 40
+colwidth = 50
 obslines = 20
 i=0
 stat = ['\\','|','/','-','.']
@@ -47,6 +47,7 @@ try:
             try:
                 host,path,filename= dbi.get_input_file(obsnum)
                 status = dbi.get_obs_status(obsnum)
+                still_host = dbi.get_obs_still_host(obsnum)
             except:
                 host,path,filename = 'host','/path/to/','zen.2345672.23245.uv'
                 status = 'WTF'
@@ -56,7 +57,7 @@ try:
                 row = j
             else:
                 row = j%statheight
-            statusscr.addstr(row,col*colwidth,"{filename} {status}".format(col=col,filename=os.path.basename(filename),status=status))
+            statusscr.addstr(row,col*colwidth,"{filename} {status} {still_host}".format(col=col,filename=os.path.basename(filename),status=status,still_host=still_host))
         s.close()
         statusscr.refresh()
         c = stdscr.getch()
