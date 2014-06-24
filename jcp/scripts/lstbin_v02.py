@@ -134,10 +134,9 @@ for filename in nargs:
         if not dat[lst].has_key(blp): dat[lst][blp] = {}
         if 'cnt' in uv.vars():
             dat[lst][blp]['cnt'] = dat[lst][blp].get('cnt',[]) + [uv['cnt']]
-            #dat[lst][blp]['vis'] = dat[lst][blp].get('vis',[]) + [uv['cnt']*n.where(f,0,d)]
             dat[lst][blp]['vis'] = dat[lst][blp].get('vis',[]) + [n.where(f,0,d)]
         else:
-            dat[lst][blp]['cnt'] = dat[lst][blp].get('cnt',[]) + [n.logical_not(f)]
+            dat[lst][blp]['cnt'] = dat[lst][blp].get('cnt',[]) + [n.logical_not(f).astype(float)]
             dat[lst][blp]['vis'] = dat[lst][blp].get('vis',[]) + [n.where(f,0,d)]
 
 # Check that data actually got written
@@ -166,7 +165,7 @@ jd_start = jd_start + (lsts[0] - lst_start) * djd_dlst #ARP fix; sign was wrong 
 lst_start = lsts[0]
 
 # Initialize the output file
-#XXX this section of code assumes that all the input files look like the first one.  this will deliver BAD functionality if input files are a mix of lst binned and non lst binned files; will it work if the first file is always the lst binned file??
+#XXX By initializing off the first file, this line demands that lst binned files appear first on the command line when combining them with un-lst binned files. 
 uvi = a.miriad.UV(args[0])
 invars = uvi.vars() #remember what variables were in the input files
 filename=os.path.basename(args[0])
@@ -215,11 +214,15 @@ for lst in lsts:
                 d_sig = n.ma.median(d_res, axis=0)
                 d_sig.shape = (1,) + d_sig.shape
                 d = n.ma.masked_where(d_res > opts.nsig * d_sig, d)
+                w = n.ma.array(w, mask = d.mask).filled(0)
             # Calculate the statistics as needed
             if 'cnt' in opts.stats: cnt = n.sum(w, axis=0)
+            #XXX You need to check that all of these statistics are properly done over multiple iterations
             if 'min' in opts.stats: dmin = n.ma.min(n.abs(d), axis=0).filled(0)
             if 'max' in opts.stats: dmax = n.ma.max(n.abs(d), axis=0).filled(0)
+            #XXX There is no valid way to keep a running median
             if 'median' in opts.stats: median = n.ma.median(n.abs(d), axis=0).filled(0)
+            #XXX This is not a running variance
             if 'var' in opts.stats: var = n.ma.var(d, axis=0).filled(0)
             # Do the averaging
             #d = n.ma.mean(d, axis=0).filled(0)
