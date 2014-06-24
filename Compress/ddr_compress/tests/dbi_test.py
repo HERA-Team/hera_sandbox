@@ -41,8 +41,9 @@ class TestDBI(unittest.TestCase):
         self.host = 'pot0'
         self.length = 10.16639/60./24
     def test_configparsing(self):
-        #dbi = DataBaseInterface(test=True,configfile=filename)
-        self.assertEqual(self.dbi.dbinfo['hostip'],'memory')
+        dbi = DataBaseInterface(test=True)
+        logger.info('Note: did you remember to do "cp configs/test.cfg ~/.paperstill/db.cfg" ? ')
+        self.assertEqual(dbi.dbinfo['hostip'],'memory')
     def test_obsnum_increment(self):
         dt = self.length
         jds = n.arange(0,10)*dt+self.jd
