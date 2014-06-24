@@ -298,6 +298,8 @@ def info_matrix(Q,N,lms,save_tag=None):
     p.scatter(lms[:,0],n.diag(info),c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
     p.xlabel('l (color is m)')
     p.ylabel('diagonal elements of info matrix')
+    p.yscale('log')
+    p.ylim([10**-6,1])
     p.colorbar()
     p.savefig('./figures/{0}_10_info_matrix_diagonal.pdf'.format(save_tag))
     p.clf()
@@ -306,6 +308,8 @@ def info_matrix(Q,N,lms,save_tag=None):
     p.scatter(lms[:,0],first_row,c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
     p.xlabel('l (color is m)')
     p.ylabel('Abs val of first row of info matrix')
+    p.yscale('log')
+    p.ylim([10**-8,1])
     p.colorbar()
     p.savefig('./figures/{0}_10_info_matrix_first_row.pdf'.format(save_tag))
     p.clf()
@@ -316,6 +320,8 @@ def info_matrix(Q,N,lms,save_tag=None):
     p.scatter(range(len(eig_vals)),eig_vals,s=50)
     p.xlabel('index of eigenvalue array (I dont think they are in any particular order)')
     p.ylabel('eigenvalue')
+    # p.yscale('log')
+    # p.ylim([10**-10,10**-2])
     p.savefig('./figures/{0}_10_info_matrix_eig_vals.pdf'.format(save_tag))
     p.clf()
     
@@ -323,8 +329,8 @@ def info_matrix(Q,N,lms,save_tag=None):
     p.scatter(lms[:,0],foo,c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
     p.xlabel('l (color is m)')
     p.ylabel('coefficient of a_l,m for the largest eigenvector')
-    # p.yscale('log')
-    # p.ylim([10**-6,1])
+    p.yscale('log')
+    p.ylim([10**-6,1])
     p.savefig('./figures/{0}_10_info_matrix_eig_vec.pdf'.format(save_tag))
     print eig_vals.shape
     print 'eig_vals = ',eig_vals[0]
@@ -337,18 +343,18 @@ def window_function_matrix(Q,N,lms,save_tag=None):
     info = Q.H*Ninv*Q
     # for ii in range(M.shape[0]):
     #     M[ii,ii] = 1/info[ii,ii]
-    #M = n.linalg.pinv(info)
-    M = uf.pseudo_inverse(info,num_remov=1)
+    M = n.linalg.pinv(info)
+    #M = uf.pseudo_inverse(info,num_remov=1)
     n.set_printoptions(threshold='nan')
-    print M*info
+    #print M*info
     #BB = n.absolute(n.absolute(M*info)-n.identity(M.shape[0]))
     #print n.amax(BB)
     W = M*Q.H*Ninv*Q
 
     foo = n.array(n.absolute(W[0,:]))
     p.scatter(lms[:,0],foo,c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
-    # p.yscale('log')
-    # p.ylim([10**-3,10**0.2])
+    p.yscale('log')
+    p.ylim([10**-3,10**0.2])
     p.xlabel('l (color is m)')
     p.ylabel('first row of Window Function Matrix')
     p.colorbar()
@@ -360,25 +366,26 @@ if __name__=='__main__':
     #calfile='basic_amp_aa_grid'
     #baselines,freqs,coeffs = get_coeffs_lm(calfile,0,0,freqs=n.array([.1,]))
     #print coeffs
-    #Q,baselines,lms = shc.get_Q('basic_amp_aa_long',0,3,savefolderpath='./coeff_data/long/')
-    #Q,baselines,lms = shc.get_Q('basic_amp_aa_long',4,5,savefolderpath='./coeff_data/long/')
-    #Q,baselines,lms = shc.get_Q('basic_amp_aa_long',6,7,savefolderpath='./coeff_data/long/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss',0,3,savefolderpath='./coeff_data/circle_gauss/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss',4,5,savefolderpath='./coeff_data/circle_gauss/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss',6,7,savefolderpath='./coeff_data/circle_gauss/')
 
-    Q, baselines, lms = combine_Q('./coeff_data/grid/basic_amp_aa_grid_Q_min_l_0_max_l_3.npz',
-                                './coeff_data/grid/basic_amp_aa_grid_Q_min_l_4_max_l_5.npz',
-                                './coeff_data/grid/basic_amp_aa_grid_Q_min_l_0_max_l_5')
-    Q, baselines, lms = combine_Q('./coeff_data/grid/basic_amp_aa_grid_Q_min_l_0_max_l_5.npz',
-                                './coeff_data/grid/basic_amp_aa_grid_Q_min_l_6_max_l_7.npz',
-                                './coeff_data/grid/basic_amp_aa_grid_Q_min_l_0_max_l_7')
-    Qstuff = n.load('./coeff_data/grid/basic_amp_aa_grid_Q_min_l_0_max_l_5.npz')
+    keyword = 'circle'
+    Q, baselines, lms = combine_Q('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_3.npz'.format(keyword,keyword),
+                                './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_4_max_l_5.npz'.format(keyword,keyword),
+                                './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_5'.format(keyword,keyword))
+    Q, baselines, lms = combine_Q('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_5.npz'.format(keyword,keyword),
+                                './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_6_max_l_7.npz'.format(keyword,keyword),
+                                './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_7'.format(keyword,keyword))
+    Qstuff = n.load('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_7.npz'.format(keyword,keyword))
     Q = Qstuff['Q']
     lms = Qstuff['lms']
     baselines = Qstuff['baselines']
 
-    #plot_Q(Q,lms,save_tag='grid')
+    plot_Q(Q,lms,save_tag=keyword)
     
     N = (1.0**2)*n.identity(Q.shape[0])
-    window_function_matrix(Q,N,lms,save_tag='grid')
-    #info_matrix(Q,N,lms,save_tag='grid')
+    window_function_matrix(Q,N,lms,save_tag=keyword)
+    info_matrix(Q,N,lms,save_tag=keyword)
     #test_recover_gs_vary_n(Q,baselines,lms)
     #test_recover_gs(Q,baselines,lms,n_sig=.1)

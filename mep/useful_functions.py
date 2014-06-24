@@ -25,22 +25,26 @@ def pseudo_inverse(MM,num_remov=2):
 
     Not currently working
     """
-    eta = np.average(MM)
-    print eta
+    eta = 1#np.average(MM)
+    print 'eta = ',eta
     MM = np.matrix(MM)
     eig_vals, eig_vecs = np.linalg.eig(MM)
     sorted_ind = np.argsort(np.absolute(eig_vals))
     sorted_vecs = eig_vecs[sorted_ind]
     print 'eig_vals = ',eig_vals[sorted_ind]
-    print 'eig vecs = ',sorted_vecs
+    print 'eig vecs = \n',sorted_vecs
     Z = sorted_vecs[:,0:num_remov]
     Z = np.matrix(Z)
-    print 'Z = ',Z
-    PP = np.identity(eig_vals.shape[0]) - np.dot(Z,Z.H)
-    AA = np.dot(PP,np.dot(MM,PP.H)) + eta*np.dot(Z,Z.H) 
+    print 'Z = \n',Z
+    PP = np.identity(eig_vals.shape[0]) - np.dot(Z,Z.H) #checked by hand
+    print 'PP = \n',PP
+    MM_tilde = np.dot(PP,np.dot(MM,PP.H))
+    print 'MM_tilde = \n',MM_tilde
+    AA = MM_tilde + eta*np.dot(Z,Z.H) 
+    print 'AA = \n',AA
     AAinv = np.linalg.inv(AA)
     #np.set_printoptions(threshold='nan')
-    #print AAinv*AA
+    print '\nAAinv = \n',AAinv
     MM_inv = np.dot(PP,np.dot(AAinv,PP.H)) 
 
     # test the inverse
