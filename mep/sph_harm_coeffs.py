@@ -349,9 +349,9 @@ def window_function_matrix(Q,N,lms,save_tag=None):
     info = Q.H*Ninv*Q
     # for ii in range(M.shape[0]):
     #     M[ii,ii] = 1/info[ii,ii]
-    M = n.linalg.pinv(info)
+    #M = n.linalg.pinv(info)
     
-    #M = uf.pseudo_inverse(info,num_remov=1)
+    M = uf.pseudo_inverse(info,num_remov=1)
     #n.set_printoptions(threshold='nan')
     #print M*info
     #BB = n.absolute(n.absolute(M*info)-n.identity(M.shape[0]))
@@ -360,11 +360,14 @@ def window_function_matrix(Q,N,lms,save_tag=None):
     #print M[0:4,0:4]
     #print info[0:4,0:4]
     #print W[0:4,0:4]
-    p.imshow(n.log(n.absolute(info)))
-    p.title('Info Matrix')
+    p.imshow(n.log(n.absolute(W)))
+    p.title('Window Function Matrix')
     p.xticks(l_locs,ls)
     p.yticks(l_locs,ls)
-    p.show()
+    p.xlabel('l')
+    p.ylabel('l')
+    p.savefig('./figures/{0}_W_matrix_ufpseudo.pdf'.format(save_tag))
+    p.clf()
 
     foo = n.array(n.absolute(W[0,:]))
     p.scatter(lms[:,0],foo,c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
@@ -381,11 +384,11 @@ if __name__=='__main__':
     #calfile='basic_amp_aa_grid'
     #baselines,freqs,coeffs = get_coeffs_lm(calfile,0,0,freqs=n.array([.1,]))
     #print coeffs
-    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_2',0,3,savefolderpath='./coeff_data/circle_2/')
-    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_2',4,5,savefolderpath='./coeff_data/circle_2/')
-    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_2',6,7,savefolderpath='./coeff_data/circle_2/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_long',3000,3001,mvals=(0,1500,3000),savefolderpath='./coeff_data/long/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_long',3500,3501,mvals=(0,1750,3500),savefolderpath='./coeff_data/long/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_long',6,7,savefolderpath='./coeff_data/circle_2/')
 
-    keyword = 'grid'
+    keyword = 'circle_2'
     Q, baselines, lms = combine_Q('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_3.npz'.format(keyword,keyword),
                                 './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_4_max_l_5.npz'.format(keyword,keyword),
                                 './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_5'.format(keyword,keyword))

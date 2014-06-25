@@ -91,6 +91,40 @@ def map_spectral_index(index):
 #indexmap = a.map.Map
 #indexmap.map.map = params[:,1]
 
+def gsm_noise_covar(mapdata,baselines,aa):
+	"""
+	> mapdata should be a 1d array of the healpix data for exactly one frequencey.
+	> baselines should be a 1d array of baselines from an array.
+	> aa is the antenna array
+
+	Will return a noise covariance matrix in the Fourier space, which is an nxn array
+	where n is the number of baselines.
+	"""
+
+	im = a.img.Img(size=200, res=.5) #make an image of the sky to get sky coords
+    tx,ty,tz = im.get_top(center=(200,200)) #get coords of the zenith?
+    valid = n.logical_not(tx.mask)
+    tx,ty,tz = tx.flatten(),ty.flatten(),tz.flatten()
+
+	#beam response for an antenna pointing at (tx,ty,tz) with a polarization in x direction
+    #amp = A(theta) in notes
+    amp = aa[0].bm_response((tx,ty,tz),pol='x')**2 
+    #coefficient array: rows baselines; cols frequencies
+    G = n.zeros([len(baselines),len(mapdata)],dtype=n.complex)
+    for ii in range(len(baselines)):
+    	bx,by,bz = baselines[ii]
+    	for jj in range(len(mapdata)): 
+    		# Insert some magical function to go from healpix coordinates to img coords
+    		G[ii,jj] = A[jj]*n.exp(-2j*n.pi*fq*(bx*rx+by*ry+bz*rz))
+    G = n.matrix(G)
+
+    mapdata.shape = (n.prod(mapdata.shape),)
+	Rfg = n.matrix(n.diag(mapdata))
+
+    Nfg = n.dot(G,n.dot(Rfg,G.H))
+
+    return Nfg
+
 
 
 if __name__=='__main__':
