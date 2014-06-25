@@ -1,14 +1,18 @@
 #!/bin/bash
 #
 RETVAL=0;
-
+export PYTHONPATH=/home/obs/lib/python2.7/site-packages/
 start() {
-echo “Starting still_task_server”
-start-stop-daemon --start -m --pidfile=/data/still_taskserver.pid  -b --exec /home/obs/bin/still_taskserver.py --  /data/ --logfile=/data/still_taskserver.log
+echo Starting: still_task_server
+start-stop-daemon --start -m --pidfile=/data/still_taskserver.pid -c obs:obs  -b \
+ --exec /home/obs/bin/still_taskserver.py --  --logfile=/data/still_taskserver.log
+#    --exec /bin/bash -- -c "/home/obs/bin/still_taskserver.py /data/ &> /data/still_taskserver.log"
+    #--exec /bin/bash -- -c "echo `date` &> /data/wtf.log"
+    #--exec /home/obs/keepalive.sh
 }
 
 stop() {
-echo “Stopping still_task_server”
+echo Stopping: still_task_server
 start-stop-daemon --stop  --pidfile=/data/still_taskserver.pid still_taskserver.py
 rm /data/still_taskserver.pid
 }
