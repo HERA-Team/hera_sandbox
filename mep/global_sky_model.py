@@ -91,13 +91,13 @@ def map_spectral_index(index):
 #indexmap = a.map.Map
 #indexmap.map.map = params[:,1]
 
-def gsm_noise_covar(baselines,aa,fq=0.1,
+def gsm_noise_covar_too_much_memory(baselines,aa,fq=0.1,
     gsm_data_file='/Users/mpresley/soft/gsm/data_100MHz_150MHz/hi1001.fits',
     savepath=None):
     """
-    > mapdata should be a 1d array of the healpix data for exactly one frequencey.
-    > baselines should be a 1d array of baselines from an array.
-    > aa is the antenna array
+    > aa is an antenna array.
+    > baselines should be a 1d array of baselines from the array.
+    > fq is the frequency in GHz
 
     Will return a noise covariance matrix in the Fourier space, which is an nxn array
     where n is the number of baselines.
@@ -135,6 +135,50 @@ def gsm_noise_covar(baselines,aa,fq=0.1,
 
     return Nfg
 
+
+def gsm_noise_covar(baselines,aa,fq=0.1,
+    gsm_data_file='/Users/mpresley/soft/gsm/data_100MHz_150MHz/hi1001.fits',
+    savepath=None):
+    """
+    > aa is an antenna array.
+    > baselines should be a 1d array of baselines from the array.
+    > fq is the frequency in GHz
+
+    Will return a noise covariance matrix in the Fourier space, which is an nxn array
+    where n is the number of baselines.
+    """
+
+    # im = a.img.Img(size=200, res=.5) #make an image of the sky to get sky coords
+ #    tx,ty,tz = im.get_top(center=(200,200)) #get coords of the zenith?
+ #    valid = n.logical_not(tx.mask)
+ #    tx,ty,tz = tx.flatten(),ty.flatten(),tz.flatten()
+    healmap = a.map.Map(fromfits=gsm_data_file)
+    px_array = n.arange(healmap.npix()) # gets an array of healpix pixel indices
+    crd_array = n.array(healmap.px2crd(px_array,ncrd=3)) # finds the topocentric coords for each healpix pixel
+    print crd_array.shape
+
+    Rdata = healmap.map.map
+
+    #beam response for an antenna pointing at crd with a polarization in x direction
+    amp = aa[0].bm_response(crd_array,pol='x')**2 
+    print amp.shape
+    #array to convert healpix map to Fourier Space: rows baselines; cols pixels
+    Nfg = n.zeros([len(baselines),len(baselines)],dtype=n.complex)
+    for ii in range(len(baselines)):
+        bix,biy,biz = baselines[ii,:]
+        for jj in range(len(baselines)):
+            print ii,jj
+            bjx,bjy,bjz = baselines[jj,:]  
+            for kk in px_array:
+                rx,ry,rz = crd_array[:,kk]          
+                Gik = amp[0,kk]*n.exp(-2j*n.pi*fq*(bix*rx+biy*ry+biz*rz))
+                Gjk_star = n.conj(amp[0,kk]*n.exp(-2j*n.pi*fq*(bjx*rx+bjy*ry+bjz*rz)))
+                Rkk = Rdata[kk]*Rdata[kk]
+                Nfg[ii,jj] += Gik*Rkk*Gjk_star
+
+    if savepath!=None: n.savez_compressed(savepath,baselines=baselines,Nfg=Nfg)
+
+    return Nfg
 
 
 if __name__=='__main__':

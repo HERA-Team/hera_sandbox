@@ -406,13 +406,13 @@ if __name__=='__main__':
     #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss_pi4',6,7,savefolderpath='./coeff_data/circle_2_gauss_pi4/')
 
     keyword = 'circle_2'
-    #calfile='basic_amp_aa_circle_2'
-    Q, baselines, lms = combine_Q('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_3.npz'.format(keyword,keyword),
-                                './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_4_max_l_5.npz'.format(keyword,keyword),
-                                './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_5'.format(keyword,keyword))
-    Q, baselines, lms = combine_Q('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_5.npz'.format(keyword,keyword),
-                                './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_6_max_l_7.npz'.format(keyword,keyword),
-                                './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_7'.format(keyword,keyword))
+    calfile='basic_amp_aa_circle_2'
+    # Q, baselines, lms = combine_Q('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_3.npz'.format(keyword,keyword),
+    #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_4_max_l_5.npz'.format(keyword,keyword),
+    #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_5'.format(keyword,keyword))
+    # Q, baselines, lms = combine_Q('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_5.npz'.format(keyword,keyword),
+    #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_6_max_l_7.npz'.format(keyword,keyword),
+    #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_7'.format(keyword,keyword))
     # Q, baselines, lms = combine_Q('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_7.npz'.format(keyword,keyword),
     #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_50_max_l_51.npz'.format(keyword,keyword),
     #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_51'.format(keyword,keyword))
@@ -426,13 +426,13 @@ if __name__=='__main__':
 
     print baselines.shape
     #plot_Q(Q,lms,save_tag=keyword)
-    # aa = a.cal.get_aa(calfile, n.array([.150]))
-    # Nfg = gsm.gsm_noise_covar(baselines,aa,savepath='./coeff_data/{0}/gsm_noise_covar')
-    # p.imshow(n.log(n.absolute(Nfg)))
-    # p.show()
+    aa = a.cal.get_aa(calfile, n.array([.150]))
+    Nfg = gsm.gsm_noise_covar(baselines,aa,savepath='./coeff_data/{0}/gsm_noise_covar')
+    p.imshow(n.log(n.absolute(Nfg)))
+    p.show()
 
-    N = (1.0**2)*n.identity(Q.shape[0])
-    window_function_matrix(Q,N,lms,save_tag=keyword)
+    #N = (1.0**2)*n.identity(Q.shape[0])
+    #window_function_matrix(Q,N,lms,save_tag=keyword)
     #info_matrix(Q,N,lms,save_tag=keyword)
     #test_recover_gs_vary_n(Q,baselines,lms)
     #test_recover_gs(Q,baselines,lms,n_sig=.1)
