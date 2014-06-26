@@ -7,6 +7,7 @@ import numpy as n, aipy as a, pylab as p, capo as C
 
 F_c = .150
 B = .02
+NOISE_AMP = 0.001
 
 #urange = (535,550)
 #urange = (541,544)
@@ -36,12 +37,17 @@ z2x_1 = []
 z2x_2 = []
 for tau in _fq:
     d = bm * n.exp(-2j*n.pi*(_L[urange[0]:urange[1]][0]*Ls + tau*fs))
+    # XXX padding d with zeros
+    d_zeros = n.zeros_like(d)
+    d = n.concatenate([d_zeros, d_zeros, d, d_zeros, d_zeros], axis=0)
+    print d.shape
+    # XXX end padding
     d = n.fft.fftshift(d)
     d /= (d[0,0] / n.abs(d[0,0])) # set the absolute phase, just for consistency
     _d = n.fft.ifft2(d)
     _d = n.fft.fftshift(_d)
-    z2x_2.append(_d[:-1:2,urange[0]:urange[1]].flatten()) # WORKS
-    z2x_1.append(_d[:,urange[0]:urange[1]].flatten()) # DOESN'T WORK
+    z2x_2.append(_d[:-1:2,urange[0]:urange[1]].flatten()) # WORKS with noise
+    z2x_1.append(_d[:,urange[0]:urange[1]].flatten()) # DOESN'T WORK with noise
 
     #p.subplot(121)
     ##C.arp.waterfall(d, extent=(L[0],L[-1],fq[0],fq[-1]), mode='real')
@@ -58,8 +64,8 @@ for tau in _fq:
     #p.ylabel(r'$\eta$')
     #p.show()
 
-#z2x = n.array(z2x_1); print 'z2x:', z2x.shape, z2x.dtype
-z2x = n.array(z2x_2); print 'z2x:', z2x.shape, z2x.dtype
+z2x = n.array(z2x_1); print 'z2x:', z2x.shape, z2x.dtype
+#z2x = n.array(z2x_2); print 'z2x:', z2x.shape, z2x.dtype
 #z2x = n.identity(z2x.shape[0])
 SH = (z2x.shape[1],urange[1]-urange[0])
 #for i in range(z2x.shape[0]): p.plot(z2x[i].real)
@@ -71,11 +77,10 @@ def random_phase(shape):
 
 z = random_phase(z2x.shape[-1])
 amp = n.sin(n.arange(z.size).astype(n.float64)*2*n.pi/z.size)
-#z *= amp
+z *= amp
 #z = amp
 x_true = n.einsum('ij,j', z2x, z) # worried about a conjugation here in z2x: doesn't matter b/c it gets squared
 p_true = n.abs(z)**2
-NOISE_AMP = 0.001
 x = x_true + random_phase(x_true.shape) * NOISE_AMP * n.random.normal(size=x_true.shape)
 print 'x:', x.shape, x.dtype
 
@@ -102,6 +107,8 @@ p.subplot(133); C.arp.waterfall(n.dot(Cov,Cinv), drng=3); p.colorbar(shrink=.5)
 p.show()
 z2x_t = n.transpose(z2x); z2x_t.shape += (1,); print 'z2x_t:', z2x_t.shape, z2x_t.dtype
 Qa = z2x_t * dagger(z2x_t); print 'Qa:', Qa.shape, Qa.dtype
+# XXX downgrade padding
+Qa.shape = (Qa.shape[0]/5,5) + Qa.shape[1:]; Qa = n.sum(Qa, axis=1)
 #Ea = 0.5 * n.einsum('ij,ajk,kl', Cinv, Qa, Cinv); print 'Ea:', Ea.shape, Ea.dtype # XXX doing this in one go causes inaccuracies at 1e-3
 Ea = 0.5 * n.einsum('ij,ajk', Cinv, n.einsum('aij,jk', Qa, Cinv)); print 'Ea:', Ea.shape, Ea.dtype
 #Ea = 0.5 * Cinv.dot(Qa.dot(Cinv)).transpose([1,0,2]); print 'Ea:', Ea.shape, Ea.dtype
@@ -140,6 +147,9 @@ pa = n.einsum('ab,b', M, qa-ba); print 'pa:', pa.shape, pa.dtype
 #ba = n.einsum('aji,ij', Ea, N); ba.shape = pa.shape; print 'ba:', ba.shape, ba.dtype
 #pa -= ba
 pa, ba, p_true = pa.flatten(), ba.flatten(), p_true.flatten()
+# XXX deal with summing over padding
+#pa.shape = (pa.size/5,5); pa = n.sum(pa, axis=1)
+p_true.shape = (p_true.size/5,5); p_true = n.sum(p_true, axis=1)
 p.subplot(131); p.plot(n.abs(z.flatten())**2); p.title('z')
 p.subplot(132)
 p.plot(n.abs(x.flatten())**2)

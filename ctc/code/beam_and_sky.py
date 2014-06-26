@@ -51,14 +51,16 @@ rawimg3d = aipy.map.Map(fromfits = '/Users/carinacheng/Desktop/Carina/UCBResearc
 img3d = aipy.map.Map(nside=256)
 img3d.from_map(rawimg3d)
 
-img3d.map.map *= f #3D image data rescaled
+#img3d.map.map *= f #3D image data rescaled
 
+"""
 #fill 3D map with 1 pixel value of value 1
 
 value = 1
 img3d.map.map = numpy.zeros_like(img3d.map.map)
 img3d.put((numpy.array([-1]),numpy.array([0]),numpy.array([0])),numpy.array([1]),numpy.array([value]))
    #location = (1,0,0) which is RA=0,dec=0
+"""
 
 #get beam response
 
@@ -69,7 +71,7 @@ sum_bm = numpy.sum(bm) #used later when computing sky temp
 
 #get LST
 
-lsts = numpy.arange(numpy.pi/2,3*numpy.pi/2,0.01) #LST is RA of object at meridian
+lsts = numpy.arange(numpy.pi,3*numpy.pi,0.1)#numpy.pi/2,3*numpy.pi/2,0.1) #LST is RA of object at meridian
 tskies = numpy.zeros_like(lsts)
 
 #get fringe pattern
@@ -94,9 +96,9 @@ for ii,lst in enumerate(lsts): #ii in index, lst is value
 
     #plot beam response and sky and fringe pattern
 
-    p1 = numpy.fft.fftshift(fluxes*fringe)
+    p1 = numpy.fft.fftshift(fluxes*bm)#*fringe)
     toplot = numpy.real(p1) #plot phase/real/imaginary
-    print numpy.sum(p1)
+    #print numpy.sum(p1)
 
     #temperature
     
@@ -104,20 +106,20 @@ for ii,lst in enumerate(lsts): #ii in index, lst is value
 
     if plt1 == None:
 
-        pylab.subplot(1,2,1)
-        plt1 = pylab.imshow(toplot,interpolation='nearest',origin='lower',extent=(1,-1,-1,1),vmax=1,vmin=-1)
+        pylab.subplot(1,1,1)
+        plt1 = pylab.imshow(toplot,interpolation='nearest',origin='lower',extent=(1,-1,-1,1))#,vmax=1,vmin=-1)
         cbar = pylab.colorbar(shrink=0.5)
         cbar.set_label("Temperature (K)")
-        pylab.subplot(1,2,2)
-        plt2 = pylab.plot(lsts,tskies.real,'b.') #this is a visibility simulator now
-        plt.ylim(-1,1) #manually adjust y range
-        plt.ylabel("Temperature (K)")
-        plt.xlabel("RA (rad)")
+        #pylab.subplot(1,2,2)
+        #plt2 = pylab.plot(lsts,tskies.real,'b.') #this is a visibility simulator now
+        #plt.ylim(-1,1) #manually adjust y range
+        #plt.ylabel("Temperature (K)")
+        #plt.xlabel("RA (rad)")
         pylab.show()
 
     else:
 
         plt1.set_data(toplot)
-        plt2[0].set_ydata(tskies.real)
+        #plt2[0].set_ydata(tskies.real)
         pylab.draw()
 

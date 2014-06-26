@@ -105,7 +105,7 @@ class File(Base):
 
 
 class DataBaseInterface(object):
-    def __init__(self,configfile='~/.ddr_compress/db.cfg',test=False):
+    def __init__(self,configfile='~/.ddr_compress/still.cfg',test=False):
         """
         Connect to the database and initiate a session creator.
          or

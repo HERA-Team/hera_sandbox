@@ -83,6 +83,7 @@ class TaskClient:
         if not neighbors_base[0] is None: neighbors_base[0] = self.dbi.get_input_file(neighbors_base[0])[-1]
         if not neighbors_base[1] is None: neighbors_base[1] = self.dbi.get_input_file(neighbors_base[1])[-1]
         def interleave(filename, appendage='cR'):
+            # make sure this is in sync with do_X.sh task scripts.
             rv = [filename]
             if not neighbors_base[0] is None: rv = [neighbors_base[0]+appendage] + rv
             if not neighbors_base[1] is None: rv = rv + [neighbors_base[1]+appendage]
@@ -106,7 +107,7 @@ class TaskClient:
             'UVCRRE_POT': [basename+'cRRE', '%s:%s' % (pot,path)],
             'CLEAN_UVCR': [basename+'cR'],
             'CLEAN_UVCRRE': [basename+'cRRE'],
-            'POT_TO_USA': ['%s:%s'%(outhost,outpath), '%s:%s/%s'%(pot,path,basename+'cRRE'), '%s:%s/%s'%(pot,path,basename+'cRE.npz')], # XXX add destination here? if so, need to decide how dbi distinguishes between location of pot and location of usa
+            'POT_TO_USA': [pot, '%s:%s'%(outhost,outpath), '%s/%s'%(path,basename+'cRRE'), '%s/%s'%(path,basename+'cRE.npz')], # XXX add destination here? if so, need to decide how dbi distinguishes between location of pot and location of usa
             'COMPLETE': [],
         }
         return args[task]
