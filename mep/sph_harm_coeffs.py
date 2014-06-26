@@ -1,6 +1,7 @@
 import aipy as a, numpy as n, pylab as p
 import capo as C
 import useful_functions as uf
+import global_sky_model as gsm
 from scipy import special
 import matplotlib as mpl
 
@@ -205,6 +206,7 @@ def get_Q(calfile,min_l,max_l,mvals=None,nb=6,savefolderpath=None):
         for m in mvals:
             print l,m
             baselines,freqs,coeffs = get_coeffs_lm_fewer_baselines(aa,baselines,l,m,freqs=n.array([.1,]))
+            print 'got coeffs'
             if l==min_l and m==mvals[0]: Q = coeffs
             else: Q = n.hstack((Q,coeffs))
             if l==min_l and m==mvals[0]: lms = n.array([l,m])
@@ -231,7 +233,8 @@ def combine_Q(Q1file,Q2file,newfile):
     Q2stuff = n.load(Q2file)
     Q = n.hstack((Q1stuff['Q'],Q2stuff['Q']))
     lms = n.vstack((Q1stuff['lms'],Q2stuff['lms']))
-    baselines = n.vstack((Q1stuff['baselines'],Q2stuff['baselines']))
+    #baselines = n.vstack((Q1stuff['baselines'],Q2stuff['baselines']))
+    baselines = Q1stuff['baselines']
     n.savez_compressed(newfile,Q=Q,baselines=baselines,lms=lms)
     return Q, baselines, lms
 
@@ -347,10 +350,20 @@ def window_function_matrix(Q,N,lms,save_tag=None):
     Q = n.matrix(Q); N = n.matrix(N)
     Ninv = N.I
     info = Q.H*Ninv*Q
+    
+    p.imshow(n.log(n.absolute(info)))
+    p.title('Info Matrix')
+    p.xticks(l_locs,ls)
+    p.yticks(l_locs,ls)
+    p.xlabel('l')
+    p.ylabel('l')
+    p.savefig('./figures/{0}_info_matrix_ufpseudo.pdf'.format(save_tag))
+    #p.show()
+    p.clf()
+
     # for ii in range(M.shape[0]):
     #     M[ii,ii] = 1/info[ii,ii]
     #M = n.linalg.pinv(info)
-    
     M = uf.pseudo_inverse(info,num_remov=1)
     #n.set_printoptions(threshold='nan')
     #print M*info
@@ -367,28 +380,33 @@ def window_function_matrix(Q,N,lms,save_tag=None):
     p.xlabel('l')
     p.ylabel('l')
     p.savefig('./figures/{0}_W_matrix_ufpseudo.pdf'.format(save_tag))
+    #p.show()
     p.clf()
 
-    foo = n.array(n.absolute(W[0,:]))
-    p.scatter(lms[:,0],foo,c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
-    #p.yscale('log')
-    #p.ylim([10**-3,10**0.2])
-    p.xlabel('l (color is m)')
-    p.ylabel('first row of Window Function Matrix')
-    p.colorbar()
-    p.savefig('./figures/{0}_W_pinv_matrix_elements.pdf'.format(save_tag))
-    p.clf()
+    # foo = n.array(n.absolute(W[0,:]))
+    # p.scatter(lms[:,0],foo,c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
+    # #p.yscale('log')
+    # #p.ylim([10**-3,10**0.2])
+    # p.xlabel('l (color is m)')
+    # p.ylabel('first row of Window Function Matrix')
+    # p.colorbar()
+    # #p.savefig('./figures/{0}_W_pinv_matrix_elements.pdf'.format(save_tag))
+    # p.show()
+    # p.clf()
 
 
 if __name__=='__main__':
-    #calfile='basic_amp_aa_grid'
     #baselines,freqs,coeffs = get_coeffs_lm(calfile,0,0,freqs=n.array([.1,]))
     #print coeffs
     #Q,baselines,lms = shc.get_Q('basic_amp_aa_long',3000,3001,mvals=(0,1500,3000),savefolderpath='./coeff_data/long/')
     #Q,baselines,lms = shc.get_Q('basic_amp_aa_long',3500,3501,mvals=(0,1750,3500),savefolderpath='./coeff_data/long/')
-    #Q,baselines,lms = shc.get_Q('basic_amp_aa_long',6,7,savefolderpath='./coeff_data/circle_2/')
+    
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss_pi8',0,3,savefolderpath='./coeff_data/circle_2_gauss_pi8/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss_pi8',4,5,savefolderpath='./coeff_data/circle_2_gauss_pi8/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss_pi4',6,7,savefolderpath='./coeff_data/circle_2_gauss_pi4/')
 
     keyword = 'circle_2'
+    #calfile='basic_amp_aa_circle_2'
     Q, baselines, lms = combine_Q('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_3.npz'.format(keyword,keyword),
                                 './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_4_max_l_5.npz'.format(keyword,keyword),
                                 './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_5'.format(keyword,keyword))
@@ -406,8 +424,13 @@ if __name__=='__main__':
     lms = Qstuff['lms']
     baselines = Qstuff['baselines']
 
-    plot_Q(Q,lms,save_tag=keyword)
-    
+    print baselines.shape
+    #plot_Q(Q,lms,save_tag=keyword)
+    # aa = a.cal.get_aa(calfile, n.array([.150]))
+    # Nfg = gsm.gsm_noise_covar(baselines,aa,savepath='./coeff_data/{0}/gsm_noise_covar')
+    # p.imshow(n.log(n.absolute(Nfg)))
+    # p.show()
+
     N = (1.0**2)*n.identity(Q.shape[0])
     window_function_matrix(Q,N,lms,save_tag=keyword)
     #info_matrix(Q,N,lms,save_tag=keyword)
