@@ -6,6 +6,7 @@ NAME:
       vis_simulation.py 
 PURPOSE:
       Models visibilities using the global sky model (GSM) and creates a new Miriad UV file
+      Differs from vis_simulation_v2.py in that the fringe/beam is fixed and the sky rotates as eq. coordinates change
 EXAMPLE CALL:
       ./vis_simulation.py --nchan 2 --inttime 30000 
 HOW TO MAKE GSM FILES:
@@ -57,10 +58,9 @@ o.add_option('--endjd', dest='endjd', default=2454501., type='float',
              help='Julian Date to end observation.  Default is 2454501')
 opts, args = o.parse_args(sys.argv[1:])
 
+#miriad uv file set-up
 
 print 'setting up miriad UV file...'
-
-#miriad uv file set-up
 
 uv = aipy.miriad.UV(opts.filename, status='new')
 uv._wrhd('obstype','mixed-auto-cross')

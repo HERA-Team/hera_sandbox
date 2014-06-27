@@ -3,12 +3,27 @@
 """
 
 NAME: 
-      vis_simulation_test.py 
+      vis_simulation_v2.py 
 PURPOSE:
-      Models visibilities using selected simple test cases and creates a new Miriad UV file
-      Used as a sanity check for vis_simulation.py and vis_simulation_v2.py
+      Models visibilities using the global sky model (GSM) and creates a new Miriad UV file
+      Differs from vis_simulation.py in that the sky image uses eq. coordinates and the fringe/beam is rotated with time
 EXAMPLE CALL:
-      ./vis_simulation_test.py 
+      ./vis_simulation_v2.py --nchan 2 --inttime 30000 
+HOW TO MAKE GSM FILES:
+      Need scripts: gsmtofits.py (Author: Carina Cheng)
+                    gsmmanyfreqs.f (Authors: Angelica de Oliveira-Costa & Max Tegmark)
+      1. Compile gsmmanyfreqs.f 
+             $ ./compile_it.sh gsmmanyfreqs.f -o gsmmf.sh
+      2. Make a text file called 'args.dat' with the following arguments, separated by spaces on the first line:
+            filename prefix, lowest freq (MHz), delta_freq (MHz), total # of freqs
+            example: gsm 100 0.390625 256
+            this example makes 256 gsm files from 0.1-0.2 GHz
+      3. Run code:
+            $ ./gsmmf.sh
+      4. Run code (see code description for more instructions):
+            $ ./gsmtofits.py --map <path>
+IMPORTANT NOTE: 
+      Be careful when changing sdf and sfreq because they need to match the GSM files!
 AUTHOR:
       Carina Cheng
 
@@ -22,10 +37,8 @@ import matplotlib.pyplot as plt
 import optparse
 import os, sys
 
-#options
-
 o = optparse.OptionParser()
-o.set_usage('vis_simulation_test.py [options] *.uv')
+o.set_usage('vis_simulation_v2.py [options] *.uv')
 o.set_description(__doc__)
 o.add_option('--map', dest='map', default='/Users/carinacheng/capo/ctc/images/gsm/gsm203/',
              help='Directory where GSM files are (labeled gsm1001.fits, gsm1002.fits, etc.). Include final / when typing path.')
@@ -33,8 +46,6 @@ o.add_option('--filename', dest='filename', default='/Users/carinacheng/capo/ctc
              help='Filename of created Miriad UV file (ex: test.uv).')
 o.add_option('--nchan', dest='nchan', default=203, type='int',
              help='Number of channels in simulated data. Default is 203.')
-o.add_option('--case', dest='case', default='pole',
-             help='Test case. Can be "east" (source rises on the East) or "pole" (source at South Pole) or "zenith" (source at observers zenith). Default is "pole".')
 o.add_option('--inttime', dest='inttime', default=10., type='float',
              help='Integration time (s). Default is 10.') 
 o.add_option('--sfreq', dest='sfreq', default=0.1, type='float',
@@ -59,6 +70,7 @@ uv.add_var('telescop' ,'a'); uv['telescop'] = 'AIPY'
 uv.add_var('operator' ,'a'); uv['operator'] = 'AIPY'
 uv.add_var('version' ,'a'); uv['version'] = '0.0.1'
 uv.add_var('epoch' ,'r'); uv['epoch'] = 2000.
+uv.add_var('source'  ,'a'); uv['source'] = 'zenith'
 uv.add_var('nchan' ,'i'); uv['nchan'] = opts.nchan
 uv.add_var('sdf' ,'d'); uv['sdf'] = opts.sdf
 uv.add_var('sfreq' ,'d'); uv['sfreq'] = opts.sfreq
@@ -107,81 +119,47 @@ uv.add_var('obsdec' ,'d'); uv['obsdec'] = aa.lat
 uv.add_var('longitu' ,'d'); uv['longitu'] = aa.long
 uv.add_var('antpos' ,'d'); uv['antpos'] = (numpy.array([ant.pos for ant in aa], dtype = numpy.double)).transpose().flatten() #transpose is miriad convention
 
-#get map
-
-img = aipy.map.Map(nside=512)
-img.map.map = numpy.zeros_like(img.map.map)
-
-value = 1.0
-wgts = 1.0
-
-if opts.case == 'pole':
-
-    img.put((0,0,-1),wgts,value) #use eq coordinates: (0,0,-1) = south pole
-
-if opts.case == 'east':
-
-    aa.set_jultime(opts.startjd)
-    txi,tyi,tzi = -1,0,0 #east?
-    top2eq = aipy.coord.top2eq_m(aa.sidereal_time(), aa.lat)
-    exi,eyi,ezi = numpy.dot(top2eq,(txi,tyi,tzi)) #equatorial coordinates
-    img.put((exi,eyi,ezi),wgts,value) 
-
-if opts.case == 'zenith':
-
-    aa.set_jultime(opts.startjd)
-    txi,tyi,tzi = 0,0,1 #zenith
-    top2eq = aipy.coord.top2eq_m(aa.sidereal_time(), aa.lat)
-    exi,eyi,ezi = numpy.dot(top2eq,(txi,tyi,tzi)) #equatorial coordinates
-    img.put((exi,eyi,ezi),wgts,value)   
-
 #get topocentric coordinates and calculate beam response
 
 print 'calculating beam response...'
 
-px = numpy.arange(img.npix()) #number of pixels in map
-crd = numpy.array(img.px2crd(px,ncrd=3)) #aipy.healpix.HealpixMap.px2crd?
+img1 = aipy.map.Map(fromfits = opts.map + 'gsm1001.fits', interp=True)
+
+px = numpy.arange(img1.npix()) #number of pixels in map
+crd = numpy.array(img1.px2crd(px,ncrd=3)) #aipy.healpix.HealpixMap.px2crd?
 t3 = numpy.asarray(crd)
 #t3 = t3.compress(t3[2]>=0,axis=1) #gets rid of coordinates below horizon
-tx,ty,tz = t3[0], t3[1], t3[2] #1D arrays of top coordinates of img (can define to be whatever coordinate system)
+tx,ty,tz = t3[0], t3[1], t3[2] #1D arrays of top coordinates of img1 (can define to be whatever coordinate system)
 bm = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x') #beam response (makes code slow)
 sum_bm = numpy.sum(bm,axis=1)
 
-#loop through frequency and calculate fringe
+#get equatorial coordinates
 
-print 'calculating fringes...'
+e3 = numpy.asarray(crd)
+ex,ey,ez = e3[0], e3[1], e3[2] #1D arrays of eq coordinates of img
 
+#loop through frequency to get GSM and calculate fringe
+
+print 'getting GSMs and calculating fringes...'
+
+img = {}
 fng = {}
 fluxes = {}
 
 for jj, f in enumerate(freqs):
+    img[f] = aipy.map.Map(fromfits = opts.map + 'gsm1' + str(jj+1).zfill(3) + '.fits', interp=True)
     fng[f] = numpy.exp(-2j*numpy.pi*(blx*tx+bly*ty+blz*tz)*f) #fringe pattern
     fng[f]*= bm[jj]/sum_bm[jj] #factor used later in visibility calculation
-    #fluxes[f] = img[f][px]
-    fluxes[f] = img[px] #fluxes preserved in equatorial grid
+    fluxes[f] = img[f][px] #fluxes preserved in equatorial grid
     print ("%.8f" % f) + ' GHz done'
 
-#px = numpy.arange(img.npix()) #number of pixels in map
-#crd = numpy.array(img.px2crd(px,ncrd=3)) #aipy.healpix.HealpixMap.px2crd?
-e3 = numpy.asarray(crd)
-ex,ey,ez = e3[0], e3[1], e3[2] #1D arrays of eq coordinates of img (can define to be whatever coordinate system)
-
-#loop through time
+#loop through time to pull out fluxes from changing equatorial coordinates
 #loop through frequency to calculate visibility
 
 print 'writing miriad uv file...'
 
 times = numpy.arange(opts.startjd, opts.endjd, uv['inttime']/aipy.const.s_per_day)
 flags = numpy.zeros(len(freqs), dtype=numpy.int32)
-
-#plotting set-up
-
-plt.figure(figsize = (10,8))
-plt.subplots_adjust(left=0.1, right=0.9, bottom=0.1, top=0.9, wspace=0.4, hspace=0.3)
-pylab.ion()
-plt1 = None
-toplot = numpy.zeros(times.shape)
-toplot2 = numpy.zeros(times.shape)
 
 for ii, t in enumerate(times):
 
@@ -193,46 +171,22 @@ for ii, t in enumerate(times):
     uv['obsra'] = aa.sidereal_time()
 
     eq2top = aipy.coord.eq2top_m(aa.sidereal_time(),aa.lat) #conversion matrix
-    tx,ty,tz = numpy.dot(eq2top,e3) #top coordinates
-    #could get rid of half the values here
+    tx,ty,tz = numpy.dot(eq2top,e3) #topocentric coordinates
+    ###GET RID OF HALF OF VALUES###
 
     data = []
 
-    px, wgts = img.crd2px(tx,ty,tz, interpolate=1) #IMG is in eq. coordinates... only getting pixels here
-    #px, wgts = img.crd2px(ex,ey,ez, interpolate=1) #converts coordinates to pixels (pixel numbers don't change with frequency)
+    px, wgts = img[freqs[0]].crd2px(tx,ty,tz, interpolate=1) #converts coordinates to pixels for first GSM file (pixel numbers don't change with frequency)
+    #NOTE: img and fluxes are still in equatorial coordinates... just getting pixels here
 
     for jj, f in enumerate(freqs):
 
         efng = numpy.sum(fng[f][px]*wgts, axis=1)
-
-        toplot[ii] = numpy.sum(fluxes[f])
         
         vis = numpy.sum(fluxes[f]*efng)
-        toplot2[ii] = numpy.real(vis)
-
         data.append(vis)
 
-        print ("%.5f" % f) + ' GHz done'
-
-        if plt1 == None:
-
-            plt.subplot(2,1,1)
-            plt1 = pylab.plot(times,toplot,'b.')
-            plt.xlabel("Time (Julian Date)")
-            plt.ylabel("Sum Flux")
-            plt.ylim(0,2)
-            plt.subplot(2,1,2)
-            plt2 = pylab.plot(times,toplot2,'r.')
-            plt.xlabel("Time (Julian Date)")
-            plt.ylabel("Visibilities")
-            plt.ylim(-1e-5,1e-5)
-            pylab.show()
-
-        else:
-            
-            plt1[0].set_ydata(toplot)
-            plt2[0].set_ydata(toplot2)
-            pylab.draw()
+        print ("%.8f" % f) + ' GHz done'
     
     data = numpy.asarray(data)
    
@@ -240,9 +194,4 @@ for ii, t in enumerate(times):
     uv['pol'] = aipy.miriad.str2pol['xx']
     uv.write(preamble, data, flags)
 
-print numpy.mean(toplot)
-plt.savefig('/Users/carinacheng/capo/ctc/code/test.png')#time_axis_' + opts.case + '.png')
 del(uv)
-
-
-
