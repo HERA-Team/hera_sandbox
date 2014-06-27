@@ -3,10 +3,11 @@ import time, logging
 logger = logging.getLogger('scheduler')
 
 # NEW is for db use internally.  Scheduler only ever gets UV_POT and onward from data base
+# Removing the POT_TO_USA step
 FILE_PROCESSING_STAGES = ['NEW','UV_POT', 'UV', 'UVC', 'CLEAN_UV', 'UVCR', 'CLEAN_UVC',
     'ACQUIRE_NEIGHBORS', 'UVCRE', 'NPZ', 'UVCRR', 'NPZ_POT', 'CLEAN_UVCRE', 'UVCRRE',
-    'CLEAN_UVCRR', 'CLEAN_NPZ', 'CLEAN_NEIGHBORS', 'UVCRRE_POT', 'CLEAN_UVCRRE', 'CLEAN_UVCR', 
-    'POT_TO_USA', 'COMPLETE']
+    'CLEAN_UVCRR', 'CLEAN_NPZ', 'CLEAN_NEIGHBORS', 'UVCRRE_POT', 'CLEAN_UVCRRE', 'CLEAN_UVCR',
+     'COMPLETE']
 FILE_PROCESSING_LINKS = {}
 for i,k in enumerate(FILE_PROCESSING_STAGES[:-1]):
     FILE_PROCESSING_LINKS[k] = FILE_PROCESSING_STAGES[i+1]
@@ -25,7 +26,7 @@ FILE_PROCESSING_PREREQS = { # link task to prerequisite state of neighbors, key 
 class Action:
     '''An Action performs a task on an observation, and is scheduled by a Scheduler.'''
     def __init__(self, obs, task, neighbor_status, still, timeout=3600.):
-        '''f:obs, task:target status, 
+        '''f:obs, task:target status,
         neighbor_status:status of adjacent obs (do not enter a status for a non-existent neighbor
         still:still action will run on.'''
         self.obs = obs
@@ -41,7 +42,7 @@ class Action:
         self.priority = p
     def has_prerequisites(self):
         '''For the given task, check that neighbors are in prerequisite state.
-        We don't check that the center obs is in the prerequisite state, 
+        We don't check that the center obs is in the prerequisite state,
         since this action could not have been generated otherwise.'''
         try: index1,index2 = FILE_PROCESSING_PREREQS[self.task]
         except(KeyError): # this task has no prereqs
@@ -68,14 +69,14 @@ class Action:
         assert(self.launch_time > 0) # Error out if action was not launched
         if curtime is None: curtime = time.time()
         return curtime > self.launch_time + self.timeout
-        
+
 def action_cmp(x,y): return cmp(x.priority, y.priority)
 
 class Scheduler:
     '''A Scheduler reads a DataBaseInterface to determine what Actions can be
     taken, and then schedules them on stills according to priority.'''
     def __init__(self, nstills=4, actions_per_still=8, transfers_per_still=2, blocksize=10):
-        '''nstills: # of stills in system, 
+        '''nstills: # of stills in system,
         actions_per_still: # of actions that can be scheduled simultaneously
                            per still.'''
         self.nstills = nstills
@@ -141,7 +142,7 @@ class Scheduler:
                 if status == a.task:
                     logger.info('Task %s for obs %s on still %d completed successfully.' % (a.task, a.obs, still))
                     # not adding to updated_actions removes this from list of launched actions
-                elif a.timed_out(): 
+                elif a.timed_out():
                     logger.info('Task %s for obs %s on still %d TIMED OUT.' % (a.task, a.obs, still))
                     self.kill_action(a)
                     # XXX make db entry for documentation
@@ -169,7 +170,7 @@ class Scheduler:
                     self.active_obs.append(f)
     def update_action_queue(self, dbi, ActionClass=None, action_args=()):
         '''Based on the current list of active obs (which you might want
-        to update first), generate a prioritized list of actions that 
+        to update first), generate a prioritized list of actions that
         can be taken.'''
         actions = [self.get_action(dbi,f,ActionClass=ActionClass, action_args=action_args) for f in self.active_obs]
         actions = [a for a in actions if not a is None] # remove unactionables
@@ -182,9 +183,9 @@ class Scheduler:
         prerequisites have been met.  Return None if no action is available.
         This function is allowed to return actions that have already been
         launched.
-        ActionClass: a subclass of Action, for customizing actions.  
+        ActionClass: a subclass of Action, for customizing actions.
             None defaults to the standard Action'''
-        status = dbi.get_obs_status(obs) 
+        status = dbi.get_obs_status(obs)
         if status == 'COMPLETE': return None # obs is complete
         neighbors = dbi.get_neighbors(obs)
         if None in neighbors: # is this an end-file that can't be processed past UVCR?
@@ -194,7 +195,7 @@ class Scheduler:
         neighbor_status = [dbi.get_obs_status(n) for n in neighbors if not n is None]
         # XXX shoudl check first if obs has been assigned to a still in the db already and continue to use that
         # and only generate a new still # if it hasn't been assigned one already.
-        still = self.obs_to_still(obs) 
+        still = self.obs_to_still(obs)
         if ActionClass is None: ActionClass = Action
         a = ActionClass(obs, next_step, neighbor_status, still, *action_args)
         if a.has_prerequisites(): return a

@@ -10,13 +10,13 @@ if os.path.exists(configfile):#todo config file an inputable thing above
     config = configparser.ConfigParser()
     configfile = os.path.expanduser(configfile)
     config.read(configfile)
-    STILLS = config['scheduler']['stills'].split(',')
+    STILLS = map(str,config['scheduler']['stills'].split(','))
     PORTS = map(int,config['scheduler']['ports'].split(','))
     ACTIONS_PER_STILL = int(config['scheduler']['actions_per_still'])
     BLOCK_SIZE = int(config['scheduler']['block_size'])
     TIMEOUT = int(config['scheduler']['timeout'])
     SLEEPTIME = int(config['scheduler']['sleeptime'])
-
+    print STILLS,PORTS
 else:
     STILLS = ['still4', 'still5']
     PORTS = [14204,14204]
