@@ -3,10 +3,10 @@ import logging, threading, subprocess, time
 import socket, os
 
 logger = logging.getLogger('taskserver')
-
+logger.setLevel(logging.DEBUG)
+logger.propagate = True
 PKT_LINE_LEN = 160
 STILL_PORT = 14204
-
 def pad(s, line_len=PKT_LINE_LEN):
     return (s + ' '*line_len)[:line_len]
 
@@ -198,6 +198,7 @@ class TaskServer(SocketServer.UDPServer):
         self.is_running = True
         t = threading.Thread(target=self.finalize_tasks)
         t.start()
+        logger.debug('this is scheduler.py')
         try:
             self.serve_forever()
         finally:
