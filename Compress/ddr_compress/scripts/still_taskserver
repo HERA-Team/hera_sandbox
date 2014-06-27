@@ -1,6 +1,6 @@
 #! /bin/sh
 ### BEGIN INIT INFO
-# Provides:          skeleton
+# Provides:          still_taskserver
 # Required-Start:    $remote_fs $syslog
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5
@@ -13,8 +13,8 @@ RETVAL=0;
 export PYTHONPATH=/home/obs/lib/python2.7/site-packages/
 start() {
 echo Starting: still_task_server
-start-stop-daemon --start -m --pidfile=/data/still_taskserver.pid -c obs:obs  -b \
- --exec /home/obs/bin/still_taskserver.py --  --logfile=/data/still_taskserver.log
+start-stop-daemon --start -m --pidfile=/var/run/still_taskserver.pid -c obs:obs  -b \
+ --exec /home/obs/bin/still_taskserver.py --  --logfile=/var/log/still/still_taskserver.log
 #    --exec /bin/bash -- -c "/home/obs/bin/still_taskserver.py /data/ &> /data/still_taskserver.log"
     #--exec /bin/bash -- -c "echo `date` &> /data/wtf.log"
     #--exec /home/obs/keepalive.sh
@@ -22,8 +22,7 @@ start-stop-daemon --start -m --pidfile=/data/still_taskserver.pid -c obs:obs  -b
 
 stop() {
 echo Stopping: still_task_server
-start-stop-daemon --stop  --pidfile=/data/still_taskserver.pid still_taskserver.py
-rm /data/still_taskserver.pid
+start-stop-daemon --stop  --pidfile=/var/run/still_taskserver.pid still_taskserver.py
 }
 
 restart() {
@@ -32,7 +31,7 @@ start
 }
 
 status(){
-pgrep -f still_taskserver
+pgrep -lf still_taskserver.py
 }
 
 
