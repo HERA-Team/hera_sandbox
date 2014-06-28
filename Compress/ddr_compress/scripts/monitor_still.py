@@ -17,7 +17,7 @@ dbi = DataBaseInterface()
 stdscr.addstr("PAPER Distiller Status Board")
 stdscr.addstr(1,0,"Press 'q' to exit")
 statheight = 50
-statusscr = curses.newwin(statheight,200,5,0)
+statusscr = curses.newwin(statheight,400,5,0)
 statusscr.keypad(1)
 statusscr.nodelay(1)
 curline = 2
