@@ -8,24 +8,22 @@ import numpy as n,os,sys,logging
 #logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('dbi_test')
 
-"""
-class MYSQLTest(unittest.TestCase):
-    def setUp(self):
-        self.dbi = DataBaseInterface()
-        print "NOTE: MYSQLTest will only work if the sql db setup referenced in ddr_compress.dbi is setup"
-        self.dbi.createdb()
-        self.jd = 2456892.20012000
-        self.pol = 'xx'
-        self.filename='/data0/zen.2456785.123456.uv'
-        self.host = 'pot0'
-        self.length = 10.16639/60./24
-    def test_db(self):
-        dbi.test_db()
-    def test_obsnum_increment(self):
-        obsnum = self.dbi.add_observation(self.jd,self.pol,self.filename,self.host,length=self.length)
-        print obsnum
-        self.assertEqual(obsnum,jdpol2obsnum(self.jd,self.pol,self.length))
-"""
+#class MYSQLTest(unittest.TestCase):
+#    def setUp(self):
+#        self.dbi = DataBaseInterface()
+#        print "NOTE: MYSQLTest will only work if the sql db setup referenced in ddr_compress.dbi is setup"
+#        self.dbi.createdb()
+#        self.jd = 2456892.20012000
+#        self.pol = 'xx'
+#        self.filename='/data0/zen.2456785.123456.uv'
+#        self.host = 'pot0'
+#        self.length = 10.16639/60./24
+#    def test_db(self):
+#        dbi.test_db()
+#    def test_obsnum_increment(self):
+#        obsnum = self.dbi.add_observation(self.jd,self.pol,self.filename,self.host,length=self.length)
+#        print obsnum
+#        self.assertEqual(obsnum,jdpol2obsnum(self.jd,self.pol,self.length))
 
 class TestDBI(unittest.TestCase):
     def setUp(self):
@@ -41,9 +39,8 @@ class TestDBI(unittest.TestCase):
         self.host = 'pot0'
         self.length = 10.16639/60./24
     def test_configparsing(self):
-        dbi = DataBaseInterface(test=True)
         logger.info('Note: did you remember to do "cp configs/test.cfg ~/.paperstill/db.cfg" ? ')
-        self.assertEqual(dbi.dbinfo['hostip'],'memory')
+        self.assertEqual(self.dbi.dbinfo['hostip'],'memory')
     def test_obsnum_increment(self):
         dt = self.length
         jds = n.arange(0,10)*dt+self.jd

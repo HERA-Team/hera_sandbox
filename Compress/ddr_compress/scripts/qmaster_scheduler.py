@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import ddr_compress as ddr
+import ddr_compress as ddr,os,configparser
 import logging; logging.basicConfig(level=logging.DEBUG)
 
 #STILLS = ['still0', 'still1', 'still2', 'still3']
