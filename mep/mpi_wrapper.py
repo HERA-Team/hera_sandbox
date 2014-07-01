@@ -45,9 +45,7 @@ if rank==master:
     print "Master sent out first round of assignments"
     # listen for results and send out new assignments
     for kk in range(numToDo):
-        entry = comm.recv(source=MPI.ANY_SOURCE)
-        status = MPI.Status()
-        source = status.Get_source()
+        source,entry = comm.recv(source=MPI.ANY_SOURCE)
         selectedi = comm.recv(source=source)
         selectedj = comm.recv(source=source)
         # stick entry into matrix 
@@ -74,7 +72,6 @@ elif rank<=numToDo:
         # Get assignment
         selectedi = comm.recv(source=master)
         selectedj = comm.recv(source=master)
-        status = MPI.Status()
         print "slave ",rank," just recieved i,j = ",selectedi,selectedj
         if selectedi==-1:
             # if there are no more jobs
@@ -84,7 +81,7 @@ elif rank<=numToDo:
             # compute the matrix element
             element = compute_element(selectedi,selectedj)
             # send answer back
-            comm.send(element,dest=master)
+            comm.send((rank,element),dest=master)
             comm.send(selectedi,dest=master)
             comm.send(selectedj,dest=master)
             print "Slave ",rank," sent back i,j = ",selectedi,selectedj
@@ -95,5 +92,5 @@ if rank==master:
     np.savez_compressed('./test_matrix',matrix=matrix)
     print matrix
 
-comm.Finalize()
+MPI.Finalize()
 

@@ -30,19 +30,19 @@ if rank==master:
     print "Master sent out first round of messages"
     # listen for results and send out new assignments
     for kk in range(num_messages):
-        message_back = comm.recv(source=MPI.ANY_SOURCE)
-        status = MPI.Status()
-        source = status.Get_source()
-        print 'Master just received message ',message_back,' from slave ',source
+        source_rank,message_back = comm.recv(source=MPI.ANY_SOURCE)
+        #status = MPI.Status()
+        #source = status.Get_source()
+        print 'Master just received message ',message_back,' from slave ',source_rank
         # if there are more things to do, send out another assignment
         if num_sent<num_messages:
-            comm.send(message[num_sent],dest=source)
-            print "Master sent out message ",message[num_sent],' to slave ',source
+            comm.send(message[num_sent],dest=source_rank)
+            print "Master sent out message ",message[num_sent],' to slave ',source_rank
             num_sent +=1
         else:
             # send a -1 to tell slave that task is complete
-            comm.send(-1,dest=source)
-            print "Master sent out the finished i,j to slave ",source
+            comm.send(-1,dest=source_rank)
+            print "Master sent out the finished i,j to slave ",source_rank
 # If I am a slave and there are not more slaves than jobs
 elif rank<=num_messages:
     print "I am slave ",rank
@@ -58,12 +58,12 @@ elif rank<=num_messages:
             print "slave ",rank," acknoledges EOM"
         else:
             # send message back
-            comm.send(recv_message+1,dest=master)
+            comm.send((rank,recv_message+1),dest=master)
             print "Slave ",rank," sent back message ",recv_message+1
 comm.Barrier()
 
 if rank==master:
     print "The master proclaims completion."
 
-comm.Finalize()
+MPI.Finalize()
 
