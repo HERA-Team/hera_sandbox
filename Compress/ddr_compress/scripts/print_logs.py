@@ -57,6 +57,7 @@ for obsnum in obsnums:
     LOGs = s.query(Log).filter(Log.obsnum==obsnum).order_by(Log.timestamp.desc()).all()
     print "="*80
     filename = dbi.get_input_file(obsnum)
+    filename = filename[0]+':'+filename[1]+'/'+filename[2]
     print "==    History for obsnum={obsnum} file={filename}     ==".format(
                                     obsnum = obsnum,
                                     filename=filename)
