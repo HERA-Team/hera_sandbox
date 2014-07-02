@@ -108,7 +108,7 @@ class Log(Base):
     obsnum = Column(BigInteger,ForeignKey('observation.obsnum'))
     stage = Column(Enum(*FILE_PROCESSING_STAGES,name='FILE_PROCESSING_STAGES'))
     exit_status = Column(Integer)
-    timestamp = Column(DateTime,nullable=False,server_default=func.now(),onupdate=func.current_timestamp())
+    timestamp = Column(DateTime,nullable=False,default=func.current_timestamp())
     logtext = Column(Text)
 
 
