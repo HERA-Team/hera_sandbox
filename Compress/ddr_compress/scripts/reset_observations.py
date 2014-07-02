@@ -1,10 +1,9 @@
 #! /usr/bin/env python
 """
-Input a list of files and insert into the db.  The files must exist and be findable on the filesystem
+Reset observations corresponding to the input files. Backconverts from input file names to unique observations.
+NB in the future this might break with the introduction of tracking files produced by the still
 NB filenames must be FULL PATH. If the root is not '/' for all files it will exit
 
-KEY NOTE: Assumes all files are contiguous.  I sort the files by jd and then match up neighboring pols as neighbors for the
-   ddr algorithm
 
 """
 
