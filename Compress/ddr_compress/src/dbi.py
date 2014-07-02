@@ -1,4 +1,4 @@
-from sqlalchemy import Table, Column, String, Integer, ForeignKey, Float,func,DateTime,Enum,BigInteger,Numeric
+from sqlalchemy import Table, Column, String, Integer, ForeignKey, Float,func,DateTime,Enum,BigInteger,Numeric,Text 
 from sqlalchemy.orm import relationship, backref,sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
@@ -102,6 +102,14 @@ class File(Base):
     observation = relationship(Observation,backref=backref('files',uselist=True))
     md5sum = Column(Integer)
 
+class Log(Base):
+    __tablename__ = 'log'
+    lognum = Column(Integer,primary_key=True)
+    obsnum = Column(BigInteger,ForeignKey('observation.obsnum'))
+    stage = Column(Enum(*FILE_PROCESSING_STAGES,name='FILE_PROCESSING_STAGES'))
+    exit_status = Column(Integer)
+    timestamp = Column(DateTime,nullable=False,server_default=func.now(),onupdate=func.current_timestamp())
+    logtext = Column(Text)
 
 
 class DataBaseInterface(object):
@@ -180,7 +188,26 @@ class DataBaseInterface(object):
         Base.metadata.bind = self.engine
         Base.metadata.create_all()
 
-
+    def add_log(self,obsnum,status,logtext,exit_status):
+        """
+        add a log entry about an obsnum
+        """
+        LOG = Log(obsnum=obsnum,stage=status,logtext=logtext,exit_status=exit_status)
+        s = self.Session()
+        s.add(LOG)
+        s.commit()
+        s.close()
+    def get_logs(self,obsnum,good_only=True):
+        """
+        return 
+        """
+        s = self.Session()
+        if good_only:
+            LOGs = s.query(Log).filter(Log.obsnum==obsnum,Log.exit_status==0) 
+        LOGs = s.query(Log).filter(Log.obsnum== obsnum)
+        logtext = '\n'.join([LOG.logtext for LOG in LOGs])
+        s.close()
+        return logtext #maybe this isn't the best format to be giving the logs
     def add_observation(self,julian_date,pol,filename,host,length=10/60./24,status='UV_POT'):
         """
         create a new observation entry.
