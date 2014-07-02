@@ -1,7 +1,9 @@
 #! /bin/bash
 
-for f in $@; do
-    hn=`hostname`
+files2proc=$@
+
+for f in $files2proc; do
+    hn=`print_hostname.py`
     infile=${hn}:${f}
     outfile=${infile}R
     
@@ -9,22 +11,39 @@ for f in $@; do
     if [ `echo ${triplet} | wc -w` != 3 ]; then
         continue
     fi
-    
+
     if [ ! -f ${f}R ]; then
-        #echo record_launch.py ${outfile} -i ${infile} -d '4-XRFI'
         record_launch.py ${outfile} -i ${infile} -d '4-XRFI'
-        #ddr_filter_coarse.py -a 1 -p xx,xy,yx,yy --clean=1e-3 --maxbl=300 --output=ddr --invert $triplet
-        #xrfi_simple.py -a 1 --combine -t 80 -n 5 ${f}E --to_npz=${f}E.npz
-        #xrfi_simple.py -a all --combine -t 80 ${f} --from_npz=${f}E.npz
-        dd if=/dev/urandom of=${f}R bs=16 count=1 &> /dev/null
-        if [[ $? ]]; then
-            #echo add_file.py ${outfile} -i ${infile}
-            add_file.py ${outfile} -i ${infile}
-            #echo record_completion.py ${outfile}
-            record_completion.py ${outfile}
-            rm -r ${f}
-        else
-            echo "DO SOMETHING!"
+        echo ddr_filter_coarse.py -a 1 -p xx,xy,yx,yy --clean=1e-3 --maxbl=300 --output=ddr --invert $triplet
+        stdout1=$(ddr_filter_coarse.py -a 1 -p xx,xy,yx,yy --clean=1e-3 --maxbl=300 --output=ddr --invert ${triplet} 2>&1)
+        echo xrfi_simple.py -a 1 --combine -t 80 -n 5 ${f}E --to_npz=${f}E.npz
+        stdout2=$(xrfi_simple.py -a 1 --combine -t 80 -n 5 ${f}E --to_npz=${f}E.npz 2>&1)
+        if [[ $? -eq 0 ]]; then
+            rfifile=${infile}E.npz
+            add_file.py ${rfifile} -i ${infile}
         fi
+        LOG="xrfi_simple.py -a all --combine -t 80 ${f} --from_npz=${f}E.npz\n"
+        LOG=${LOG}`date`"\n"
+        LOG=${LOG}$(xrfi_simple.py -a all --combine -t 80 ${f} --from_npz=${f}E.npz 2>&1)"\n"
+        STATUS=$?
+        PID=$!
+        #dd if=/dev/urandom of=${f}R bs=16 count=1 &> /dev/null
+        if [[ $STATUS -eq 0 ]]; then
+            add_file.py ${outfile} -i ${infile}
+            record_completion.py ${outfile} --log="${LOG}"
+            #rm -r ${f}
+        else
+            rm -r ${f}R
+            record_failure.py ${outfile} --log="${LOG}"
+        fi
+    fi
+done
+#garbage collection
+for f in $files2proc; do
+    if [ -e ${f}E ]; then
+        rm -r ${f}E
+    fi
+    if [ -e ${f}R ]; then
+        rm -r ${f}
     fi
 done

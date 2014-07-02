@@ -7,9 +7,11 @@ DFM
 """
 
 from PDB import *
-import sys
+import sys,os
 
 pdb.verbose=False #just in case...
 fname=sys.argv[1]
 basefile=pdb.get('basefile','files','filename',fname)[0][0]
-print '/'.join(basefile.split('/')[:-1])
+destination_dir = pdb.get('output','history',['operation','basefile'],['1-RSYNC',basefile])[0][0]
+#print '/'.join(basefile.split('/')[:-1])
+print os.path.dirname(destination_dir)

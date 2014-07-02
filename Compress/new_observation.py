@@ -1,6 +1,8 @@
 #! /usr/bin/env python
 
 """
+Input: list of files with full path.
+Generate entries for the observations in the PAPER observation database.
 Add a row to the pdb.observations table and populate the pdb.files tables accordingly.
 Add a row to pdb.orders indicating that compression needs done.
 
@@ -8,13 +10,15 @@ DFM
 """
 
 from PDB import *
-from socket import gethostname
 import sys
 import re
 
 hostname = gethostname()
 prefix = None
 list_of_jds = []
+"""
+Generates a list of files and then iterates through them ordered by jd then pol
+"""
 new_files=["%s:%s"%(hostname,a) for a in sys.argv[1:]]
 
 def file2jd(zenuv):
@@ -42,7 +46,8 @@ for i,jd in enumerate(list_of_jds):
         for pj in 'xy':
             pol_fname = "%s:%s/zen.%s.%s.uv"%(hostname,prefix,jd,pi+pj)
             if pol_fname in new_files:
-                obscols[pi+pj] = pol_fname
+                obscols['pol'] = pi+pj
+                obscols['basefile'] = pol_fname
                 # add an entry to pdb.files here. Otherwise observations will break.
                 filecols = {}
                 filecols['JD'] = jd
@@ -60,20 +65,22 @@ for i,jd in enumerate(list_of_jds):
                 histcols['host'] = hostname
                 histcols['starttime'] = "NOW()"
                 histcols['stoptime'] = "NOW()"
+                histcols['exit_status'] = '0'
+                histcols['basefile'] = pol_fname
                 pdb.addrow('history',histcols)
 
                 ordercols = {}
-                ordercols['filename'] = pol_fname
+                ordercols['basefile'] = pol_fname
                 ordercols['status'] = 'CREATED'
                 pdb.addrow('orders', ordercols)
-    try:
-        obscols['jd_hi'] = list_of_jds[i+1]
-    except(IndexError):
-        pass
-    if i >= 1:
-        obscols['jd_lo'] = list_of_jds[i-1]
+                try:
+                    obscols['jd_hi'] = list_of_jds[i+1]
+                except(IndexError):
+                    pass
+                if i >= 1:
+                    obscols['jd_lo'] = list_of_jds[i-1]
 
-    obscols['created_on'] = "NOW()"
-    obscols['last_modified'] = "NOW()"
+                obscols['created_on'] = "NOW()"
+                obscols['last_modified'] = "NOW()"
 
-    pdb.addrow('observations',obscols)
+                pdb.addrow('observations',obscols)

@@ -4,7 +4,6 @@ Add a row to pdb.files. Exits with 1 if a bogus host is used. Exits with 2 if th
 """
 
 from PDB import *
-from socket import gethostname
 import optparse
 import re
 import sys
@@ -22,8 +21,10 @@ infile  = opts.infile
 outfile = args[0]
 
 if not pdb.has_record('hosts', hostname):
+    print 'host not in pdb.hosts'
     sys.exit(1)
 if not pdb.has_record('files',infile):
+    print 'bogus file: %s'%infile
     sys.exit(1)
 
 filecols = {}
