@@ -1,7 +1,7 @@
 #! /bin/bash
 #  Blows away the input database and recreates it.
 #usage: resetDB.sh <dbname>  
-# NOTE: MUST BE RUN AS ROOT. YOU HAVE TO REALLY WANT TO DO THIS
+# NOTE: MUST ENTER SUDO PASSWORD TO RUN. YOU HAVE TO REALLY WANT TO DO THIS
 #
 function header () {
     echo "#####################################"
@@ -28,7 +28,7 @@ mysqldump $MYDB --password=${PW} > ${dbbackup}
 header "killing db"
 MYSQL $MYDB -e "${DELETEDB}"
 header "creating new db "$*
-mysql --password=${PW} -e "${CREATEDB}"
+sudo mysql --password=${PW} -e "${CREATEDB}"
 
 python -c "from ddr_compress.dbi import DataBaseInterface; dbi = DataBaseInterface(); dbi.createdb()"
 
