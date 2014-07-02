@@ -38,8 +38,8 @@ obsnums = []
 for filename in args:
     logger.debug("looking for file {filename}".format(filename=filename))
     s = dbi.Session()
-    File = s.query(File).filter(File.filename==filename).one()#XXX note assumes we are not noting that this file is copied.
-    obsnum = File.obsnum
+    FILE = s.query(File).filter(File.filename==filename).one()#XXX note assumes we are not noting that this file is copied.
+    obsnum = FILE.obsnum
     logger.debug("found obsnum {obsnum}".format(obsnum=obsnum))
     s.close()
     logger.debug("setting status to {status}".format(status=opts.status))
