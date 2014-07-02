@@ -34,9 +34,9 @@ dbi = DataBaseInterface()
 obsnums = []
 for arg in args:
     if arg[0]=='/': #we have a file!
-        logger.debug("looking for file {filename}".format(filename=filename))
+        logger.debug("looking for file {filename}".format(filename=arg))
         s = dbi.Session()
-        File = s.query(File).filter(File.filename==filename).one()#XXX note assumes we are not noting that this file is copied.
+        File = s.query(File).filter(File.filename==arg).one()#XXX note assumes we are not noting that this file is copied.
         obsnum = File.obsnum
         logger.debug("found obsnum {obsnum}".format(obsnum=obsnum))
         s.close()
