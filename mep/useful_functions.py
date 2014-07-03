@@ -2,6 +2,27 @@ import pylab as plt
 import numpy as np
 from scipy import optimize
 
+#  _____                 _   _                 
+# |  ___|   _ _ __   ___| |_(_) ___  _ __  ___ 
+# | |_ | | | | '_ \ / __| __| |/ _ \| '_ \/ __|
+# |  _|| |_| | | | | (__| |_| | (_) | | | \__ \
+# |_|   \__,_|_| |_|\___|\__|_|\___/|_| |_|___/
+                                             
+def gaussian(sig,xpoints,ypoints,x0=0.0,y0=0.0):
+    """
+    Returns a gaussian distribution of width sig, centered on x0,y0 
+    for the data points in xpoints and ypoints
+    """
+    gauss = 1/(2*np.pi*sig*sig)*np.exp(-((xpoints-x0)**2+(ypoints-y0)**2)/(2*sig*sig))
+    return gauss
+
+
+#  _____ _ _   _   _             
+# |  ___(_) |_| |_(_)_ __   __ _ 
+# | |_  | | __| __| | '_ \ / _` |
+# |  _| | | |_| |_| | | | | (_| |
+# |_|   |_|\__|\__|_|_| |_|\__, |
+#                          |___/ 
 
 def general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar,pseudo=False):
     """

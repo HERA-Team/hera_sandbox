@@ -4,26 +4,7 @@ import capo as C
 import useful_functions as uf
 from scipy import special
 
-def get_baselines(aa, nb=None):
-    """
-    This function takes in an antenna array, and the number of baselines 
-    to return (returns all if nb=None).
-    """
-    na = len(aa.ants) # number of antennas
-    baselines = n.zeros([(na*na-na)/2,4])
-    ll=0
-    for ii in n.arange(na):
-        for jj in n.arange(ii):
-            bx,by,bz = aa.get_baseline(ii,jj,'r') 
-            #the baseline for antennas ii and jj 
-            bb = n.sqrt(bx*bx+by*by+bz*bz)
-            #print ii,jj,[bx,by,bz,bb]
-            baselines[ll] = [bx,by,bz,bb]
-            ll+=1
-    sorted_baselines = baselines[baselines[:,-1].argsort()] # sorts by last column
-    sorted_baselines = sorted_baselines[:,0:3]
-    if nb!=None: sorted_baselines = sorted_baselines[0:nb,:]
-    return sorted_baselines
+import basic_amp_aa_hybrid_grid as cal_hg
 
 def get_single_Q_element(im,(tx,ty,tz),amp,baseline,l,m):
     bx,by,bz = baseline
@@ -54,22 +35,26 @@ master = 0
 num_slaves = size-1
 
 # define parameters related to calculation 
-maxl = 15
-calfile = 'basic_amp_aa_circle_gauss'
-beamsig = 0.524
-savekey = 'circle_13_ns_gauss_30_deg'
+maxl = 2
+beamsig_largebm = 1.0
+beamsig_smallbm = 0.25
+savekey = 'hybrid_grid_1_'
 fq = 0.1
 
-aa = a.cal.get_aa(calfile, n.array([.10])) #get antenna array
 im = a.img.Img(size=200, res=.5) #make an image of the sky to get sky coords
 tx,ty,tz = im.get_top(center=(200,200)) #get coords of the zenith?
 valid = n.logical_not(tx.mask)
 tx,ty,tz = tx.flatten(),ty.flatten(),tz.flatten()
 theta = n.arctan(ty/tx) # using math convention of theta=[0,2pi], phi=[0,pi]
 phi = n.arccos(n.sqrt(1-tx*tx-ty*ty))
-amp = uf.gaussian(beamsig,n.zeros_like(theta),phi) 
+amp_largebm = uf.gaussian(beamsig_largebm,n.zeros_like(theta),phi)
+amp_smallbm = uf.gaussian(beamsig_smallbm,n.zeros_like(theta),phi) 
 
-baselines = get_baselines(aa)
+baselines = n.array([[30./(4*n.pi),30./(4*n.pi),0.0],
+                    [10./(2*n.pi),0.0,0.0],
+                    [10./(n.pi),0.0,0.0],[
+                    30./(2*n.pi),0.0,0.0]])
+
 num0,num1 = len(baselines),(maxl+1)*(maxl+1)
 print "num baselines = {0}\n num lms = {1}".format(num0,num1)
 lms = n.zeros([num1,2])
@@ -140,6 +125,8 @@ elif rank<=numToDo:
             print "slave ",rank," acknoledges job completion"
         else:
             # compute the matrix element
+            if selectedi==0: amp = amp_smallbm # if it's the zeroth baseline which is the large smear/small beam
+            else: amp = amp_largebm
             element = get_single_Q_element(im,(tx,ty,tz),amp,baselines[selectedi],lms[selectedj,0],lms[selectedj,1])
             # send answer back
             comm.send((rank,element),dest=master)
