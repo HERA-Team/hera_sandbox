@@ -45,6 +45,7 @@ for filename in args:
     logger.debug("setting status to {status}".format(status=opts.status))
     dbi.set_obs_status(obsnum,opts.status)
     dbi.set_obs_pid(obsnum,None)
+    dbi.set_obs_still_host(obsnum,None)
 
 
 
