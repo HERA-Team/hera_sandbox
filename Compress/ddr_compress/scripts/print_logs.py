@@ -54,7 +54,7 @@ s = dbi.Session()
 #  stage
 #  obsnum
 for obsnum in obsnums:
-    LOGs = s.query(Log).filter(Log.obsnum==obsnum).order_by(Log.timestamp.desc()).all()
+    LOGs = s.query(Log).filter(Log.obsnum==obsnum).order_by(Log.timestamp.asc()).all()
     print "="*80
     filename = dbi.get_input_file(obsnum)
     filename = filename[0]+':'+filename[1]+'/'+filename[2]
