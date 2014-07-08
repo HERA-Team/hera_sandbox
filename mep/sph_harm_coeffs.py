@@ -375,7 +375,8 @@ def window_function_matrix(Q,N,lms,save_tag=None):
     # for ii in range(M.shape[0]):
     #     M[ii,ii] = 1/info[ii,ii]
     #M = n.linalg.pinv(info)
-    M = uf.pseudo_inverse(info,num_remov=1)
+    num_remov = 8
+    M = uf.pseudo_inverse(info,num_remov=num_remov)
     #n.set_printoptions(threshold='nan')
     #print M*info
     #BB = n.absolute(n.absolute(M*info)-n.identity(M.shape[0]))
@@ -390,7 +391,7 @@ def window_function_matrix(Q,N,lms,save_tag=None):
     p.yticks(l_locs,ls)
     p.xlabel('l')
     p.ylabel('l')
-    p.savefig('./figures/{0}_W_matrix_ufpseudo.pdf'.format(save_tag))
+    p.savefig('./figures/{0}_W_matrix_ufpseudo_remov_{1}.pdf'.format(save_tag,num_remov))
     #p.show()
     p.clf()
 
@@ -401,7 +402,7 @@ def window_function_matrix(Q,N,lms,save_tag=None):
     p.xlabel('l (color is m)')
     p.ylabel('first row of Window Function Matrix')
     p.colorbar()
-    p.savefig('./figures/{0}_W_pinv_matrix_elements.pdf'.format(save_tag))
+    p.savefig('./figures/{0}_W_pinv_matrix_elements_remov_{1}.pdf'.format(save_tag,num_remov))
     #p.show()
     p.clf()
 
@@ -469,16 +470,16 @@ if __name__=='__main__':
 
 
 
-    keyword = 'hybrid_grid_Q_max'
-    Q, baselines, lms = combine_Q('./Q_matrices/hybrid_grid_1_Q_max_l_15.npz',
-                                './Q_matrices/hybrid_grid_2_Q_max_l_15.npz',
-                                './Q_matrices/hybrid_grid_12_Q_max_l_15')
-    Q, baselines, lms = combine_Q('./Q_matrices/hybrid_grid_12_Q_max_l_15.npz',
-                                './Q_matrices/hybrid_grid_3_Q_max_l_15.npz',
-                                './Q_matrices/hybrid_grid_123_Q_max_l_15')
-    Q, baselines, lms = combine_Q('./Q_matrices/hybrid_grid_123_Q_max_l_15.npz',
-                                './Q_matrices/hybrid_grid_4_Q_max_l_15.npz',
-                                './Q_matrices/hybrid_grid_Q_max_l_15')
+    keyword = 'hybrid2_grid_1_Q_'
+    # Q, baselines, lms = combine_Q('./Q_matrices/hybrid_grid_1_Q_max_l_15.npz',
+    #                             './Q_matrices/hybrid_grid_2_Q_max_l_15.npz',
+    #                             './Q_matrices/hybrid_grid_12_Q_max_l_15')
+    # Q, baselines, lms = combine_Q('./Q_matrices/hybrid_grid_12_Q_max_l_15.npz',
+    #                             './Q_matrices/hybrid_grid_3_Q_max_l_15.npz',
+    #                             './Q_matrices/hybrid_grid_123_Q_max_l_15')
+    # Q, baselines, lms = combine_Q('./Q_matrices/hybrid_grid_123_Q_max_l_15.npz',
+    #                             './Q_matrices/hybrid_grid_4_Q_max_l_15.npz',
+    #                             './Q_matrices/hybrid_grid_Q_max_l_15')
 
     #calfile='basic_amp_aa_circle'
     # Q, baselines, lms = combine_Q('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_3.npz'.format(keyword,keyword),
@@ -497,11 +498,14 @@ if __name__=='__main__':
     #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_12_max_l_13.npz'.format(keyword,keyword),
     #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_13'.format(keyword,keyword))
     #Qstuff = n.load('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_7.npz'.format(keyword,keyword))
-    Qstuff = n.load('./Q_matrices/hybrid_grid_Q_max_l_15.npz')
+    Qstuff = n.load('./Q_matrices/hybrid2_grid_1_Q_max_l_10.npz')
     Q = Qstuff['Q']
     lms = Qstuff['lms']
     baselines = Qstuff['baselines']
 
+    Q = Q[:,0:16]
+    lms = lms[0:16]
+    print n.linalg.det(Q)
     # baselines = baselines[0,:]
     # Q = Q[0,:]
     # Q.shape = n.array([1,Q.shape[0]])
@@ -509,11 +513,11 @@ if __name__=='__main__':
     # print Q.shape
     # print baselines.shape
 
-    keyword = keyword
+    keyword = keyword+'lms_3'
 
     #print baselines
     #fringe_pattern_plots(baselines,lms)
-    plot_Q(Q,lms,save_tag=keyword)
+    #plot_Q(Q,lms,save_tag=keyword)
     #aa = a.cal.get_aa(calfile, n.array([.10]))
     #amp = aa[0].bm_response((500,100,1000),pol='x')**2 
     #print amp
