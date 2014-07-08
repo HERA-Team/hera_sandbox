@@ -14,7 +14,7 @@ stdscr.nodelay(1)
 #setup my db connection
 dbi = DataBaseInterface()
 
-stdscr.addstr("PAPER Distiller Status Board")
+stdscr.addstr("PAPER Distiller Status Board. Monitoring: {dbname}".format(dbname=dbi.dbinfo['dbname']))
 stdscr.addstr(1,0,"Press 'q' to exit")
 statheight = 50
 statusscr = curses.newwin(statheight,400,5,0)
@@ -32,6 +32,7 @@ try:
         #load the currently executing files
         i += 1
         curline = 2
+
         stdscr.addstr(0,30,stat[i%len(stat)])
         s = dbi.Session()
         totalobs = s.query(Observation).count()
@@ -39,6 +40,7 @@ try:
         curline += 1
         OBSs = s.query(Observation).filter(Observation.status!='NEW').filter(Observation.status!='COMPLETE').all()
         obsnums = [OBS.obsnum for OBS in OBSs]
+        stdscr.addstr(curline,0," "*50)
         stdscr.addstr(curline,0,"Number of observations currently being processed {num}".format(num=len(obsnums)))
         curline += 1
         statusscr.erase()

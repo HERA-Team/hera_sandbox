@@ -45,12 +45,15 @@ class Task:
         self.record_launch()
     def _run(self):
         logger.info('Task._run: (%s,%d) %s' % (self.task,self.obs,' '.join(['do_%s.sh' % self.task] + self.args)))
-        return subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd) # XXX d something with stdout stderr
+        return subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd,stderr=subprocess.PIPE,stdout=subprocess.PIPE) # XXX d something with stdout stderr
     def poll(self):
         if self.process is None: return None
         else: return self.process.poll()
     def finalize(self):
-        self.process.wait()
+        #self.proces.wait()
+        stdout,stderr=self.process.communicate()
+        logtext = stdout+'\n'+stderr
+        self.dbi.add_log(self.obs,self.task,logtext=logtext,exit_status=self.poll())
         if self.poll(): self.record_failure()
         else: self.record_completion()
     def kill(self):
@@ -59,7 +62,7 @@ class Task:
     def record_launch(self):
         self.dbi.set_obs_pid(self.obs, self.process.pid)
     def record_failure(self):
-        self.dbi.set_obs_pid(self.obs, -1)
+        self.dbi.set_obs_pid(self.obs, -9)
     def record_completion(self):
         self.dbi.set_obs_status(self.obs, self.task)
 

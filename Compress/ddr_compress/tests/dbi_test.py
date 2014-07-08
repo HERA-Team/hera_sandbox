@@ -1,6 +1,6 @@
 import unittest, random, threading, time
 import ddr_compress.scheduler as sch
-from ddr_compress.dbi import Base,File,Observation
+from ddr_compress.dbi import Base,File,Observation,Log
 from ddr_compress.dbi import DataBaseInterface,jdpol2obsnum
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine,func
@@ -38,6 +38,14 @@ class TestDBI(unittest.TestCase):
         self.filename='/data0/zen.2456785.123456.uv'
         self.host = 'pot0'
         self.length = 10.16639/60./24
+    def test_logging(self):
+        obsnum = self.dbi.add_observation(
+                    self.jd,self.pol,self.filename,self.host,length=self.length)
+        self.dbi.add_log(obsnum,'UV','test123',0)
+        logtext = self.dbi.get_logs(obsnum)
+        self.assertEqual(logtext.strip(),'test123')
+        LOG = self.session.query(Log).filter(Log.obsnum==obsnum).one()
+        print LOG.timestamp
     def test_configparsing(self):
         logger.info('Note: did you remember to do "cp configs/test.cfg ~/.paperstill/db.cfg" ? ')
         self.assertEqual(self.dbi.dbinfo['hostip'],'memory')
