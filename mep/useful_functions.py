@@ -16,29 +16,6 @@ def gaussian(sig,xpoints,ypoints,x0=0.0,y0=0.0):
     gauss = 1/(2*np.pi*sig*sig)*np.exp(-((xpoints-x0)**2+(ypoints-y0)**2)/(2*sig*sig))
     return gauss
 
-
-#  _____ _ _   _   _             
-# |  ___(_) |_| |_(_)_ __   __ _ 
-# | |_  | | __| __| | '_ \ / _` |
-# |  _| | | |_| |_| | | | | (_| |
-# |_|   |_|\__|\__|_|_| |_|\__, |
-#                          |___/ 
-
-def general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar,pseudo=False):
-    """
-    This function takes in x and y data, Q, and a full noise covariance 
-    matrix. The function returns <\hat x> and the covariance matrix of 
-    the fit.
-    """
-    xdata = np.array(xdata)
-    Q = np.matrix(Q)
-    Ninv = np.matrix(noiseCovar).I
-    AA = Q.H*Ninv*Q
-    if pseudo: AAinv = np.linalg.pinv(AA)
-    else: AAinv = AA.I
-    params = AAinv*Q.H*Ninv*np.matrix(ydata) # params should be 1 by nparam
-    return np.array(params), np.array(AAinv)
-
 def pseudo_inverse(MM,num_remov=1):
     """
     Computes a matrix pseudo inverse based on equation A4 in Max Tegmark's 
@@ -49,6 +26,7 @@ def pseudo_inverse(MM,num_remov=1):
     MM = np.matrix(MM)
     #print 'MM = \n',MM
     eig_vals, eig_vecs = np.linalg.eig(MM) # checked
+    print eig_vecs.shape
     sorted_ind = np.argsort(np.absolute(eig_vals))
     sorted_vecs = eig_vecs[sorted_ind]
     #print 'eig_vals = \n',eig_vals[sorted_ind]
@@ -81,6 +59,28 @@ def pseudo_inverse(MM,num_remov=1):
 
     return MM_inv
 
+
+#  _____ _ _   _   _             
+# |  ___(_) |_| |_(_)_ __   __ _ 
+# | |_  | | __| __| | '_ \ / _` |
+# |  _| | | |_| |_| | | | | (_| |
+# |_|   |_|\__|\__|_|_| |_|\__, |
+#                          |___/ 
+
+def general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar,pseudo=False):
+    """
+    This function takes in x and y data, Q, and a full noise covariance 
+    matrix. The function returns <\hat x> and the covariance matrix of 
+    the fit.
+    """
+    xdata = np.array(xdata)
+    Q = np.matrix(Q)
+    Ninv = np.matrix(noiseCovar).I
+    AA = Q.H*Ninv*Q
+    if pseudo: AAinv = np.linalg.pinv(AA)
+    else: AAinv = AA.I
+    params = AAinv*Q.H*Ninv*np.matrix(ydata) # params should be 1 by nparam
+    return np.array(params), np.array(AAinv)
 
 
 def line_thru_origin_lstsq_fit_with_err(xdata,ydata,noiseCovar):
