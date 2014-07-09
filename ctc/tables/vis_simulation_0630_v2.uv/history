@@ -1,0 +1,2 @@
+MDLVIS: created file.
+MDLVIS: ./vis_simulation_test_v2.py --nchan 1 --inttime 10 --case east --sfreq 0.15 --endjd 2454500.5 --filename /Users/carinacheng/capo/ctc/tables/vis_simulation_0630_v2.uv
