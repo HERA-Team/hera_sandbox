@@ -3,10 +3,10 @@ import logging, threading, subprocess, time
 import socket, os
 
 logger = logging.getLogger('taskserver')
-
+logger.setLevel(logging.DEBUG)
+logger.propagate = True
 PKT_LINE_LEN = 160
 STILL_PORT = 14204
-
 def pad(s, line_len=PKT_LINE_LEN):
     return (s + ' '*line_len)[:line_len]
 
@@ -45,12 +45,15 @@ class Task:
         self.record_launch()
     def _run(self):
         logger.info('Task._run: (%s,%d) %s' % (self.task,self.obs,' '.join(['do_%s.sh' % self.task] + self.args)))
-        return subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd) # XXX d something with stdout stderr
+        return subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd,stderr=subprocess.PIPE,stdout=subprocess.PIPE) # XXX d something with stdout stderr
     def poll(self):
         if self.process is None: return None
         else: return self.process.poll()
     def finalize(self):
-        self.process.wait()
+        #self.proces.wait()
+        stdout,stderr=self.process.communicate()
+        logtext = stdout+'\n'+stderr
+        self.dbi.add_log(self.obs,self.task,logtext=logtext,exit_status=self.poll())
         if self.poll(): self.record_failure()
         else: self.record_completion()
     def kill(self):
@@ -59,7 +62,7 @@ class Task:
     def record_launch(self):
         self.dbi.set_obs_pid(self.obs, self.process.pid)
     def record_failure(self):
-        self.dbi.set_obs_pid(self.obs, -1)
+        self.dbi.set_obs_pid(self.obs, -9)
     def record_completion(self):
         self.dbi.set_obs_status(self.obs, self.task)
 
@@ -83,6 +86,7 @@ class TaskClient:
         if not neighbors_base[0] is None: neighbors_base[0] = self.dbi.get_input_file(neighbors_base[0])[-1]
         if not neighbors_base[1] is None: neighbors_base[1] = self.dbi.get_input_file(neighbors_base[1])[-1]
         def interleave(filename, appendage='cR'):
+            # make sure this is in sync with do_X.sh task scripts.
             rv = [filename]
             if not neighbors_base[0] is None: rv = [neighbors_base[0]+appendage] + rv
             if not neighbors_base[1] is None: rv = rv + [neighbors_base[1]+appendage]
@@ -97,15 +101,16 @@ class TaskClient:
             'UVCRE': interleave(basename+'cR'),
             'NPZ': [basename+'cRE'],
             'UVCRR': [basename+'cR'],
-            'NPZ_POT': [basename+'cRE.npz', '%s:%s' % (outhost,outpath)],
+            'NPZ_POT': [basename+'cRE.npz', '%s:%s' % (pot,path)],
             'CLEAN_UVCRE': [basename+'cRE'],
             'UVCRRE': interleave(basename+'cRR'),
             'CLEAN_UVCRR': [basename+'cRR'],
             'CLEAN_NPZ': [basename+'cRE.npz'],
             'CLEAN_NEIGHBORS': [n[-1]+'cR' for n in neighbors if n[0] != stillhost],
-            'UVCRRE_POT': [basename+'cRRE', '%s:%s' % (outhost,outpath)],
+            'UVCRRE_POT': [basename+'cRRE', '%s:%s' % (pot,path)],
             'CLEAN_UVCR': [basename+'cR'],
             'CLEAN_UVCRRE': [basename+'cRRE'],
+            'POT_TO_USA': [pot, '%s:%s'%(outhost,outpath), '%s/%s'%(path,basename+'cRRE'), '%s/%s'%(path,basename+'cRE.npz')], # XXX add destination here? if so, need to decide how dbi distinguishes between location of pot and location of usa
             'COMPLETE': [],
         }
         return args[task]
@@ -196,6 +201,7 @@ class TaskServer(SocketServer.UDPServer):
         self.is_running = True
         t = threading.Thread(target=self.finalize_tasks)
         t.start()
+        logger.debug('this is scheduler.py')
         try:
             self.serve_forever()
         finally:

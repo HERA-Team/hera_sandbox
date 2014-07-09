@@ -40,7 +40,9 @@ jds = n.array(jds)
 if not opts.length is None:
     djd =  opts.length/60./24
 else:
-    djd = n.mean(n.diff(jds))
+    jds_onepol = n.sort([jd for i,jd in enumerate(jds) if pols[i]==pols[0]])
+    djd = n.mean(n.diff(jds_onepol))
+    print "setting length to ",djd,' days'
 pols = list(set(pols))#these are the pols I have to iterate over
 print "found the following pols",pols
 obsinfo = []
