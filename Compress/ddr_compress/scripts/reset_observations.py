@@ -46,6 +46,7 @@ for filename in args:
     dbi.set_obs_status(obsnum,opts.status)
     dbi.set_obs_pid(obsnum,None)
     dbi.set_obs_still_host(obsnum,None)
+    dbi.add_log(obsnum,'NEW',"issuing a reset_observations",0)
 
 
 
