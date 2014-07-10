@@ -19,7 +19,7 @@ echo using config $*
 . $*
 #set defaults to parameters which might not be set
 if [[ ! -n ${GAIN} ]]; then export GAIN="0.3"; fi
-
+if [[ ! -n ${WINDOW} ]]; then export WINDOW="blackman-harris"; fi
 #for posterity Print the cal file we are using
 
 pywhich $cal
@@ -53,13 +53,13 @@ for chan in $chans; do
 
                 ANTS=`grid2ant.py -C ${cal} --seps="${sep}"`
                 ${SCRIPTSDIR}/pspec_redmult_cov_gps.py -C ${cal} -b ${NBOOT} \
-                    -a ${ANTS} -c ${chan} -p ${pol} \
+                    -a ${ANTS} -c ${chan} -p ${pol} --window=${WINDOW} \
                     --gain=${GAIN} --output=${sepdir} ${FILES} \
-                | tee -a ${LOGFILE} & 
+                | tee -a ${LOGFILE}  
                 echo beginning bootstrap: `date` | tee -a ${LOGFILE} 
-                ${SCRIPTSDIR}/pspec_pk_k3pk_boot.py pspec_boot*npz | tee -a ${LOGFILE} 
+                ${SCRIPTSDIR}/pspec_pk_k3pk_boot.py ${sepdir}/pspec_boot*npz | tee -a ${LOGFILE} 
                 echo complete! `date`| tee -a ${LOGFILE} 
-
+                mv pspec.npz ${sepdir}/
                 PIDS="${PIDS} "$!
             done
         fi

@@ -110,8 +110,8 @@ if PLOT: # plot some stuff
     p.subplot(plt2,plt1,1); p.title('Weighted Power Spectrum [mK$^2$]'); p.savefig('pspec_boot_4.png')
 
 
-    p.plot(avg_pk_2d[0,30])
-    p.plot(n.cumsum(avg_pk_2d[0,30]*wgts[0,30])/n.cumsum(wgts[0,30]))
+    p.plot(avg_pk_2d[0,-1])
+    p.plot(n.cumsum(avg_pk_2d[0,-1]*wgts[0,-1])/n.cumsum(wgts[0,-1]))
     p.savefig('pspec_boot_5.png')
 print avg_pk_2d.shape, wgts.shape
 print pk_2d.shape
