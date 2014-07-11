@@ -16,6 +16,20 @@ def gaussian(sig,xpoints,ypoints,x0=0.0,y0=0.0):
     gauss = 1/(2*np.pi*sig*sig)*np.exp(-((xpoints-x0)**2+(ypoints-y0)**2)/(2*sig*sig))
     return gauss
 
+def rand_from_covar(C):
+    """
+    Takes in a covariance matrix C = < x x_dag > and generates a random vector x 
+    that is consistent with C.
+
+    We do this by using a Cholesky decomposition of C = L L_dag where L is lower 
+    triangular. Then the x we want is x = L z where z has uncorrelated random 
+    elements with variance 1. Therefore, < x x_dag > = L < z z_dag > L_dag = L L_dag = C 
+    """
+    L = n.linalg.cholesky(C)
+    z = n.random.randn(C.shape[0])
+    x = n.dot(L,z)
+    return x 
+
 def pseudo_inverse(MM,num_remov=1):
     """
     Computes a matrix pseudo inverse based on equation A4 in Max Tegmark's 
