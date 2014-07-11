@@ -1,6 +1,16 @@
 #! /usr/bin/env python
 import ddr_compress as ddr,os,configparser
 import logging; logging.basicConfig(level=logging.DEBUG)
+import optparse
+import sys
+
+# Allow 
+o = optparse.OptionParser()
+o.set_usage('qmaster_scheduler.py')
+o.set_description(__doc__)
+o.add_option('--taskservers',type='string',
+        help='comma delimited list of host:port on which taskservers are running.  overrides config file')
+opts, args = o.parse_args(sys.argv[1:])
 
 #STILLS = ['still0', 'still1', 'still2', 'still3']
 #STILLS = ['still3', 'still4', 'still5'] # for RAL test system
@@ -24,6 +34,16 @@ else:
     BLOCK_SIZE = 10 # number of files that are sent together to a still
     TIMEOUT = 600 # seconds; how long a task is allowed to be running before it is assumed to have failed
     SLEEPTIME = 1. # seconds; throttle on how often the scheduler polls the database
+
+#--taskservers override from the command line
+if not opts.taskservers is None:
+    STILLS=[]
+    PORTS=[]
+    tmp = map(str,opts.taskservers.split(','))
+    for t in tmp:
+        still, port = t.strip().split(':')
+        STILLS.append(still)
+        PORTS.append(int(port))
 
 dbi = ddr.dbi.DataBaseInterface()
 task_clients = [ddr.task_server.TaskClient(dbi, s,port=p) for (s,p) in zip(STILLS,PORTS)]
