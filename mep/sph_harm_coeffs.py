@@ -299,6 +299,8 @@ def test_recover_gs_vary_n(Q,baselines,lms):
     p.clf()
 
 def get_a_from_gsm(l):
+    # this might be useful in future
+    # http://healpy.readthedocs.org/en/latest/generated/healpy.sphtfunc.synfast.html#healpy.sphtfunc.synfast
     print l.shape
     C = n.where(l<=8, n.exp(-1.450*l+0.1003*l*l), 0.7666*(l**(-2.365))) # gsm power_spectrum from http://arxiv.org/pdf/1404.2596v2.pdf pg. 13
     print C.shape
@@ -375,7 +377,7 @@ def window_function_matrix(Q,N,lms,save_tag=None):
     # for ii in range(M.shape[0]):
     #     M[ii,ii] = 1/info[ii,ii]
     #M = n.linalg.pinv(info)
-    num_remov = 8
+    num_remov = 10
     M = uf.pseudo_inverse(info,num_remov=num_remov)
     #n.set_printoptions(threshold='nan')
     #print M*info
@@ -454,6 +456,20 @@ def fringe_pattern_plots(baselines,lms):
     #     p.clf()
 
 
+def many_hybrid():
+    for beam_sig in (0.087,0.175,0.349,0.689,1.047):
+        for del_bl in (4.0,6.0,8.0):
+            Qstuff = n.load('./Q_matrices/many_hybrid_grids/grid_sig_{0}_del_{1}_num_10_Q_max_l_1.npz'.format(beam_sig,del_bl))
+            Q = Qstuff['Q']
+            lms = Qstuff['lms']
+            baselines = Qstuff['baselines']
+
+            N = (1.0**2)*n.identity(Q.shape[0])
+            M = n.matrix(n.zeros_like(Q))
+            Q = n.matrix(Q); N = n.matrix(N)
+            Ninv = N.I
+            info = Q.H*Ninv*Q
+
 if __name__=='__main__':
     #baselines,freqs,coeffs = get_coeffs_lm(calfile,0,0,freqs=n.array([.1,]))
     #print coeffs
@@ -470,7 +486,7 @@ if __name__=='__main__':
 
 
 
-    keyword = 'hybrid2_grid_1_Q_'
+    keyword = 'hybrid_grid_'
     # Q, baselines, lms = combine_Q('./Q_matrices/hybrid_grid_1_Q_max_l_15.npz',
     #                             './Q_matrices/hybrid_grid_2_Q_max_l_15.npz',
     #                             './Q_matrices/hybrid_grid_12_Q_max_l_15')
@@ -498,14 +514,14 @@ if __name__=='__main__':
     #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_12_max_l_13.npz'.format(keyword,keyword),
     #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_13'.format(keyword,keyword))
     #Qstuff = n.load('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_7.npz'.format(keyword,keyword))
-    Qstuff = n.load('./Q_matrices/hybrid2_grid_1_Q_max_l_10.npz')
+    Qstuff = n.load('./Q_matrices/hybrid_grid_del_bl_0.80_num_bl_7_lgbm_1.0_smbm_0.25_Q_max_l_10.npz')
     Q = Qstuff['Q']
     lms = Qstuff['lms']
     baselines = Qstuff['baselines']
 
     Q = Q[:,0:16]
     lms = lms[0:16]
-    print n.linalg.det(Q)
+    #print n.linalg.det(Q)
     # baselines = baselines[0,:]
     # Q = Q[0,:]
     # Q.shape = n.array([1,Q.shape[0]])
