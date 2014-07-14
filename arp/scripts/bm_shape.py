@@ -32,9 +32,10 @@ map.drawmeridians(n.arange(0, 360, 30))
 map.drawparallels(n.arange(0, 90, 10))
 cx, cy = map(lons * a.img.rad2deg, lats * a.img.rad2deg)
 aa._cache = {'s_top':(0,0,1)}
-zresp = aa.bm_response(opts.ant, opts.ant, pol=opts.pol)[:,0]
+aa.set_active_pol(opts.pol)
+zresp = aa.bm_response(opts.ant, opts.ant)[:,0]
 aa._cache = {'s_top':top}
-data = aa.bm_response(opts.ant, opts.ant, pol=opts.pol)[:,0] / zresp
+data = aa.bm_response(opts.ant, opts.ant)[:,0] / zresp
 #print data.shape, x.shape
 #print data
 data = n.clip(10*n.log10(n.abs(data)), -100, n.Inf)
