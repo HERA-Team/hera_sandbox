@@ -34,11 +34,14 @@ prms = {
 
 def make_pos_array(del_bl,num_side):
 	ant_array = n.arange(num_side*num_side).reshape([num_side,num_side])
-	ant_pos = n.zeros([num_side*num_side,3])
+	ant_pos = n.zeros([num_side*num_side-1,3])
 	for ii in range(num_side):
 		for jj in range(num_side):
-			#print ant_array[ii,jj]
-			ant_pos[ant_array[ii,jj]] = n.array([ii*del_bl,jj*del_bl,0.0])
+			print ii,jj,ant_array[ii,jj]
+			if ii==jj==0: 
+				print 'hi'
+				continue
+			ant_pos[ant_array[ii,jj]-1] = n.array([ii*del_bl,jj*del_bl,0.0])
 	return ant_pos
 
 def get_aa(freqs):
