@@ -47,14 +47,10 @@ num_slaves = size-1
 
 # define parameters related to calculation 
 maxl = 10
-_,del_bl,num_bl = sys.argv
-del_bl=float(del_bl);num_bl=int(num_bl)
+_,beam_sig,del_bl,num_bl = sys.argv
+beam_sig=float(beam_sig); del_bl=float(del_bl);num_bl=int(num_bl)
 
-beamsig_largebm = 10/(2*n.pi*del_bl*(num_bl-1)) #1.0
-beamsig_smallbm = 10/(2*n.pi*del_bl) #0.25
-smallbm_inds = (int(n.floor(num_bl/2)),int(n.floor(num_bl/2)))
-
-savekey = 'hybrid_del_bl_{0:.2f}_num_bl_{1}_'.format(del_bl,num_bl)
+savekey = 'grid_del_bl_{0:.2f}_num_bl_{1}_beam_sig_{2:.2f}_'.format(del_bl,num_bl,beam_sig)
 fq = 0.1
 
 im = a.img.Img(size=200, res=.5) #make an image of the sky to get sky coords
@@ -64,8 +60,7 @@ valid = n.logical_not(tx.mask)
 tx,ty,tz = tx.flatten(),ty.flatten(),tz.flatten()
 theta = n.arctan(ty/tx) # using math convention of theta=[0,2pi], phi=[0,pi]
 phi = n.arccos(n.sqrt(1-tx*tx-ty*ty))
-amp_largebm = uf.gaussian(beamsig_largebm,n.zeros_like(theta),phi)
-amp_smallbm = uf.gaussian(beamsig_smallbm,n.zeros_like(theta),phi) 
+amp = uf.gaussian(beam_sig,n.zeros_like(theta),phi)
 
 baselines = agg.make_pos_array(del_bl,num_bl)
 
@@ -82,6 +77,7 @@ assignment_matrix = n.arange(n.prod(matrix.shape)).reshape(matrix.shape)
 
 # define parameters related to task-mastering
 numToDo = num0*num1
+print "numToDo = ",numToDo
 num_sent = 0 # this functions both as a record of how many assignments have 
              # been sent and as a tag marking which matrix entry was calculated
     
@@ -108,6 +104,7 @@ if rank==master:
         # stick entry into matrix 
         matrix[selectedi,selectedj] = entry
         print 'Master just received element (i,j) = ',selectedi,selectedj,' from slave ',source
+        print 'Have completed {0} of {1}'.format(kk,numToDo)
         # if there are more things to do, send out another assignment
         if num_sent<numToDo:
             selectedi, selectedj = n.where(assignment_matrix==num_sent)
@@ -136,8 +133,6 @@ elif rank<=numToDo:
             print "slave ",rank," acknoledges job completion"
         else:
             # compute the matrix element
-            if (selectedi,selectedj)==smallbm_inds: amp = amp_smallbm # if it's the baseline with the large smear/small beam
-            else: amp = amp_largebm
             element = get_single_Q_element(im,(tx,ty,tz),dOmega,amp,baselines[selectedi],lms[selectedj,0],lms[selectedj,1])
             # send answer back
             comm.send((rank,element),dest=master)
