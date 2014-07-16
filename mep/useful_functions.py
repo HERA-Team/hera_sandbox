@@ -92,6 +92,7 @@ def general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar,pseudo=False):
     Ninv = np.matrix(noiseCovar).I
     AA = Q.H*Ninv*Q
     if pseudo: AAinv = np.linalg.pinv(AA)
+    elif isinstance(pseudo, int): AAinv = pseudo_inverse(AA,num_remov=pseudo)
     else: AAinv = AA.I
     params = AAinv*Q.H*Ninv*np.matrix(ydata) # params should be 1 by nparam
     return np.array(params), np.array(AAinv)
