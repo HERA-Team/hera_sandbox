@@ -1,38 +1,18 @@
 from mpi4py import MPI 
+import sys
 import aipy as a, numpy as n
 import capo as C
 import useful_functions as uf
 from scipy import special
+import basic_amp_aa_grid_gauss as agg
 
-def get_baselines(aa, nb=None):
-    """
-    This function takes in an antenna array, and the number of baselines 
-    to return (returns all if nb=None).
-    """
-    na = len(aa.ants) # number of antennas
-    baselines = n.zeros([(na*na-na)/2,4])
-    ll=0
-    for ii in n.arange(na):
-        for jj in n.arange(ii):
-            bx,by,bz = aa.get_baseline(ii,jj,'r') 
-            #the baseline for antennas ii and jj 
-            bb = n.sqrt(bx*bx+by*by+bz*bz)
-            #print ii,jj,[bx,by,bz,bb]
-            baselines[ll] = [bx,by,bz,bb]
-            ll+=1
-    sorted_baselines = baselines[baselines[:,-1].argsort()] # sorts by last column
-    sorted_baselines = sorted_baselines[:,0:3]
-    if nb!=None: sorted_baselines = sorted_baselines[0:nb,:]
-    return sorted_baselines
-
-def get_single_Q_element(im,(tx,ty,tz),amp,baseline,l,m):
+def get_single_Q_element(im,(tx,ty,tz),dOmega,amp,baseline,l,m):
     bx,by,bz = baseline
     # compute spherical harmonic
-    Ynorm = special.sph_harm(0,0,0,0)
     tx,ty,tz = tx.flatten(),ty.flatten(),tz.flatten()
     theta = n.arctan(ty/tx) # using math convention of theta=[0,2pi], phi=[0,pi]
     phi = n.arccos(n.sqrt(1-tx*tx-ty*ty))
-    Y = n.array(special.sph_harm(m,l,theta,phi))/Ynorm #using math convention of theta=[0,2pi], phi=[0,pi]    
+    Y = n.array(special.sph_harm(m,l,theta,phi)) #using math convention of theta=[0,2pi], phi=[0,pi]    
     #fringe pattern
     phs = n.exp(-2j*n.pi*fq * (bx*tx+by*ty+bz*tz)) 
     # not sure if I actually need this stuff
@@ -43,8 +23,20 @@ def get_single_Q_element(im,(tx,ty,tz),amp,baseline,l,m):
     amp = n.where(valid, amp, n.zeros_like(amp))
     phs = n.where(valid, phs, n.zeros_like(phs))
     Y = n.where(valid, Y, n.zeros_like(Y)) 
-    Q_element = n.sum(amp*Y*phs)/n.sum(amp)
+    Q_element = n.sum(amp*Y*phs*dOmega)
     return Q_element
+
+def get_dOmega(tx,ty):
+    dx = n.zeros_like(tx)
+    for ii in range(tx.shape[1]-1):
+        dx[:,ii] = n.abs(tx[:,ii]-tx[:,ii+1])
+    dx[:,-1] = dx[:,-2]
+    dy = n.zeros_like(ty)
+    for ii in range(ty.shape[0]-1):
+        dy[ii,:] = n.abs(ty[ii,:]-ty[ii+1,:])
+    dy[-1,:] = dx[-2,:]
+    dOmega = dx*dy/n.sqrt(1-tx*tx-ty*ty)
+    return dOmega
 
 # define mpi parameters
 comm = MPI.COMM_WORLD
@@ -54,22 +46,24 @@ master = 0
 num_slaves = size-1
 
 # define parameters related to calculation 
-maxl = 15
-calfile = 'basic_amp_aa_circle_gauss'
-beamsig = 0.524
-savekey = 'circle_13_ns_gauss_30_deg'
+maxl = 10
+_,beam_sig,del_bl,num_bl = sys.argv
+beam_sig=float(beam_sig); del_bl=float(del_bl);num_bl=int(num_bl)
+
+savekey = 'grid_del_bl_{0:.2f}_num_bl_{1}_beam_sig_{2:.2f}_'.format(del_bl,num_bl,beam_sig)
 fq = 0.1
 
-aa = a.cal.get_aa(calfile, n.array([.10])) #get antenna array
 im = a.img.Img(size=200, res=.5) #make an image of the sky to get sky coords
 tx,ty,tz = im.get_top(center=(200,200)) #get coords of the zenith?
+dOmega = get_dOmega(tx,ty)
 valid = n.logical_not(tx.mask)
 tx,ty,tz = tx.flatten(),ty.flatten(),tz.flatten()
 theta = n.arctan(ty/tx) # using math convention of theta=[0,2pi], phi=[0,pi]
 phi = n.arccos(n.sqrt(1-tx*tx-ty*ty))
-amp = uf.gaussian(beamsig,n.zeros_like(theta),phi) 
+amp = uf.gaussian(beam_sig,n.zeros_like(theta),phi)
 
-baselines = get_baselines(aa)
+baselines = agg.make_pos_array(del_bl,num_bl)
+
 num0,num1 = len(baselines),(maxl+1)*(maxl+1)
 print "num baselines = {0}\n num lms = {1}".format(num0,num1)
 lms = n.zeros([num1,2])
@@ -81,11 +75,9 @@ for ll in range(maxl+1):
 matrix = n.zeros([num0,num1],dtype=n.complex)
 assignment_matrix = n.arange(n.prod(matrix.shape)).reshape(matrix.shape)
 
-# compute normalization for spherical harmonics
-Ynorm = special.sph_harm(0,0,0,0)
-
 # define parameters related to task-mastering
 numToDo = num0*num1
+print "numToDo = ",numToDo
 num_sent = 0 # this functions both as a record of how many assignments have 
              # been sent and as a tag marking which matrix entry was calculated
     
@@ -112,6 +104,7 @@ if rank==master:
         # stick entry into matrix 
         matrix[selectedi,selectedj] = entry
         print 'Master just received element (i,j) = ',selectedi,selectedj,' from slave ',source
+        print 'Have completed {0} of {1}'.format(kk,numToDo)
         # if there are more things to do, send out another assignment
         if num_sent<numToDo:
             selectedi, selectedj = n.where(assignment_matrix==num_sent)
@@ -140,7 +133,7 @@ elif rank<=numToDo:
             print "slave ",rank," acknoledges job completion"
         else:
             # compute the matrix element
-            element = get_single_Q_element(im,(tx,ty,tz),amp,baselines[selectedi],lms[selectedj,0],lms[selectedj,1])
+            element = get_single_Q_element(im,(tx,ty,tz),dOmega,amp,baselines[selectedi],lms[selectedj,0],lms[selectedj,1])
             # send answer back
             comm.send((rank,element),dest=master)
             comm.send(selectedi,dest=master)
@@ -149,7 +142,7 @@ elif rank<=numToDo:
 comm.Barrier()
 
 if rank==master:
-    n.savez_compressed('./Q_matrices/{0}Q_max_l_{1}'.format(savekey,maxl),Q=matrix,baselines=baselines,lms=lms)
+    n.savez_compressed('/global/homes/m/mpresley/scripts/Q_matrices/{0}Q_max_l_{1}'.format(savekey,maxl),Q=matrix,baselines=baselines,lms=lms)
     print "The master has saved the matrix."
 
 MPI.Finalize()
