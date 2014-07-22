@@ -5,10 +5,10 @@
 NAME: 
       vis_simulation_test.py 
 PURPOSE:
-      Models visibilities using selected simple test cases and creates a new Miriad UV file
-      Used as a sanity check for vis_simulation.py and vis_simulation_v2.py
+      -Models visibilities using selected simple test cases and creates a new Miriad UV file
+      -Used as a sanity check for vis_simulation.py and vis_simulation_v2.py
 EXAMPLE CALL:
-      ./vis_simulation_test.py 
+      ./vis_simulation_test.py --nchan 1 --sfreq 0.5 --case east --inttime 10
 AUTHOR:
       Carina Cheng
 
@@ -125,7 +125,11 @@ if opts.case == 'east':
     txi,tyi,tzi = -1,0,0 #east?
     top2eq = aipy.coord.top2eq_m(aa.sidereal_time(), aa.lat)
     exi,eyi,ezi = numpy.dot(top2eq,(txi,tyi,tzi)) #equatorial coordinates
-    img.put((exi,eyi,ezi),wgts,value) 
+    img.put((exi,eyi,ezi),wgts,value)  
+    #pixel_loc = img.crd2px(numpy.asarray([exi]),numpy.asarray([eyi]),numpy.asarray([ezi]))
+    #real_coord = img.px2crd(pixel_loc,ncrd=3)
+    #exi,eyi,ezi = real_coord
+    #print exi,eyi,ezi    #finding true coordinate for middle of pixel
 
 if opts.case == 'zenith':
 
@@ -147,39 +151,40 @@ tx,ty,tz = t3[0], t3[1], t3[2] #1D arrays of top coordinates of img (can define 
 bm = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x') #beam response (makes code slow)
 sum_bm = numpy.sum(bm,axis=1)
 
+# get equatorial coordinates
+
+e3 = numpy.asarray(crd)
+ex,ey,ez = e3[0], e3[1], e3[2] #1D arrays of eq coordinates of img 
+
 #loop through frequency and calculate fringe
 
 print 'calculating fringes...'
 
+#img = {}
 fng = {}
 fluxes = {}
 
 for jj, f in enumerate(freqs):
     fng[f] = numpy.exp(-2j*numpy.pi*(blx*tx+bly*ty+blz*tz)*f) #fringe pattern
     fng[f]*= bm[jj]/sum_bm[jj] #factor used later in visibility calculation
-    #fluxes[f] = img[f][px]
-    fluxes[f] = img[px] #fluxes preserved in equatorial grid
+    #fluxes[f] = img[f][px] #fluxes preserved in equatorial grid
+    fluxes[f] = img[px]
     print ("%.8f" % f) + ' GHz done'
 
-#px = numpy.arange(img.npix()) #number of pixels in map
-#crd = numpy.array(img.px2crd(px,ncrd=3)) #aipy.healpix.HealpixMap.px2crd?
-e3 = numpy.asarray(crd)
-ex,ey,ez = e3[0], e3[1], e3[2] #1D arrays of eq coordinates of img (can define to be whatever coordinate system)
-
-#loop through time
+#loop through time to pull out fluxes and fringe pattern
 #loop through frequency to calculate visibility
 
 print 'writing miriad uv file...'
 
-times = numpy.arange(opts.startjd, opts.endjd, uv['inttime']/aipy.const.s_per_day)
+times = numpy.arange(2454500.24,2454500.26,uv['inttime']/aipy.const.s_per_day)#opts.startjd, opts.endjd, uv['inttime']/aipy.const.s_per_day)
 flags = numpy.zeros(len(freqs), dtype=numpy.int32)
 
 #plotting set-up
 
-plt.figure(figsize = (10,8))
-plt.subplots_adjust(left=0.1, right=0.9, bottom=0.1, top=0.9, wspace=0.4, hspace=0.3)
-pylab.ion()
-plt1 = None
+#plt.figure(figsize = (10,8))
+#plt.subplots_adjust(left=0.1, right=0.9, bottom=0.1, top=0.9, wspace=0.4, hspace=0.3)
+#pylab.ion()
+#plt1 = None
 toplot = numpy.zeros(times.shape)
 toplot2 = numpy.zeros(times.shape)
 
@@ -199,7 +204,6 @@ for ii, t in enumerate(times):
     data = []
 
     px, wgts = img.crd2px(tx,ty,tz, interpolate=1) #IMG is in eq. coordinates... only getting pixels here
-    #px, wgts = img.crd2px(ex,ey,ez, interpolate=1) #converts coordinates to pixels (pixel numbers don't change with frequency)
 
     for jj, f in enumerate(freqs):
 
@@ -211,9 +215,11 @@ for ii, t in enumerate(times):
         toplot2[ii] = numpy.real(vis)
 
         data.append(vis)
+        #print vis
 
         print ("%.5f" % f) + ' GHz done'
 
+        """
         if plt1 == None:
 
             plt.subplot(2,1,1)
@@ -225,7 +231,7 @@ for ii, t in enumerate(times):
             plt2 = pylab.plot(times,toplot2,'r.')
             plt.xlabel("Time (Julian Date)")
             plt.ylabel("Visibilities")
-            plt.ylim(-1e-5,1e-5)
+            plt.ylim(-1e-6,1e-6)
             pylab.show()
 
         else:
@@ -233,6 +239,7 @@ for ii, t in enumerate(times):
             plt1[0].set_ydata(toplot)
             plt2[0].set_ydata(toplot2)
             pylab.draw()
+        """
     
     data = numpy.asarray(data)
    
@@ -240,8 +247,7 @@ for ii, t in enumerate(times):
     uv['pol'] = aipy.miriad.str2pol['xx']
     uv.write(preamble, data, flags)
 
-print numpy.mean(toplot)
-plt.savefig('/Users/carinacheng/capo/ctc/code/test.png')#time_axis_' + opts.case + '.png')
+#plt.savefig('/Users/carinacheng/capo/ctc/code/test.png')#time_axis_' + opts.case + '.png')
 del(uv)
 
 
