@@ -24,14 +24,15 @@ def window_fn_matrix(Q,N,num_remov=-4):
     return W
 
 def return_ahat(y,Q,N,num_remov=-4):
+    #print 'return_ahat y ',y.shape
+    assert len(y.shape)==1
     Q = n.matrix(Q); N = n.matrix(N)
     Ninv = uf.pseudo_inverse(N,num_remov=num_remov)
     info = n.dot(Q.H,n.dot(Ninv,Q))
     M = uf.pseudo_inverse(info,num_remov=num_remov)
-    y = n.resize(y,(y.shape[0],1))
-    ahat = n.dot(M,n.dot(Q.H,n.dot(Ninv,y)))
+    ahat = uf.vdot(M,uf.vdot(Q.H,uf.vdot(Ninv,y)))
+    assert len(ahat.shape)==1
     return ahat 
-
 
 def error_covariance(Q,N):
     Q = n.matrix(Q)
@@ -167,13 +168,15 @@ def generate_sky_model_alms(fits_file,lmax=10):
 
 def test_recover_alms(y,Q,N,a,num_remov=-4):
     # a is the alms from generate_sky_model_alms
+    assert len(y.shape)==1
+    assert len(a.shape)==1
     W = window_fn_matrix(Q,N,num_remov=num_remov) # W a = < a-hat >
     ahat = return_ahat(y,Q,N,num_remov=num_remov)
-    ahat = n.array(ahat)
-    print "true      gs = {0}\nrecovered gs = {1}".format(a[0],ahat[0][0])
-    err = n.abs(n.dot(W,a)-ahat)
-    print 'err = ',err[0,0] 
-    a = n.resize(a,(a.shape[0],1))
+    print "true      gs = {0}\nrecovered gs = {1}".format(a[0],ahat[0])
+    err = n.abs((uf.vdot(W,a)-ahat)/ahat)
+    print 'err = ',err[0] 
+    assert len(ahat.shape)==1
+    assert len(err.shape)==1
     return a,ahat,err
 
 def compare_grids(lmax=3):
@@ -194,22 +197,19 @@ def compare_grids(lmax=3):
             lms = lms[0:(lmax+1)**2,:]
             baselines = Qstuff['baselines']
             num_bl = len(baselines)
-            print Q.shape, lms.shape, baselines.shape
-            
+            #print Q.shape, lms.shape, baselines.shape
+
             N = total_noise_covar(0.1,num_bl,gsm_file)
-            #N = (1.0**2)*n.identity(num_bl)
-            
+            #N = (1.0**2)*n.identity(num_bl)           
             #alms = generate_sky_model_alms(fits_file,lmax=lmax)
             alms = n.zeros((lmax+1)**2,dtype='complex')
             alms[0] = 100.
-
             y = generate_sky_model_y(baselines,beam_sig,fits_file)
-
             a,ahat,err = test_recover_alms(y,Q,N,alms)#[:,2])
             gs_true, gs_recov = a[0],ahat[0]
-            param_grid[ii,jj] = n.log10(err[0,0]) #n.abs((gs_true-n.real(gs_recov))/gs_true)
+            param_grid[ii,jj] = n.log10(err[0]) #n.abs((gs_true-n.real(gs_recov))/gs_true)
 
-    print param_grid.shape
+    #print param_grid.shape
     p.imshow(param_grid,interpolation='nearest',aspect='auto',extent=[0,len(del_bls),0,len(beam_sigs)]) #extent=[4,7,0.175,1.1]
     p.title('Fractional difference btwn true and recovered global signal')
     p.yticks(range(len(beam_sigs)),beam_sigs)
@@ -217,6 +217,7 @@ def compare_grids(lmax=3):
     p.ylabel('beam sigmas')
     p.xlabel('del baselines')
     p.colorbar()
+    #p.show()
     p.savefig('./figures/compare_grids.pdf')
     p.clf()
 
