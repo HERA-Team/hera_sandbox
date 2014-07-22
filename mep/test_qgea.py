@@ -40,11 +40,11 @@ class TestRecoverGS(unittest.TestCase):
 
     def test_recover_gs(self):
         print "GS"
-        num=1
+        num=500
         Q = n.diag(n.arange(1,9))
-        N = n.identity(8)*5
+        N = n.identity(8)*50
         N[0,0]=1
-        a = n.arange(16,1,-2)
+        a = n.array([16,0,0,0,0,0,0,0])#n.arange(16,1,-2)
         print 'a ',a 
         ahat_avg = 0
         for ii in range(num):
@@ -53,14 +53,15 @@ class TestRecoverGS(unittest.TestCase):
             Qa = uf.vdot(Q,a)
             y = Qa+n_vec
             self.assertTrue(y.shape==(8,))
-            a,ahat,err = qgea.test_recover_alms(y,Q,N,a,num_remov=-4)        
+            a,ahat,err = qgea.test_recover_alms(y,Q,N,a,num_remov=0)        
             ahat_avg += ahat
         ahat_avg = ahat_avg/num
-        W = qgea.window_fn_matrix(Q,N,num_remov=-4)
+        W = qgea.window_fn_matrix(Q,N,num_remov=0)
 
         print uf.vdot(W,a)
         print ahat_avg
-        self.assertTrue(n.all(n.abs(n.dot(W,a)-ahat_avg)<0.1))
+        self.assertTrue(n.abs(uf.vdot(W,a)[0]-ahat_avg[0])<0.1)
+        #self.assertTrue(n.all(n.abs(n.dot(W,a)-ahat_avg)<0.2))
 
 
 if __name__=='__main__':

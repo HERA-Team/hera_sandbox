@@ -173,7 +173,7 @@ def test_recover_alms(y,Q,N,a,num_remov=-4):
     W = window_fn_matrix(Q,N,num_remov=num_remov) # W a = < a-hat >
     ahat = return_ahat(y,Q,N,num_remov=num_remov)
     print "true      gs = {0}\nrecovered gs = {1}".format(a[0],ahat[0])
-    err = n.abs((uf.vdot(W,a)-ahat)/ahat)
+    err = n.abs(uf.vdot(W,a)-ahat)
     print 'err = ',err[0] 
     assert len(ahat.shape)==1
     assert len(err.shape)==1
