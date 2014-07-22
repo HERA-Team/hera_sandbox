@@ -29,7 +29,7 @@ print "defined mpi paramters"
 
 # define parameters related to calculation
 fq = 0.1
-healmap = a.map.Map(fromfits='/global/homes/m/mpresley/scripts/general_files/hi1001_32.fits')
+healmap = a.map.Map(fromfits='/global/homes/m/mpresley/scripts/general_files/fits_files/hi1001_32.fits')
 global px_array; px_array = n.arange(healmap.npix()) # gets an array of healpix pixel indices
 global crd_array; crd_array = n.array(healmap.px2crd(px_array,ncrd=3)) # finds the topocentric coords for each healpix pixel
 global Rdata; Rdata = healmap.map.map
