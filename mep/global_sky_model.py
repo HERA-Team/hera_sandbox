@@ -3,6 +3,7 @@
 # that I was using a non-ascii character on line 11 and this fixed it.....
 import aipy as a, numpy as n, pylab as p
 import capo as C
+import healpy as hp
 import useful_functions as uf
 import os,subprocess
 
@@ -42,6 +43,22 @@ def gsm_to_fits_loop(folderpath):
         if '.dat' in filename:
             print filename
             gsm_to_fits(os.path.join(folderpath,filename))
+
+
+def gsm_degrade_map():
+    """
+    This has a weird problem where I can't get the map to write out in the correct shape.
+    Even though I explicitly 
+    """
+    # http://healpy.readthedocs.org/en/latest/generated/healpy.pixelfunc.ud_grade.html#healpy.pixelfunc.ud_grade
+    nside=32
+    healmap = a.map.Map(fromfits='/Users/mpresley/soft/gsm/haslam408.fits')
+    data = healmap.map.map
+    data2 = hp.ud_grade(data,nside,order_in='RING',order_out='RING')
+    data2 = data2[0:12*nside*nside]
+    newmap = a.map.Map()
+    newmap.set_map(data2)
+    newmap.to_fits('/Users/mpresley/soft/gsm/haslam408_32.fits',clobber=True)
 
 def import_gsm_data(folderpath='/Users/mpresley/soft/gsm/data_100MHz_150MHz/',savedata=True):
     """

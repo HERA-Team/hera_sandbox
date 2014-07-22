@@ -2,21 +2,40 @@ import pylab as plt
 import numpy as np
 from scipy import optimize
 
+#  _____                 _   _                 
+# |  ___|   _ _ __   ___| |_(_) ___  _ __  ___ 
+# | |_ | | | | '_ \ / __| __| |/ _ \| '_ \/ __|
+# |  _|| |_| | | | | (__| |_| | (_) | | | \__ \
+# |_|   \__,_|_| |_|\___|\__|_|\___/|_| |_|___/
+                                             
+def gaussian(sig,xpoints,ypoints,x0=0.0,y0=0.0):
+    """
+    Returns a gaussian distribution of width sig, centered on x0,y0 
+    for the data points in xpoints and ypoints
+    """
+    gauss = 1/(2*np.pi*sig*sig)*np.exp(-((xpoints-x0)**2+(ypoints-y0)**2)/(2*sig*sig))
+    return gauss
 
-def general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar,pseudo=False):
+def rand_from_covar(C):
     """
-    This function takes in x and y data, Q, and a full noise covariance 
-    matrix. The function returns <\hat x> and the covariance matrix of 
-    the fit.
+    Takes in a covariance matrix C = < x x_dag > and generates a random vector x 
+    that is consistent with C.
+
+    We do this by using a Cholesky decomposition of C = L L_dag where L is lower 
+    triangular. Then the x we want is x = L z where z has uncorrelated random 
+    elements with variance 1. Therefore, < x x_dag > = L < z z_dag > L_dag = L L_dag = C 
     """
-    xdata = np.array(xdata)
-    Q = np.matrix(Q)
-    Ninv = np.matrix(noiseCovar).I
-    AA = Q.H*Ninv*Q
-    if pseudo: AAinv = np.linalg.pinv(AA)
-    else: AAinv = AA.I
-    params = AAinv*Q.H*Ninv*np.matrix(ydata) # params should be 1 by nparam
-    return np.array(params), np.array(AAinv)
+    L = np.linalg.cholesky(C)
+    z = np.random.randn(C.shape[0])
+    x = np.dot(L,z)
+    x = np.array(x)
+    return x 
+
+def projection_matrix(Z):
+    Z = np.matrix(Z)
+    #print 'Z = \n',Z
+    PP = np.identity(Z.shape[0]) - np.dot(Z,Z.H) #checked by hand
+    return PP 
 
 def pseudo_inverse(MM,num_remov=1):
     """
@@ -28,14 +47,15 @@ def pseudo_inverse(MM,num_remov=1):
     MM = np.matrix(MM)
     #print 'MM = \n',MM
     eig_vals, eig_vecs = np.linalg.eig(MM) # checked
+    #print 'eig_vecs.shape = ',eig_vecs.shape
     sorted_ind = np.argsort(np.absolute(eig_vals))
     sorted_vecs = eig_vecs[sorted_ind]
     #print 'eig_vals = \n',eig_vals[sorted_ind]
     #print 'eig vecs = \n',sorted_vecs
     Z = sorted_vecs[:,0:num_remov] #checked
-    Z = np.matrix(Z)
+    #Z = np.matrix(Z)
     #print 'Z = \n',Z
-    PP = np.identity(eig_vals.shape[0]) - np.dot(Z,Z.H) #checked by hand
+    PP = projection_matrix(Z) #np.identity(eig_vals.shape[0]) - np.dot(Z,Z.H) #checked by hand
     #print 'PP = \n',PP
     MM_tilde = np.dot(PP,np.dot(MM,PP.H)) #checked
     #print 'MM_tilde = \n',MM_tilde
@@ -47,7 +67,7 @@ def pseudo_inverse(MM,num_remov=1):
     MM_inv = np.dot(PP,np.dot(AAinv,PP.H)) 
     #print 'MM_inv = \n',MM_inv
 
-    # test the inverse
+    #test the inverse
     # v1 = sorted_vecs[:,-1]#+ sorted_vecs[:,-2]
     # v2 = Z[:,0]
     # dotprod = np.dot(v1.H,v2)
@@ -60,6 +80,29 @@ def pseudo_inverse(MM,num_remov=1):
 
     return MM_inv
 
+
+#  _____ _ _   _   _             
+# |  ___(_) |_| |_(_)_ __   __ _ 
+# | |_  | | __| __| | '_ \ / _` |
+# |  _| | | |_| |_| | | | | (_| |
+# |_|   |_|\__|\__|_|_| |_|\__, |
+#                          |___/ 
+
+def general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar,pseudo=False):
+    """
+    This function takes in x and y data, Q, and a full noise covariance 
+    matrix. The function returns <\hat x> and the covariance matrix of 
+    the fit.
+    """
+    xdata = np.array(xdata)
+    Q = np.matrix(Q)
+    Ninv = np.matrix(noiseCovar).I
+    AA = Q.H*Ninv*Q
+    if pseudo: AAinv = np.linalg.pinv(AA)
+    elif isinstance(pseudo, int): AAinv = pseudo_inverse(AA,num_remov=pseudo)
+    else: AAinv = AA.I
+    params = AAinv*Q.H*Ninv*np.matrix(ydata) # params should be 1 by nparam
+    return np.array(params), np.array(AAinv)
 
 
 def line_thru_origin_lstsq_fit_with_err(xdata,ydata,noiseCovar):

@@ -15,7 +15,7 @@ def get_baselines(aa, nb=None):
     ll=0
     for ii in n.arange(na):
         for jj in n.arange(ii):
-            bx,by,bz = aa.get_baseline(ii,jj,'z') 
+            bx,by,bz = aa.get_baseline(ii,jj,'r') 
             #the baseline for antennas ii and jj 
             bb = n.sqrt(bx*bx+by*by+bz*bz)
             print ii,jj,[bx,by,bz,bb]
@@ -26,7 +26,7 @@ def get_baselines(aa, nb=None):
     if nb!=None: sorted_baselines = sorted_baselines[0:nb,:]
     return sorted_baselines
 
-def get_coeffs_lm_fewer_baselines(aa,baselines,l,m,freqs = n.array([.1,]),savefolderpath=None):
+def get_coeffs_lm_fewer_baselines(aa,baselines,l,m,freqs = n.array([.1,]),savefolderpath=None,beamsig=None):
     """
     This function calculates the coefficients in front of the lm spherical
     harmonic for the antenna array described in the calfile. The coefficients 
@@ -47,7 +47,10 @@ def get_coeffs_lm_fewer_baselines(aa,baselines,l,m,freqs = n.array([.1,]),savefo
 
     #beam response for an antenna pointing at (tx,ty,tz) with a polarization in x direction
     #amp = A(theta) in notes
-    amp = aa[0].bm_response((tx,ty,tz),pol='x')**2 
+    if beamsig==None:
+        amp = aa[0].bm_response((tx,ty,tz),pol='x')**2
+    else:
+        amp = uf.gaussian(beamsig,n.zeros_like(theta),phi) 
     na = len(aa.ants) # number of antennas
     #coefficient array: rows baselines; cols frequencies
     coeffs = n.zeros([(na*na-na)/2,len(freqs)],dtype=n.complex)
@@ -62,7 +65,7 @@ def get_coeffs_lm_fewer_baselines(aa,baselines,l,m,freqs = n.array([.1,]),savefo
             Y = n.array(special.sph_harm(m,l,theta,phi))/Ynorm #using math convention of theta=[0,2pi], phi=[0,pi]
             Y.shape = phs.shape = amp.shape = im.uv.shape
             amp = n.where(valid, amp, 0)
-            phs = n.where(valid, phs, 0)                
+            phs = n.where(valid, phs, 0)
             Y = n.where(valid, Y, 0) 
             # n.set_printoptions(threshold='nan')
             # print Y
@@ -189,7 +192,7 @@ def get_coeffs_lm_baselines_from_origin(calfile,l,m,freqs = n.array([.1,]),savef
     if savefolderpath!=None: n.savez_compressed('{0}{1}_data_l_{1}_m_{2}'.format(savefolderpath,calfile,l,m),baselines=baselines,frequencies=freqs,coeffs=coeffs)
     return baselines,freqs,coeffs
 
-def get_Q(calfile,min_l,max_l,mvals=None,nb=6,savefolderpath=None):
+def get_Q(calfile,min_l,max_l,mvals=None,nb=6,savefolderpath=None,beamsig=None):
     """
     This function creates a Q matrix for the antenna array in the calfile.
     Note that although a 'full' Q matrix would vary l from 0 to max_l, this
@@ -205,7 +208,7 @@ def get_Q(calfile,min_l,max_l,mvals=None,nb=6,savefolderpath=None):
         if fullm: mvals = range(-l,l+1)
         for m in mvals:
             print l,m
-            baselines,freqs,coeffs = get_coeffs_lm_fewer_baselines(aa,baselines,l,m,freqs=n.array([.1,]))
+            baselines,freqs,coeffs = get_coeffs_lm_fewer_baselines(aa,baselines,l,m,freqs=n.array([.1,]),beamsig=beamsig)
             print 'got coeffs'
             if l==min_l and m==mvals[0]: Q = coeffs
             else: Q = n.hstack((Q,coeffs))
@@ -235,6 +238,14 @@ def combine_Q(Q1file,Q2file,newfile):
     lms = n.vstack((Q1stuff['lms'],Q2stuff['lms']))
     #baselines = n.vstack((Q1stuff['baselines'],Q2stuff['baselines']))
     baselines = Q1stuff['baselines']
+    n.savez_compressed(newfile,Q=Q,baselines=baselines,lms=lms)
+    return Q, baselines, lms
+
+def combine_Q_baselines(Q1file,Q2file,newfile):
+    Q1stuff = n.load(Q1file)
+    Q2stuff = n.load(Q2file)
+    Q = n.vstack((Q1stuff['Q'],Q2stuff['Q']))
+    baselines = n.vstack((Q1stuff['baselines'],Q2stuff['baselines']))
     n.savez_compressed(newfile,Q=Q,baselines=baselines,lms=lms)
     return Q, baselines, lms
 
@@ -288,6 +299,8 @@ def test_recover_gs_vary_n(Q,baselines,lms):
     p.clf()
 
 def get_a_from_gsm(l):
+    # this might be useful in future
+    # http://healpy.readthedocs.org/en/latest/generated/healpy.sphtfunc.synfast.html#healpy.sphtfunc.synfast
     print l.shape
     C = n.where(l<=8, n.exp(-1.450*l+0.1003*l*l), 0.7666*(l**(-2.365))) # gsm power_spectrum from http://arxiv.org/pdf/1404.2596v2.pdf pg. 13
     print C.shape
@@ -364,7 +377,8 @@ def window_function_matrix(Q,N,lms,save_tag=None):
     # for ii in range(M.shape[0]):
     #     M[ii,ii] = 1/info[ii,ii]
     #M = n.linalg.pinv(info)
-    M = uf.pseudo_inverse(info,num_remov=1)
+    num_remov = 10
+    M = uf.pseudo_inverse(info,num_remov=num_remov)
     #n.set_printoptions(threshold='nan')
     #print M*info
     #BB = n.absolute(n.absolute(M*info)-n.identity(M.shape[0]))
@@ -379,7 +393,7 @@ def window_function_matrix(Q,N,lms,save_tag=None):
     p.yticks(l_locs,ls)
     p.xlabel('l')
     p.ylabel('l')
-    p.savefig('./figures/{0}_W_matrix_ufpseudo.pdf'.format(save_tag))
+    p.savefig('./figures/{0}_W_matrix_ufpseudo_remov_{1}.pdf'.format(save_tag,num_remov))
     #p.show()
     p.clf()
 
@@ -390,10 +404,71 @@ def window_function_matrix(Q,N,lms,save_tag=None):
     p.xlabel('l (color is m)')
     p.ylabel('first row of Window Function Matrix')
     p.colorbar()
-    p.savefig('./figures/{0}_W_pinv_matrix_elements.pdf'.format(save_tag))
+    p.savefig('./figures/{0}_W_pinv_matrix_elements_remov_{1}.pdf'.format(save_tag,num_remov))
     #p.show()
     p.clf()
 
+
+def fringe_pattern_plots(baselines,lms):
+    im = a.img.Img(size=200, res=.5) #make an image of the sky to get sky coords
+    tx,ty,tz = im.get_top(center=(200,200)) #get coords of the zenith?
+    valid = n.logical_not(tx.mask)
+    tx,ty,tz = tx.flatten(),ty.flatten(),tz.flatten()
+    theta = n.arctan(ty/tx) # using math convention of theta=[0,2pi], phi=[0,pi]
+    phi = n.arccos(n.sqrt(1-tx*tx-ty*ty))
+    Ynorm = special.sph_harm(0,0,0,0)
+    fq = 0.1
+
+    # for jj in range(lms.shape[0]):
+    #     l,m = lms[jj]
+    #     Y = n.array(special.sph_harm(m,l,theta,phi))/Ynorm #using math convention of theta=[0,2pi], phi=[0,pi]
+    #     Y.shape = im.uv.shape
+    #     p.imshow(n.real(Y))
+    #     p.title('Spherical Harmonic l,m = {0}, {1}'.format(l,m))
+    #     p.xlabel('tx')
+    #     p.ylabel('ty')
+    #     p.savefig('./figures/fringe_patterns/Y_l_{0}_m_{1}.pdf'.format(l,m))
+    #     #p.show()
+    #     p.clf()
+
+    for jj in range(baselines.shape[0]):
+        bx,by,bz = baselines[jj,:]
+        phs = n.exp(-2j*n.pi*fq * (bx*tx+by*ty+bz*tz)) #fringe pattern
+        phs.shape = im.uv.shape
+        p.imshow(n.real(phs))
+        p.title('Fringe Pattern bx,by,bz = {0:.2f}, {1:.2f}, {2:.2f}'.format(bx,by,bz))
+        p.xlabel('tx')
+        p.ylabel('ty')
+        p.savefig('./figures/fringe_patterns/phs_bx_{0:.2f}_by_{1:.2f}_bz_{2:.2f}.pdf'.format(bx,by,bz))
+        #p.show()
+        p.clf()
+
+    # for beamsig in (5,10,15,20,25,30):
+    #     beamsig_rad = beamsig*n.pi/180.
+    #     amp = uf.gaussian(beamsig_rad,theta,phi) 
+    #     amp.shape = im.uv.shape
+    #     p.imshow(n.absolute(amp))
+    #     p.title('Gaussian Beam for sigma = {0}'.format(beamsig))
+    #     p.xlabel('tx')
+    #     p.ylabel('ty')
+    #     p.savefig('./figures/fringe_patterns/bm_sig_{0}.pdf'.format(beamsig))
+    #     #p.show()
+    #     p.clf()
+
+
+def many_hybrid():
+    for beam_sig in (0.087,0.175,0.349,0.689,1.047):
+        for del_bl in (4.0,6.0,8.0):
+            Qstuff = n.load('./Q_matrices/many_hybrid_grids/grid_sig_{0}_del_{1}_num_10_Q_max_l_1.npz'.format(beam_sig,del_bl))
+            Q = Qstuff['Q']
+            lms = Qstuff['lms']
+            baselines = Qstuff['baselines']
+
+            N = (1.0**2)*n.identity(Q.shape[0])
+            M = n.matrix(n.zeros_like(Q))
+            Q = n.matrix(Q); N = n.matrix(N)
+            Ninv = N.I
+            info = Q.H*Ninv*Q
 
 if __name__=='__main__':
     #baselines,freqs,coeffs = get_coeffs_lm(calfile,0,0,freqs=n.array([.1,]))
@@ -401,12 +476,28 @@ if __name__=='__main__':
     #Q,baselines,lms = shc.get_Q('basic_amp_aa_long',3000,3001,mvals=(0,1500,3000),savefolderpath='./coeff_data/long/')
     #Q,baselines,lms = shc.get_Q('basic_amp_aa_long',3500,3501,mvals=(0,1750,3500),savefolderpath='./coeff_data/long/')
     
-    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss_pi8',0,3,savefolderpath='./coeff_data/circle_2_gauss_pi8/')
-    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss_pi8',4,5,savefolderpath='./coeff_data/circle_2_gauss_pi8/')
-    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss_pi4',6,7,savefolderpath='./coeff_data/circle_2_gauss_pi4/')
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss',0,3,savefolderpath='./coeff_data/circle_13_gauss_30deg/',beamsig=0.524)
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss',4,5,savefolderpath='./coeff_data/circle_13_gauss_30deg/',beamsig=0.524)
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss',6,7,savefolderpath='./coeff_data/circle_13_gauss_30deg/',beamsig=0.524)
 
-    keyword = 'circle_2'
-    calfile='basic_amp_aa_circle'
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss',8,9,savefolderpath='./coeff_data/circle_13_gauss_15deg/',beamsig=0.262)
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss',10,11,savefolderpath='./coeff_data/circle_13_gauss_15deg/',beamsig=0.262)
+    #Q,baselines,lms = shc.get_Q('basic_amp_aa_circle_gauss',12,13,savefolderpath='./coeff_data/circle_13_gauss_15deg/',beamsig=0.262)
+
+
+
+    keyword = 'hybrid_grid_'
+    # Q, baselines, lms = combine_Q('./Q_matrices/hybrid_grid_1_Q_max_l_15.npz',
+    #                             './Q_matrices/hybrid_grid_2_Q_max_l_15.npz',
+    #                             './Q_matrices/hybrid_grid_12_Q_max_l_15')
+    # Q, baselines, lms = combine_Q('./Q_matrices/hybrid_grid_12_Q_max_l_15.npz',
+    #                             './Q_matrices/hybrid_grid_3_Q_max_l_15.npz',
+    #                             './Q_matrices/hybrid_grid_123_Q_max_l_15')
+    # Q, baselines, lms = combine_Q('./Q_matrices/hybrid_grid_123_Q_max_l_15.npz',
+    #                             './Q_matrices/hybrid_grid_4_Q_max_l_15.npz',
+    #                             './Q_matrices/hybrid_grid_Q_max_l_15')
+
+    #calfile='basic_amp_aa_circle'
     # Q, baselines, lms = combine_Q('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_3.npz'.format(keyword,keyword),
     #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_4_max_l_5.npz'.format(keyword,keyword),
     #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_5'.format(keyword,keyword))
@@ -414,27 +505,44 @@ if __name__=='__main__':
     #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_6_max_l_7.npz'.format(keyword,keyword),
     #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_7'.format(keyword,keyword))
     # Q, baselines, lms = combine_Q('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_7.npz'.format(keyword,keyword),
-    #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_50_max_l_51.npz'.format(keyword,keyword),
-    #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_51'.format(keyword,keyword))
-    # Q, baselines, lms = combine_Q('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_51.npz'.format(keyword,keyword),
-    #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_100_max_l_101.npz'.format(keyword,keyword),
-    #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_101'.format(keyword,keyword))
-    Qstuff = n.load('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_5.npz'.format(keyword,keyword))
+    #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_8_max_l_9.npz'.format(keyword,keyword),
+    #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_9'.format(keyword,keyword))
+    # Q, baselines, lms = combine_Q('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_9.npz'.format(keyword,keyword),
+    #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_10_max_l_11.npz'.format(keyword,keyword),
+    #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_11'.format(keyword,keyword))
+    # Q, baselines, lms = combine_Q('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_11.npz'.format(keyword,keyword),
+    #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_12_max_l_13.npz'.format(keyword,keyword),
+    #                             './coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_13'.format(keyword,keyword))
+    #Qstuff = n.load('./coeff_data/{0}/basic_amp_aa_{1}_Q_min_l_0_max_l_7.npz'.format(keyword,keyword))
+    Qstuff = n.load('./Q_matrices/hybrid_grid_del_bl_0.80_num_bl_7_lgbm_1.0_smbm_0.25_Q_max_l_10.npz')
     Q = Qstuff['Q']
     lms = Qstuff['lms']
     baselines = Qstuff['baselines']
 
-    print baselines.shape
+    Q = Q[:,0:16]
+    lms = lms[0:16]
+    #print n.linalg.det(Q)
+    # baselines = baselines[0,:]
+    # Q = Q[0,:]
+    # Q.shape = n.array([1,Q.shape[0]])
+    # baselines.shape = n.array([1,baselines.shape[0]])
+    # print Q.shape
+    # print baselines.shape
+
+    keyword = keyword+'lms_3'
+
+    #print baselines
+    #fringe_pattern_plots(baselines,lms)
     #plot_Q(Q,lms,save_tag=keyword)
-    aa = a.cal.get_aa(calfile, n.array([.150]))
-    amp = aa[0].bm_response((500,100,1000),pol='x')**2 
-    print amp
+    #aa = a.cal.get_aa(calfile, n.array([.10]))
+    #amp = aa[0].bm_response((500,100,1000),pol='x')**2 
+    #print amp
     # Nfg = gsm.gsm_noise_covar(baselines,aa,savepath='./coeff_data/{0}/gsm_noise_covar'.format(keyword))
     # p.imshow(n.log(n.absolute(Nfg)))
     # p.show()
 
-    #N = (1.0**2)*n.identity(Q.shape[0])
-    #window_function_matrix(Q,N,lms,save_tag=keyword)
-    #info_matrix(Q,N,lms,save_tag=keyword)
+    N = (1.0**2)*n.identity(Q.shape[0])
+    window_function_matrix(Q,N,lms,save_tag=keyword)
+    info_matrix(Q,N,lms,save_tag=keyword)
     #test_recover_gs_vary_n(Q,baselines,lms)
     #test_recover_gs(Q,baselines,lms,n_sig=.1)
