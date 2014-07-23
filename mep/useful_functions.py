@@ -8,6 +8,22 @@ from scipy import optimize
 # |  _|| |_| | | | | (__| |_| | (_) | | | \__ \
 # |_|   \__,_|_| |_|\___|\__|_|\___/|_| |_|___/
                                              
+def vdot(M,v):
+    """
+    Dots a matrix and a vector and returns a vector of shape (n,)
+    Use because np.dot(M,v) will return a vector (1,n) 
+    """
+    assert len(v.shape)==1
+    vec = np.dot(M,v)
+    # print 'uf vec org ',vec.shape
+    if len(vec.shape)==2 and vec.shape[1]==1: vec = np.resize(vec,(vec.shape[0],))
+    if len(vec.shape)==2 and vec.shape[0]==1: vec = np.resize(vec,(vec.shape[1],))
+    # print 'uf M ',M.shape
+    # print 'uf v ',v.shape
+    # print 'uf vec ',vec.shape
+    assert len(vec.shape)==1
+    return vec 
+
 def gaussian(sig,xpoints,ypoints,x0=0.0,y0=0.0):
     """
     Returns a gaussian distribution of width sig, centered on x0,y0 
