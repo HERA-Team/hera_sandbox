@@ -8,6 +8,22 @@ from scipy import optimize
 # |  _|| |_| | | | | (__| |_| | (_) | | | \__ \
 # |_|   \__,_|_| |_|\___|\__|_|\___/|_| |_|___/
                                              
+def vdot(M,v):
+    """
+    Dots a matrix and a vector and returns a vector of shape (n,)
+    Use because np.dot(M,v) will return a vector (1,n) 
+    """
+    assert len(v.shape)==1
+    vec = np.dot(M,v)
+    # print 'uf vec org ',vec.shape
+    if len(vec.shape)==2 and vec.shape[1]==1: vec = np.resize(vec,(vec.shape[0],))
+    if len(vec.shape)==2 and vec.shape[0]==1: vec = np.resize(vec,(vec.shape[1],))
+    # print 'uf M ',M.shape
+    # print 'uf v ',v.shape
+    # print 'uf vec ',vec.shape
+    assert len(vec.shape)==1
+    return vec 
+
 def gaussian(sig,xpoints,ypoints,x0=0.0,y0=0.0):
     """
     Returns a gaussian distribution of width sig, centered on x0,y0 
@@ -25,10 +41,17 @@ def rand_from_covar(C):
     triangular. Then the x we want is x = L z where z has uncorrelated random 
     elements with variance 1. Therefore, < x x_dag > = L < z z_dag > L_dag = L L_dag = C 
     """
-    L = n.linalg.cholesky(C)
-    z = n.random.randn(C.shape[0])
-    x = n.dot(L,z)
+    L = np.linalg.cholesky(C)
+    z = np.random.randn(C.shape[0])
+    x = np.dot(L,z)
+    x = np.array(x)
     return x 
+
+def projection_matrix(Z):
+    Z = np.matrix(Z)
+    #print 'Z = \n',Z
+    PP = np.identity(Z.shape[0]) - np.dot(Z,Z.H) #checked by hand
+    return PP 
 
 def pseudo_inverse(MM,num_remov=1):
     """
@@ -40,15 +63,15 @@ def pseudo_inverse(MM,num_remov=1):
     MM = np.matrix(MM)
     #print 'MM = \n',MM
     eig_vals, eig_vecs = np.linalg.eig(MM) # checked
-    print eig_vecs.shape
+    #print 'eig_vecs.shape = ',eig_vecs.shape
     sorted_ind = np.argsort(np.absolute(eig_vals))
     sorted_vecs = eig_vecs[sorted_ind]
     #print 'eig_vals = \n',eig_vals[sorted_ind]
     #print 'eig vecs = \n',sorted_vecs
     Z = sorted_vecs[:,0:num_remov] #checked
-    Z = np.matrix(Z)
+    #Z = np.matrix(Z)
     #print 'Z = \n',Z
-    PP = np.identity(eig_vals.shape[0]) - np.dot(Z,Z.H) #checked by hand
+    PP = projection_matrix(Z) #np.identity(eig_vals.shape[0]) - np.dot(Z,Z.H) #checked by hand
     #print 'PP = \n',PP
     MM_tilde = np.dot(PP,np.dot(MM,PP.H)) #checked
     #print 'MM_tilde = \n',MM_tilde
@@ -60,7 +83,7 @@ def pseudo_inverse(MM,num_remov=1):
     MM_inv = np.dot(PP,np.dot(AAinv,PP.H)) 
     #print 'MM_inv = \n',MM_inv
 
-    # test the inverse
+    #test the inverse
     # v1 = sorted_vecs[:,-1]#+ sorted_vecs[:,-2]
     # v2 = Z[:,0]
     # dotprod = np.dot(v1.H,v2)

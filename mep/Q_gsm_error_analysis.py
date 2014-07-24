@@ -15,6 +15,25 @@ def total_noise_covar(ninst_sig,num_bl,fg_file):
     Ntot = Nfg + Ninst 
     return Ntot
 
+def window_fn_matrix(Q,N,num_remov=-4):
+    Q = n.matrix(Q); N = n.matrix(N)
+    Ninv = uf.pseudo_inverse(N,num_remov=num_remov)
+    info = n.dot(Q.H,n.dot(Ninv,Q))
+    M = uf.pseudo_inverse(info,num_remov=num_remov)
+    W = n.dot(M,info)
+    return W
+
+def return_ahat(y,Q,N,num_remov=-4):
+    #print 'return_ahat y ',y.shape
+    assert len(y.shape)==1
+    Q = n.matrix(Q); N = n.matrix(N)
+    Ninv = uf.pseudo_inverse(N,num_remov=num_remov)
+    info = n.dot(Q.H,n.dot(Ninv,Q))
+    M = uf.pseudo_inverse(info,num_remov=num_remov)
+    ahat = uf.vdot(M,uf.vdot(Q.H,uf.vdot(Ninv,y)))
+    assert len(ahat.shape)==1
+    return ahat 
+
 def error_covariance(Q,N):
     Q = n.matrix(Q)
     N = n.matrix(N)
@@ -98,11 +117,11 @@ def haslam_extrap(hasdat=None,fq=0.1,save=True):
     if save: hasmap.to_fits('/Users/mpresley/soft/gsm/haslam408_extrap_fq_{0}_32.fits'.format(fq),clobber=True)
     return fqdat
 
-def generate_sky_model_y(baselines,beamsig,gsm_data_file):
+def generate_sky_model_y(baselines,beamsig,fits_file):
     """
     y is a vector of the visibilities at different baselines
     """
-    healmap = a.map.Map(fromfits=gsm_data_file)
+    healmap = a.map.Map(fromfits=fits_file)
     px_array = n.arange(healmap.npix()) # gets an array of healpix pixel indices
     rx,ry,rz = n.array(healmap.px2crd(px_array,ncrd=3)) # finds the topocentric coords for each healpix pixel
     phi,theta = n.array(healmap.px2crd(px_array,ncrd=2)) # phi,theta in math coords
@@ -114,7 +133,7 @@ def generate_sky_model_y(baselines,beamsig,gsm_data_file):
     visibilities = n.zeros(baselines.shape[0],dtype='complex')
     print baselines.shape[0]
     for kk in range(baselines.shape[0]):
-        print kk
+        #print kk
         bx,by,bz = baselines[kk]
         Vis = amp*true_sky*n.exp(2j*n.pi*(bx*rx+by*ry+bz*rz))*dOmega
         visibilities[kk] = n.sum(Vis)
@@ -124,7 +143,7 @@ def generate_sky_model_alms(fits_file,lmax=10):
     # http://healpy.readthedocs.org/en/latest/generated/healpy.sphtfunc.map2alm.html#healpy.sphtfunc.map2alm
     healmap = a.map.Map(fromfits=fits_file)
     as_pos = hp.sphtfunc.map2alm(healmap.map.map, lmax=lmax, pol=False)
-    alms_pos = n.zeros([as_pos.shape[0],3])
+    alms_pos = n.zeros([as_pos.shape[0],3],dtype='complex')
     #print alms_pos.shape
     kk=0
     for ll in range(lmax+1):
@@ -132,7 +151,7 @@ def generate_sky_model_alms(fits_file,lmax=10):
             alms_pos[kk] = n.array([ll,mm,as_pos[kk]])
             kk+=1
     #print alms_pos
-    alms = n.zeros([(lmax+1)**2,3])
+    alms = n.zeros([(lmax+1)**2,3],dtype='complex')
     kk=0
     for ll in range(lmax+1):
         for mm in range(-ll,ll+1):
@@ -147,57 +166,60 @@ def generate_sky_model_alms(fits_file,lmax=10):
             kk+=1
     return alms 
 
-def test_recover_alms(Q,N,a):
+def test_recover_alms(y,Q,N,a,num_remov=-4):
     # a is the alms from generate_sky_model_alms
-    #print Q.shape, n.matrix(a).T.shape
-    VV = n.array(n.matrix(Q)*n.matrix(a).T) + N 
-    ahat,covar = uf.general_lstsq_fit_with_err(a,VV,Q,N,pseudo=5)
-    err = n.sqrt(n.array(covar)*n.array(n.identity(covar.shape[0])))
-    print "true      gs = {0}\nrecovered gs = {1}".format(a[0],ahat[0][0])
-    #print "Error = ",err
-    return a[0], ahat[0][0], err[0,0]
+    assert len(y.shape)==1
+    assert len(a.shape)==1
+    W = window_fn_matrix(Q,N,num_remov=num_remov) # W a = < a-hat >
+    ahat = return_ahat(y,Q,N,num_remov=num_remov)
+    print "true      gs = {0}\nrecovered gs = {1}".format(a[0],ahat[0])
+    err = n.abs(uf.vdot(W,a)-ahat)
+    print 'err = ',err[0] 
+    assert len(ahat.shape)==1
+    assert len(err.shape)==1
+    return a,ahat,err
 
-def compare_grids(lmax=2):
+def compare_grids(lmax=3):
+    fits_file = '/Users/mpresley/soft/gsm/haslam408_32.fits'
     beam_sigs = n.array([0.175,0.349,0.689,1.047]) #0.087,
     del_bls = n.array([4,6]) #,8,10,20
     param_grid = n.zeros([len(beam_sigs),len(del_bls)])#n.meshgrid(beam_sigs,del_bls)
 
     for ii,beam_sig in enumerate(beam_sigs):
         for jj,del_bl in enumerate(del_bls):
-            Qstuff = n.load('./Q_matrices/grid_del_bl_{0:.2f}_num_bl_10_beam_sig_{1:.2f}_Q_max_l_10.npz'.format(del_bl,beam_sig))
+            Q_file = './Q_matrices/grid_del_bl_{0:.2f}_num_bl_10_beam_sig_{1:.2f}_Q_max_l_10.npz'.format(del_bl,beam_sig)
+            gsm_file = './gsm_matrices/grid_del_bl_{0:.2f}_num_bl_10_beam_sig_{1:.2f}_gsm_max_l_10.npz'.format(del_bl,beam_sig)
+
+            Qstuff = n.load(Q_file)
             Q = Qstuff['Q']
             Q = Q[:,0:(lmax+1)**2]
             lms = Qstuff['lms']
             lms = lms[0:(lmax+1)**2,:]
             baselines = Qstuff['baselines']
             num_bl = len(baselines)
-            print Q.shape, lms.shape, baselines.shape
-            #N = total_noise_covar(0.1,num_bl,'./gsm_matrices/grid_del_bl_{0:.2f}_num_bl_10_beam_sig_{2:.2f}_gsm_max_l_10.npz'.format(del_bl,num_bl,beam_sig))
-            N = (1.0**2)*n.identity(num_bl)
-            alms = generate_sky_model_alms('/Users/mpresley/soft/gsm/haslam408_32.fits',lmax=lmax)
-            gs_true, gs_recov, err = test_recover_alms(Q,N,alms[:,2])
-            param_grid[ii,jj] = n.abs((gs_true-n.real(gs_recov))/gs_true)
+            #print Q.shape, lms.shape, baselines.shape
 
-    print param_grid.shape
+            N = total_noise_covar(0.1,num_bl,gsm_file)
+            #N = (1.0**2)*n.identity(num_bl)           
+            #alms = generate_sky_model_alms(fits_file,lmax=lmax)
+            alms = n.zeros((lmax+1)**2,dtype='complex')
+            alms[0] = 100.
+            y = generate_sky_model_y(baselines,beam_sig,fits_file)
+            a,ahat,err = test_recover_alms(y,Q,N,alms)#[:,2])
+            gs_true, gs_recov = a[0],ahat[0]
+            param_grid[ii,jj] = n.log10(err[0]) #n.abs((gs_true-n.real(gs_recov))/gs_true)
+
+    #print param_grid.shape
     p.imshow(param_grid,interpolation='nearest',aspect='auto',extent=[0,len(del_bls),0,len(beam_sigs)]) #extent=[4,7,0.175,1.1]
-    p.title('Log10 of Fractional difference btwn true and recovered global signal')
+    p.title('Fractional difference btwn true and recovered global signal')
     p.yticks(range(len(beam_sigs)),beam_sigs)
     p.xticks(range(len(del_bls)),del_bls)
     p.ylabel('beam sigmas')
     p.xlabel('del baselines')
     p.colorbar()
+    #p.show()
     p.savefig('./figures/compare_grids.pdf')
     p.clf()
-
-def monte_carlo(num):
-    hasmap = a.map.Map(fromfits='/Users/mpresley/soft/gsm/haslam408_32.fits')
-    gs_true = n.zeros(num)
-    gs_recov = n.zeros(num)
-    for ii in range(num):
-        jiggled_map = haslam_extrap(hasdat=hasmap.map.map)
-        jiggled_alms = hp.sphtfunc.map2alm(jiggled_map, lmax=10, pol=False)
-        gs_true[ii], gs_recov[ii], _ = test_recover_alms(Q,N,jiggled_alms) #WRONG
-
 
 if __name__=='__main__':
     Qstuff = n.load('./Q_matrices/grid_del_bl_4.00_num_bl_10_beam_sig_0.09_Q_max_l_10.npz')

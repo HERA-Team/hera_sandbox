@@ -1,22 +1,23 @@
+print "I exist"
 from mpi4py import MPI 
+import sys
 import aipy as a, numpy as n, pylab as p
 import capo as C
+import basic_amp_aa_grid_gauss as agg
 import useful_functions as uf
-import global_sky_model as gsm
-import sph_harm_coeffs as shc 
 import matplotlib as mpl
-
+print "imported everything"
 
 def haslam_extrap(hasdat=None,fq=0.1,save=True):
     alf0=2.8; var = 0.1 # from table on page 4 of http://arxiv.org/pdf/1106.0007.pdf
     if hasdat==None:
-        hasmap = a.map.Map(fromfits='/Users/mpresley/soft/gsm/haslam408_32.fits')
+        hasmap = a.map.Map(fromfits='/global/homes/m/mpresley/scripts/general_files/fits_files/haslam408_32.fits')
         hasdat = hasmap.map.map 
     alf = n.random.randn(hasdat.shape[0])*var
     print alf 
     fqdat = hasdat*(fq/0.408)**(alf-alf0) 
     hasmap.map.map = fqdat
-    if save: hasmap.to_fits('/Users/mpresley/soft/gsm/haslam408_extrap_fq_{0}_32.fits'.format(fq),clobber=True)
+    if save: hasmap.to_fits('/global/homes/m/mpresley/scripts/general_files/fits_files/haslam408_extrap_fq_{0}_32.fits'.format(fq),clobber=True)
     return fqdat
 
 def generate_sky_model_y(baselines,beamsig,gsm_map=None,gsm_data_file=None):
@@ -52,23 +53,28 @@ rank = comm.Get_rank() #int associated with each processor. ranges from 0 to num
 size=comm.Get_size()
 master = 0
 num_slaves = size-1
+print "defined mpi params"
 
 # define parameters related to calculation 
-hasmap = a.map.Map(fromfits='/Users/mpresley/soft/gsm/haslam408_32.fits')
+hasmap = a.map.Map(fromfits='/global/homes/m/mpresley/scripts/general_files/fits_files/haslam408_32.fits')
 
-_,beam_sig,del_bl,num_bl = sys.argv
+_,num0,beam_sig,del_bl,num_bl = sys.argv
 beam_sig=float(beam_sig); del_bl=float(del_bl); num_bl=int(num_bl)
 baselines = agg.make_pos_array(del_bl,num_bl)
 
 savekey = 'grid_del_bl_{0:.2f}_num_bl_{1}_beam_sig_{2:.2f}_'.format(del_bl,num_bl,beam_sig)
 
+print "defined hasmap stuff"
+
 # define parameters related to task-mastering
-num0,num1 = 5,1
+num1 = 1
 matrix = np.zeros([num0,num1])
 assignment_matrix = np.arange(np.prod(matrix.shape)).reshape(matrix.shape)
 numToDo = num0*num1
 num_sent = 0 # this functions both as a record of how many assignments have 
              # been sent and as a tag marking which matrix entry was calculated
+
+print "defined task-mastering stuff"
 
 # Big running loop
 # If I am the master process
@@ -120,7 +126,7 @@ elif rank<=numToDo:
             print "slave ",rank," acknoledges job completion"
         else:
             # compute the matrix element
-            gsm_map = haslam_extrap(hasdat=hasmap.map.map)
+            gsm_map = haslam_extrap(hasdat=hasmap.map.map,save=False)
             element = generate_sky_model_y(baselines,beamsig,gsm_map=gsm_map)
             # send answer back
             comm.send((rank,element),dest=master)
