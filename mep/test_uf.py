@@ -36,11 +36,13 @@ class TestPinv(unittest.TestCase):
 
     def test_pseudo_remov(self):
         #M = n.diag(n.array([100,10,1,0.1,0.01,0.001]))
-        M = n.diag(n.array([0.001,0.01,0.1,1,10,100]))
+        M = n.diag(n.array([0.00001,0.0001,0.001,0.01,0.1,1])[::-1])
         Minv = uf.pseudo_inverse(M,num_remov=None)
         print M
         print Minv 
-
+        Minvp = uf.pseudo_inverse(M,num_remov=2)
+        print Minvp
+        self.assertTrue(n.allclose(Minv,Minvp))
 
 
 
