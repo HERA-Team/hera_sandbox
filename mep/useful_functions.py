@@ -66,13 +66,26 @@ def pseudo_inverse(MM,num_remov=1):
     #print 'eig_vecs.shape = ',eig_vecs.shape
     sorted_ind = np.argsort(np.absolute(eig_vals))
     sorted_vecs = eig_vecs[sorted_ind]
-    #print 'eig_vals = \n',eig_vals[sorted_ind]
-    #print 'eig vecs = \n',sorted_vecs
-    Z = sorted_vecs[:,0:num_remov] #checked
+    sorted_vals = eig_vals[sorted_ind]
+    print 'eig_vals = \n',eig_vals[sorted_ind]
+    print 'eig vecs = \n',sorted_vecs
+    if num_remov==None:
+        Z = sorted_vecs
+        lambdas = sorted_vals
+        while True:
+            print 'hi'
+            print np.min(lambdas)/np.max(lambdas)
+            if np.min(lambdas)/np.max(lambdas)<10**-3:
+                Z = Z[:,1:]
+                lambdas = lambdas[1:]
+            else:
+                break       
+    else:
+        Z = sorted_vecs[:,0:num_remov] #checked
     #Z = np.matrix(Z)
-    #print 'Z = \n',Z
+    print 'Z = \n',Z
     PP = projection_matrix(Z) #np.identity(eig_vals.shape[0]) - np.dot(Z,Z.H) #checked by hand
-    #print 'PP = \n',PP
+    print 'PP = \n',PP
     MM_tilde = np.dot(PP,np.dot(MM,PP.H)) #checked
     #print 'MM_tilde = \n',MM_tilde
     AA = MM_tilde + eta*np.dot(Z,Z.H) 
