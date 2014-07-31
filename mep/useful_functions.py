@@ -65,10 +65,25 @@ def pseudo_inverse(MM,num_remov=1):
     eig_vals, eig_vecs = np.linalg.eig(MM) # checked
     #print 'eig_vecs.shape = ',eig_vecs.shape
     sorted_ind = np.argsort(np.absolute(eig_vals))
-    sorted_vecs = eig_vecs[sorted_ind]
-    #print 'eig_vals = \n',eig_vals[sorted_ind]
+    sorted_vecs = eig_vecs[:,sorted_ind]
+    sorted_vals = eig_vals[sorted_ind]
+    #print 'eig_vals = \n',sorted_vals
     #print 'eig vecs = \n',sorted_vecs
-    Z = sorted_vecs[:,0:num_remov] #checked
+    if num_remov==None:
+        Z = None
+        for kk in range(sorted_vals.shape[0]):
+            #print np.min(sorted_vals[kk:])/np.max(sorted_vals[kk:])
+            if np.min(sorted_vals[kk:])/np.max(sorted_vals[kk:])<1.01*10**-4:
+                #print 'removing lambda ',sorted_vals[kk]
+                if Z==None:
+                    Z = sorted_vecs[:,kk]
+                else:
+                    Z = np.hstack((Z,sorted_vecs[:,kk]))
+            else:
+                #print 'broke at lambda ',sorted_vals[kk]
+                break       
+    else:
+        Z = sorted_vecs[:,:num_remov] #checked
     #Z = np.matrix(Z)
     #print 'Z = \n',Z
     PP = projection_matrix(Z) #np.identity(eig_vals.shape[0]) - np.dot(Z,Z.H) #checked by hand

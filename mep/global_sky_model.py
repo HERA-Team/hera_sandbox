@@ -52,13 +52,13 @@ def gsm_degrade_map():
     """
     # http://healpy.readthedocs.org/en/latest/generated/healpy.pixelfunc.ud_grade.html#healpy.pixelfunc.ud_grade
     nside=32
-    healmap = a.map.Map(fromfits='/Users/mpresley/soft/gsm/haslam408.fits')
+    healmap = a.map.Map(fromfits='/Users/mpresley/soft/gsm/data_100MHz_150MHz/hi1001.fits')
     data = healmap.map.map
     data2 = hp.ud_grade(data,nside,order_in='RING',order_out='RING')
     data2 = data2[0:12*nside*nside]
     newmap = a.map.Map()
     newmap.set_map(data2)
-    newmap.to_fits('/Users/mpresley/soft/gsm/haslam408_32.fits',clobber=True)
+    newmap.to_fits('/Users/mpresley/soft/gsm/data_100MHz_150MHz/hi1001_32.fits',clobber=True)
 
 def import_gsm_data(folderpath='/Users/mpresley/soft/gsm/data_100MHz_150MHz/',savedata=True):
     """
