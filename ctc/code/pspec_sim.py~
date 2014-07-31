@@ -1,0 +1,23 @@
+!/usr/bin/env python
+
+"""
+
+NAME: 
+      pspec.py 
+PURPOSE:
+
+EXAMPLE CALL:
+      ./pspec.py 
+AUTHOR:
+      Carina Cheng
+
+"""
+
+import aipy
+import numpy
+import pylab
+import pyfits
+import matplotlib.pyplot as plt
+import optparse
+import os, sys
+
