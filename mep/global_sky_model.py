@@ -34,13 +34,13 @@ def gsm_to_fits(filename):
     heal.map = dat
     heal.to_fits(filename.replace('.dat','.fits'))
 
-def gsm_to_fits_loop(folderpath):
+def gsm_to_fits_loop(folderpath='/Users/mpresley/soft/gsm/data_50MHz_100MHz/'):
     """
     Loops over all .dat files in a folder and runs gsm_to_fits to convert them
     to a .fits file stored in the same location
     """
     for filename in os.listdir(folderpath):
-        if '.dat' in filename:
+        if '.dat' in filename and 'args' not in filename:
             print filename
             gsm_to_fits(os.path.join(folderpath,filename))
 
@@ -52,13 +52,15 @@ def gsm_degrade_map():
     """
     # http://healpy.readthedocs.org/en/latest/generated/healpy.pixelfunc.ud_grade.html#healpy.pixelfunc.ud_grade
     nside=32
-    healmap = a.map.Map(fromfits='/Users/mpresley/soft/gsm/data_100MHz_150MHz/hi1001.fits')
-    data = healmap.map.map
-    data2 = hp.ud_grade(data,nside,order_in='RING',order_out='RING')
-    data2 = data2[0:12*nside*nside]
-    newmap = a.map.Map()
-    newmap.set_map(data2)
-    newmap.to_fits('/Users/mpresley/soft/gsm/data_100MHz_150MHz/hi1001_32.fits',clobber=True)
+    for ii in range(1001,1051):
+        print ii 
+        healmap = a.map.Map(fromfits='/Users/mpresley/soft/gsm/data_50MHz_100MHz/gsm{0}.fits'.format(ii))
+        data = healmap.map.map
+        data2 = hp.ud_grade(data,nside,order_in='RING',order_out='RING')
+        data2 = data2[0:12*nside*nside]
+        newmap = a.map.Map()
+        newmap.set_map(data2)
+        newmap.to_fits('/Users/mpresley/soft/gsm/data_50MHz_100MHz/gsm{0}_32.fits'.format(ii),clobber=True)
 
 def import_gsm_data(folderpath='/Users/mpresley/soft/gsm/data_100MHz_150MHz/',savedata=True):
     """
