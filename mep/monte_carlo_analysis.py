@@ -1,11 +1,6 @@
 import aipy as a, numpy as n, pylab as p
 from scipy.stats import norm
-import capo as C
 import matplotlib as mpl
-import healpy as hp
-import useful_functions as uf
-import global_sky_model as gsm
-import sph_harm_coeffs as shc 
 import Q_gsm_error_analysis as qgea 
 
 """
@@ -14,8 +9,11 @@ are vectors of visibilities, so the number of columns is the number of baselines
 Each row is a different set of visibilities, and each file has 10,000 rows.
 """
 
-global data_loc; data_loc = '/Users/mpresley/Research/Research_Adrian_Aaron/nersc_data'#/matrices'
-gsm_fits_file = '/Users/mpresley/soft/gsm/haslam408_extrap_fq_0.1_32.fits'#'/Users/mpresley/soft/gsm/data_50MHz_100MHz/gsm1001_32.fits'
+# global data_loc; data_loc = '/Users/mpresley/Research/Research_Adrian_Aaron/nersc_data'#/matrices'
+# global gsm_fits_file; gsm_fits_file = '/Users/mpresley/soft/gsm/haslam408_extrap_fq_0.1_32.fits'
+
+global data_loc; data_loc = '/global/scratch2/sd/mpresley/gs_data'
+global gsm_fits_file; gsm_fits_file = '/global/homes/m/mpresley/gs_mpi/general_files/fits_files/haslam408_extrap_fq_0.1_32.fits'
 
 def load_mc_data(mc_mat_loc):#del_bl=4.,num_bl=10,beam_sig=0.09,fq=0.05):
     #mc_mat_loc = '{0}/del_bl_{1:.2f}_num_bl_{2}_beam_sig_{3:.2f}'.format(mc_loc,del_bl,num_bl,beam_sig)
@@ -80,8 +78,37 @@ def construct_gs_hist(del_bl=8.,num_bl=10,beam_sig=0.09,fq=0.1):
     p.savefig('./figures/monte_carlo/{0}.pdf'.format(save_tag))
     p.clf()
 
+def plot_spectrum(del_bl=8.,num_bl=10,beam_sig=0.09):
+    save_tag_base = 'grid_del_bl_{0:.2f}_num_bl_{1}_beam_sig_{2:.2f}'.format(del_bl,num_bl,beam_sig)
+    print save_tag_base
+    mu = n.array([]); sigma = n.array([]); fqs = n.array([])
+    for mc_fold in os.listdir(data_loc):
+        if save_tag_base in mc_fold:
+                ys = load_mc_data('{0}/monte_carlo/{1}'.format(data_loc,mc_fold))
+                fq = float(mc_fold.split('_')[-1])
+                alms_fg = qgea.generate_sky_model_alms(gsm_fits_file,lmax=3)
+                alms_fg = alms_fg[:,2]
+
+                baselines,Q,lms = qgea.load_Q_file(gh='grid',del_bl=del_bl,num_bl=num_bl,beam_sig=beam_sig,fq=fq,lmax=3)
+                N = qgea.total_noise_covar(0.1,baselines.shape[0],'{0}/gsm_matrices/{1}.npz'.format(data_loc,save_tag))
+
+                ahat00s = n.array([])
+                for ii in xrange(ys.shape[0]):
+                    _,ahat,_ = qgea.test_recover_alms(ys[ii,:],Q,N,alms_fg,num_remov=None)
+                    ahat00s = n.append(n.real(ahat[0]),ahat00s)
+                print ahat00s.shape
+                mu0,sigma0 = norm.fit(ahat00s)
+                n.append(mu,mu0); n.append(sigma,sigma0)
+                n.append(fqs,fq)
+    p.errorbar(fqs, mu, yerr=sigma, fmt='o',ecolor='Black')
+    p.title('Mean and sigma of recovered global signal for\n{0}'.format(save_tag_base))
+    p.xlabel('Freq (GHz)')
+    p.ylabel('Recovered a00')
+    p.savefig('/global/homes/m/mpresley/gs_data/mc_spec_figs/{0}.pdf'.format(save_tag_base))
+    p.clf()
+
+
 if __name__=='__main__':
-    for del_bl in (8.,10.,20.):
+    for del_bl in (4.,6.,8.):
         for beam_sig in (0.09,0.17,0.35,0.69,1.05):
-            forground_hist(del_bl=del_bl,beam_sig=beam_sig)
-            construct_gs_hist(del_bl=del_bl,beam_sig=beam_sig)
+            plot_spectrum(del_bl=del_bl,beam_sig=beam_sig)
