@@ -1,8 +1,5 @@
 import aipy as a, numpy as n, pylab as p
-import capo as C
 import useful_functions as uf
-import global_sky_model as gsm
-import sph_harm_coeffs as shc 
 import matplotlib as mpl
 import healpy as hp
 
