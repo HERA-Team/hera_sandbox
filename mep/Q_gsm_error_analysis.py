@@ -1,10 +1,21 @@
 import aipy as a, numpy as n, pylab as p
-import capo as C
 import useful_functions as uf
-import global_sky_model as gsm
-import sph_harm_coeffs as shc 
 import matplotlib as mpl
 import healpy as hp
+
+def load_Q_file(gh='grid',del_bl=4.,num_bl=10,beam_sig=0.09,fq=0.05,lmax=10):
+    if gh=='grid':
+        Q_file = './Q_matrices/grid_del_bl_{0:.2f}_num_bl_{1}_beam_sig_{2:.2f}_Q_max_l_10.npz'.format(del_bl,num_bl,beam_sig)
+    elif gh=='hybrid':
+        Q_file = './Q_matrices/hybrid_del_bl_{0:.2f}_num_bl_{1}_Q_max_l_10.npz'.format(del_bl,num_bl)
+    
+    Qstuff = n.load(Q_file)
+    Q = Qstuff['Q']
+    Q = Q[:,0:(lmax+1)**2]
+    lms = Qstuff['lms']
+    lms = lms[0:(lmax+1)**2,:]
+    baselines = Qstuff['baselines']
+    return baselines,Q,lms 
 
 def total_noise_covar(ninst_sig,num_bl,fg_file):
     Nfg_file = n.load(fg_file)
@@ -206,9 +217,9 @@ def test_recover_alms(y,Q,N,a,num_remov=None):
     # XXX num_removs shouldn't be the same
     W = window_fn_matrix(Q,N,num_remov=num_remov) # W a = < a-hat >
     ahat = return_ahat(y,Q,N,num_remov=num_remov)
-    print "true      gs = {0}\nrecovered gs = {1}".format(a[0],ahat[0])
+    #print "true      gs = {0}\nrecovered gs = {1}".format(a[0],ahat[0])
     err = n.abs(uf.vdot(W,a)-ahat)
-    print 'err = ',err[0] 
+    #print 'err = ',err[0] 
     assert len(ahat.shape)==1
     assert len(err.shape)==1
     return a,ahat,err
@@ -276,7 +287,7 @@ def compare_grids(lmax=3,num_remov=None):
     p.clf()
 
 def compare_hybrid_grids(lmax=3,num_remov=None):
-    fits_file = '/Users/mpresley/soft/gsm/haslam408_32.fits'
+    fits_file = '/Users/mpresley/soft/gsm/haslam408_extrap_fq_0.1_32.fits'
     num_bls = n.array([10,])
     del_bls = n.array([4,6,8,10,20])
     param_grid = n.zeros([len(num_bls),len(del_bls)])#n.meshgrid(beam_sigs,del_bls)
@@ -297,14 +308,18 @@ def compare_hybrid_grids(lmax=3,num_remov=None):
 
             N = total_noise_covar(0.1,num_bl,gsm_file)
             #N = (1.0**2)*n.identity(num_bl)           
-            alms = generate_sky_model_alms(fits_file,lmax=lmax)
-            alms = alms[:,2]
-            #alms = n.zeros((lmax+1)**2,dtype='complex')
-            #alms[0] = 100.; alms[1] = 50.
+            alms_fg = generate_sky_model_alms(fits_file,lmax=lmax)
+            alms_fg = alms_fg[:,2]
+            alms_gs = n.zeros((lmax+1)**2,dtype='complex')
+            alms_gs[0] = 100
+            print 'as ',alms_gs[0],alms_fg[0]
             y = generate_sky_model_y_hybrid(baselines,del_bl,num_bl_side,fits_file)
-            a,ahat,err = test_recover_alms(y,Q,N,alms,num_remov=num_remov)
-            gs_true, gs_recov = a[0],ahat[0]
-            param_grid[ii,jj] = 2*n.real(ahat[0])#n.sum(ahat[1:]) #n.abs((gs_true-n.real(gs_recov))/gs_true)
+            a,ahat_fg,err = test_recover_alms(y,Q,N,alms_fg,num_remov=num_remov)
+            a,ahat_gs,err = test_recover_alms(y,Q,N,alms_gs,num_remov=num_remov)
+            gs_true, gs_recov = a[0],ahat_fg[0]+ahat_gs[0]
+            print 'ahats ',ahat_gs[0], ahat_fg[0]
+            #param_grid[ii,jj] = n.abs(2*n.real(ahat_gs[0]))
+            param_grid[ii,jj] = n.log10(n.abs(2*n.real(ahat_gs[0])/n.real(ahat_fg[0]))) #n.abs((gs_true-n.real(gs_recov))/gs_true)
 
     #print param_grid.shape
     p.imshow(param_grid,interpolation='nearest',aspect='auto',extent=[0,len(del_bls),0,len(num_bls)],cmap='RdBu') #extent=[4,7,0.175,1.1]
@@ -315,11 +330,11 @@ def compare_hybrid_grids(lmax=3,num_remov=None):
     p.xlabel('del baselines')
     p.colorbar()
     #p.show()
-    p.savefig('./figures/compare_hybrid_grids.pdf')
+    p.savefig('./figures/compare_hybrid_grids_ratio.pdf')
     p.clf()
 
 if __name__=='__main__':
-    compare_grids()
+    compare_hybrid_grids()
 
     # Qstuff = n.load('./Q_matrices/grid_del_bl_4.00_num_bl_10_beam_sig_0.09_Q_max_l_10.npz')
     # Q = Qstuff['Q']
