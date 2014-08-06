@@ -26,16 +26,29 @@ def total_noise_covar(ninst_sig,num_bl,fg_file):
     Ntot = Nfg + Ninst 
     return Ntot
 
-def window_fn_matrix(Q,N,num_remov=4):
+def window_fn_matrix(Q,N,num_remov=None,save_tag=False,lms=None):
     Q = n.matrix(Q); N = n.matrix(N)
     Ninv = uf.pseudo_inverse(N,num_remov=None) # XXX want to remove dynamically
     #print Ninv 
     info = n.dot(Q.H,n.dot(Ninv,Q))
     M = uf.pseudo_inverse(info,num_remov=num_remov)
     W = n.dot(M,info)
+
+    if save_tag!=None:
+        foo = W[0,:]
+        foo = n.real(n.array(foo))
+        foo.shape = (foo.shape[1]),
+        print foo.shape
+        p.scatter(lms[:,0],foo,c=lms[:,1],cmap=mpl.cm.PiYG,s=50)
+        p.xlabel('l (color is m)')
+        p.ylabel('W_0,lm')
+        p.title('First Row of Window Function Matrix')
+        p.colorbar()
+        p.savefig('./figures/{0}_W.pdf'.format(save_tag))
+        p.clf()
     return W
 
-def return_ahat(y,Q,N,num_remov=4):
+def return_ahat(y,Q,N,num_remov=None):
     assert len(y.shape)==1
     Q = n.matrix(Q); N = n.matrix(N)
     Ninv = uf.pseudo_inverse(N,num_remov=None) # XXX want to remove dynamically
@@ -49,7 +62,7 @@ def return_ahat(y,Q,N,num_remov=4):
 def error_covariance(Q,N):
     Q = n.matrix(Q)
     N = n.matrix(N)
-    Ninv = uf.pseudo_inverse(N,num_remov=N.shape[0]-5)
+    Ninv = uf.pseudo_inverse(N,num_remov=None)#N.shape[0]-5)
     info = n.dot(Q.H,n.dot(Ninv,Q))
     err_cov = uf.pseudo_inverse(info)
     err_cov = n.array(err_cov)
@@ -334,17 +347,17 @@ def compare_hybrid_grids(lmax=3,num_remov=None):
     p.clf()
 
 if __name__=='__main__':
-    compare_hybrid_grids()
-
-    # Qstuff = n.load('./Q_matrices/grid_del_bl_4.00_num_bl_10_beam_sig_0.09_Q_max_l_10.npz')
-    # Q = Qstuff['Q']
-    # lms = Qstuff['lms']
-    # baselines = Qstuff['baselines']
-    # num_bl = len(baselines)#Q.shape[0]
-    # print 'bl ',num_bl
-    # N = total_noise_covar(0.1,num_bl,'./gsm_matrices/gsm_hybrid_del_bl_0.80_num_bl_7_lgbm_1.0_smbm_0.25.npz')
+    #compare_hybrid_grids()
+    save_tag = 'grid_del_bl_4.00_num_bl_10_beam_sig_0.09'
+    Qstuff = n.load('./Q_matrices/{0}_Q_max_l_10.npz'.format(save_tag))
+    Q = Qstuff['Q']
+    lms = Qstuff['lms']
+    baselines = Qstuff['baselines']
+    num_bl = len(baselines)#Q.shape[0]
+    print 'bl ',num_bl
+    N = total_noise_covar(0.1,num_bl,'./gsm_matrices/{0}_gsm_max_l_10.npz'.format(save_tag))
     # # N = N*(4*n.pi/(3145728)**2)**2
-    # Q_N_plots(Q,N,lms,'grid')
+    W = window_fn_matrix(Q,N,save_tag=save_tag,lms=lms)
     # y = generate_sky_model_y(baselines,1.0,'/Users/mpresley/soft/gsm/haslam408_extrap_fq_0.1_32.fits')
     # print y
     # bl = n.sqrt(baselines[:,0]**2 + baselines[:,1]**2 + baselines[:,2]**2)
