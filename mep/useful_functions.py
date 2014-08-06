@@ -53,7 +53,7 @@ def projection_matrix(Z):
     PP = np.identity(Z.shape[0]) - np.dot(Z,Z.H) #checked by hand
     return PP 
 
-def pseudo_inverse(MM,num_remov=1):
+def pseudo_inverse(MM,num_remov=None):
     """
     Computes a matrix pseudo inverse based on equation A4 in Max Tegmark's 
     1997 paper "How to measure the CMB power spectra without losing information"
@@ -81,7 +81,7 @@ def pseudo_inverse(MM,num_remov=1):
                     Z = np.hstack((Z,sorted_vecs[:,kk]))
             else:
                 #print 'broke at lambda ',sorted_vals[kk]
-                break       
+                break
     else:
         Z = sorted_vecs[:,:num_remov] #checked
     #Z = np.matrix(Z)
