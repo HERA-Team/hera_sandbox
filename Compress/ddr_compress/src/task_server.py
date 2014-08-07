@@ -44,15 +44,29 @@ class Task:
         self.process = self._run()
         self.record_launch()
     def _run(self):
-        logger.info('Task._run: (%s,%d) %s' % (self.task,self.obs,' '.join(['do_%s.sh' % self.task] + self.args)))
-        return subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd,stderr=subprocess.PIPE,stdout=subprocess.PIPE) # XXX d something with stdout stderr
+        logger.info('Task._run: (%s,%d) %s cwd=%s' % (self.task,self.obs,' '.join(['do_%s.sh' % self.task] + self.args),self.cwd))
+        #process= subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd,stderr=subprocess.PIPE,stdout=subprocess.PIPE) # XXX d something with stdout stderr
+        try:
+            process= subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd,stderr=subprocess.PIPE,stdout=subprocess.PIPE)
+        except Exception,e:
+            logger.error('Task._run: (%s,%d) %s error="%s"' % (self.task,self.obs,' '.join(['do_%s.sh' % self.task] + self.args),e))
+        return process
     def poll(self):
         if self.process is None: return None
         else: return self.process.poll()
     def finalize(self):
         #self.proces.wait()
-        stdout,stderr=self.process.communicate()
-        logtext = stdout+'\n'+stderr
+        logger.info('Task.finalize waiting: ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
+        try:
+            stdout,stderr=self.process.communicate()
+            if stderr is None:
+                stderr='<no stderr>'
+            if stdout is None:
+                stdout = '<no stdout>'
+            logtext=stdout + stderr
+        except Exception,e:
+                logger.error(e)
+        logger.info('Task.finalize writing log: ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
         self.dbi.add_log(self.obs,self.task,logtext=logtext,exit_status=self.poll())
         if self.poll(): self.record_failure()
         else: self.record_completion()
