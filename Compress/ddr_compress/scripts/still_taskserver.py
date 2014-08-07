@@ -2,6 +2,9 @@
 import ddr_compress as ddr
 import sys,optparse,os,configparser
 import logging; logging.basicConfig(level=logging.DEBUG)
+import numpy as n
+import affinity,multiprocessing
+affinity.set_process_affinity_mask(0,2**multiprocessing.cpu_count()-1)
 print ddr.__file__
 #DATA_DIR = '/data' # where stills put the data they are working on
 o = optparse.OptionParser()
