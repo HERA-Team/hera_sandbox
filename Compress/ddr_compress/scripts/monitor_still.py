@@ -21,7 +21,7 @@ statusscr = curses.newwin(statheight,400,5,0)
 statusscr.keypad(1)
 statusscr.nodelay(1)
 curline = 2
-colwidth = 50
+colwidth = 40
 obslines = 20
 i=0
 stat = ['\\','|','/','-','.']
