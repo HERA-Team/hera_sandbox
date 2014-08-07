@@ -3,7 +3,7 @@
 Calculate antenna-based corrections to co-align redundant array data.
 """
 
-import aipy as a, numpy as n, capo as C
+import aipy as a, numpy as n, capo
 import pylab
 import sys, optparse, os
 
@@ -28,14 +28,62 @@ o.add_option('--maxiter', type='int', default=10,
 #    help="Choose antenna in zero referenced grid matrix location <row>,<col>. Don't pick bottom row or rightmost column.")
 opts, args = o.parse_args(sys.argv[1:])
 
-uv = a.miriad.UV(args[0])
-aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
-del(uv)
+# PSA-64, JD2455903...
+A_ = [0,16,8,24,4,20,12,28]
+B_ = [i+1 for i in A_]
+C_ = [i+2 for i in A_]
+D_ = [i+3 for i in A_]
+ANTPOS_5903 = n.array([A_, B_, C_, D_])
 
-ANTPOS = aa.ant_layout
-bls,conj = C.red.group_redundant_bls(aa.ant_layout)
+# PSA-128, JD2456240...
+A_ = [49,41,47,19,29,28,34,51]
+B_ = [10, 3,25,48,24,55,27,57]
+C_ = [ 9,58, 1, 4,17,13,56,59]
+D_ = [22,61,35,18, 5,32,30,23]
+E_ = [20,63,42,37,40,14,54,50]
+F_ = [43, 2,33, 6,52, 7,12,38]
+G_ = [53,21,15,16,62,44, 0,26]
+H_ = [31,45, 8,11,36,60,39,46]
+ANTPOS_6240 = n.array([A_, B_, C_, D_,E_,F_,G_,H_])
+
+ANTPOS = ANTPOS_6240
 
 for filename in args:
+    bls = {}
+    conj = {}
+    for ri in range(ANTPOS.shape[0]):
+        for ci in range(ANTPOS.shape[1]):
+            for rj in range(ANTPOS.shape[0]):
+                for cj in range(ci,ANTPOS.shape[1]):
+                    if ri >= rj and ci == cj: continue # exclude repeat +/- listings of certain bls
+                    sep = '%d,%d' % (rj-ri, cj-ci)
+                    bls[sep] = bls.get(sep,[]) + [(ANTPOS[ri,ci],ANTPOS[rj,cj])]
+    for sep in bls.keys():
+        if sep == '0,0' or len(bls[sep]) < 2: del(bls[sep])
+    for sep in bls:
+        conj[sep] = [i>j for i,j in bls[sep]]
+    
+    strbls = {}
+    conj_bl = {}
+    for sep in bls:
+        strbls[sep] = []
+        bl_list = []
+        for (i,j),c in zip(bls[sep],conj[sep]):
+            if c: i,j = j,i
+            #valid = [0,1,2,3,16,17,18,19,8,9,10,11,24,25,26,27,4,5,6,7,20,21,22,23,12,13,14]
+            #valid = [0,1,2,3,16,17,18,19,12,13,14,15,28,29,30,31]
+            #if not i in valid or not j in valid: continue
+            bl_list.append(ij2bl(i,j))
+            strbls[sep].append('%d_%d' % (i,j))
+            conj_bl[ij2bl(i,j)] = c
+        bls[sep] = bl_list
+        strbls[sep] = ','.join(strbls[sep])
+        if opts.verbose: print sep, strbls[sep]
+    
+    uv = a.miriad.UV(sys.argv[-1])
+    fqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
+    del(uv)
+    
     seps = ['0,1','1,1','-1,1'] #+ ['2,1', '-2,1'] + ['0,2','1,2','-1,2']
     #seps = bls.keys()
     strbls = ','.join([strbls[sep] for sep in seps])
@@ -47,7 +95,7 @@ for filename in args:
         print strbls
         print '-'*70
     
-    times, dat, flg = C.arp.get_dict_of_uv_data([filename], strbls, ','.join(pols), verbose=True)
+    times, d, f = capo.arp.get_dict_of_uv_data([filename], strbls, ','.join(pols), verbose=True)
     for bl in d:
         i,j = bl2ij(bl)
         for pol in d[bl]:
@@ -138,7 +186,7 @@ for filename in args:
                     tau0 = (dly0[p][j] - dly0[p][i]) - (dly0[p0][j0] - dly0[p0][i0])
                     print (i,j),(i0,j0), pol, dly0[p][i], dly0[p][j], dly0[p0][i0], dly0[p0][j0]
                 except(KeyError): tau0 = 0
-                g,tau,info = C.arp.redundant_bl_cal(d[cbl][calpol], w[cbl][calpol], d[bl][pol], w[bl][pol],
+                g,tau,info = capo.arp.redundant_bl_cal(d[cbl][calpol], w[cbl][calpol], d[bl][pol], w[bl][pol],
                     fqs, use_offset=False, tau=tau0, maxiter=opts.maxiter)
                 print (i,j),(i0,j0), tau, tau0
                 gain = n.log10(n.median(n.abs(g)))
