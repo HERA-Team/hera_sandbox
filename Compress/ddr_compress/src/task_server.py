@@ -1,6 +1,6 @@
 import SocketServer
 import logging, threading, subprocess, time
-import socket, os
+import socket, os,tempfile
 
 logger = logging.getLogger('taskserver')
 logger.setLevel(logging.DEBUG)
@@ -46,28 +46,35 @@ class Task:
     def _run(self):
         logger.info('Task._run: (%s,%d) %s cwd=%s' % (self.task,self.obs,' '.join(['do_%s.sh' % self.task] + self.args),self.cwd))
         #process= subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd,stderr=subprocess.PIPE,stdout=subprocess.PIPE) # XXX d something with stdout stderr
+        #create a temp file descriptor for stdout and stderr
+        self.OUTFILE = tempfile.TemporaryFile()
         try:
-            process= subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd,stderr=subprocess.PIPE,stdout=subprocess.PIPE)
+            process= subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd,stderr=self.OUTFILE,stdout=self.OUTFILE)
         except Exception,e:
             logger.error('Task._run: (%s,%d) %s error="%s"' % (self.task,self.obs,' '.join(['do_%s.sh' % self.task] + self.args),e))
         return process
     def poll(self):
+        self.OUTFILE.seek(0)
+        logtext = self.OUTFILE.read()
+        if len(logtext)>0:
+            self.dbi.add_log(self.obs,self.task,logtext=logtext,exit_status=self.poll())
+            logger.debug('Task.pol: (%s,%d) adding log characters %d' % (self.task,self.obs,len(logtext)))
         if self.process is None: return None
         else: return self.process.poll()
     def finalize(self):
-        #self.proces.wait()
         logger.info('Task.finalize waiting: ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
-        try:
-            stdout,stderr=self.process.communicate()
-            if stderr is None:
-                stderr='<no stderr>'
-            if stdout is None:
-                stdout = '<no stdout>'
-            logtext=stdout + stderr
-        except Exception,e:
-                logger.error(e)
-        logger.info('Task.finalize writing log: ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
-        self.dbi.add_log(self.obs,self.task,logtext=logtext,exit_status=self.poll())
+        self.proces.wait()
+        #try:
+        #    stdout,stderr=self.process.communicate()
+        #    if stderr is None:
+        #        stderr='<no stderr>'
+        #    if stdout is None:
+        #        stdout = '<no stdout>'
+        #    logtext=stdout + stderr
+        #except Exception,e:
+        #        logger.error(e)
+        #logger.info('Task.finalize writing log: ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
+        #self.dbi.add_log(self.obs,self.task,logtext=logtext,exit_status=self.poll())
         if self.poll(): self.record_failure()
         else: self.record_completion()
     def kill(self):
@@ -79,7 +86,7 @@ class Task:
         self.dbi.set_obs_pid(self.obs, -9)
     def record_completion(self):
         self.dbi.set_obs_status(self.obs, self.task)
-
+        self.dbi.set_obs_pid(self.obs,0)
 class TaskClient:
     def __init__(self, dbi, host, port=STILL_PORT):
         self.dbi = dbi
@@ -194,7 +201,7 @@ class TaskServer(SocketServer.UDPServer):
         self.active_tasks_semaphore.acquire()
         self.active_tasks.append(t)
         self.active_tasks_semaphore.release()
-    def finalize_tasks(self, poll_interval=.5):
+    def finalize_tasks(self, poll_interval=5.):
         while self.is_running:
             self.active_tasks_semaphore.acquire()
             new_active_tasks = []
