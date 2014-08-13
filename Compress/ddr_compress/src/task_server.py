@@ -48,22 +48,29 @@ class Task:
         #process= subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd,stderr=subprocess.PIPE,stdout=subprocess.PIPE) # XXX d something with stdout stderr
         #create a temp file descriptor for stdout and stderr
         self.OUTFILE = tempfile.TemporaryFile()
+        self.outfile_counter = 0
         try:
             process= subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd,stderr=self.OUTFILE,stdout=self.OUTFILE)
         except Exception,e:
             logger.error('Task._run: (%s,%d) %s error="%s"' % (self.task,self.obs,' '.join(['do_%s.sh' % self.task] + self.args),e))
         return process
     def poll(self):
-        self.OUTFILE.seek(0)
+        logger.debug('Task.pol: (%s,%d)  reading to log position %d'%(self.task,self.obs,self.outfile_counter))
+        self.OUTFILE.seek(self.outfile_counter)
         logtext = self.OUTFILE.read()
-        if len(logtext)>0:
-            self.dbi.add_log(self.obs,self.task,logtext=logtext,exit_status=self.poll())
-            logger.debug('Task.pol: (%s,%d) adding log characters %d' % (self.task,self.obs,len(logtext)))
+        logger.debug('Task.pol: (%s,%d) found %d log characters' % (self.task,self.obs,len(logtext)))
+        if len(logtext)>self.outfile_counter:
+            logger.debug('Task.pol: (%s,%d) adding log' % (self.task,self.obs))
+            logger.debug('Task.pol: ({task},{obsnum}) adding log process={exit_status}' .format(task=self.task,obsnum=self.obs,exit_status=self.process.poll()))
+            self.dbi.add_log(self.obs,self.task,logtext=logtext,exit_status=self.process.poll())
+            self.outfile_counter += len(logtext)
+            logger.debug('Task.pol: (%s,%d) setting next log position to %d' % (self.task,self.obs,self.outfile_counter))
+        logger.debug('Task.pol: (%s,%d) post log addition' % (self.task,self.obs))
         if self.process is None: return None
         else: return self.process.poll()
     def finalize(self):
         logger.info('Task.finalize waiting: ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
-        self.proces.wait()
+        self.process.communicate()
         #try:
         #    stdout,stderr=self.process.communicate()
         #    if stderr is None:
@@ -75,6 +82,7 @@ class Task:
         #        logger.error(e)
         #logger.info('Task.finalize writing log: ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
         #self.dbi.add_log(self.obs,self.task,logtext=logtext,exit_status=self.poll())
+        logger.debug('Task.finalize almost finished: ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
         if self.poll(): self.record_failure()
         else: self.record_completion()
     def kill(self):
@@ -223,6 +231,7 @@ class TaskServer(SocketServer.UDPServer):
         t = threading.Thread(target=self.finalize_tasks)
         t.start()
         logger.debug('this is scheduler.py')
+        logger.debug("using code at: "+__file__)
         try:
             self.serve_forever()
         finally:
