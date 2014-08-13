@@ -10,7 +10,6 @@
 #                    placed in /etc/init.d.
 ### END INIT INFO
 RETVAL=0;
-export PYTHONPATH=/home/obs/lib/python2.7/site-packages/
 start() {
 echo Starting: still_task_server
 start-stop-daemon --start -m --pidfile=/var/run/still_taskserver.pid -c obs:obs  -b \
