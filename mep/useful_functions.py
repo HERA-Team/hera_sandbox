@@ -112,6 +112,22 @@ def pseudo_inverse(MM,num_remov=None):
     return MM_inv
 
 
+def invertible_matrix(num):
+    """
+    generates an invertible matrix 
+    """
+    vecs = np.random.random((num,num))*100 # note a randomly generated matrix will have full rank with probability 1
+    eig_vals = np.random.random(num)*10 # positive eigenvalues
+    #print 'eig_vals ',eig_vals
+    matrix = np.zeros((num,num))
+    for ii in range(num):
+        v = vecs[:,ii]
+        #print np.sum((v/np.sqrt(np.sum(v*v)))**2)
+        matrix += eig_vals[ii]*np.dot(v.reshape((v.shape[0],1)),v.reshape((1,v.shape[0])))/np.sum(v*v)
+    #print np.linalg.eig(matrix)[0]
+    return matrix 
+
+
 #  _____ _ _   _   _             
 # |  ___(_) |_| |_(_)_ __   __ _ 
 # | |_  | | __| __| | '_ \ / _` |
@@ -134,7 +150,6 @@ def general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar,pseudo=False):
     else: AAinv = AA.I
     params = AAinv*Q.H*Ninv*np.matrix(ydata) # params should be 1 by nparam
     return np.array(params), np.array(AAinv)
-
 
 def line_thru_origin_lstsq_fit_with_err(xdata,ydata,noiseCovar):
     xdata = np.array(xdata)
