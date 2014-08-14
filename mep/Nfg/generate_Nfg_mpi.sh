@@ -2,8 +2,8 @@
 #PBS -S /bin/bash
 #PBS -N generate_Nfg_mpi
 #PBS -j eo
-#PBS -l mppwidth=24,walltime=01:30:00
-#PBS -q regular
+#PBS -l mppwidth=24,walltime=00:20:00
+#PBS -q debug
 #PBS -A m1871
 
 module swap PrgEnv-pgi PrgEnv-gnu
@@ -15,8 +15,8 @@ module load matplotlib
 module list
 
 #nside=8
-nside=32
-nlmax=200
+nside=32 #healpix nside
+nlmax=200 
 ClFname="Cl_silly.dat"
 #templateFname="template_small.dat"
 templateFname="template.dat"
@@ -24,11 +24,12 @@ KfgFname="Kfg.npy"
 GmatrixFname="Gmatrix.npy"
 calFile="basic_amp_aa"
 numAnts=8
-freq=100 # in MHz
+#freq=100 # in MHz 
+del_bl = 4.
 beamSig=0.3 # in radians
 NfgFname="Nfg.npy"
 
-cd $GSCRATCH/GlobalSignalInterferometer/Nfg
+cd /global/homes/m/mpresley/soft/capo/mep/Nfg
 
 #gfortran generate_Kfg.f90 -o generate_Kfg.x -O3
 #mpif90 generate_Kfg_mpi.f90 -o generate_Kfg_mpi.x -O3
@@ -49,7 +50,7 @@ echo "Forming the foreground covariance matrix in image space..."
 time aprun -n 24 -N 24 ./generate_Kfg_mpi.x args.dat
 time python raw2npy.py Kfg.raw $KfgFname
 echo "Forming the instrumental response matrices..."
-time python generate_G.py $calFile $numAnts $nside $freq $beamSig $GmatrixFname
+time python generate_G.py $calFile $numAnts $nside $del_bl $beamSig $GmatrixFname
 echo "Multiplying matrices together..."
 time python sandwich.py $nside $KfgFname $GmatrixFname $NfgFname
 echo "Done!"

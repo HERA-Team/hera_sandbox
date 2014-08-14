@@ -24,8 +24,10 @@ if __name__=='__main__':
     Kmatrix = vect2sq(npix,Kvect)
 
     print "Doing first multiplication..."
-    GKmatrix = np.einsum('ij,jk',Gmatrix,Kmatrix)
+    GKmatrix = np.einsum('ijm,jk',Gmatrix,Kmatrix)
     print "Doing second multiplication..."
-    GKGdagger = np.einsum('ij,jk',GKmatrix,np.conj(Gmatrix.T))
+    GKGdagger = np.einsum('ijm,jk',GKmatrix,np.conj(Gmatrix.T))
 
     np.save(outputFname,GKGdagger)
+    for ii,fq in enumerate(fqs):
+        n.savez_compressed('{0}_fq_{1}'.format(outputFname,fq),matrix=GKGdagger[:,:,ii])
