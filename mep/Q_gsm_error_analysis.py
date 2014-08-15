@@ -5,9 +5,9 @@ import healpy as hp
 
 def load_Q_file(gh='grid',del_bl=4.,num_bl=10,beam_sig=0.09,fq=0.05,lmax=10):
     if gh=='grid':
-        Q_file = './Q_matrices/grid_del_bl_{0:.2f}_num_bl_{1}_beam_sig_{2:.2f}_Q_max_l_10.npz'.format(del_bl,num_bl,beam_sig)
+        Q_file = '{0}/Q_matrices/Q_grid_del_bl_{1:.2f}_num_bl_{2}_beam_sig_{3:.2f}_fq_{4:.3f}.npz'.format(data_loc,del_bl,num_bl,beam_sig,fq)
     elif gh=='hybrid':
-        Q_file = './Q_matrices/hybrid_del_bl_{0:.2f}_num_bl_{1}_Q_max_l_10.npz'.format(del_bl,num_bl)
+        Q_file = '{0}/Q_matrices/Q_hybrid_del_bl_{1:.2f}_num_bl_{2}_fq_{3:.3f}.npz'.format(data_loc,del_bl,num_bl,fq)
     
     Qstuff = n.load(Q_file)
     Q = Qstuff['Q']
@@ -26,7 +26,7 @@ def total_noise_covar(ninst_sig,num_bl,fg_file):
     Ntot = Nfg + Ninst 
     return Ntot
 
-def window_fn_matrix(Q,N,num_remov=None,save_tag=False,lms=None):
+def window_fn_matrix(Q,N,num_remov=None,save_tag=None,lms=None):
     Q = n.matrix(Q); N = n.matrix(N)
     Ninv = uf.pseudo_inverse(N,num_remov=None) # XXX want to remove dynamically
     #print Ninv 
@@ -52,9 +52,9 @@ def return_ahat(y,Q,N,num_remov=None):
     assert len(y.shape)==1
     Q = n.matrix(Q); N = n.matrix(N)
     Ninv = uf.pseudo_inverse(N,num_remov=None) # XXX want to remove dynamically
-    #print Ninv 
     info = n.dot(Q.H,n.dot(Ninv,Q))
     M = uf.pseudo_inverse(info,num_remov=num_remov)
+    #print Ninv.shape, y.shape
     ahat = uf.vdot(M,uf.vdot(Q.H,uf.vdot(Ninv,y)))
     assert len(ahat.shape)==1
     return ahat 
