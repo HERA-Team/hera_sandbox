@@ -6,11 +6,22 @@ import matplotlib as mpl
 def gaussian_model((A,nu0,sigma),nuvec):
     return -A*n.exp(-(nuvec-nu0)**2/sigma**2/2.)
 
+def tanh_model((T21,zr,delta_z),nuvec):
+    zvec = (1420./nuvec) - 1
+    return (T21/2.)*n.sqrt((1+zvec)/10.)*(n.tanh((zvec-zr)/delta_z)-1.)
+
 def gaussian_model_derivs((A,nu0,sigma),nuvec):
     Aderiv = -n.exp(-0.5*(nuvec-nu0)**2/sigma**2)
     nu0deriv = (A/sigma**2)*(nuvec-nu0)*n.exp(-0.5*(nuvec-nu0)**2/sigma**2)
     sigderiv = (A/sigma**3)*(nuvec-nu0)**2*n.exp(-0.5*(nuvec-nu0)**2/sigma**2)
     return Aderiv, nu0deriv, sigderiv
+
+def tanh_model_derivs((T21,zr,delta_z),nuvec):
+    zvec = (1420./nuvec) - 1
+    T21deriv = 0.5*n.sqrt((1.+zvec)/10.)*(n.tanh((zvec-zr)/delta_z)-1.)
+    zrderiv = -(T21/2.)*n.sqrt((1.+zvec)/10.)/(delta_z*n.cosh((zvec-zr)/delta_z)**2)
+    delta_z = -(T21/2.)*n.sqrt((1.+zvec)/10.)*(zvec-zr)/(delta_z*n.cosh((zvec-zr)/delta_z))**2
+    return T21deriv,zrderiv,delta_z
 
 def compute_bias((A,nu0,sigma),nuvec,Cinv,expBias):
     bias = n.zeros(3)
