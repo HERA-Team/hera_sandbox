@@ -39,7 +39,8 @@ if __name__=='__main__':
 #    fqs = float(sys.argv[4]) / 1000.
     del_bl = float(sys.argv[4])
     beamSig = float(sys.argv[5])
-    outputFname = sys.argv[6]
+    dataFolder = sys.argv[6]
+    outputFname = sys.argv[7]
 
     baselines = get_bls(del_bl,na)#calfile,na=na,freqs=np.array([freq,]))
     numBl = len(baselines)
@@ -61,4 +62,4 @@ if __name__=='__main__':
         Gmatrix[:,j,:] *= beamVal
     Gmatrix *= dOmega
     
-    np.save(outputFname,Gmatrix)
+    np.save(outputFname,'{0}/{1}'.format(DataFolder,Gmatrix))
