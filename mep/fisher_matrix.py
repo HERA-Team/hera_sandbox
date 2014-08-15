@@ -12,6 +12,15 @@ def gaussian_model_derivs((A,nu0,sigma),nuvec):
     sigderiv = (A/sigma**3)*(nuvec-nu0)**2*n.exp(-0.5*(nuvec-nu0)**2/sigma**2)
     return Aderiv, nu0deriv, sigderiv
 
+def compute_bias((A,nu0,sigma),nuvec,Cinv,expBias):
+    bias = n.zeros(3)
+    derivs = gaussian_model_derivs((A,nu0,sigma),nuvec)
+    Finv = n.linalg.inv(fisher_matrix((A,nu0,sigma),nuvec,Cinv))
+    for ii in range(3):
+        bias[ii] = n.dot(derivs[ii],n.dot(Cinv,expBias))
+    bias = n.dot(Finv,bias)
+    return bias
+
 def fisher_matrix((A,nu0,sigma),nuvec,Cinv):
     fisher = n.zeros((3,3))
     derivs = gaussian_model_derivs((A,nu0,sigma),nuvec)
@@ -32,7 +41,7 @@ def fisher_select_pair(F,si,sj):
     Fnew = n.linalg.inv(Finv) #uf.pseudo_inverse(Finv)
     return Fnew 
 
-def plot_pairwise_contours(theta,nuvec,Cinv,lvls=(2.291,6.158,11.618)):
+def plot_pairwise_contours(theta,nuvec,Cinv,lvls=(-2.291,-6.158,-11.618)):
     """
     > theta is a (3,) vector that contains the model parameters
     > thetavecs is a (n,3) matrix that contains the values of the parameters 
@@ -41,21 +50,24 @@ def plot_pairwise_contours(theta,nuvec,Cinv,lvls=(2.291,6.158,11.618)):
     labels = ['A','nu0','sigma']
     fisher = fisher_matrix(theta,nuvec,Cinv)
     Finv = n.linalg.inv(fisher)
+    print "F-inverse"
+    print Finv
     thetavecs = n.zeros((50,theta.shape[0]))
     for ii in range(theta.shape[0]):
         thetavecs[:,ii] = n.linspace(theta[ii]-5*n.sqrt(Finv[ii,ii]),theta[ii]+5*n.sqrt(Finv[ii,ii]),num=50)
-    print thetavecs
+    #print thetavecs
     for ii,jj in ((0,1),(0,2),(1,2)):
         print ii,jj
         ts = thetavecs[:,[ii,jj]]
-        print thetavecs.shape
-        print ts.shape
+        #print thetavecs.shape
+        #print ts.shape
         fs = fisher_select_pair(fisher,ii,jj)
-        print fs.shape
+        #print fs.shape
         t0,t1 = n.meshgrid(ts[:,0],ts[:,1])
-        print t0.shape
+        #print t0.shape
 
         Z = fs[0,0]*(t0-theta[ii])*(t0-theta[ii]) + (fs[0,1]+fs[1,0])*(t0-theta[ii])*(t1-theta[jj]) + fs[1,1]*(t1-theta[jj])*(t1-theta[jj])
+        Z *= -1
 
         p.pcolor(t0,t1,Z)
         p.colorbar()
