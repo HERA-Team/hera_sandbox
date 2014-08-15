@@ -88,19 +88,24 @@ def forground_hist(del_bl=8.,num_bl=10,beam_sig=0.09,fq=0.1):
     p.clf()
 
 def construct_gs_hist(del_bl=8.,num_bl=10,beam_sig=0.09,fq=0.1):
-    save_tag = 'grid_del_bl_{0:.2f}_num_bl_{1}_beam_sig_{2:.2f}_fq_{3:.2f}'.format(del_bl,num_bl,beam_sig,fq)
-    ys = load_mc_data('{0}/monte_carlo/{1}'.format(data_loc,save_tag))
+    save_tag = 'grid_del_bl_{0:.2f}_num_bl_{1}_beam_sig_{2:.2f}_fq_{3:.3f}'.format(del_bl,num_bl,beam_sig,fq)
+    save_tag_mc = 'grid_del_bl_{0:.2f}_num_bl_{1}_beam_sig_{2:.2f}_fq_{3}'.format(del_bl,num_bl,beam_sig,fq)
+    ys = load_mc_data('{0}/monte_carlo/{1}'.format(data_loc,save_tag_mc))
+    print 'ys ',ys.shape
     
     alms_fg = qgea.generate_sky_model_alms(gsm_fits_file,lmax=3)
     alms_fg = alms_fg[:,2]
 
-    baselines,Q,lms = qgea.load_Q_file(gh='grid',del_bl=del_bl,num_bl=num_bl,beam_sig=beam_sig,fq=fq,lmax=3)
-    N = qgea.total_noise_covar(0.1,baselines.shape[0],'{0}/gsm_matrices/{1}.npz'.format(data_loc,save_tag))
-
+    baselines,Q,lms = load_Q_file(gh='grid',del_bl=del_bl,num_bl=num_bl,beam_sig=beam_sig,fq=fq,lmax=3)
+    N = total_noise_covar(0.1,baselines.shape[0],'{0}/gsm_matrices/gsm_{1}.npz'.format(data_loc,save_tag))
+    MQN = return_MQdagNinv(Q,N,num_remov=None)
+    print Q  
     ahat00s = n.array([])
-    for ii in xrange(ys.shape[0]):
-        _,ahat,_ = qgea.test_recover_alms(ys[ii,:],Q,N,alms_fg,num_remov=None)
+    for ii in xrange(ys.shape[1]):
+#        _,ahat,_ = qgea.test_recover_alms(ys[:,ii],Q,N,alms_fg,num_remov=None)
+        ahat = uf.vdot(MQN,ys[:,ii])
         ahat00s = n.append(n.real(ahat[0]),ahat00s)
+    #print ahat00s
     print ahat00s.shape
     _,bins,_ = p.hist(ahat00s,bins=36,normed=True)
 
@@ -113,7 +118,7 @@ def construct_gs_hist(del_bl=8.,num_bl=10,beam_sig=0.09,fq=0.1):
     p.xlabel('ahat_00')
     p.ylabel('Probability')
     p.title(save_tag)
-    p.annotate('mu = {0:.2f}\nsigma = {1:.2f}'.format(mu,sigma), xy=(0.05, 0.95), xycoords='axes fraction')
+    p.annotate('mu = {0:.2f}\nsigma = {1:.2f}'.format(mu,sigma), xy=(0.05, 0.5), xycoords='axes fraction')
     p.savefig('./figures/monte_carlo/{0}.pdf'.format(save_tag))
     p.clf()
 
@@ -135,10 +140,17 @@ def construct_covar(del_bl=8.,num_bl=10,beam_sig=0.09,savea00=True):
     ahat00_avgs = n.mean(ahat_mat,axis=1) 
     covar = n.zeros((ahat_mat.shape[0],ahat_mat.shape[0]))
     for ii in range(ahat_mat.shape[0]):
-        for jj in range(ii):
+        for jj in range(ii+1):
             covar[ii,jj] = covar[jj,ii] = n.mean(ahat_mat[ii,:]*ahat_mat[jj,:]) - ahat00_avgs[ii]*ahat00_avgs[jj]
     return covar, fqs 
 
+def plot_covar(del_bl=8.,beam_sig=0.09,save_covar=True):
+    covar,fqs = construct_covar(del_bl=del_bl,beam_sig=beam_sig)
+    #print covar 
+    p.pcolor(fqs,fqs,covar)
+    p.colorbar()
+    p.savefig('{0}/{1}_covar.pdf'.format(fig_loc,save_tag_base))
+    if save_covar: n.savez_compressed('{0}/monte_carlo/spectrum_data/{1}_covar'.format(data_loc,save_tag_base),covar=covar,fqs=fqs)
 
 def plot_spectrum(del_bl=8.,num_bl=10,beam_sig=0.09,savea00=True):
     save_tag_base = 'grid_del_bl_{0:.2f}_num_bl_{1}_beam_sig_{2:.2f}'.format(del_bl,num_bl,beam_sig)
@@ -154,7 +166,7 @@ def plot_spectrum(del_bl=8.,num_bl=10,beam_sig=0.09,savea00=True):
             baselines,Q,lms = load_Q_file(gh='grid',del_bl=del_bl,num_bl=num_bl,beam_sig=beam_sig,fq=fq,lmax=3)
             N = total_noise_covar(0.1,baselines.shape[0],'{0}/gsm_matrices/gsm_{1}_fq_{2:.3f}.npz'.format(data_loc,save_tag_base,fq))
             MQN = return_MQdagNinv(Q,N,num_remov=None)
-
+            if fq==0.06: print Q
             alms_fg = qgea.generate_sky_model_alms(gsm_fits_file,lmax=3)
             alms_fg = alms_fg[:,2]
             ahat00s = n.array([])
@@ -167,12 +179,13 @@ def plot_spectrum(del_bl=8.,num_bl=10,beam_sig=0.09,savea00=True):
             mu0,sigma0 = norm.fit(ahat00s)
             mu = n.append(mu,mu0); sigma = n.append(sigma,sigma0)
             fqs = n.append(fqs,fq); nums = n.append(nums,ys.shape[0])
-            print fqs
+            print fq
+            #if fq==0.06: print ahat00s 
             if savea00: n.savez_compressed('{0}/monte_carlo/{1}/ahat00s'.format(data_loc,mc_fold),ahat00s=ahat00s)
     p.errorbar(fqs, mu, yerr=sigma, fmt='o',ecolor='Black')#,c=nums,cmap=mpl.cm.copper_r)
     p.title('Mean and sigma of recovered global signal for\n{0}'.format(save_tag_base))
     p.xlim([min(fqs),max(fqs)])
-    p.ylim([-1500.,0.0])
+    #p.ylim([-1500.,0.0])
     p.xlabel('Freq (GHz)')
     p.ylabel('Recovered a00')
     p.savefig('{0}/{1}.pdf'.format(fig_loc,save_tag_base))
@@ -182,10 +195,8 @@ if __name__=='__main__':
     for del_bl in (4.,):#6.,8.):
         for beam_sig in (0.09,):#0.17,0.35,0.69,1.05):
             num_bl = 10
-            save_tag_base = 'grid_del_bl_{0:.2f}_num_bl_{1}_beam_sig_{2:.2f}'.format(del_bl,num_bl,beam_sig)
-            #plot_spectrum(del_bl=del_bl,beam_sig=beam_sig)
-            covar,fqs = construct_covar(del_bl=del_bl,beam_sig=beam_sig)
-            p.pcolor(fqs,fqs,covar)
-            p.colorbar()
-            p.savefig('{0}/{1}_covar.pdf'.format(fig_loc,save_tag_base))
-            n.savez_compressed('{0}/monte_carlo/spectrum_data/{1}_covar'.format(data_loc,save_tag_base),covar=covar,fqs=fqs)
+            # save_tag_base = 'grid_del_bl_{0:.2f}_num_bl_{1}_beam_sig_{2:.2f}'.format(del_bl,num_bl,beam_sig)
+            plot_spectrum(del_bl=del_bl,num_bl=num_bl,beam_sig=beam_sig)
+            for fq in (0.06,0.09,0.074):
+                construct_gs_hist(del_bl=del_bl,num_bl=num_bl,beam_sig=beam_sig,fq=fq)
+            
