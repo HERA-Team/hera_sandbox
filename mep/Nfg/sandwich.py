@@ -13,6 +13,7 @@ def vect2sq(n,vect):
     return sq
 
 if __name__=='__main__':
+    print "I live!"
     nside = int(sys.argv[1])
     npix = 12 * nside * nside
     KvectFname = sys.argv[2]
@@ -21,6 +22,7 @@ if __name__=='__main__':
     outputFname = sys.argv[5]
 
     Gmatrix = np.load('{0}/{1}.npz'.format(DataFolder,GmatrixFname))
+    Gmatrix = Gmatrix['arr_0']
     print 'Gmatrix loaded...'
     Kvect = np.load(KvectFname)
     print 'Kvect loaded...'
