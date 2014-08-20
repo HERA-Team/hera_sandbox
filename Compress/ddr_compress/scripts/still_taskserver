@@ -1,0 +1,53 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides:          still_taskserver
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Example initscript
+# Description:       This file should be used to construct scripts to be
+#                    placed in /etc/init.d.
+### END INIT INFO
+RETVAL=0;
+start() {
+echo Starting: still_task_server
+start-stop-daemon --start -m --pidfile=/var/run/still_taskserver.pid -c obs:obs  -b \
+ --exec /usr/local/bin/still_taskserver.py --  --logfile=/var/log/still/still_taskserver.log
+#    --exec /bin/bash -- -c "/home/obs/bin/still_taskserver.py /data/ &> /data/still_taskserver.log"
+    #--exec /bin/bash -- -c "echo `date` &> /data/wtf.log"
+    #--exec /home/obs/keepalive.sh
+}
+
+stop() {
+echo Stopping: still_task_server
+start-stop-daemon --stop  --pidfile=/var/run/still_taskserver.pid still_taskserver.py
+}
+
+restart() {
+stop
+start
+}
+
+status(){
+pgrep -lf still_taskserver.py
+}
+
+
+case $1 in
+start)
+  start 
+;;
+stop)
+  stop
+;;
+restart)
+  restart
+;;
+status)
+    status
+;;
+*)
+  echo "Usage: $0 {start|stop|restart}"
+;;
+esac

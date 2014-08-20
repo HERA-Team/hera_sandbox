@@ -20,6 +20,8 @@ o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 o.add_option('--gain', type='float', default=.3,
     help='gain parameter in approximation. .3 for 32, .1 for 64')
+o.add_option('--usebls', action='store_true',
+    help='use the baselines give in the command line. Default is use all of the given separations.')
 o.add_option('--output', type='string', default='',
     help='output directory for pspec_boot files (default "")')
 opts,args = o.parse_args(sys.argv[1:])
@@ -147,11 +149,55 @@ if False: #turning off the auto sep selection in preperation for deletion
         sys.stdout.flush()
     #WARNING: The default is to do _all_ seps in the data.
 
+# Get a dict of all separations and the bls that contribute.0000
+#creates a dictionary of separations given a certain baseline
+#and vice versa, gives baselines for a given separation (returns list).
+bl2sep = {}
+sep2bl = {}
+for ri in range(ANTPOS.shape[0]):
+    for ci in range(ANTPOS.shape[1]):
+        for rj in range(ANTPOS.shape[0]):
+            for cj in range(ci,ANTPOS.shape[1]):
+                if ri >= rj and ci == cj: continue # exclude repeat +/- listings of certain bls
+                #sep = a.miriad.ij2bl(rj-ri, cj-ci)
+                sep = (cj-ci, rj-ri) #(dx,dy) in row spacing units
+                i,j = ANTPOS[ri,ci], ANTPOS[rj,cj]
+                bl = a.miriad.ij2bl(i,j)
+                if i > j: 
+                    i,j = j,i
+                    sep = (sep[0]*-1,sep[1]*-1)
+                bl2sep[bl] = sep
+                sep2bl[sep] = sep2bl.get(sep,[]) + [bl]
+#choose unit seperations corresponding to the bls I put in.
 
-    #checking that our grid indexing is working
-    print [a.miriad.bl2ij(bl) for bl in sep2bl[(1,0)]]
-    print len(sep2bl[(0,1)])
-    sys.stdout.flush()
+if not opts.usebls:
+    if len(opts.ant.split('_'))>1: #if there are baselines requested
+        #get a list of miriad format bl ints
+        input_bls = [a.miriad.ij2bl(int(l.split('_')[0]),int(l.split('_')[1])) for l in opts.ant.split(',')]
+        print input_bls
+        myseps = list(set([bl2sep[bl] for bl in input_bls]))#get a list of the seps, one entry per 
+        print "based on input baselines, I am including the following seperations"
+        print myseps
+        mybls = []
+        for sep in myseps:
+            mybls += sep2bl[sep]
+            revsep = (-sep[0],-sep[1])
+            mybls += sep2bl[revsep] #don't forget the reverse seps. they count as the same!
+        print "found %d baselines"%len(mybls)
+        opts.ant = ','.join([miriadbl2str(bl) for bl in mybls])
+        print opts.ant
+#WARNING: The default is to do _all_ seps in the data.
+
+else:
+    print 'Using the following baselines'
+    print opts.ant.split(',')
+    print 'There are %d of them'%len(opts.ant.split(','))
+
+
+#checking that our grid indexing is working
+print [a.miriad.bl2ij(bl) for bl in sep2bl[(1,0)]]
+print len(sep2bl[(0,1)])
+
 uv = a.miriad.UV(args[0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']

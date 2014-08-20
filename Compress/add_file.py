@@ -4,7 +4,6 @@ Add a row to pdb.files. Exits with 1 if a bogus host is used. Exits with 2 if th
 """
 
 from PDB import *
-from socket import gethostname
 import optparse
 import re
 import sys
@@ -22,17 +21,18 @@ infile  = opts.infile
 outfile = args[0]
 
 if not pdb.has_record('hosts', hostname):
+    print 'host not in pdb.hosts'
     sys.exit(1)
 if not pdb.has_record('files',infile):
+    print 'bogus file: %s'%infile
     sys.exit(1)
 
 filecols = {}
 filecols['JD'] = file2jd(outfile)
 filecols['filename'] = outfile
 filecols['host'] = hostname
-print pdb.get('basefile','files','filename',infile)
 filecols['basefile'] = pdb.get('basefile','files','filename',infile)[0][0]
-filecols['md5'] = __import__('hashlib').md5(outfile).hexdigest()
+filecols['md5'] = md5sum(outfile)
 filecols['last_modified']="NOW()"
 
 insuffix  =  infile.split('.')[-1]

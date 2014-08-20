@@ -1,4 +1,6 @@
-import aipy as a, numpy as n, sys,atpy
+import aipy as a, numpy as n, sys
+try: import atpy
+except(ImportError): pass
 import numpy as np
 """
 Codes from danny

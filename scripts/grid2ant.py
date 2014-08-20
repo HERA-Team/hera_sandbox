@@ -1,4 +1,6 @@
 #! /usr/bin/env python
+import matplotlib
+matplotlib.use('Agg')
 from capo.dfm import grid2ij
 import optparse,sys
 import aipy as a,numpy as  n
