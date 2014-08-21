@@ -53,7 +53,7 @@ def projection_matrix(Z):
     PP = np.identity(Z.shape[0]) - np.dot(Z,Z.H) #checked by hand
     return PP 
 
-def pseudo_inverse(MM,num_remov=1):
+def pseudo_inverse(MM,num_remov=None):
     """
     Computes a matrix pseudo inverse based on equation A4 in Max Tegmark's 
     1997 paper "How to measure the CMB power spectra without losing information"
@@ -65,10 +65,25 @@ def pseudo_inverse(MM,num_remov=1):
     eig_vals, eig_vecs = np.linalg.eig(MM) # checked
     #print 'eig_vecs.shape = ',eig_vecs.shape
     sorted_ind = np.argsort(np.absolute(eig_vals))
-    sorted_vecs = eig_vecs[sorted_ind]
-    #print 'eig_vals = \n',eig_vals[sorted_ind]
+    sorted_vecs = eig_vecs[:,sorted_ind]
+    sorted_vals = eig_vals[sorted_ind]
+    #print 'eig_vals = \n',sorted_vals
     #print 'eig vecs = \n',sorted_vecs
-    Z = sorted_vecs[:,0:num_remov] #checked
+    if num_remov==None:
+        Z = None
+        for kk in range(sorted_vals.shape[0]):
+            #print np.min(sorted_vals[kk:])/np.max(sorted_vals[kk:])
+            if np.min(sorted_vals[kk:])/np.max(sorted_vals[kk:])<1.01*10**-4:
+                #print 'removing lambda ',sorted_vals[kk]
+                if Z==None:
+                    Z = sorted_vecs[:,kk]
+                else:
+                    Z = np.hstack((Z,sorted_vecs[:,kk]))
+            else:
+                #print 'broke at lambda ',sorted_vals[kk]
+                break
+    else:
+        Z = sorted_vecs[:,:num_remov] #checked
     #Z = np.matrix(Z)
     #print 'Z = \n',Z
     PP = projection_matrix(Z) #np.identity(eig_vals.shape[0]) - np.dot(Z,Z.H) #checked by hand
@@ -97,6 +112,22 @@ def pseudo_inverse(MM,num_remov=1):
     return MM_inv
 
 
+def invertible_matrix(num):
+    """
+    generates an invertible matrix 
+    """
+    vecs = np.random.random((num,num))*100 # note a randomly generated matrix will have full rank with probability 1
+    eig_vals = np.random.random(num)*10 # positive eigenvalues
+    #print 'eig_vals ',eig_vals
+    matrix = np.zeros((num,num))
+    for ii in range(num):
+        v = vecs[:,ii]
+        #print np.sum((v/np.sqrt(np.sum(v*v)))**2)
+        matrix += eig_vals[ii]*np.dot(v.reshape((v.shape[0],1)),v.reshape((1,v.shape[0])))/np.sum(v*v)
+    #print np.linalg.eig(matrix)[0]
+    return matrix 
+
+
 #  _____ _ _   _   _             
 # |  ___(_) |_| |_(_)_ __   __ _ 
 # | |_  | | __| __| | '_ \ / _` |
@@ -119,7 +150,6 @@ def general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar,pseudo=False):
     else: AAinv = AA.I
     params = AAinv*Q.H*Ninv*np.matrix(ydata) # params should be 1 by nparam
     return np.array(params), np.array(AAinv)
-
 
 def line_thru_origin_lstsq_fit_with_err(xdata,ydata,noiseCovar):
     xdata = np.array(xdata)
