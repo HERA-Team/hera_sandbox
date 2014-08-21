@@ -19,15 +19,17 @@ o.set_description(__doc__)
 #        help='length of the input observations in minutes [default=average difference between filenames]')
 o.add_option('-v',action='store_true',
         help='set log level to debug')
-o.add_option('--status',default='UV_POT',
-        help='set the observation to this status [default=UV_POT]')
+o.add_option('--tail',action='store_true',
+        help='Monitor the log for changes')
+o.add_option('--logtxt',action='store_true',
+        help='Print the full log text.')
 opts, args = o.parse_args(sys.argv[1:])
 #connect to the database
 if opts.v:
     logging.basicConfig(level=logging.DEBUG)
 else:
     logging.basicConfig(lebel=logging.INFO)
-logger = logging.getLogger('reset_observations')
+logger = logging.getLogger('monitor_log')
 dbi = DataBaseInterface()
 
 # for each file get the obsnum, then reset the status to UV_POT
@@ -47,7 +49,7 @@ logger.debug("found %d obsnums"%len(obsnums))
 
 #get the logs
 s = dbi.Session()
-#things I can print. 
+#things I can print.
 #  logtext
 #  exit_status
 #  timestamp
@@ -73,13 +75,26 @@ for obsnum in obsnums:
             print "  exit_status: SUCCESS"
         else:
             print "  exit_status:  FAIL [{exit_status}]".format(exit_status=LOG.exit_status)
-        print 
-        print 
-        print LOG.logtext
-
+        print
+        print
+        if opts.logtxt: print LOG.logtext
+        else:
+            print "   log length = ",len(LOG.logtext.split('\n')),"lines", len(LOG.logtext), " chars"
+        if opts.logtxt and opts.tail and len(obsnum)==1:
+                loglen = len(LOG.logtext)
+                lognum = len(LOGs)
+                try:
+                    while(1):
+                        LOGs = s.query(Log).filter(Log.obsnum==obsnum).order_by(Log.timestamp.asc()).all()
+                        if len(LOGs)>lognum: break
+                        LOG = LOGs[lognum]
+                        if len(LOG.logtext)>loglen:
+                            print LOG.logtext[loglen:]
+                            loglen = len(LOG.logtext)
+                except(KeyBoardInterrupt):sys.exit(0)
 s.close()
 
- 
+
 
 
 
