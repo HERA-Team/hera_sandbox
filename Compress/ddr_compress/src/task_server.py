@@ -51,6 +51,7 @@ class Task:
         self.outfile_counter = 0
         try:
             process= subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd,stderr=self.OUTFILE,stdout=self.OUTFILE)
+            self.dbi.add_log(self.obs,self.task,['do_%s.sh' % self.task] + self.args+'\n',None)
         except Exception,e:
             logger.error('Task._run: (%s,%d) %s error="%s"' % (self.task,self.obs,' '.join(['do_%s.sh' % self.task] + self.args),e))
         return process
@@ -60,9 +61,8 @@ class Task:
         logtext = self.OUTFILE.read()
         logger.debug('Task.pol: (%s,%d) found %d log characters' % (self.task,self.obs,len(logtext)))
         if len(logtext)>self.outfile_counter:
-            logger.debug('Task.pol: (%s,%d) adding log' % (self.task,self.obs))
-            logger.debug('Task.pol: ({task},{obsnum}) adding log process={exit_status}' .format(task=self.task,obsnum=self.obs,exit_status=self.process.poll()))
-            self.dbi.add_log(self.obs,self.task,logtext=logtext,exit_status=self.process.poll())
+            logger.debug('Task.pol: ({task},{obsnum}) adding log process={exit_status}'.format(task=self.task,obsnum=self.obs,exit_status=self.process.poll()))
+            self.dbi.update_log(self.obs,self.task,logtext=logtext,exit_status=self.process.poll())
             self.outfile_counter += len(logtext)
             logger.debug('Task.pol: (%s,%d) setting next log position to %d' % (self.task,self.obs,self.outfile_counter))
         logger.debug('Task.pol: (%s,%d) post log addition' % (self.task,self.obs))
@@ -82,7 +82,8 @@ class Task:
         #        logger.error(e)
         #logger.info('Task.finalize writing log: ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
         #self.dbi.add_log(self.obs,self.task,logtext=logtext,exit_status=self.poll())
-        logger.debug('Task.finalize almost finished: ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
+        logger.debug('Task.finalize closing out log: ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
+        self.dbi.update_log(self.obs,exit_status=self.process.poll())
         if self.poll(): self.record_failure()
         else: self.record_completion()
     def kill(self):
