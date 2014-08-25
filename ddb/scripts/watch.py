@@ -26,15 +26,16 @@ alertFile = 'alerts.dat'
 watchFileExists = True
 try:
     fp = open(watchFile,'r')
-    fp.readline()  #get first line out of way
     times = []
     ping = []
     elineno = 0
+    inEntries = False
     for line in fp:
         line = line.strip()
         if line == 'Watching':
             elineno = 0
-        if elineno == 1:
+            inEntries = True
+        elif elineno == 1:
             etime = time.strptime(line,'%a %b %d %H:%M:%S UTC %Y')
             etime = datetime.datetime.fromtimestamp(time.mktime(etime))
             times.append(etime)
@@ -45,7 +46,8 @@ try:
             except IndexError:
                 pingTime = 0.0
             ping.append(pingTime)
-        elineno+=1
+        if inEntries:
+            elineno+=1
     fp.close()
     ##----Check time of last entry----##
     unow = datetime.datetime.utcnow()
@@ -53,7 +55,7 @@ try:
     diffLast = diffLast.total_seconds()/60.0
 except IOError:
     watchFileExists = False
-    diffLast = 999.9
+    diffLast = tooLongPing_minutes*10.0
 
 ##----Take action if needed----##
 if diffLast > tooLongPing_minutes:
