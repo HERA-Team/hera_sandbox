@@ -45,7 +45,8 @@ for i,OBS in enumerate(OBSs):
         for LOG in LOGs[1:]:
             if LOG.stage=='UV_POT' or LOG.stage=='NEW':break
             print LOG.stage+"="+str(n.round((stoptime - LOG.timestamp).total_seconds()/3600,1)),
-            if LOG.exit_status != 0: print '({stat},{pid})'.format(stat=LOG.exit_status,pid=OBS.currentpid),
+            if LOG.exit_status != 0: print '!',
+            print '({stat},{pid})'.format(stat=LOG.exit_status,pid=OBS.currentpid),
             stoptime = LOG.timestamp
         print
 
