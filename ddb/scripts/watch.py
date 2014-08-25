@@ -90,7 +90,7 @@ if diffLast > tooLongPing_minutes:
         server.ehlo()
         server.starttls()
         server.ehlo()
-        server.login('david.r.deboer@gmail.com','2001SpaceOdD')
+        server.login('david.r.deboer@gmail.com','')
 
         msg = MIMEMultipart()
         msg['Subject'] = 'Watchdog bites'
