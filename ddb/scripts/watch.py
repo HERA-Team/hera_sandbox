@@ -19,8 +19,8 @@ def cataddr(addrs):
 emails = ['ddeboer@berkeley.edu','william@ska.ac.za','daniel.c.jacobs@asu.edu','davidm@astro.berkeley.edu']
 tooLongPing_minutes = 12.0
 tooShortAlert_minutes = 60.0
-watchFile = 'watch.dat'
-alertFile = 'alerts.dat'
+watchFile = 'watch.txt'
+alertFile = 'alerts.txt'
 
 ##----Read watchdog file----##
 watchFileExists = True
