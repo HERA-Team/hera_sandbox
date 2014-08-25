@@ -51,7 +51,7 @@ class Task:
         self.outfile_counter = 0
         try:
             process= subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd,stderr=self.OUTFILE,stdout=self.OUTFILE)
-            self.dbi.add_log(self.obs,self.task,['do_%s.sh' % self.task] + self.args+'\n',None)
+            self.dbi.add_log(self.obs,self.task,' '.join(['do_%s.sh' % self.task] + self.args+['\n']),None)
         except Exception,e:
             logger.error('Task._run: (%s,%d) %s error="%s"' % (self.task,self.obs,' '.join(['do_%s.sh' % self.task] + self.args),e))
         return process

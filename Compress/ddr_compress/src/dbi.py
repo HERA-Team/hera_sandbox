@@ -202,11 +202,11 @@ class DataBaseInterface(object):
         replace the contents of the most recent log
         """
         s = self.Session()
-        if s.query(LOG).filter(LOG.obsnum==obsnum).count()==0:
+        if s.query(Log).filter(Log.obsnum==obsnum).count()==0:
             s.close()
             self.add_log(obsnum,status,logtext,exit_status)
             return
-        LOG = s.query(LOG).filter(LOG.obsnum==obsnum).order_by(LOG.timestamp.desc()).limit(1)
+        LOG = s.query(Log).filter(Log.obsnum==obsnum).order_by(Log.timestamp.desc()).limit(1).one()
         if not exit_status is None:
             LOG.exit_status = exit_status
         if not logtext is None:
@@ -215,6 +215,9 @@ class DataBaseInterface(object):
             else:
                 LOG.logtext = logtext
         if not status is None: LOG.status = status
+        print "LOG.exit_status = ",LOG.exit_status
+        s.add(LOG)
+        s.commit()
         s.close()
         return None
     def get_logs(self,obsnum,good_only=True):
