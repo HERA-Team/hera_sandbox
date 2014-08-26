@@ -89,6 +89,7 @@ class Task:
     def kill(self):
         self.record_failure()
         self.process.kill()
+        os.wait()
     def record_launch(self):
         self.dbi.set_obs_pid(self.obs, self.process.pid)
     def record_failure(self):
