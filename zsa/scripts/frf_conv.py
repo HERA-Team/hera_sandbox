@@ -19,11 +19,11 @@ def sky_fng_thresh(bl_ew_len, inttime, nints, freq, min_fr_frac=-.3, xtalk=-1,
     max_bl = bl_ew_len * max_fr_frac
     min_bl = bl_ew_len * min_fr_frac
     max_fr = freq * max_bl * 2*n.pi / a.const.sidereal_day
-    min_fr = freq * min_bl * 2*n.pi / a.const_sidereal_day
+    min_fr = freq * min_bl * 2*n.pi / a.const.sidereal_day
     lthr = xtalk / bin_fr
     uthr = max_fr / bin_fr
     nthr = min_fr / bin_fr
-    uthr, nthr, lthr = n.ceil(uthr).astype(n.int), n.ceil(nthr).astypy(n.int),\
+    uthr, nthr, lthr = n.ceil(uthr).astype(n.int), n.ceil(nthr).astype(n.int),\
                                                                int(n.floor(lthr))
     return (uthr, nthr, lthr)
 
@@ -48,33 +48,55 @@ def all_sky_fng_thresh(aa, inttime, nints, min_fr_frac=-.3, xtalk=-1,
                                         max_fr_frac=max_fr_frax)
             return filters
 
-def get_top_hat_kernel(d, ch, ufr, nfr, window):
+def get_oldfilter(aa, (bli,blj), inttime, nints, freqs):
     '''
-        Generate the convolution kernel (the response in time space).
-        for all the data. This gets the kernel for a top hat filter.
+    Generate convolution kernel for a top hat equal to the 
+    0 -> maximum fringe rate for a given bl and for frequency. 
     '''
-    area = n.ones(d[ch].shape[1]) #data area = waterfall plot
-    warea = n.ones_like(area)
-    ufrc = ufr[ch]
-    nfrc = nfr[ch]
+
+    bl = aa.get_baseline(bli,blj,'r')
+    print bl
+    bl_ew_len = n.sqrt(n.dot(bl, bl))#assumes non ew comp ~0.
+
+    area = n.ones((nints, len(freqs))) #int X channels
+    print area.shape
+    warea = n.ones_like(area) 
+    uthr,nthr,lthr = sky_fng_thresh(bl_ew_len, inttime, nints, 
+                                    freqs, min_fr_frac=0, xtalk=-1, max_fr_frac=1)
     
-    if ufrc >= 0:
-        if nfrc < 0: 
-            area[ufrc + 1:nfrc] = 0
-            warea[ufrc + 1:nfrc] = 0
+    fr_rate_res = 1./(nints*inttime)
+    #get time bins.
+    time_bins = n.fft.fftshift(n.fft.fftfreq(nints, fr_rate_res))
+    fr_bins = n.fft.fftshift(n.fft.fftfreq(nints, inttime))
+    
+    for ch in n.arange(len(freqs)):
+        ut = uthr[ch]
+        nt = nthr[ch]
+        if ut >= 0:
+            if nt < 0:
+                area[ut + 1: nt, ch] = 0
+                warea[ut +1: nt, ch] = 0
+            else:
+                area[:nt, ch] = 0
+                area[ut:, ch] = 0
+                warea[ut+1-nt:, ch] = 0
         else:
-            area[:nfrc] = 0
-            area[ufrc:] = 0
-            warea[ufrc+1-nfrc:] = 0
-    else:
-        if nfrc < 0:
-            area[nfrc:] = 0
-            area[:ufrc] = 0
-            warea[-nfrc-ufrc:] = 0
+            if nthr < 0:
+                area[nt:, ch] = 0
+                area[:ut, ch] = 0
+                warea[-nt-ut:, ch] = 0
 
-    return n.fft.fftshift(n.fft.ifft(area))*window,\
-                            n.fft.fftshift(n.fft.ifft(warea))*window
+    window = a.dsp.gen_window(nints, 'blackman-harris') 
+    kernels = n.fft.fftshift(n.fft.ifft(area, axis=0), axes=0).transpose()*window
+    kernels = n.array([k/n.sum(n.abs(k)) for k in kernels])
 
+    windowed_bwfrs = n.fft.fftshift(n.fft.fft(n.fft.ifftshift(kernels), axis=-1))
+    
+    
+    
+    return time_bins, kernels, \
+           fr_bins, windowed_bwfrs
+     
 def mk_fng(bl, ex, ey, ez):
     return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
 
@@ -105,8 +127,10 @@ def get_optimal_kernel_at_ref(aa, ch, (bli, blj), binwidth=.00005):
     fng = mk_fng(bl, *xyz) 
 
     h_I, bin_edges = n.histogram(fng, bins=bin_edges, weights=bm_I) 
-    #square the power beam.
-    h_I = h_I**2
+    #square the power beam.Dont do this. Only need to put in one factor 
+    #of the beam. The measurement contains the other.
+#    h_I = h_I**2
+
     #normalize the beam
     h_I /= h_I.max()
     bins = 0.5 * (bin_edges[:-1] + bin_edges[1:])
@@ -165,6 +189,9 @@ def get_beam_w_fr(aa, (bli, blj), timespan=86240*6, ref_chan=160):
     gfits = n.array([scipy.interpolate.interp1d(fr_bins,gauss(
             fr_bins, cen*r, wid*r)*tanh(fr_bins,zero_bin_fr*r,1e-5, a=-1.0),
             kind='linear') for r in ratios])
+#    gfits = n.array([scipy.interpolate.interp1d(fr_bins,gauss(
+#            fr_bins, cen*r, wid*r),
+#            kind='linear') for r in ratios])
     #gfits = n.array([gauss(fr_bins, cen*r, wid*r)*tanh(
             #fr_bins,zero_bin_fr*r,1e-3, a=-1.0) for r in ratios])
     #r = 1.0
@@ -189,16 +216,23 @@ def get_fringe_rate_kernels(bwfrs, inttime, nbins):
     #get fr bins
     fr_bins = n.fft.fftshift(n.fft.fftfreq(nbins, inttime))
     #get kernels (in time) from the input bwfrs (beam weighted fringe rates).
-    kernels = n.array([n.fft.fftshift(n.fft.ifft(bwfrs[i](fr_bins))) 
+    #kernels = n.array([n.fft.fftshift(n.fft.ifft(bwfrs[i](fr_bins))) 
+    #                    for i in range(bwfrs.size)])
+    #bwfrs have 0 fringe rate in the center. Need to inverse shift before fft'ing
+    #then shift again.
+    kernels = n.array([n.fft.fftshift(n.fft.ifft(n.fft.ifftshift(bwfrs[i](fr_bins)))) 
                         for i in range(bwfrs.size)])
     #window  to multiply by.
     window = a.dsp.gen_window(nbins,'blackman-harris')
     #in time domain, multiply kernel by window
     kernels = kernels*window
     #going back in to fringe rate space with window applied.
-    windowed_bwfrs = n.fft.fft(kernels, axis=-1)  
+    windowed_bwfrs = n.fft.fftshift(n.fft.fft(n.fft.ifftshift(kernels), axis=-1))
+
+    #need to mormalize kernal so that n.sum(abs(ker)) = 1
+    kernels = n.array([k/n.sum(n.abs(k)) for k in kernels])
     
-    return time_bins, kernels#, windowed_bwfrs 
+    return time_bins, kernels, fr_bins, windowed_bwfrs 
 
 def fit_gaussian(h, prms, fng, bins):
     cen, wid = prms
