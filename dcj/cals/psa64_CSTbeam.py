@@ -94,7 +94,7 @@ prms = {
         62:[-161.608043,226.512058,-277.243397],
         63:[170.275635,-299.764724,293.554481],
     },    
-    'twist': n.array([.1746] * 64),
+    'twist':n.array([0*n.pi/180]*64),# n.array([.1746] * 64),
 }
 
 def get_aa(freqs):
@@ -102,27 +102,26 @@ def get_aa(freqs):
     location = prms['loc']
     antennas = []
     nants = len(prms['antpos'])
-    for pi in ('x','y'):
-        for i in prms['antpos'].keys():
-            beam = bm.prms['beam'](freqs,nside=32,lmax=20,mmax=20,deg=7)
-            #beam = a.fit.Beam2DGaussian(freqs, xwidth=45*n.pi/180, ywidth=45*n.pi/180)
-            try: beam.set_params(bm.prms['bm_prms'])
-            except(AttributeError): pass
-            pos = prms['antpos'][i]
-            dly = 0.
-            off = 0. 
-            amp =  1. 
-            twist = prms['twist'][i]
-            bp_r =  n.array([1])
-            bp_i = n.array([0])
-            twist = prms['twist'][i]
-            #if pi == 'y': twist += n.pi/2.
-            antennas.append(
-                a.pol.Antenna(pos[0],pos[1],pos[2],  beam, num=i, pol=pi,phsoff=[dly,off],
-                amp=amp, bp_r=bp_r, bp_i=bp_i, pointing=(0.,n.pi/2,twist),
-                lat=prms['loc'][0])
-            )
-    aa = a.pol.AntennaArray(prms['loc'], antennas)
+#    for pi in ('x','y'):
+    for i in prms['antpos'].keys():
+        beam = bm.prms['beam'](freqs,nside=128,lmax=20,mmax=20,deg=7)
+        #beam = a.fit.Beam2DGaussian(freqs, xwidth=45*n.pi/180, ywidth=45*n.pi/180)
+        try: beam.set_params(bm.prms['bm_prms'])
+        except(AttributeError): pass
+        pos = prms['antpos'][i]
+        dly = 0.
+        off = 0. 
+        amp =  1. 
+        bp_r =  n.array([1])
+        bp_i = n.array([0])
+        twist = prms['twist'][i]
+        #if pi == 'y': twist += n.pi/2.
+        antennas.append(
+            a.fit.Antenna(pos[0],pos[1],pos[2],  beam,phsoff=[dly,off],
+            amp=amp, bp_r=bp_r, bp_i=bp_i, pointing=(0.,n.pi/2,twist),
+            lat=prms['loc'][0])
+        )
+    aa = a.fit.AntennaArray(prms['loc'], antennas)
     return aa
 
 src_prms = {

@@ -12,6 +12,8 @@ o.add_option('--minuv', type='float', default=0,
     help='Minimum uv length (in wavelengths) for a baseline to be included.')
 o.add_option('--maxuv', type='float', default=n.Inf,
     help='Maximum uv length (in wavelengths) for a baseline to be included.')
+o.add_option('--zenphs', action='store_true',
+    help='Data are already zenith-phased, so only apply a geometric re-phasing.')
 opts,args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])

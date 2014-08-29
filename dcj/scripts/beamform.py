@@ -10,6 +10,8 @@ o.add_option('-f', '--srcflux', dest='srcflux', action='store_true',
     help='Normalize by the spectrum of the specified source.')
 o.add_option('--minuv', dest='minuv', type='float', default=0,
     help='Minimum uv length (in wavelengths) for a baseline to be included.')
+o.add_option('--nocal',action='store_true',
+    help='Dont apply calibration info.')
 opts,args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
@@ -22,8 +24,9 @@ del(uv)
 for filename in args:
     for src_name in cat:
         src = cat[src_name]
-        print filename, '->', filename+'.bm_'+src.src_name
-        if os.path.exists(filename+'.bm_'+src.src_name):
+        outfile = filename+'.bm_'+src.src_name
+        print filename, '->', outfile
+        if os.path.exists(outfile):
             print '    File exists, skipping.'
             continue
         dbuf,cbuf = {}, {}
@@ -33,6 +36,7 @@ for filename in args:
         a.scripting.uv_selector(uvi, ants, opts.pol)
         uvi.select('decimate', opts.decimate, opts.decphs)
         for (crd,t,(i,j)),d,f in uvi.all(raw=True):
+            aa.set_active_pol(a.miriad.pol2str[uvi['pol']])
             if t != curtime:
                 curtime = t
                 aa.set_jultime(t)
@@ -42,6 +46,8 @@ for filename in args:
                     s_eq = cat.get_crds('eq', ncrd=3)
                     aa.sim_cache(s_eq)
             try:
+                if opts.nocal:
+                    d = aa.unphs2src(d,'z',i,j)
                 d = aa.phs2src(d, src, i, j)
                 u,v,w = aa.gen_uvw(i, j, src)
                 tooshort = n.where(n.sqrt(u**2+v**2) < opts.minuv, 1, 0).squeeze()
@@ -50,7 +56,10 @@ for filename in args:
                     #print n.average(n.sqrt(u**2+v**2)), '<', opts.minuv
                     continue
                 f = n.logical_or(f, tooshort)
-                gain = aa.passband(i,j)
+                if opts.nocal:
+                    gain = n.ones_like(aa.passband(i,j))
+                else:
+                    gain = aa.passband(i,j)
                 if opts.beam: gain *= aa.bm_response(i,j,pol=opts.pol).squeeze()
                 if opts.srcflux: gain *= src_spec
                 d /= gain
@@ -72,7 +81,7 @@ for filename in args:
                 return (uvw,t,(i,j)), d, f
             else: return (uvw,t,(1,1)), None, None
             
-        uvo = a.miriad.UV(filename+'.bm_'+src.src_name, status='new')
+        uvo = a.miriad.UV(outfile, status='new')
         uvo.init_from_uv(uvi)
         uvo.pipe(uvi, mfunc=mfunc, raw=True,
             append2hist='BEAMFORM: src=%s ant=%s srcflux=%s minuv=%s\n' % (opts.src, opts.ant, opts.srcflux, opts.minuv))

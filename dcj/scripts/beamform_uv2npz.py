@@ -46,12 +46,13 @@ for filename in args:
             aa.set_jultime(t)
             src.compute(aa)
             xi,yi,zi = src.get_crds('top')
+            print t,aa.sidereal_time()
         if src.alt < opts.altmin * a.img.deg2rad: continue
         x.append(xi); y.append(yi); z.append(zi)
         times.append(t)
         d,w = d.take(chans), n.logical_not(f.take(chans)).astype(n.int)
         bm = aa[0].bm_response((xi,yi,zi), pol=opts.pol[0]) * aa[0].bm_response((xi,yi,zi), pol=opts.pol[1])
-        lst.append(aa.sidereal_time())
+        lst.append(uv['lst'])
         if opts.addsrc:     
             d += src.jys.flatten() * bm.flatten()
         flux.append(n.sum(d))
