@@ -3,7 +3,7 @@ import aipy as a, numpy as n, capo as C, pylab as p
 import sys, optparse, os
 from matplotlib import rc
 rc('text',usetex=True)
-rc('font', size=22)
+rc('font', size=16)
 
 #HAAACK HACK HACK HACK HACK
 def dk_du(z):
@@ -76,7 +76,8 @@ for bl in bls:
     #if i == 7 and j == 37: print i,j,mag
     blmags.append(mag)
 
-hi, bins = .14, 750
+#hi, bins = .14, 750 #published version
+hi, bins = .14, 300
 #hi, bins = .083, 600
 step = hi/bins
 kprs = n.arange(0,hi,step)
@@ -114,31 +115,35 @@ axis = fig.add_subplot(111)
 
 wfall = wfall.T
 #multiply by 2 for beam cludge
-p.imshow(n.log10(2*n.abs(wfall)),aspect='auto',interpolation='nearest',extent=(0,kprs[-1],0,n.max(kpl)),vmin=11,vmax=15)
-p.colorbar()
+p.imshow(n.log10(2*n.abs(wfall)),aspect='auto',interpolation='nearest',extent=(0,kprs[-1],0,n.max(kpl)),vmin=11,vmax=20)
+cb = p.colorbar(orientation='horizontal',pad=.125,ticks=[11,13,15])
+cb.set_label(r'${\rm log_{10}}[{\rm mK}^2 (h^{-1}{\rm Mpc})^3]$', size=12)
 
 #save wedge data to npz
 n.savez('wedgedata.npz',data=n.log10(2*n.abs(wfall)),kprs=kprs,kpls=kpl)
 
-p.plot(kprs,hors,'.',lw=2,color='white')
-p.plot(kprs,phors,'.',lw=2,color='orange')
+#p.plot(kprs,hors,'.',lw=2,color='white')
+p.scatter(kprs,hors,s=1,color='black')
+#p.plot(kprs,phors,'.',lw=2,color='orange')
 
 query = DataQuery(fig,bls)
 
 #p.title(r'$P(k)\ [{\rm mK}^2 (h^{-1}{\rm Mpc})^{3}]$')
+p.title(r'${\rm log}_{10}[P(k)]$')
 p.ylabel(r'$k_{\parallel}\ [h{\rm Mpc}^{-1}]$')
 p.xlabel(r'$k_{\perp}\ [h{\rm Mpc}^{-1}]$')
-p.ylim(0,.6)
-p.xlim(0,.13)
+p.xticks([0,0.04,0.08,0.12])
+p.ylim(0,1)
+p.xlim(0,.12)
 
-ay2 = p.twiny()
+#ay2 = p.twiny()
 #ay2.xaxis.tick_top()
 #ay2.yaxis.tick_right()
-blmin, blmax = 0, 0.13 / dk_du(C.pspec.f2z(fq))
-p.axis([blmin,blmax,0,.6])
-p.xlabel('Baseline Length (Wavelength)',fontsize=16)
-title = r'$P(k)\ [{\rm mK}^2 (h^{-1}{\rm Mpc})^{3}]$'
-p.text(.5,1.15,title,horizontalalignment='center',transform=ay2.transAxes)
+#blmin, blmax = 0, 0.13 / dk_du(C.pspec.f2z(fq))
+#p.axis([blmin,blmax,0,.6])
+#p.xlabel('Baseline Length (Wavelength)',fontsize=16)
+#title = r'$P(k)\ [{\rm mK}^2 (h^{-1}{\rm Mpc})^{3}]$'
+#p.text(.5,1.15,title,horizontalalignment='center',transform=ay2.transAxes)
 
 
 p.show()
