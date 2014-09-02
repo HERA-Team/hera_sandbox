@@ -44,7 +44,7 @@ for host in sys.argv[1:]:
     #get obsnums executing on the indicated host
     s = dbi.Session()
     obsnums = map(int,[obs.obsnum for obs in s.query(Observation).filter(Observation.currentpid!=None,
-                                                                Observation.stillhost==host)])
+                                                                Observation.stillhost==host,Observation.currentpid>0)])
     print "killing processes for obsnums = {obsnums} on {host}".format(obsnums=','.join(map(str,obsnums)),host=host)
     for obsnum in obsnums:
         print "kill!",
