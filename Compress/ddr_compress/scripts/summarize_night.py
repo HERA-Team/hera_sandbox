@@ -33,6 +33,7 @@ s = dbi.Session()
 
 OBSs = s.query(Observation).filter(Observation.julian_date.between(float(args[0]),float(args[0])+0.9999)).all()
 obsnums = [OBS.obsnum for OBS in OBSs]
+still_times ={}
 for i,OBS in enumerate(OBSs):
     obsnum = OBS.obsnum
     if OBS.stillhost is None:continue
@@ -58,8 +59,15 @@ for i,OBS in enumerate(OBSs):
             if LOG.stage=='UV': computation_start = LOG.timestamp
         try:print stoptime-starttime,
         except(NameError):print 'NA',
-        try: print stoptime-computation_start
+        try:
+            print stoptime-computation_start
+            try :still_times[OBS.stillhost] += [stoptime-computation_start]
+            except(KeyError): still_times[OBS.stillhost] = [stoptime-computation_start]
         except(NameError):print 'NA'
+print "run time summary"
+print "by hosti:minutes"
+for key in still_times:
+    print key,':',n.mean([t.total_seconds() for t in still_times[key]])/60
 
 
 s.close()
