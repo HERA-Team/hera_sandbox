@@ -47,7 +47,7 @@ try:
         totalobs = s.query(Observation).count()
         stdscr.addstr(curline,0,"Number of observations currently in the database: {totalobs}".format(totalobs=totalobs))
         curline += 1
-        OBSs = s.query(Observation).filter(Observation.status!='UV_POT').filter(Observation.status!='COMPLETE').all()
+        OBSs = s.query(Observation).filter(Observation.status!='UV_POT',Observation.status!='COMPLETE',Observation.currentpid>0).all()
         POTCOUNT = s.query(Observation).filter(Observation.status=='UV_POT').count()
         obsnums = [OBS.obsnum for OBS in OBSs]
         obshosts = [OBS.stillhost for OBS in OBSs]
@@ -75,7 +75,7 @@ try:
                     try:
                         statusscr.addstr(rowcount[j]+2,j*colwidth,"{obsnum} {filename} {status}".format(filename=os.path.basename(filename),status=status,obsnum=obsnum))
                     except Exception,e:
-    
+
                         curses.nocbreak(); stdscr.keypad(0); curses.echo()
                         curses.endwin()
                         print j*colwidth,rowcount[j]+2,len("{filename} {status}".format(filename=os.path.basename(filename),status=status))
