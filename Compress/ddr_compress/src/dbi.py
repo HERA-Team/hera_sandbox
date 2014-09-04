@@ -1,4 +1,4 @@
-from sqlalchemy import Table, Column, String, Integer, ForeignKey, Float,func,DateTime,Enum,BigInteger,Numeric,Text 
+from sqlalchemy import Table, Column, String, Integer, ForeignKey, Float,func,DateTime,Enum,BigInteger,Numeric,Text
 from sqlalchemy.orm import relationship, backref,sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
@@ -197,13 +197,36 @@ class DataBaseInterface(object):
         s.add(LOG)
         s.commit()
         s.close()
+    def update_log(self,obsnum,status=None,logtext=None,exit_status=None,append=True):
+        """
+        replace the contents of the most recent log
+        """
+        s = self.Session()
+        if s.query(Log).filter(Log.obsnum==obsnum).count()==0:
+            s.close()
+            self.add_log(obsnum,status,logtext,exit_status)
+            return
+        LOG = s.query(Log).filter(Log.obsnum==obsnum).order_by(Log.timestamp.desc()).limit(1).one()
+        if not exit_status is None:
+            LOG.exit_status = exit_status
+        if not logtext is None:
+            if append:
+                LOG.logtext += logtext
+            else:
+                LOG.logtext = logtext
+        if not status is None: LOG.status = status
+        print "LOG.exit_status = ",LOG.exit_status
+        s.add(LOG)
+        s.commit()
+        s.close()
+        return None
     def get_logs(self,obsnum,good_only=True):
         """
-        return 
+        return
         """
         s = self.Session()
         if good_only:
-            LOGs = s.query(Log).filter(Log.obsnum==obsnum,Log.exit_status==0) 
+            LOGs = s.query(Log).filter(Log.obsnum==obsnum,Log.exit_status==0)
         LOGs = s.query(Log).filter(Log.obsnum== obsnum)
         logtext = '\n'.join([LOG.logtext for LOG in LOGs])
         s.close()

@@ -1,6 +1,6 @@
 import SocketServer
 import logging, threading, subprocess, time
-import socket, os
+import socket, os,tempfile,psutil
 
 logger = logging.getLogger('taskserver')
 logger.setLevel(logging.DEBUG)
@@ -35,6 +35,8 @@ class Task:
         self.dbi = dbi
         self.cwd = cwd
         self.process = None
+        self.OUTFILE = tempfile.TemporaryFile()
+        self.outfile_counter = 0
     def run(self):
         if not self.process is None:
             raise RuntimeError('Cannot run a Task that has been run already.')
@@ -44,28 +46,67 @@ class Task:
         self.process = self._run()
         self.record_launch()
     def _run(self):
-        logger.info('Task._run: (%s,%d) %s' % (self.task,self.obs,' '.join(['do_%s.sh' % self.task] + self.args)))
-        return subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd,stderr=subprocess.PIPE,stdout=subprocess.PIPE) # XXX d something with stdout stderr
+        logger.info('Task._run: (%s,%d) %s cwd=%s' % (self.task,self.obs,' '.join(['do_%s.sh' % self.task] + self.args),self.cwd))
+        #process= subprocess.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd,stderr=subprocess.PIPE,stdout=subprocess.PIPE) # XXX d something with stdout stderr
+        #create a temp file descriptor for stdout and stderr
+        self.OUTFILE = tempfile.TemporaryFile()
+        self.outfile_counter = 0
+        try:
+            process= psutil.Popen(['do_%s.sh' % self.task] + self.args, cwd=self.cwd,stderr=self.OUTFILE,stdout=self.OUTFILE)
+            process.cpu_affinity(range(psutil.cpu_count()))
+            self.dbi.add_log(self.obs,self.task,' '.join(['do_%s.sh' % self.task] + self.args+['\n']),None)
+        except Exception,e:
+            logger.error('Task._run: (%s,%d) %s error="%s"' % (self.task,self.obs,' '.join(['do_%s.sh' % self.task] + self.args),e))
+        return process
     def poll(self):
+        #logger.debug('Task.pol: (%s,%d)  reading to log position %d'%(self.task,self.obs,self.outfile_counter))
         if self.process is None: return None
-        else: return self.process.poll()
+        self.OUTFILE.seek(self.outfile_counter)
+        logtext = self.OUTFILE.read()
+        #logger.debug('Task.pol: (%s,%d) found %d log characters' % (self.task,self.obs,len(logtext)))
+        if len(logtext)>self.outfile_counter:
+            logger.debug('Task.pol: ({task},{obsnum}) adding {d} log characeters'.format(task=self.task,obsnum=self.obs,d=len(logtext)))
+            self.dbi.update_log(self.obs,self.task,logtext=logtext,exit_status=self.process.poll())
+            self.outfile_counter += len(logtext)
+            #logger.debug('Task.pol: (%s,%d) setting next log position to %d' % (self.task,self.obs,self.outfile_counter))
+        #logger.debug('Task.pol: (%s,%d) post log addition' % (self.task,self.obs))
+        return self.process.poll()
     def finalize(self):
-        #self.proces.wait()
-        stdout,stderr=self.process.communicate()
-        logtext = stdout+'\n'+stderr
-        self.dbi.add_log(self.obs,self.task,logtext=logtext,exit_status=self.poll())
+        logger.info('Task.finalize waiting: ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
+        self.process.communicate()
+        #try:
+        #    stdout,stderr=self.process.communicate()
+        #    if stderr is None:
+        #        stderr='<no stderr>'
+        #    if stdout is None:
+        #        stdout = '<no stdout>'
+        #    logtext=stdout + stderr
+        #except Exception,e:
+        #        logger.error(e)
+        #logger.info('Task.finalize writing log: ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
+        #self.dbi.add_log(self.obs,self.task,logtext=logtext,exit_status=self.poll())
+        logger.debug('Task.finalize closing out log: ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
+        self.dbi.update_log(self.obs,exit_status=self.process.poll())
         if self.poll(): self.record_failure()
         else: self.record_completion()
     def kill(self):
         self.record_failure()
+        logger.debug('Task.kill Trying to kill: ({task},{obsnum}) pid={pid}'.format(task=self.task,obsnum=self.obs,pid=self.process.pid))
+        logger.debug('Task.kill Killing {n} children to prevent orphans: ({task},{obsnum})'.format(n=len(self.process.children(recursive=True)),task=self.task,obsnum=self.obs))
+        for child in self.process.children(recursive=True):
+            child.kill()
+        logger.debug('Task.kill Killing shell script: ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
         self.process.kill()
+        os.wait()
+        logger.debug('Task.kill Successfully killed ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
     def record_launch(self):
         self.dbi.set_obs_pid(self.obs, self.process.pid)
     def record_failure(self):
         self.dbi.set_obs_pid(self.obs, -9)
+        logger.error('Task.record_failure.  TASK FAIL ({task},{obsnum})'.format(task=self.task,obsnum=self.obs))
     def record_completion(self):
         self.dbi.set_obs_status(self.obs, self.task)
-
+        self.dbi.set_obs_pid(self.obs,0)
 class TaskClient:
     def __init__(self, dbi, host, port=STILL_PORT):
         self.dbi = dbi
@@ -159,7 +200,7 @@ class TaskHandler(SocketServer.BaseRequestHandler):
         task, obs, still, args = self.get_pkt()
         logger.info('TaskHandler.handle: received (%s,%d) with args=%s' % (task,obs,' '.join(args)))
         if task == 'KILL':
-            self.server.kill(int(args[0]))
+            self.server.kill(int(args[0])) #TODO I THINK THIS IS WHERE WE HAVE A PROBLE. RUN and maybe COMPLETE need to clean up existing threads.
         elif task == 'COMPLETE':
             self.server.dbi.set_obs_status(obs, task)
         else:
@@ -176,22 +217,36 @@ class TaskServer(SocketServer.UDPServer):
         self.dbi = dbi
         self.data_dir = data_dir
         self.is_running = False
+        self.watchdog_count = 0
     def append_task(self, t):
         self.active_tasks_semaphore.acquire()
         self.active_tasks.append(t)
         self.active_tasks_semaphore.release()
-    def finalize_tasks(self, poll_interval=.5):
+    def finalize_tasks(self, poll_interval=5.):
         while self.is_running:
             self.active_tasks_semaphore.acquire()
             new_active_tasks = []
             for t in self.active_tasks:
                 if t.poll() is None: # not complete
                     new_active_tasks.append(t)
+                    try:
+                        c = t.process.children()[0]
+                        #Check the affinity!
+                        if len(c.cpu_affinity())<psutil.cpu_count():c.cpu_affinity(range(psutil.cpu_count()))
+                        logger.debug('Proc info on {obsnum}:{task}:{pid} - cpu={cpu:.1f}%%, mem={mem:.1f}%%, Naffinity={aff}'.format(
+                                    obsnum=t.obs,task=t.task,pid=c.pid,cpu=c.cpu_percent(interval=1.0),mem=c.memory_percent(),aff=len(c.cpu_affinity())))
+                    except:
+                        continue
                 else:
                     t.finalize()
             self.active_tasks = new_active_tasks
             self.active_tasks_semaphore.release()
             time.sleep(poll_interval)
+            if self.watchdog_count==100:
+                logger.debug('TaskServer is alive')
+                self.watchdog_count=0
+            else:
+                self.watchdog_count += 1
     def kill(self, pid):
         for task in self.active_tasks:
             if task.process.pid == pid:
@@ -202,6 +257,7 @@ class TaskServer(SocketServer.UDPServer):
         t = threading.Thread(target=self.finalize_tasks)
         t.start()
         logger.debug('this is scheduler.py')
+        logger.debug("using code at: "+__file__)
         try:
             self.serve_forever()
         finally:
