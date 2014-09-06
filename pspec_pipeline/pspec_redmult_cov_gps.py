@@ -24,6 +24,12 @@ o.add_option('--usebls', action='store_true',
     help='use the baselines give in the command line. Default is use all of the given separations.')
 o.add_option('--output', type='string', default='',
     help='output directory for pspec_boot files (default "")')
+o.add_option('--noproj', action='store_true', 
+    help='Skip the projecting out of modes inside the horizion.\
+          This can lead to removign significant sky signal. Therfore \
+          turning it off does not remove sky.')
+o.add_option('--niters', type='string', default='', 
+    help='tuple for number of steps in covariance removal')
 opts,args = o.parse_args(sys.argv[1:])
 
 
@@ -371,10 +377,13 @@ if PLOT:
     p.show()
     p.subplot(121); capo.arp.waterfall(cov(Ts), mode='real', mx=.005, drng=.01); p.colorbar(shrink=.5)
     p.title('cov(Ts) real part', fontsize=8)
-    p.subplot(122); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
+    #p.subplot(122); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
+    p.subplot(122); capo.arp.waterfall(cov(Ts), mode='log' ); p.colorbar(shrink=.5)
     p.title('cov(Ts) log', fontsize=8)
     p.tight_layout()
     p.show()
+
+#def subtract_averag():
 
 for boot in xrange(NBOOT):
     #777
@@ -423,26 +432,40 @@ for boot in xrange(NBOOT):
 
     _Cxtot,_Cntot = 1, 1
     #PLT1,PLT2 = 4,4
-    PLT1,PLT2 = int(3*n.sqrt(0.3/opts.gain)),int(3*n.sqrt(0.3/opts.gain))#scale the number of steps by the gain? -dcj
+    if opts.niters:
+        #override number if iters.
+        PLT1,PLT2 = map(int, opts.niters.split(','))
+    else:
+        PLT1,PLT2 = int(3*n.sqrt(0.3/opts.gain)),int(3*n.sqrt(0.3/opts.gain))#scale the number of steps by the gain? -dcj
     #PLT1,PLT2 = 2,2
     #PLT1,PLT2 = 1,2
     #888
     for cnt in xrange(PLT1*PLT2-1):
         print cnt, '/', PLT1*PLT2-1
-        if PLOT:
-            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log',  drng=3); p.colorbar(shrink=.5)
-            #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
-            print "max(cov(Ts))",n.max(cov(Ts))
-            sys.stdout.flush()
         SZ = Ts.shape[0]
-        Cx,Cn = cov(Ts), cov(Ns)
+        MCx,MCn = CoV(Ts, bls_), CoV(Ns, bls_)
+        #Cx,Cn = cov(Ts), cov(Ns)
+        Cx,Cn = MCx.C, MCn.C
+        if PLOT:
+            if cnt%10==0:
+                p.figure(7)
+                capo.arp.waterfall(Cx*scalar, mode='log', mx=8,drng=4); p.colorbar(shrink=.5)
+            #capo.arp.waterfall(cov(Ts), mode='log', mx=-1,  drng=4); p.colorbar(shrink=.5)
+            #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log', mx=0,  drng=3); p.colorbar(shrink=.5)
+            #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
+            print "max(cov(Ts))",n.max(Cx)
+            sys.stdout.flush()
+        print "max(cov(Ts))",n.max(Cx)
         #999
-        for c in [Cx,Cn]: # Normalize covariance matrices
+        #for c in [Cx,Cn]: # Normalize covariance matrices
+        for c in [Cx]:#,Cn]: # Normalize covariance matrices
             #SZ is number of rows in Ts. i.e. #bls * #channels.
             d = n.diag(c); d.shape = (1,SZ)
-            c /= n.sqrt(d) * 2
+            #c /= n.sqrt(d) * 2
+            c /= d
         #g = .3 # for 1*7 baselines
         g = opts.gain # for 4*7 baselines
+        print 'gain factor = ', g
         # begin with off-diagonal covariances to subtract off
         # (psuedo-inv for limit of small off-diagonal component)
         _Cx,_Cn = -g*Cx, -g*Cn
@@ -450,13 +473,17 @@ for boot in xrange(NBOOT):
         # XXX do we also need to zero modes adjacent to diagonal, since removing them results in bigger signal loss?
         for b in xrange(L): # for each redundant baseline, zero out diagonal from covariance diagonalization. Sets each diagonal of each bl-bl covariance to 0.
             indb = ind[:-b*n_k]
-            _Cx[indb,indb+b*n_k] = _Cx[indb+b*n_k,indb] = 0
-            _Cn[indb,indb+b*n_k] = _Cn[indb+b*n_k,indb] = 0
-        _Cx[ind,ind] = _Cn[ind,ind] = 0 # set these to zero temporarily to avoid noise bias into cross terms
+            _Cx[indb,indb+b*n_k] = 0 
+            _Cx[indb+b*n_k,indb] = 0
+            _Cn[indb,indb+b*n_k] = 0 
+            _Cn[indb+b*n_k,indb] = 0
+        _Cx[ind,ind] = 0 
+        _Cn[ind,ind] = 0 # set these to zero temporarily to avoid noise bias into cross terms
         if True: # estimate and remove signal covariance from diagonalization process
             # do this twice: once for the signal (Cx) and once for the noise (Cn)
             # using the statistics of the signal and noise, respectively
-            for _C in [_Cx,_Cn]:
+            #for _C in [_Cx,_Cn]:
+            for _C in [_Cx]:#,_Cn]:
                 #remember L is the total number of baselines and n_k is the number of kbins (i.e. number of channels). Note shape of covariance is n_k*#bls X n_k*#bls.
                 _C.shape = (L,n_k,L,n_k)
                 sub_C = n.zeros_like(_C)
@@ -502,6 +529,17 @@ for boot in xrange(NBOOT):
                             sub_C[i,:,j] = _Csum
                 _C.shape = sub_C.shape = (L*n_k,L*n_k)
                 _C -= sub_C
+                if PLOT:
+                    if cnt%10==0:
+                        p.figure(100)
+                    #correct for diagonal, scalar, and gain factor
+                        capo.arp.waterfall(sub_C*scalar*d/g, mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
+                    #p.subplot(131);capo.arp.waterfall(sub_C, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
+                    #p.subplot(132);capo.arp.waterfall(_Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
+                    #p.subplot(133);capo.arp.waterfall(-g*Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
+                        p.show()
+                    #p.figure(1)
+
         if True:
             # divide bls into two independent groups to avoid cross-contamination of noise
             # this is done by setting mask=0 for all panels pairing bls between different groups
@@ -578,7 +616,8 @@ for boot in xrange(NBOOT):
 #        p.figure(cnt)
 #        p.subplot(111); capo.arp.waterfall(Ts, mode='log', drng=3);p.colorbar(shrink=.5)
     if PLOT:
-        p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', drng=3);p.colorbar(shrink=.5)
+        capo.arp.waterfall(cov(Ts), mode='log', mx=-1, drng=4);p.colorbar(shrink=.5)
+        #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', mx=0, drng=3);p.colorbar(shrink=.5)
         #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=3)
         p.show()
 
@@ -607,10 +646,12 @@ for boot in xrange(NBOOT):
             if bli == blj: continue
             if True: # exclude intra-group pairings # XXX
                 if (bli in gp1 and blj in gp1) or (bli in gp2 and blj in gp2) or (bli in gp3 and blj in gp3) or (bli in gp4 and blj in gp4): continue
-            if True: # do an extra final removal of leakage from particular modes
+            if not opts.noproj: # do an extra final removal of leakage from particular modes
+                print 'Projecting'
                 Ts = n.concatenate([xi_,xj_], axis=0)
                 cx = cov(Ts)
-                if PLOT:
+                #if PLOT:
+                if False:
                     p.clf()
                     p.subplot(121); capo.arp.waterfall(cx, mode='log', mx=0, drng=3)
                 for cnt1 in xrange(9):
@@ -686,6 +727,12 @@ for boot in xrange(NBOOT):
     #p.subplot(121); p.legend(loc='best')
     #p.legend(loc='best')
     pspecs,dspecs = n.array(pspecs), n.array(dspecs)
+    print pspecs.shape
+#    import pylab as p
+#    p.figure(45)
+    #capo.arp.waterfall(n.mean(pspecs,axis=-1), mode='log');p.colorbar(shrink=.5)
+#    capo.arp.waterfall(pspecs[:,:,30], mode='log');p.colorbar(shrink=.5)
+#    p.show()
     nspecs,n1specs,n2specs = n.array(nspecs), n.array(n1specs), n.array(n2specs)
     navg_2d = n.average(nspecs, axis=0)
     n1avg_2d = n.average(n1specs, axis=0)
@@ -703,7 +750,7 @@ for boot in xrange(NBOOT):
     if PLOT:
         import capo as C
         p.subplot(131)
-        C.arp.waterfall(avg_2d, mode='log', drng=3)
+        C.arp.waterfall(avg_2d, mode='log', drng=3);p.colorbar(shrink=.5)
         p.subplot(132)
         C.arp.waterfall(wgt_2d, mode='log', drng=3)
         p.subplot(133)
