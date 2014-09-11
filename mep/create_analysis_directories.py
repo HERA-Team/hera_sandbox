@@ -4,7 +4,7 @@ the necessary directories for the analysis results"""
 
 import sys,os,numpy as np
 
-data_loc = "/Users/Adrian/Research/GlobalSignalInterferometer/gs_mpi/testingFiles"
+data_loc = "/global/homes/a/acliu/globalSig/fq_120_150_testCase"
 beam_sigs = [1.57] #(np.pi/18,np.pi/6,5*np.pi/18,7*np.pi/18)
 sqGridSideLens = [12] #(4,8,12,16)
 variableBeams = [0] #(0,1)
