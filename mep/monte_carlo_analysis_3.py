@@ -81,7 +81,7 @@ def analyze(savekey,fqs,mode,Nfg_type,Ntot_eps=10**-4,info_eps=10**-4):
     for fq in fqs:
         currentFolder = '{0}/MCs/{1}_fq_{2:.3f}'.format(data_loc,savekey,fq)
         print "Looking in...",currentFolder
-        ys = n.load('{0}/mc_{1}_fq_{2:.3f}_allMCs.npz'.format(currentFolder,savekey,fq))['matrix']
+        ys = n.load('{0}/mc_{1}_allMCs.npz'.format(currentFolder,savekey))['matrix']
         print "....loaded",ys.shape[0],"MCs, each of which has info about",ys.shape[1],"baselines."
         print "Now loading Q matrices..."
         baselines, Q, lms = load_Q_file(savekey,fq,-1)
