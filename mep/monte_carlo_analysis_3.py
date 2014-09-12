@@ -24,7 +24,7 @@ def total_noise_covar(savekey,eps,fq,Nfg_type):
     if Nfg_type == "gsm":
         fg_file = '{0}/gsm_matrices/gsm_{1}_fq_{2:.3f}.npz'.format(data_loc,savekey,fq)
     if Nfg_type == "improved":
-        fg_file = '{0}/gsm_matrices/improvedNfg_{1}_fq_{2:.3f}.npz'.format(data_loc,savekey,fq)
+        fg_file = '{0}/gsm_matrices/improvedNfg_{1}_fq_{2:.3f}.npz'.format(data_loc,savekey2,fq)
 
     Nfg_file = n.load(fg_file)
     Nfg = Nfg_file['matrix']
@@ -164,6 +164,7 @@ if __name__=='__main__':
                 #elif variableBeam == 1:
                 #    savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_lambdaBeam_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
                 savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
+                savekey2 = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_fixedWidth_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
 
                 #analyze(savekey,fqs,mode,"gsm",Ntot_eps,info_eps)
                 analyze(savekey,fqs,mode,"improved",Ntot_eps,info_eps)
