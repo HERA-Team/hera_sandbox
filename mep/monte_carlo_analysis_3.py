@@ -166,7 +166,7 @@ if __name__=='__main__':
                 savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
 
                 #analyze(savekey,fqs,mode,"gsm",Ntot_eps,info_eps)
-                analyze(savekey,fqs,mode,"improvedNfg",Ntot_eps,info_eps)
+                analyze(savekey,fqs,mode,"improved",Ntot_eps,info_eps)
 
 
 
