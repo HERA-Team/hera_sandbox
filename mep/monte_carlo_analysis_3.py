@@ -70,8 +70,8 @@ def return_MQdagNinv(Q,N,mode,savekey,fq,Nfg_type,eps=10**-4,num_remov=None):
 
     WindMatrix = n.dot(MQN,Q)
     WindNorm = WindMatrix[0,0]
-    WindMatrixRow = WindMatrix[0] #/ WindNorm
-    MQN_firstRowNormed = MQN[0] #/ WindNorm
+    WindMatrixRow = WindMatrix[0] / WindNorm
+    MQN_firstRowNormed = MQN[0] / WindNorm
 
     return MQN_firstRowNormed, WindMatrixRow
 
@@ -151,7 +151,7 @@ if __name__=='__main__':
     fqs = n.arange(lowerFreq,upperFreq+freqSpace,freqSpace)
     fqs /= 1000. # Convert from MHz to GHz
     lowerFreq /= 1000.
-    mode = "pseudo" #"diagonal"
+    mode = "diagonal"
     Ntot_eps = 10**-4
     info_eps = 10**-4
 
@@ -165,7 +165,8 @@ if __name__=='__main__':
                 #    savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_lambdaBeam_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
                 savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
 
-                analyze(savekey,fqs,mode,"gsm",Ntot_eps,info_eps)
+                #analyze(savekey,fqs,mode,"gsm",Ntot_eps,info_eps)
+                analyze(savekey,fqs,mode,"improvedNfg",Ntot_eps,info_eps)
 
 
 
