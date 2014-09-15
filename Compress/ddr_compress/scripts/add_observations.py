@@ -9,7 +9,7 @@ KEY NOTE: Assumes all files are contiguous.  I sort the files by jd and then mat
 """
 
 
-from ddr_compress.dbi import DataBaseInterface,gethostname
+from ddr_compress.dbi import DataBaseInterface,gethostname,jdpol2obsnum
 import optparse,os,sys,re,numpy as n
 
 def file2jd(zenuv):
@@ -50,21 +50,26 @@ for pol in pols:
     files = [filename for filename in args if file2pol(filename)==pol]#filter off all pols but the one I'm currently working on
     files.sort()
     for i,filename in enumerate(files):
-        obsinfo.append({
-            'julian_date' : float(file2jd(filename)),
-            'pol'     :     file2pol(filename),
-            'host' :        gethostname(),
-            'filename' :    filename,
-            'length'  :     djd #note the db likes jd for all time units
-                })
-        if i!=0:
-            obsinfo[-1].update({'neighbor_low':file2jd(files[i-1])})
-        if i!=(len(files)-1):
-            obsinfo[-1].update({'neighbor_high':file2jd(files[i+1])})
-assert(len(obsinfo)==len(args))
-print "adding {len} observations to the still db".format(len=len(obsinfo))
-dbi.add_observations(obsinfo)
-dbi.test_db()
+        try:
+            dbi.get_obs(jdpol2obsnum(float(file2jd(filename)),file2pol(filename),djd))
+            print filename, "found in db, skipping"
+        except:
+            obsinfo.append({
+                'julian_date' : float(file2jd(filename)),
+                'pol'     :     file2pol(filename),
+                'host' :        gethostname(),
+                'filename' :    filename,
+                'length'  :     djd #note the db likes jd for all time units
+                    })
+            if i!=0:
+                obsinfo[-1].update({'neighbor_low':file2jd(files[i-1])})
+            if i!=(len(files)-1):
+                obsinfo[-1].update({'neighbor_high':file2jd(files[i+1])})
+#assert(len(obsinfo)==len(args))
+if len(obsinfo)<0:
+    print "adding {len} observations to the still db".format(len=len(obsinfo))
+    dbi.add_observations(obsinfo)
+    dbi.test_db()
 print "done"
 
 
