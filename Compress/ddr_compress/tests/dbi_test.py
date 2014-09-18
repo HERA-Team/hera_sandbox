@@ -38,14 +38,25 @@ class TestDBI(unittest.TestCase):
         self.filename='/data0/zen.2456785.123456.uv'
         self.host = 'pot0'
         self.length = 10.16639/60./24
-    def test_logging(self):
+    def test_add_log(self):
         obsnum = self.dbi.add_observation(
                     self.jd,self.pol,self.filename,self.host,length=self.length)
         self.dbi.add_log(obsnum,'UV','test123',0)
         logtext = self.dbi.get_logs(obsnum)
         self.assertEqual(logtext.strip(),'test123')
         LOG = self.session.query(Log).filter(Log.obsnum==obsnum).one()
-        print LOG.timestamp
+    def test_update_log(self):
+        obsnum = self.dbi.add_observation(
+                    self.jd,self.pol,self.filename,self.host,length=self.length)
+        self.dbi.add_log(obsnum,'UV','test123',None)
+        logtext = self.dbi.get_logs(obsnum)
+        self.assertEqual(logtext.strip(),'test123')
+        LOG = self.session.query(Log).filter(Log.obsnum==obsnum).one()
+        self.dbi.update_log(obsnum,exit_status=0)
+        newsession = self.dbi.Session()
+        LOG = newsession.query(Log).filter(Log.obsnum==obsnum).one()
+        self.assertEqual(LOG.exit_status,0)
+
     def test_configparsing(self):
         logger.info('Note: did you remember to do "cp configs/test.cfg ~/.paperstill/db.cfg" ? ')
         self.assertEqual(self.dbi.dbinfo['hostip'],'memory')

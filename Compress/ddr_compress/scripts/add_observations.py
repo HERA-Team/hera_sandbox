@@ -9,7 +9,7 @@ KEY NOTE: Assumes all files are contiguous.  I sort the files by jd and then mat
 """
 
 
-from ddr_compress.dbi import DataBaseInterface,gethostname
+from ddr_compress.dbi import DataBaseInterface,gethostname,jdpol2obsnum
 import optparse,os,sys,re,numpy as n
 
 def file2jd(zenuv):
@@ -21,6 +21,8 @@ o.set_usage('add_observations.py *.uv')
 o.set_description(__doc__)
 o.add_option('--length',type=float,
         help='length of the input observations in minutes [default=average difference between filenames]')
+o.add_option('-t',action='store_true',
+       help='Test. Only print, do not touch db')
 opts, args = o.parse_args(sys.argv[1:])
 #connect to the database
 dbi = DataBaseInterface()
@@ -50,21 +52,35 @@ for pol in pols:
     files = [filename for filename in args if file2pol(filename)==pol]#filter off all pols but the one I'm currently working on
     files.sort()
     for i,filename in enumerate(files):
-        obsinfo.append({
-            'julian_date' : float(file2jd(filename)),
-            'pol'     :     file2pol(filename),
-            'host' :        gethostname(),
-            'filename' :    filename,
-            'length'  :     djd #note the db likes jd for all time units
-                })
-        if i!=0:
-            obsinfo[-1].update({'neighbor_low':file2jd(files[i-1])})
-        if i!=(len(files)-1):
-            obsinfo[-1].update({'neighbor_high':file2jd(files[i+1])})
-assert(len(obsinfo)==len(args))
-print "adding {len} observations to the still db".format(len=len(obsinfo))
-dbi.add_observations(obsinfo)
-dbi.test_db()
+        try:
+            dbi.get_obs(jdpol2obsnum(float(file2jd(filename)),file2pol(filename),djd))
+            print filename, "found in db, skipping"
+        except:
+            obsinfo.append({
+                'julian_date' : float(file2jd(filename)),
+                'pol'     :     file2pol(filename),
+                'host' :        gethostname(),
+                'filename' :    filename,
+                'length'  :     djd #note the db likes jd for all time units
+                    })
+for i,obs in enumerate(obsinfo):
+    filename = obs['filename']
+    if i!=0:
+        if n.abs(obsinfo[i-1]['julian_date']-obs['julian_date'])/djd<0.01:
+            obsinfo[i].update({'neighbor_low':file2jd(files[i-1])})
+    if i!=(len(obsinfo)-1):
+        if n.abs(obsinfo[i+1]['julian_date']-obs['julian_date'])/djd<0.01:
+            obsinfo[i].update({'neighbor_high':file2jd(files[i+1])})
+#assert(len(obsinfo)==len(args))
+if opts.t:
+    print "NOT ADDING OBSERVATIONS TO DB"
+    print "HERE is what would have been added"
+    for obs in obsinfo:
+        print obs['filename'],jdpol2obsnum(obs['julian_date'],obs['pol'],obs['length'])
+elif len(obsinfo)<0:
+    print "adding {len} observations to the still db".format(len=len(obsinfo))
+    dbi.add_observations(obsinfo)
+    dbi.test_db()
 print "done"
 
 
