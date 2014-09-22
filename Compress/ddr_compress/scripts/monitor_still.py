@@ -14,10 +14,10 @@ stdscr.nodelay(1)
 #setup my db connection
 dbi = DataBaseInterface()
 
-stdscr.addstr("PAPER Distiller Status Board")
+stdscr.addstr("PAPER Distiller Status Board. Monitoring: {dbname}".format(dbname=dbi.dbinfo['dbname']))
 stdscr.addstr(1,0,"Press 'q' to exit")
 statheight = 50
-statusscr = curses.newwin(statheight,200,5,0)
+statusscr = curses.newwin(statheight,400,5,0)
 statusscr.keypad(1)
 statusscr.nodelay(1)
 curline = 2
@@ -32,6 +32,7 @@ try:
         #load the currently executing files
         i += 1
         curline = 2
+
         stdscr.addstr(0,30,stat[i%len(stat)])
         s = dbi.Session()
         totalobs = s.query(Observation).count()
@@ -39,6 +40,7 @@ try:
         curline += 1
         OBSs = s.query(Observation).filter(Observation.status!='NEW').filter(Observation.status!='COMPLETE').all()
         obsnums = [OBS.obsnum for OBS in OBSs]
+        stdscr.addstr(curline,0," "*50)
         stdscr.addstr(curline,0,"Number of observations currently being processed {num}".format(num=len(obsnums)))
         curline += 1
         statusscr.erase()
@@ -47,6 +49,7 @@ try:
             try:
                 host,path,filename= dbi.get_input_file(obsnum)
                 status = dbi.get_obs_status(obsnum)
+                still_host = dbi.get_obs_still_host(obsnum)
             except:
                 host,path,filename = 'host','/path/to/','zen.2345672.23245.uv'
                 status = 'WTF'
@@ -56,7 +59,7 @@ try:
                 row = j
             else:
                 row = j%statheight
-            statusscr.addstr(row,col*colwidth,"{filename} {status}".format(col=col,filename=os.path.basename(filename),status=status))
+            statusscr.addstr(row,col*colwidth,"{filename} {status} {still_host}".format(col=col,filename=os.path.basename(filename),status=status,still_host=still_host))
         s.close()
         statusscr.refresh()
         c = stdscr.getch()

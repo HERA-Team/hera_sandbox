@@ -1,12 +1,14 @@
-from sqlalchemy import Table, Column, String, Integer, ForeignKey, Float,func,DateTime,Enum,BigInteger,Numeric
+from sqlalchemy import Table, Column, String, Integer, ForeignKey, Float,func,DateTime,Enum,BigInteger,Numeric,Text
 from sqlalchemy.orm import relationship, backref,sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool,QueuePool
 from ddr_compress.scheduler import FILE_PROCESSING_STAGES
-import aipy as a, os, numpy as n,sys
+import aipy as a, os, numpy as n,sys,logging
+import configparser
 #Based on example here: http://www.pythoncentral.io/overview-sqlalchemys-expression-language-orm-queries/
 Base = declarative_base()
+logger = logging.getLogger('dbi')
 
 dbinfo = {'username':'obs',
           'password':'\x50\x39\x6c\x73\x34\x52\x2a\x40',
@@ -28,7 +30,7 @@ def jdpol2obsnum(jd,pol,djd):
     dublinjd = jd - 2415020  #use Dublin Julian Date
     obsint = int(dublinjd/djd)  #divide up by length of obs
     polnum = a.miriad.str2pol[pol]+10
-    assert(obsint.bit_length()<31)
+    assert(obsint < 2**31)
     return int(obsint + polnum*(2**32))
 
 def updateobsnum(context):
@@ -100,15 +102,36 @@ class File(Base):
     observation = relationship(Observation,backref=backref('files',uselist=True))
     md5sum = Column(Integer)
 
+class Log(Base):
+    __tablename__ = 'log'
+    lognum = Column(Integer,primary_key=True)
+    obsnum = Column(BigInteger,ForeignKey('observation.obsnum'))
+    stage = Column(Enum(*FILE_PROCESSING_STAGES,name='FILE_PROCESSING_STAGES'))
+    exit_status = Column(Integer)
+    timestamp = Column(DateTime,nullable=False,default=func.current_timestamp())
+    logtext = Column(Text)
 
 
 class DataBaseInterface(object):
-    def __init__(self,test=False):
+    def __init__(self,configfile='~/.ddr_compress/still.cfg',test=False):
         """
         Connect to the database and initiate a session creator.
          or
         create a FALSE database
+
+        db.cfg is the default setup. Config files live in ddr_compress/configs
+        To use a config file, copy the desired file ~/.paperstill/db.cfg
         """
+        if not configfile is None:
+            config = configparser.ConfigParser()
+            configfile = os.path.expanduser(configfile)
+            if os.path.exists(configfile):
+                logger.info('loading file '+configfile)
+                config.read(configfile)
+                self.dbinfo = config['dbinfo']
+                self.dbinfo['password'] = self.dbinfo['password'].decode('string-escape')
+            else:
+                logging.info(configfile+" Not Found")
         if test:
             self.engine = create_engine('sqlite:///',
                                         connect_args={'check_same_thread':False},
@@ -117,7 +140,7 @@ class DataBaseInterface(object):
         else:
             self.engine = create_engine(
                     'mysql://{username}:{password}@{hostip}:{port}/{dbname}'.format(
-                                **dbinfo),
+                                **self.dbinfo),
                                 pool_size=20,
                                 max_overflow=40)
         self.Session = sessionmaker(bind=self.engine)
@@ -165,7 +188,49 @@ class DataBaseInterface(object):
         Base.metadata.bind = self.engine
         Base.metadata.create_all()
 
-
+    def add_log(self,obsnum,status,logtext,exit_status):
+        """
+        add a log entry about an obsnum
+        """
+        LOG = Log(obsnum=obsnum,stage=status,logtext=logtext,exit_status=exit_status)
+        s = self.Session()
+        s.add(LOG)
+        s.commit()
+        s.close()
+    def update_log(self,obsnum,status=None,logtext=None,exit_status=None,append=True):
+        """
+        replace the contents of the most recent log
+        """
+        s = self.Session()
+        if s.query(Log).filter(Log.obsnum==obsnum).count()==0:
+            s.close()
+            self.add_log(obsnum,status,logtext,exit_status)
+            return
+        LOG = s.query(Log).filter(Log.obsnum==obsnum).order_by(Log.timestamp.desc()).limit(1).one()
+        if not exit_status is None:
+            LOG.exit_status = exit_status
+        if not logtext is None:
+            if append:
+                LOG.logtext += logtext
+            else:
+                LOG.logtext = logtext
+        if not status is None: LOG.status = status
+        print "LOG.exit_status = ",LOG.exit_status
+        s.add(LOG)
+        s.commit()
+        s.close()
+        return None
+    def get_logs(self,obsnum,good_only=True):
+        """
+        return
+        """
+        s = self.Session()
+        if good_only:
+            LOGs = s.query(Log).filter(Log.obsnum==obsnum,Log.exit_status==0)
+        LOGs = s.query(Log).filter(Log.obsnum== obsnum)
+        logtext = '\n'.join([LOG.logtext for LOG in LOGs])
+        s.close()
+        return logtext #maybe this isn't the best format to be giving the logs
     def add_observation(self,julian_date,pol,filename,host,length=10/60./24,status='UV_POT'):
         """
         create a new observation entry.
@@ -320,7 +385,7 @@ class DataBaseInterface(object):
         OBS = s.query(Observation).filter(Observation.obsnum==obsnum).one()
         POTFILE = s.query(File).filter(
             File.observation==OBS,
-            File.host.like('%pot%'),
+            #File.host.like('%pot%'), # XXX temporarily commenting this out.  need a better solution for finding original file
             File.filename.like('%uv')).one()
         host = POTFILE.host
         path = os.path.dirname(POTFILE.filename)
