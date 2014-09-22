@@ -71,6 +71,7 @@ for obsnum in obsnums:
         print "  obsnum:{obsnum} ".format(obsnum=obsnum)
         print "  processing stage:{stage}".format(stage=LOG.stage)
         print "  timestamp: {datetime}".format(datetime=LOG.timestamp)
+        print "  PID: {pid}".format(pid=dbi.get_obs_pid(obsnum))
         if LOG.exit_status==0:
             print "  exit_status: SUCCESS"
         else:

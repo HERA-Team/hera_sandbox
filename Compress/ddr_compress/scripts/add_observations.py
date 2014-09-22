@@ -9,7 +9,7 @@ KEY NOTE: Assumes all files are contiguous.  I sort the files by jd and then mat
 """
 
 
-from ddr_compress.dbi import DataBaseInterface,gethostname
+from ddr_compress.dbi import DataBaseInterface,gethostname,jdpol2obsnum
 import optparse,os,sys,re,numpy as n
 
 def file2jd(zenuv):
@@ -21,6 +21,10 @@ o.set_usage('add_observations.py *.uv')
 o.set_description(__doc__)
 o.add_option('--length',type=float,
         help='length of the input observations in minutes [default=average difference between filenames]')
+o.add_option('-t',action='store_true',
+       help='Test. Only print, do not touch db')
+o.add_option('--overwrite',action='store_true',
+    help='Default action is to skip obsrvations already in the db. Setting this option overrides this safety feature and attempts anyway')
 opts, args = o.parse_args(sys.argv[1:])
 #connect to the database
 dbi = DataBaseInterface()
@@ -37,34 +41,60 @@ for filename in args:
     pols.append(file2pol(filename))
     jds.append(float(file2jd(filename)))
 jds = n.array(jds)
+nights = list(set(jds.astype(n.int)))
 if not opts.length is None:
     djd =  opts.length/60./24
 else:
-    jds_onepol = n.sort([jd for i,jd in enumerate(jds) if pols[i]==pols[0]])
+    jds_onepol = n.sort([jd for i,jd in enumerate(jds) if pols[i]==pols[0] and jd.astype(int)==nights[0]])
     djd = n.mean(n.diff(jds_onepol))
     print "setting length to ",djd,' days'
 pols = list(set(pols))#these are the pols I have to iterate over
 print "found the following pols",pols
-obsinfo = []
-for pol in pols:
-    files = [filename for filename in args if file2pol(filename)==pol]#filter off all pols but the one I'm currently working on
-    files.sort()
-    for i,filename in enumerate(files):
-        obsinfo.append({
-            'julian_date' : float(file2jd(filename)),
-            'pol'     :     file2pol(filename),
-            'host' :        gethostname(),
-            'filename' :    filename,
-            'length'  :     djd #note the db likes jd for all time units
-                })
+print "found the following nights",nights
+for night in nights:
+    print "adding night" ,night
+    obsinfo = []
+    nightfiles = [filename for filename in args if int(float(file2jd(filename)))==night]
+    print len(nightfiles)
+    for pol in pols:
+        files = [filename for filename in nightfiles if file2pol(filename)==pol]#filter off all pols but the one I'm currently working on
+        files.sort()
+        for i,filename in enumerate(files):
+            try:
+                dbi.get_obs(jdpol2obsnum(float(file2jd(filename)),file2pol(filename),djd))
+                if opts.overwrite:
+                    raise(StandardError)
+                print filename, "found in db, skipping"
+            except:
+                obsinfo.append({
+                    'julian_date' : float(file2jd(filename)),
+                    'pol'     :     file2pol(filename),
+                    'host' :        gethostname(),
+                    'filename' :    filename,
+                    'length'  :     djd #note the db likes jd for all time units
+                        })
+    for i,obs in enumerate(obsinfo):
+        filename = obs['filename']
         if i!=0:
-            obsinfo[-1].update({'neighbor_low':file2jd(files[i-1])})
-        if i!=(len(files)-1):
-            obsinfo[-1].update({'neighbor_high':file2jd(files[i+1])})
-assert(len(obsinfo)==len(args))
-print "adding {len} observations to the still db".format(len=len(obsinfo))
-dbi.add_observations(obsinfo)
-dbi.test_db()
+            if n.abs(obsinfo[i-1]['julian_date']-obs['julian_date'])<(djd*1.2):
+                obsinfo[i].update({'neighbor_low':obsinfo[i-1]['julian_date']})
+        if i!=(len(obsinfo)-1):
+            if n.abs(obsinfo[i+1]['julian_date']-obs['julian_date'])<(djd*1.2):
+                obsinfo[i].update({'neighbor_high':obsinfo[i+1]['julian_date']})
+    #assert(len(obsinfo)==len(args))
+    if opts.t:
+        print "NOT ADDING OBSERVATIONS TO DB"
+        print "HERE is what would have been added"
+        for obs in obsinfo:
+            print obs['filename'],jdpol2obsnum(obs['julian_date'],obs['pol'],obs['length']),
+            print "neighbors",obs.get('neighbor_low',None),obs.get('neighbor_high',None)
+    elif len(obsinfo)>0:
+        print "adding {len} observations to the still db".format(len=len(obsinfo))
+	try:
+            dbi.add_observations(obsinfo)
+        except:
+            print "problem!"
+        #dbi.test_db()
 print "done"
 
 
