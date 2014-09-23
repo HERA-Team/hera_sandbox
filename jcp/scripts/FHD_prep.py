@@ -17,8 +17,8 @@ del(uv)
 
 # need to reflag antennas unflagged by the compression...
 bad_ants = {
-    19:['x'],
-    18:['y'],
+#    19:['x'],
+#    18:['y'],
     }
 
 curtime = None
@@ -57,6 +57,7 @@ for filename in args:
         if i == j: continue
     
         try:
+            print src
             d = aa.phs2src(d,src,i,j)
             d /= aa.passband(i,j)
             uvw = aa.get_baseline(i,j,src=src)
@@ -81,14 +82,15 @@ for filename in args:
             for pol in np.sort(D[t][bl].keys()):
                 p,d = D[t][bl][pol]
                 crd, t, (i,j) = p
-                pi,pj = a.miriad.pol2str[uv['pol']]
+                pi,pj = a.miriad.pol2str[pol]
                 ## Flag bad baselines
-                f = n.zeros_like(d).real.astype(int)
+                f = np.zeros_like(d).real.astype(int)
                 if i in bad_ants.keys() and any([x in bad_ants[i] for x in [pi,pj]]): f += 1
                 if j in bad_ants.keys() and any([x in bad_ants[j] for x in [pi,pj]]): f += 1
 
                 uvo.write_pol(a.miriad.pol2str[pol])
-                uvo.write(p,d)
+                uvo.write(p,d,f)
+    uvo._wrhd('history',uvo['history'] + 'FHD_prep:'+' '.join(sys.argv)+'\n')
     del uvo,uvi
 
 if opts.uvfits: 
