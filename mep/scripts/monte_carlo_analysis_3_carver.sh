@@ -23,7 +23,7 @@ cd $codeLoc
 
 echo "Analyzing MC results"
 date
-python "$codeLoc/monte_carlo_analysis_3.py"
 python "$codeLoc/create_analysis_directories.py"
+python "$codeLoc/monte_carlo_analysis_3.py"
 date
 echo "...all done!"

@@ -159,15 +159,15 @@ if __name__=='__main__':
         del_bl = 1/(2*n.pi*beam_sig*lowerFreq)
         for sqGridSideLen in sqGridSideLens:
             for variableBeam in variableBeams:
-                #if variableBeam == 0:
-                #    savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_fixedWidth_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
-                #elif variableBeam == 1:
-                #    savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_lambdaBeam_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
-                savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
-                savekey2 = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_fixedWidth_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
+                if variableBeam == 0:
+                    savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_fixedWidth_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
+                elif variableBeam == 1:
+                    savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_lambdaBeam_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
+                #savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
+                #savekey2 = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_fixedWidth_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
 
-                #analyze(savekey,fqs,mode,"gsm",Ntot_eps,info_eps)
-                analyze(savekey,fqs,mode,"improved",Ntot_eps,info_eps)
+                analyze(savekey,fqs,mode,"gsm",Ntot_eps,info_eps)
+                #analyze(savekey,fqs,mode,"improved",Ntot_eps,info_eps)
 
 
 
