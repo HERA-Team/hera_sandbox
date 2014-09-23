@@ -51,7 +51,7 @@ elif opts.xx != None and opts.yy != None and opts.xy != None and opts.yx != None
     yyfiles = glob.glob(opts.yy)
     xyfiles = glob.glob(opts.xy)
     yxfiles = glob.glob(opts.yx)
-    files = zip(xxfiles,yyfiles,xyfiles,yyfiles)
+    files = zip(xxfiles,yyfiles,xyfiles,yxfiles)
     NPOLFILES = 4
 else:
     print 'Invalid combination of linear pols... Exiting.'
