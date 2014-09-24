@@ -100,6 +100,9 @@ def analyze(savekey,fqs,mode,Nfg_type,Ntot_eps=10**-4,info_eps=10**-4):
         MQN_firstRow, WindMatrixRow = return_MQdagNinv(Q,Ntot,mode,savekey,fq,Nfg_type,info_eps,num_remov=None)
         ahat00s = n.einsum('j,ij',MQN_firstRow,ys)
         T0s_master.append(ahat00s.real/n.sqrt(4.*n.pi))
+
+        savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_fixedWidth_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
+
     T0s_master = n.array(T0s_master) # fqs x MCs
     numMCs = T0s_master.shape[1]
     T0s_bias = n.mean(T0s_master,axis=1)
