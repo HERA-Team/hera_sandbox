@@ -83,6 +83,16 @@ def analyze(savekey,fqs,mode,Nfg_type,Ntot_eps=10**-4,info_eps=10**-4):
         print "Looking in...",currentFolder
         ys = n.load('{0}/mc_{1}_fq_{2:.3f}_allMCs.npz'.format(currentFolder,savekey,fq))['matrix']
         print "....loaded",ys.shape[0],"MCs, each of which has info about",ys.shape[1],"baselines."
+
+
+
+
+
+
+        savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
+
+
+
         print "Now loading Q matrices..."
         baselines, Q, lms = load_Q_file(savekey,fq,-1)
         print "...loaded.  Onto loading the N_fg matrices..."
