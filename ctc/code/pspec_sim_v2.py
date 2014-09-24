@@ -9,7 +9,7 @@ PURPOSE:
       -Inverse spherical harmonic transform to get sky
       -Plots sky onto a Healpix Map for each frequency
 EXAMPLE CALL:
-      ./pspec_sim_v2.py 
+      ./pspec_sim_v2.py --nchan 50 --sdf 0.001 --lmax 200
 AUTHOR:
       Carina Cheng
 
@@ -36,12 +36,12 @@ from scipy.interpolate import interp1d
 o = optparse.OptionParser()
 o.set_usage('vis_simulation_v2.py [options] *.uv')
 o.set_description(__doc__)
-o.add_option('--nchan', dest='nchan', default=3, type='int',
-             help='Number of channels in simulated data. Default is 3.')
+o.add_option('--nchan', dest='nchan', default=203, type='int',
+             help='Number of channels in simulated data. Default is 203.')
 o.add_option('--sfreq', dest='sfreq', default=0.1, type='float',
              help='Start frequency (GHz). Default is 0.1.')
-o.add_option('--sdf', dest='sdf', default=.001, type='float',
-             help='Channel spacing (GHz).  Default is .001')
+o.add_option('--sdf', dest='sdf', default=0.1/203, type='float',
+             help='Channel spacing (GHz).  Default is 0.1/203.')
 o.add_option('--lmax', dest='lmax', default=5, type='int',
              help='Maximum l value. Default is 5.')
 opts, args = o.parse_args(sys.argv[1:])
@@ -50,7 +50,7 @@ opts, args = o.parse_args(sys.argv[1:])
 
 nu21 = 1420.*10**6 #21cm frequency [Hz]
 c = 3.*10**5 #[km/s]
-H0 = 69.7 #Hubble's constant [km/s/Mpc]
+H0 = 100 #69.7 #Hubble's constant [km/s/Mpc] #can use 100 here to include h units
 omg_m = 0.28 
 omg_lambda = 0.72 
 
@@ -60,9 +60,10 @@ omg_lambda = 0.72
 
 ###P_k function
 
-def P_k(kmag, sigma=0.1, k0=0.1):
+def P_k(kmag, sigma=0.01, k0=0.02):
 
     return numpy.exp(-(kmag-k0)**2/(2*sigma**2)) 
+    #return (10*2*numpy.pi**2)/kmag**3
 
 ###C_l function
 
@@ -81,25 +82,60 @@ def C_l(freq1, freq2, Pk_interp, l_vals): #freqs are entered in GHz
 
     for i in range(len(l_vals)):
 
-        integral = lambda k:(2/numpy.pi)*Pk_interp(k)*(k**2)*scipy.special.sph_jn(l_vals[i],k*Dc1)[0][i]*scipy.special.sph_jn(l_vals[i],k*Dc2)[0][i]
+        ###integral form 1, k bins
+        #integral = lambda k:(2/numpy.pi)*Pk_interp(k)*(k**2)*scipy.special.sph_jn(l_vals[i],k*Dc1)[0][l_vals[i]]*scipy.special.sph_jn(l_vals[i],k*Dc2)[0][l_vals[i]] 
+        #ans1 = integrate.romberg(integral, numpy.min(k_data), numpy.max(k_data),tol=10**-18,rtol=10**-18,divmax=15)
 
-        ans = integrate.quad(integral,numpy.min(k_data),numpy.max(k_data))[0]
-        
-        C_ls.append(ans)
+        ###summation instead of integral
+        ans2=0
+        for kk in range(len(k_data)):
+            val = (2/numpy.pi)*Pk_interp(k_data[kk])*(k_data[kk]**2)*scipy.special.sph_jn(l_vals[i],k_data[kk]*Dc1)[0][l_vals[i]]*scipy.special.sph_jn(l_vals[i],k_data[kk]*Dc2)[0][l_vals[i]]
+            ans2+=val
+        ans2*=(k_data[1]-k_data[0])
 
-    return C_ls
+        ###integral form 1, ln k bins
+        #integral = lambda u:(2/numpy.pi)*Pk_interp(numpy.exp(u))*(numpy.exp(3*u))*scipy.special.sph_jn(l_vals[i],numpy.exp(u)*Dc1)[0][i]*scipy.special.sph_jn(l_vals[i],numpy.exp(u)*Dc2)[0][i] 
+        #ans = integrate.quad(integral,numpy.min(numpy.log(k_data)),numpy.max(numpy.log(k_data)))[0]
+
+        ###integral form 2
+        #k_perp = l_vals[i]/((Dc1+Dc2)/2)
+        #max_int = numpy.sqrt(numpy.max(k_data)**2-k_perp**2)
+        #integral = lambda k_par: (1/(numpy.pi*Dc1*Dc2))*Pk_interp(numpy.sqrt(k_perp**2+k_par**2))*numpy.cos(k_par*(Dc1-Dc2)) 
+        #ans = integrate.quad(integral, 0, max_int)[0]
+
+        C_ls.append(ans2)
+
+    return C_ls#, Dc1, Dc2 
 
 ###Generate correlated random variables (a_lms)
 
 def a_lm(cov_T):
 
-    L = numpy.linalg.cholesky(cov_T)
-    Lt = numpy.conj(numpy.transpose(L))
+    za = numpy.random.normal(scale=1/numpy.sqrt(2),size=len(cov_T))
+    zb = numpy.random.normal(scale=1/numpy.sqrt(2),size=len(cov_T))
+    z = za+1j*zb
 
-    z = numpy.random.normal(scale=1.0,size=len(cov_T))
+    #cholesky decomposition
 
-    return numpy.einsum('ij,j',L,z) #gives correct column vector shape
+    #L = numpy.linalg.cholesky(cov_T)
 
+    #return numpy.einsum('ij,j',L,z) #gives correct column vector shape
+    
+    #alternate way: eigendecomposition
+
+    evals, evecs = numpy.linalg.eig(cov_T)
+    V = numpy.transpose(evecs)      
+    Lambda = numpy.identity(len(cov_T))
+    Lambda = Lambda*evals
+    Lambda_one_half=numpy.lib.scimath.sqrt(Lambda) #returns complex number if Lambda is negative & real
+    #print numpy.dot(numpy.dot(numpy.linalg.inv(V),Lambda),V) #good check (should get T)
+    X = numpy.dot(Lambda_one_half,V)
+    Xt = numpy.dot(numpy.linalg.inv(V),Lambda_one_half)
+    #print numpy.dot(Xt,X) #good check (should get T)
+
+    #return numpy.einsum('ij,j',X,z)
+    return numpy.dot(z,X)
+    
 ###Build C_matrix (function of l and frequency combinations)
 
 def C_matrix(freqs,Pk_interp,l_vals):
@@ -108,6 +144,8 @@ def C_matrix(freqs,Pk_interp,l_vals):
     
     for i in range(len(freqs)):      
         for j in range(len(freqs)):
+            if j == 0:
+                print '   working on freq '+str(i+1)+'/'+str(len(freqs))
             Cls = C_l(freqs[i],freqs[j],Pk_interp,l_vals)
             for k in range(len(Cls)):
                 matrix[k][i][j] = Cls[k]
@@ -119,10 +157,8 @@ def C_matrix(freqs,Pk_interp,l_vals):
 ###     SIM CODE STARTS HERE    ###
 ###################################
 """
-k_data = numpy.arange(0.01,0.2,0.01) #actual data points
+k_data = numpy.arange(0.0,0.1,0.005) #actual data points
 Pk_data = P_k(k_data)
-#plt.plot(k_data,Pk_data, 'k.')
-#plt.show()
 
 Pk_interp = interp1d(k_data, Pk_data, kind='linear')
 
@@ -131,34 +167,77 @@ a_lms = aipy.healpix.Alm(opts.lmax,opts.lmax) #a_lm object
 
 freqs = numpy.linspace(opts.sfreq,opts.sfreq+opts.sdf*opts.nchan,num=opts.nchan, endpoint=False) #array of frequencies
 
+print 'generating covariance matrix...'
+
 Cmatrix = C_matrix(freqs,Pk_interp,l_vals)
-print Cmatrix
 #print Cmatrix[0,0,0] #l=0,freq0 with freq0
 #print Cmatrix[1,0,1] #l=1, freq0 with freq1
 
 #for each freq, fill all a_lms and make sky map
 
-dirname = 'pspec'+str(opts.nchan)
+dirname = 'pspec'+str(opts.nchan)+'lmax'+str(opts.lmax)
 os.system('mkdir /Users/carinacheng/capo/ctc/images/pspecs/'+dirname)
+
+alms_all = []
+
+for i in range(len(Cmatrix)):
+        
+    #print 'getting Csmall for l = ' + str(i+1)
+
+    Csmall = Cmatrix[i] #one block of C
+    #noise = numpy.identity(len(Csmall))
+    #noise *= 10**-20
+    #Csmall = Csmall + noise
+    '''
+    #plotting eigenvectors
+    evals = numpy.linalg.eig(Csmall)[0]
+    evecs = numpy.linalg.eig(Csmall)[1]
+    plt.figure(figsize = (12,12))
+    plt.subplots_adjust(left = 0.1, right = 0.9, bottom = 0.1, top = 0.9, wspace = 0.3, hspace = 0.3)
+    for e in range(len(evals)):           
+        plt.subplot(5,4,e+1)
+        plt.plot(freqs,evecs[:,e],'k-')
+        plt.title('eigenvalue = ' + str(evals[e]), fontsize=8)  
+    plt.show()
+    '''
+    const = 0
+
+    for j in range(l_vals[i]+1):
+
+        alms = a_lm(Csmall) #alm for one lm-mode
+        if (l_vals[i]-const) == 0: #real value for m=0
+            alms = numpy.real(alms)
+        alms_all.append(alms)
+        const +=1
+
+#print alms_all #alms_all[0] is lm-mode 00, alms_all[1] is lm-mode 10, alms_all[2] is lm-mode 11, etc. Each item in alms_all contains alms for that specific mode for each frequency.
 
 for f in range(len(freqs)):
 
-    for i in range(len(Cmatrix)):
+    print str(f+1) + '/' + str(len(freqs)) + ': making sky map with freq = ' + str(freqs[f]) + ' GHz'    
 
-        Csmall = Cmatrix[i]
+    lconst = 0
+    mconst = 0
 
-        const = 0
+    for j in range(len(alms_all)):
+        
+        a_lms[lconst,mconst] = alms_all[j][f]
 
-        for j in range(l_vals[i]+1):
-
-            alms = a_lm(Csmall) #alm for one lm-mode
-            a_lms[l_vals[i],l_vals[i]-const] = float(alms[f])  #fill a_lm
-            const += 1     
-            sky_map = aipy.map.Map(nside=512)
-            sky_map.from_alm(a_lms) #make sky map
-            sky_map.to_fits('/Users/carinacheng/capo/ctc/images/pspecs/'+dirname+'/pspec1'+("%03i" % (f+1))+'.fits', clobber=True) 
+        if lconst == 0 and mconst == 0:
+            lconst += 1
+            mconst += 1
+        elif lconst == mconst:
+            mconst -= 1
+        elif mconst == 0:
+            lconst += 1
+            mconst = lconst
+        else:
+            mconst -= 1
+    
+    sky_map = aipy.map.Map(nside=512)
+    sky_map.from_alm(a_lms) #make sky map
+    sky_map.to_fits('/Users/carinacheng/capo/ctc/images/pspecs/'+dirname+'/pspec1'+("%03i" % (f+1))+'.fits', clobber=True) 
 """
-
 
 ###################################
 ###       ADDITIONAL TESTS      ###
@@ -168,7 +247,8 @@ for f in range(len(freqs)):
 ###test a_lm function (recovering T)
 
 cov_T = [[10,5,2],[5,15,5],[2,5,20]] #symmetric
-#print numpy.linalg.eig(cov_T)[0] #check for positive eigenvalues
+
+print cov_T
 
 xxt_test = numpy.zeros_like(cov_T)
 num = 1000
@@ -182,17 +262,29 @@ for i in range(num):
     xxt = numpy.dot(x,xt)
     xxt_test = xxt_test + xxt
 
-print xxt_test/num (should be T)
+print xxt_test/num #(should be T)
 """
 
-"""
+
 ###make single frequency map
+"""
+k_data = numpy.arange(0,0.1,0.005) #actual data points
+Pk_data = P_k(k_data)
+plt.plot(k_data,Pk_data,'k.')
+plt.show()
 
-Cl = C_l(.15,.15,Pk_interp,l_vals)
-#plt.plot(l_vals,Cl, 'k.')
-#plt.show()
+Pk_interp = interp1d(k_data, Pk_data, kind='linear')
 
-a_lms = aipy.healpix.Alm(lmax,mmax) #a_lm object
+l_vals = numpy.arange(0,opts.lmax,1) 
+
+Cl = C_l(.47,.52,Pk_interp,l_vals)
+
+#print Cl
+
+plt.plot(l_vals,Cl, 'k-') #l vs. Cl plot
+plt.show() #see where l peaks if P(k) is delta function
+
+a_lms = aipy.healpix.Alm(opts.lmax,opts.lmax) #a_lm object
 
 for i in range(len(Cl)):
 
@@ -205,47 +297,86 @@ for i in range(len(Cl)):
     for j in range(l_val+1):
 
         alm = a_lm(Csmall)
-        a_lms[l_val,l_val-const] = float(alm)
+        if (l_val-const) == 0:
+            alm = numpy.real(alm)
+        a_lms[l_val,l_val-const] = complex(alm[0])
         const += 1
 
 sky_map = aipy.map.Map(nside=512)
 sky_map.from_alm(a_lms)
-
 sky_map.to_fits('/Users/carinacheng/capo/ctc/images/test.fits', clobber=True)   
 """
+
 """
-###plotting C_l(freq1,freq2)
+###plotting C_l as a function of delta_nu for a particular l (opts.max)
 
 freq1 = .1
-freq2 = numpy.arange(.14,0.19,0.01) #[GHz]
+freq2 = numpy.arange(0.1,0.15,0.001) #[GHz]
+freq2all = numpy.arange(0.007,0.2,0.001)
+freq3 = numpy.arange(0.025,0.1,0.001)
+freq4 = numpy.arange(0.03,0.18,0.01)
 
-k_data = numpy.arange(0.01,0.2,0.01) #actual data points
+k_data = numpy.arange(0.0,0.006,0.0001) #actual data points
 Pk_data = P_k(k_data)
 
 Pk_interp = interp1d(k_data, Pk_data, kind='linear')
 
-l_vals = numpy.arange(0,opts.lmax,1) 
+l_vals = [opts.lmax]
+
+Cl_vals = []
+deltanu_vals = []
+deltaDc_vals = []
+Cl_vals_all = []
+deltanu_vals_all = []
+Cl_vals3 = []
+deltanu_vals3 = []
+Cl_vals4 = []
+deltanu_vals4 = []
+
+#print C_l(freq1,0.05,Pk_interp,l_vals)
 
 for i in range(len(freq2)):
 
-    freqs = [freq1,freq2[i]]
+    Cl = C_l(freq1,freq2[i],Pk_interp,l_vals)
 
-    Cmatrix = C_matrix(freqs,Pk_interp,l_vals)
+    #delta_Dc = Cl[1]-Cl[2]
+    #Cl = Cl[0]
+    #deltaDc_vals.append(delta_Dc)
 
-    Cnu = []
+    Cl_vals.append(float(Cl[0]))
+    deltanu_vals.append(freq1-freq2[i])
 
-    for j in range(len(l_vals)):
+    #plt.plot(numpy.array(freq2[i]),numpy.array(Cl[2]),'r.')
+    plt.plot(deltanu_vals,Cl_vals,'r.')
+    #plt.plot(deltaDc_vals,Cl_vals,'b.')
 
-        Csmall = Cmatrix[j]
-        Cnu.append(Csmall[0,1])
+for i in range(len(freq2all)):
 
-    plt.plot(l_vals,Cnu)
+    Clall = C_l(freq1,freq2all[i],Pk_interp,l_vals)
+    Cl_vals_all.append(float(Clall[0]))
+    deltanu_vals_all.append(freq1-freq2all[i])
+    plt.plot(deltanu_vals_all,Cl_vals_all,'k-')
 
+for i in range(len(freq3)):
+
+    Cl3 = C_l(freq1,freq3[i],Pk_interp,l_vals)
+    Cl_vals3.append(float(Cl3[0]))
+    deltanu_vals3.append(freq1-freq3[i])
+    plt.plot(deltanu_vals3,Cl_vals3,'b.')
+
+for i in range(len(freq4)):
+
+    Cl4 = C_l(freq1,freq4[i],Pk_interp,l_vals)
+    Cl_vals4.append(float(Cl4[0]))
+    deltanu_vals4.append(freq1-freq4[i])
+    plt.plot(deltanu_vals4,Cl_vals4,'go')
+
+plt.xlabel('$\Delta$nu')
+plt.ylabel('C$_{l}$')
+plt.title('l='+str(opts.lmax))
+plt.ylim(-2E-12,3.5E-12)
 plt.show()
-"""  
-
-
-
+"""
 
 
 
