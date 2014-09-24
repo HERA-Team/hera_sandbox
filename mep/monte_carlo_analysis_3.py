@@ -88,7 +88,7 @@ def analyze(savekey,fqs,mode,Nfg_type,Ntot_eps=10**-4,info_eps=10**-4):
 
 
 
-
+        #### HACK
         savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
 
 
@@ -101,6 +101,7 @@ def analyze(savekey,fqs,mode,Nfg_type,Ntot_eps=10**-4,info_eps=10**-4):
         ahat00s = n.einsum('j,ij',MQN_firstRow,ys)
         T0s_master.append(ahat00s.real/n.sqrt(4.*n.pi))
 
+        #### HACK
         savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_fixedWidth_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
 
     T0s_master = n.array(T0s_master) # fqs x MCs
@@ -116,6 +117,9 @@ def analyze(savekey,fqs,mode,Nfg_type,Ntot_eps=10**-4,info_eps=10**-4):
     n.savez_compressed('{0}/MCs/T0_MCs_Nfg_type_{3}_{2}_{1}'.format(data_loc,savekey,mode,Nfg_type),T0s=T0s_master)
     n.save('{0}/MCs/T0_bias_Nfg_type_{3}_{2}_{1}.npy'.format(data_loc,savekey,mode,Nfg_type),T0s_bias)
     n.save('{0}/MCs/T0_covar_Nfg_type_{3}_{2}_{1}.npy'.format(data_loc,savekey,mode,Nfg_type),T0s_covar)
+
+    #### HACK
+    savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
 
     # Plot window functions
     WindMatrixRow = n.real(n.array(WindMatrixRow))
