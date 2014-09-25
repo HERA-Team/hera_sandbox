@@ -383,51 +383,147 @@ if PLOT:
     p.tight_layout()
     p.show()
 
-#def subtract_averag():
+###########################################
+#def subtract_average(C, bls, n_k):
+def subtract_average(C, bls, n_k, gps):
+    '''gps is the list of all groups in all chunks.'''
+    print gps
+    nbls = len(bls)
+    C.shape = (nbls,n_k,nbls,n_k)
+    sub_C = n.zeros_like(C) #array to be subtracted from C.
+    #choose a (i,j) baseline cross-multiple panel in the covariance matrix
+    for i in xrange(nbls):  
+        bli = bls[i]
+        for j in xrange(nbls):
+            blj = bls[j]
+            #ensure bli and blj belong to the same group
+            gp = same_group(bli, blj, gps)
+            if gp is None: continue
+            #make sure we only compute average using baselines in the same group
+            #Now average over all other panels of covariance matrix (within this group)
+            #to get the average signal covariance and subtract that off so that we don't 
+            #get signal loss removing residual signal covariances.
+            
+            _Csum,_Cwgt = 0,0
+            for i_ in xrange(nbls):
+                bli_ = bls_[i_]
+                if not bli_ in gp: continue # make sure averaging over baseline in same group.
+                if bli == bli_: continue #only average over other bls to better isolate bl systematics.
+                for j_ in xrange(nbls):
+                    blj_ = bls[j_]
+                    if not blj_ in gp: continue #make sure averaging over baselines in same gp. 
+                    if bli_ == blj_: continue #don't average panels with noise bias (same bls).
+                    if blj == blj_: continue #only average over other bls to bettwe isolate bl systematics.
+                    _Csum += C[i_,:,j_]
+                    _Cwgt += 1
+            try:
+                sub_C[i,:,j] = _Csum/_Cwgt
+            except(ZeroDivisionError): #catches zero weights
+                print 'weights are zero for %d_%d'%(i_,j_)
+                sys.stdout.flush()
+                sub_C[i,:,j] = _Csum
 
+    C.shape = sub_C.shape = (nbls*n_k, nbls*n_k)
+    C -= sub_C
+    return C, sub_C
+
+def make_groups(bls,ngps=4):
+    #makes groups based on list of bls and number of groups you want.
+    #defaults to 4 groups.
+    bls_ = random.sample(bls, len(bls))
+    nbls = len(bls)
+    nblspg = nbls/ngps
+    print 'Breaking %d bls into groups of %d'%(nbls, nblspg)
+    sys.stdout.flush()
+    gps = []
+    for gpi in xrange(ngps):
+        gps.append(bls_[gpi*nblspg:(gpi+1)*nblspg])
+    leftover = nbls - (nblspg*ngps)  
+    print gps
+    print nbls
+    print leftover
+    while leftover > 0:
+        rc = random.choice(range(ngps))
+        gps[rc].append(bls_[-1*leftover])
+        leftover-=1
+        print leftover
+    for gpi in xrange(ngps):
+        gps[gpi] = random.sample(gps[gpi],3) + [random.choice(gps[gpi]) for bl in gps[gpi][:len(gps[gpi])-3]]
+    return gps
+
+def same_group(bli, blj, gps):
+    for gp in gps:
+        if bli in gp and blj in gp:
+            return gp
+    return None
+
+############################################
 for boot in xrange(NBOOT):
     #777
     if True: # pick a sample of baselines with replacement
-        #bls_ = [random.choice(bls) for bl in bls]
         bls_ = random.sample(bls, len(bls))
         nbls = len(bls)
-        #gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:] # ensure gp1 and gp2 can't share baselines
-        #gp1,gp2,gp3 = bls_[:4],bls_[4:9],bls_[9:]
-        #GGG : divide number of bls by 4 for 64 dataset. This is 56 bls for sep01
-        nblspg = nbls/4
-        print 'Breaking %d bls into groups of %d'%(nbls, nblspg)
-        sys.stdout.flush()
-        #gp1,gp2,gp3,gp4 = bls_[:7],bls_[7:14],bls_[14:21],bls_[21:] # for 28bl i.e. 32 antennas in a grid 4 X 8
-        gp1,gp2,gp3,gp4 = bls_[:nblspg],bls_[nblspg:nblspg*2],bls_[nblspg*2:nblspg*3],bls_[nblspg*3:nblspg*4] # generic
-        leftover = nbls - (nblspg*4)
-        while leftover>0:
-            i = random.choice(range(4))
-            [gp1,gp2,gp3,gp4][i].append(bls_[-1*leftover])
-            leftover -= 1
+        #nchunks = 2 
+        nchunks = 1
+        chunks = []
+        #Split baselines into chunks that will be diagonalized separately.
+        for nc in xrange(nchunks):
+            chunks.append(bls_[nc*(nbls/nchunks):(nc+1)*(nbls/nchunks)])
+        #chunks does not have repeated baselines.
+        chgps = []
+        #chgps = chunkgroups.
+        #each element of chgps is the ngps used in covariance diag for each of the 
+        #chunks. eg2 [ [[gpi1,gpi2,gpi3]], [[gpj1,gpj2,gpj3]] ] for chunks i,j
+        #baselines may be repeated within a chunk. 
+        for chunk in chunks:
+            chgps.append(make_groups(chunk))
+        print 'chgps: ', chgps         
+        
         #gp1,gp2,gp3,gp4 = bls_[:14],bls_[14:28],bls_[28:42],bls_[42:] # for 56bl -> 14 * 4
         #gp1,gp2,gp3,gp4 = bls_[:5],bls_[5:10],bls_[10:15],bls_[15:] # for 21bl
         # ensure each group has at least 3 kinds of baselines. Otherwise get 0 divide.
-        gp1 = random.sample(gp1, 3) + [random.choice(gp1) for bl in gp1[:len(gp1)-3]]
-        gp2 = random.sample(gp2, 3) + [random.choice(gp2) for bl in gp2[:len(gp2)-3]]
-        gp3 = random.sample(gp3, 3) + [random.choice(gp3) for bl in gp3[:len(gp3)-3]]
-        gp4 = random.sample(gp4, 3) + [random.choice(gp4) for bl in gp4[:len(gp4)-3]]
-    else:
-        bls_ = random.sample(bls, len(bls))
-        gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:]
+        #gp1 = random.sample(gp1, 3) + [random.choice(gp1) for bl in gp1[:len(gp1)-3]]
+        #gp2 = random.sample(gp2, 3) + [random.choice(gp2) for bl in gp2[:len(gp2)-3]]
+        #gp3 = random.sample(gp3, 3) + [random.choice(gp3) for bl in gp3[:len(gp3)-3]]
+        #gp4 = random.sample(gp4, 3) + [random.choice(gp4) for bl in gp4[:len(gp4)-3]]
+    #else:
+    #    bls_ = random.sample(bls, len(bls))
+    #    gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:]
     #gp2 = gp2[:len(gp1)] # XXX force gp1 and gp2 to be same size
     #gp1,gp2 = gp1+gp2,[] # XXX
     #print 'XXX', len(gp1), len(gp2)
-    bls_ = gp1 + gp2 + gp3 + gp4
+
+    #get bls used within a chunk
+    chbls_ = []    
+    for i in xrange(nchunks):
+        cb = []
+        for cbc in chgps[i]:cb+=cbc
+        chbls_.append(cb)
+    #get list of all baselines. Record keeping.
+    bls_all = []
+    for i in xrange(nchunks):
+        bls_all.append(chbls_[i]) 
+    bls_all = bls_all[0]
+    print 'bls_all: ', bls_all
+    all_gps = []
+    for i in xrange(nchunks):
+        all_gps += chgps[i]
+    print 'all_gps: ', all_gps
+
     print 'Bootstrap sample %d:' % boot,
-    for gp in [gp1,gp2,gp3,gp4]: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
+    for chunk in chbls_: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in chunk])),
     print
     #again Ts is the number of bls*channels X number of integrations. Note this rearragnes the order of bls in Ts to be that of bls_. May be repititions.
-    Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
-    Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
-    L = len(bls_)
-    #temp_noise_var = n.var(n.array([T[bl] for bl in bls_]), axis=0).T
-    temp_noise_var = n.average(n.array([T[bl] for bl in bls_]), axis=0).T
-    print Ts.shape, temp_noise_var.shape
+    Ts = n.concatenate([T[bl] for bl in bls_all], axis=1).T
+    Ns = n.concatenate([N[bl] for bl in bls_all], axis=1).T
+    #Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
+    #CTs.append(n.concatenate([T[bl] for chbl in chbls_ for bl in chbl], axis=1).T)
+    #CNs.append(n.concatenate([N[bl] for chbl in chbls_ for bl in chbl], axis=1).T)
+    L = len(bls_all)#total size of both chunks
+    temp_noise_var = n.var(n.array([T[bl] for bl in bls_all]), axis=0).T
+    #
+    #temp_noise_var = n.average(n.array([T[bl] for bl in bls_]), axis=0).T
+    #print Ts.shape, temp_noise_var.shape
     sys.stdout.flush()
 
     _Cxtot,_Cntot = 1, 1
@@ -443,13 +539,37 @@ for boot in xrange(NBOOT):
     for cnt in xrange(PLT1*PLT2-1):
         print cnt, '/', PLT1*PLT2-1
         SZ = Ts.shape[0]
-        MCx,MCn = CoV(Ts, bls_), CoV(Ns, bls_)
+        #MCx,MCn = CoV(Ts, bls_), CoV(Ns, bls_)
+        MCx,MCn = CoV(Ts, bls_all), CoV(Ns, bls_all)
         #Cx,Cn = cov(Ts), cov(Ns)
         Cx,Cn = MCx.C, MCn.C
+        #to turn 64 data into 2 "32" data sets by masking off diagonals.
+        #Big_Mask = n.ones_like(Cx, n.dtype=n.float32)
+        
+        #one_half = ( len(gp1) + len(gp2) ) * n_k #nbls in half times nbins.
+        #other_half = ( len(gp3) + len(gp4) ) * n_k #nbls in other have times nbins.
+        #Big_Mask[:one_half, one_half+1:] = 0.
+        #Big_Mask[one_half+1:, :one_half] = 0.
+        #Cx *= Big_Mask
+        #Cn *= Big_Mask
+        
         if PLOT:
-            if cnt%10==0:
+            if cnt%1==0:
+#                p.figure(7)
+#                capo.arp.waterfall(_Cx, mode='log', mx=8,drng=4); p.colorbar(shrink=.5)
                 p.figure(7)
+                p.clf()
                 capo.arp.waterfall(Cx*scalar, mode='log', mx=8,drng=4); p.colorbar(shrink=.5)
+                #p.savefig('temp/cov%d'%cnt)
+                p.show()
+                #p.figure(7)
+                #p.clf()
+                #capo.arp.waterfall(Cx[3*n_k:4*n_k,1*n_k:2*n_k]*scalar, mode='log', mx=8,drng=4); p.colorbar(shrink=.5)
+                #p.savefig('temp/cov_1pair%d'%cnt)
+#                p.figure(8)
+#                capo.arp.waterfall(avg_Cx, mode='log', mx=8,drng=4); p.colorbar(shrink=.5)
+#                p.figure(9)
+#                capo.arp.waterfall(_Cx -  avg_Cx, mode='log', mx=8,drng=4); p.colorbar(shrink=.5)
             #capo.arp.waterfall(cov(Ts), mode='log', mx=-1,  drng=4); p.colorbar(shrink=.5)
             #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log', mx=0,  drng=3); p.colorbar(shrink=.5)
             #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
@@ -457,17 +577,16 @@ for boot in xrange(NBOOT):
             sys.stdout.flush()
         print "max(cov(Ts))",n.max(Cx)
         #999
-        #for c in [Cx,Cn]: # Normalize covariance matrices
-        for c in [Cx]:#,Cn]: # Normalize covariance matrices
-            #SZ is number of rows in Ts. i.e. #bls * #channels.
-            d = n.diag(c); d.shape = (1,SZ)
-            #c /= n.sqrt(d) * 2
-            c /= d
+        #SZ is number of rows in Ts. i.e. #bls * #channels.
+        dx = n.diag(Cx); dx.shape = (1,SZ); Cx /= dx
+        dn = n.diag(Cn); dn.shape = (1,SZ); Cn /= dn
+
         #g = .3 # for 1*7 baselines
         g = opts.gain # for 4*7 baselines
         print 'gain factor = ', g
         # begin with off-diagonal covariances to subtract off
         # (psuedo-inv for limit of small off-diagonal component)
+#        _Cx,_Cn = -g*_Cx, -g*_Cn
         _Cx,_Cn = -g*Cx, -g*Cn
         ind = n.arange(SZ)
         # XXX do we also need to zero modes adjacent to diagonal, since removing them results in bigger signal loss?
@@ -479,66 +598,99 @@ for boot in xrange(NBOOT):
             _Cn[indb+b*n_k,indb] = 0
         _Cx[ind,ind] = 0 
         _Cn[ind,ind] = 0 # set these to zero temporarily to avoid noise bias into cross terms
-        if True: # estimate and remove signal covariance from diagonalization process
+
+
+        #subtract average
+        _Cx, avg_Cx = subtract_average(_Cx, bls_all, n_k, all_gps)
+        _Cn, avg_Cn = subtract_average(_Cn, bls_all, n_k, all_gps)
+
+
+######This is the subtract the average part which has been moved to a function above.######
+
+        #if True: # estimate and remove signal covariance from diagonalization process
             # do this twice: once for the signal (Cx) and once for the noise (Cn)
             # using the statistics of the signal and noise, respectively
             #for _C in [_Cx,_Cn]:
-            for _C in [_Cx]:#,_Cn]:
-                #remember L is the total number of baselines and n_k is the number of kbins (i.e. number of channels). Note shape of covariance is n_k*#bls X n_k*#bls.
-                _C.shape = (L,n_k,L,n_k)
-                sub_C = n.zeros_like(_C)
-                # Choose a (i,j) baseline cross-multiple panel in the covariance matrix
-                for i in xrange(L):
-                    bli = bls_[i]
-                    for j in xrange(L):
-                        blj = bls_[j]
-                        # even remove signal bias if bli == blj
-                        # ensure bli and blj belong to the same group
-                        if bli in gp1 and blj in gp1: gp = gp1
-                        elif bli in gp2 and blj in gp2: gp = gp2
-                        elif bli in gp3 and blj in gp3: gp = gp3
-                        elif bli in gp4 and blj in gp4: gp = gp4
-                        else: continue # make sure we only compute average using bls in same group
-                        # Now average over all other panels of covariance matrix (within this group)
-                        # to get the average signal covariance and subtract that off so that we don't
-                        # get signal loss removing residual signal covariances.
-                        #AAA, Why are we not checking if the baselines are in the same group as the one we want to subtract from? i.e. bli_ and blj_ in gp{i}
-                        #CHANGE TO GP #Seems like it needs to be for i_,j_ in gp:
-                        _Csum,_Cwgt = 0,0
-                        for i_ in xrange(L):
-                            #check if i_ in gp
-                            bli_ = bls_[i_]
-                            if not bli_ in gp: continue # make sure averaging over baseline in the same group.
-                            if bli == bli_: continue # only average over other bls to better isolate bl systematics
-                            for j_ in xrange(L):
-                                blj_ = bls_[j_]
-                                if not blj_ in gp: continue # make sure averaging over baseline in the same group.
-                                if bli_ == blj_: continue # don't average over panels with noise bias
-                                if blj == blj_: continue # only average over other bls to better isolate bl systematics
-                                _Csum += _C[i_,:,j_] # fixes indexing error in earlier ver
-                                _Cwgt += 1
-                        try:
-                            sub_C[i,:,j] = _Csum / _Cwgt # fixes indexing error in earlier ver
-                        except(ZeroDivisionError): #catches zero weights
-                           # print gp
-                           # print i,j,bli,blj
-                           # print i_,j_,bli_,blj_
-                           # print _Cwgt
-                            print 'weights are zero for %d_%d'%(i_,j_)
-                            sys.stdout.flush()
-                            sub_C[i,:,j] = _Csum
-                _C.shape = sub_C.shape = (L*n_k,L*n_k)
-                _C -= sub_C
-                if PLOT:
-                    if cnt%10==0:
-                        p.figure(100)
-                    #correct for diagonal, scalar, and gain factor
-                        capo.arp.waterfall(sub_C*scalar*d/g, mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
-                    #p.subplot(131);capo.arp.waterfall(sub_C, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
-                    #p.subplot(132);capo.arp.waterfall(_Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
-                    #p.subplot(133);capo.arp.waterfall(-g*Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
-                        p.show()
-                    #p.figure(1)
+
+
+#            for _C in [_Cx]:#,_Cn]:
+#                #remember L is the total number of baselines and n_k is the number of kbins (i.e. number of channels). Note shape of covariance is n_k*#bls X n_k*#bls.
+#                _C.shape = (L,n_k,L,n_k)
+#                sub_C = n.zeros_like(_C)
+#                # Choose a (i,j) baseline cross-multiple panel in the covariance matrix
+#                for i in xrange(L):
+#                    bli = bls_[i]
+#                    for j in xrange(L):
+#                        blj = bls_[j]
+#                        # even remove signal bias if bli == blj
+#                        # ensure bli and blj belong to the same group
+#                        if bli in gp1 and blj in gp1: gp = gp1
+#                        elif bli in gp2 and blj in gp2: gp = gp2
+#                        elif bli in gp3 and blj in gp3: gp = gp3
+#                        elif bli in gp4 and blj in gp4: gp = gp4
+#                        else: continue # make sure we only compute average using bls in same group
+#                        # Now average over all other panels of covariance matrix (within this group)
+#                        # to get the average signal covariance and subtract that off so that we don't
+#                        # get signal loss removing residual signal covariances.
+#                        #AAA, Why are we not checking if the baselines are in the same group as the one we want to subtract from? i.e. bli_ and blj_ in gp{i}
+#                        #CHANGE TO GP #Seems like it needs to be for i_,j_ in gp:
+#                        _Csum,_Cwgt = 0,0
+#                        for i_ in xrange(L):
+#                            #check if i_ in gp
+#                            bli_ = bls_[i_]
+#                            if not bli_ in gp: continue # make sure averaging over baseline in the same group.
+#                            if bli == bli_: continue # only average over other bls to better isolate bl systematics
+#                            for j_ in xrange(L):
+#                                blj_ = bls_[j_]
+#                                if not blj_ in gp: continue # make sure averaging over baseline in the same group.
+#                                if bli_ == blj_: continue # don't average over panels with noise bias
+#                                if blj == blj_: continue # only average over other bls to better isolate bl systematics
+#                                _Csum += _C[i_,:,j_] # fixes indexing error in earlier ver
+#                                _Cwgt += 1
+#                        try:
+#                            sub_C[i,:,j] = _Csum / _Cwgt # fixes indexing error in earlier ver
+#                        except(ZeroDivisionError): #catches zero weights
+#                           # print gp
+#                           # print i,j,bli,blj
+#                           # print i_,j_,bli_,blj_
+#                           # print _Cwgt
+#                            print 'weights are zero for %d_%d'%(i_,j_)
+#                            sys.stdout.flush()
+#                            sub_C[i,:,j] = _Csum
+#                _C.shape = sub_C.shape = (L*n_k,L*n_k)
+#                _C -= sub_C
+
+
+#######This is the subtract the average part which has been moved to a function above.END######
+
+
+        if PLOT:
+            if cnt%1==0:
+                p.figure(100)
+                p.clf()
+                #capo.arp.waterfall(avg_Cx*scalar*dx/g, mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
+                capo.arp.waterfall(avg_Cx, mode='log'); p.colorbar(shrink=.5)
+                #p.savefig('temp/avg_cov%d'%cnt)
+                p.figure(10)
+                p.clf()
+                capo.arp.waterfall(_Cx*scalar*dx/g, mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
+                #p.savefig('temp/cov_minus_avg_cov%d'%cnt)
+
+               # p.figure(100)
+               # p.clf()
+               # CCCX = avg_Cx*scalar*dx/g
+               # _CCCX = _Cx*scalar*dx/g
+               # capo.arp.waterfall(CCCX[3*n_k:4*n_k,1*n_k:2*n_k], mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
+               # p.savefig('temp/avg_cov1pair%d'%cnt)
+               # p.figure(10)
+               # p.clf()
+               # capo.arp.waterfall(_CCCX[3*n_k:4*n_k,1*n_k:2*n_k], mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
+               # p.savefig('temp/cov_minus_avg_cov1pair%d'%cnt)
+                p.show()
+            #p.subplot(131);capo.arp.waterfall(sub_C, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
+                #p.subplot(132);capo.arp.waterfall(_Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
+                #p.subplot(133);capo.arp.waterfall(-g*Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
+#                        p.show()
 
         if True:
             # divide bls into two independent groups to avoid cross-contamination of noise
@@ -547,66 +699,71 @@ for boot in xrange(NBOOT):
             # a bl in another group
             mask = n.ones_like(Cx)
             # XXX need to clean this section up
-            #for bl1 in xrange(len(gp1)):
-            #    for bl2 in xrange(len(gp1)):
-            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
-            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-            for bl1 in xrange(len(gp1)):
-                for bl2 in xrange(len(gp2)):
-                    bl2 += len(gp1)
-                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-            for bl1 in xrange(len(gp1)):
-                for bl2 in xrange(len(gp3)):
-                    bl2 += len(gp1) + len(gp2)
-                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-            for bl1 in xrange(len(gp1)):
-                for bl2 in xrange(len(gp4)):
-                    bl2 += len(gp1) + len(gp2) + len(gp3)
-                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-            #for bl1 in xrange(len(gp2)):
-            #    bl1 += len(gp1)
-            #    for bl2 in xrange(len(gp2)):
-            #        bl2 += len(gp1)
-            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
-            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-            for bl1 in xrange(len(gp2)):
-                bl1 += len(gp1)
-                for bl2 in xrange(len(gp3)):
-                    bl2 += len(gp1) + len(gp2)
-                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-            for bl1 in xrange(len(gp2)):
-                bl1 += len(gp1)
-                for bl2 in xrange(len(gp4)):
-                    bl2 += len(gp1) + len(gp2) + len(gp3)
-                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-            #for bl1 in xrange(len(gp3)):
-            #    bl1 += len(gp1) + len(gp2)
-            #    for bl2 in xrange(len(gp3)):
-            #        bl2 += len(gp1) + len(gp2)
-            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
-            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-            for bl1 in xrange(len(gp3)):
-                bl1 += len(gp1) + len(gp2)
-                for bl2 in xrange(len(gp4)):
-                    bl2 += len(gp1) + len(gp2) + len(gp3)
-                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-            #for bl1 in xrange(len(gp4)):
-            #    bl1 += len(gp1) + len(gp2) + len(gp3)
-            #    for bl2 in xrange(len(gp4)):
-            #        bl2 += len(gp1) + len(gp2) + len(gp3)
-            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
-            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-            #BBB All of the above for loops mask the gp-gp baseline pairs. Get a diagonal matrix of covariances within the group.
+            for i, bli in enumerate(bls_all):
+                for j, blj in enumerate(bls_all):
+                    if not same_group(bli, blj, all_gps) is None: continue
+                    mask[i*n_k:(i+1)*n_k,j*n_k:(j+1)*n_k] = 0
+            
+#            #for bl1 in xrange(len(gp1)):
+#            #    for bl2 in xrange(len(gp1)):
+#            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
+#            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+#            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+#            for bl1 in xrange(len(gp1)):
+#                for bl2 in xrange(len(gp2)):
+#                    bl2 += len(gp1)
+#                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+#                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+#            for bl1 in xrange(len(gp1)):
+#                for bl2 in xrange(len(gp3)):
+#                    bl2 += len(gp1) + len(gp2)
+#                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+#                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+#            for bl1 in xrange(len(gp1)):
+#                for bl2 in xrange(len(gp4)):
+#                    bl2 += len(gp1) + len(gp2) + len(gp3)
+#                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+#                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+#            #for bl1 in xrange(len(gp2)):
+#            #    bl1 += len(gp1)
+#            #    for bl2 in xrange(len(gp2)):
+#            #        bl2 += len(gp1)
+#            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
+#            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+#            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+#            for bl1 in xrange(len(gp2)):
+#                bl1 += len(gp1)
+#                for bl2 in xrange(len(gp3)):
+#                    bl2 += len(gp1) + len(gp2)
+#                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+#                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+#            for bl1 in xrange(len(gp2)):
+#                bl1 += len(gp1)
+#                for bl2 in xrange(len(gp4)):
+#                    bl2 += len(gp1) + len(gp2) + len(gp3)
+#                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+#                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+#            #for bl1 in xrange(len(gp3)):
+#            #    bl1 += len(gp1) + len(gp2)
+#            #    for bl2 in xrange(len(gp3)):
+#            #        bl2 += len(gp1) + len(gp2)
+#            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
+#            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+#            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+#            for bl1 in xrange(len(gp3)):
+#                bl1 += len(gp1) + len(gp2)
+#                for bl2 in xrange(len(gp4)):
+#                    bl2 += len(gp1) + len(gp2) + len(gp3)
+#                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+#                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+#            #for bl1 in xrange(len(gp4)):
+#            #    bl1 += len(gp1) + len(gp2) + len(gp3)
+#            #    for bl2 in xrange(len(gp4)):
+#            #        bl2 += len(gp1) + len(gp2) + len(gp3)
+#            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
+#            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
+#            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
+#            #BBB All of the above for loops mask the gp-gp baseline pairs. Get a diagonal matrix of covariances within the group.
             _Cx *= mask; _Cn *= mask
         #make diagonal 1 after applying mask.
         _Cx[ind,ind] = _Cn[ind,ind] = 1
@@ -625,15 +782,21 @@ for boot in xrange(NBOOT):
 #    import IPython
 #    IPython.embed()
 #    exit()
-    Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
-    Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
+    #Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
+    #Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
+    Ts = n.concatenate([T[bl] for bl in bls_all], axis=1).T
+    Ns = n.concatenate([N[bl] for bl in bls_all], axis=1).T # this noise copy processed as if it were the data
 
     pspecs,dspecs = [], []
     nspecs,n1specs,n2specs = [], [], []
-    Cx,Cn = CoV(Ts, bls_), CoV(Ns, bls_)
-    Cx_ = CoV(n.dot(_Cxtot,Ts), bls_)
+    #Cx,Cn = CoV(Ts, bls_), CoV(Ns, bls_)
+    #Cx_ = CoV(n.dot(_Cxtot,Ts), bls_)
+    Cx,Cn = CoV(Ts, bls_), CoV(Ns, bls_all)
+    Cx_ = CoV(n.dot(_Cxtot,Ts), bls_all)
     # Cn1 is the noise diagonalized as if it were the signal, Cn2 is the noise with the signal diagonalization applied
-    Cn1_,Cn2_ = CoV(n.dot(_Cntot,Ns), bls_), CoV(n.dot(_Cxtot,Ns), bls_)
+    #Cn1_,Cn2_ = CoV(n.dot(_Cntot,Ns), bls_), CoV(n.dot(_Cxtot,Ns), bls_)
+    Cn1_,Cn2_ = CoV(n.dot(_Cntot,Ns), bls_all), CoV(n.dot(_Cxtot,Ns), bls_all)
+    bls_ = bls_all #THis is new. Use with the chunnk stuff.
     for cnt,bli in enumerate(bls_):
         print cnt
         for blj in bls_[cnt:]:
@@ -644,8 +807,9 @@ for boot in xrange(NBOOT):
             pk_avg = scalar * xi * xj.conj() # make a power spectrum from bli*blj^*.
             dspecs.append(pk_avg) # do this before bli == blj check to include noise bias in dspec
             if bli == blj: continue
-            if True: # exclude intra-group pairings # XXX
-                if (bli in gp1 and blj in gp1) or (bli in gp2 and blj in gp2) or (bli in gp3 and blj in gp3) or (bli in gp4 and blj in gp4): continue
+            #if True: # exclude intra-group pairings # XXX
+            #    if (bli in gp1 and blj in gp1) or (bli in gp2 and blj in gp2) or (bli in gp3 and blj in gp3) or (bli in gp4 and blj in gp4): continue
+            if not same_group(bli, blj, all_gps) is None: continue
             if not opts.noproj: # do an extra final removal of leakage from particular modes
                 print 'Projecting'
                 Ts = n.concatenate([xi_,xj_], axis=0)
