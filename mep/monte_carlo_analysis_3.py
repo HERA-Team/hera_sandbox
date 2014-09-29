@@ -5,7 +5,7 @@ from scipy.stats import norm
 import matplotlib as mpl
 import useful_functions as uf
 
-global data_loc; data_loc = "/global/homes/a/acliu/globalSig/fq_120_150_testCase"
+global data_loc; data_loc = "/global/homes/a/acliu/globalSig/fq_120_150_narrowWigglyBeam"
 
 def load_Q_file(savekey,fq,lmax=-1):
     Q_file = '{0}/Q_matrices/Q_{1}_fq_{2:.3f}.npz'.format(data_loc,savekey,fq)
@@ -24,7 +24,7 @@ def total_noise_covar(savekey,eps,fq,Nfg_type):
     if Nfg_type == "gsm":
         fg_file = '{0}/gsm_matrices/gsm_{1}_fq_{2:.3f}.npz'.format(data_loc,savekey,fq)
     if Nfg_type == "improved":
-        fg_file = '{0}/gsm_matrices/improvedNfg_{1}_fq_{2:.3f}.npz'.format(data_loc,savekey2,fq)
+        fg_file = '{0}/gsm_matrices/improvedNfg_{1}_fq_{2:.3f}.npz'.format(data_loc,savekey,fq)
 
     Nfg_file = n.load(fg_file)
     Nfg = Nfg_file['matrix']
@@ -84,15 +84,6 @@ def analyze(savekey,fqs,mode,Nfg_type,Ntot_eps=10**-4,info_eps=10**-4):
         ys = n.load('{0}/mc_{1}_fq_{2:.3f}_allMCs.npz'.format(currentFolder,savekey,fq))['matrix']
         print "....loaded",ys.shape[0],"MCs, each of which has info about",ys.shape[1],"baselines."
 
-
-
-
-
-        #### HACK
-        savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
-
-
-
         print "Now loading Q matrices..."
         baselines, Q, lms = load_Q_file(savekey,fq,-1)
         print "...loaded.  Onto loading the N_fg matrices..."
@@ -100,9 +91,6 @@ def analyze(savekey,fqs,mode,Nfg_type,Ntot_eps=10**-4,info_eps=10**-4):
         MQN_firstRow, WindMatrixRow = return_MQdagNinv(Q,Ntot,mode,savekey,fq,Nfg_type,info_eps,num_remov=None)
         ahat00s = n.einsum('j,ij',MQN_firstRow,ys)
         T0s_master.append(ahat00s.real/n.sqrt(4.*n.pi))
-
-        #### HACK
-        savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_fixedWidth_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
 
     T0s_master = n.array(T0s_master) # fqs x MCs
     numMCs = T0s_master.shape[1]
@@ -118,8 +106,6 @@ def analyze(savekey,fqs,mode,Nfg_type,Ntot_eps=10**-4,info_eps=10**-4):
     n.save('{0}/MCs/T0_bias_Nfg_type_{3}_{2}_{1}.npy'.format(data_loc,savekey,mode,Nfg_type),T0s_bias)
     n.save('{0}/MCs/T0_covar_Nfg_type_{3}_{2}_{1}.npy'.format(data_loc,savekey,mode,Nfg_type),T0s_covar)
 
-    #### HACK
-    savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
 
     # Plot window functions
     WindMatrixRow = n.real(n.array(WindMatrixRow))
@@ -159,9 +145,9 @@ def analyze(savekey,fqs,mode,Nfg_type,Ntot_eps=10**-4,info_eps=10**-4):
     return None
 
 if __name__=='__main__':
-    beam_sigs = [1.57] #(np.pi/18,np.pi/6,5*np.pi/18,7*np.pi/18)
+    beam_sigs = [0.314] #(np.pi/18,np.pi/6,5*np.pi/18,7*np.pi/18)
     sqGridSideLens = [12] #(4,8,12,16)
-    variableBeams = [0] #(0,1)
+    variableBeams = [1] #(0,1)
     lowerFreq = 120.
     upperFreq = 150. #150.
     freqSpace = 1.
@@ -180,8 +166,6 @@ if __name__=='__main__':
                     savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_fixedWidth_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
                 elif variableBeam == 1:
                     savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_lambdaBeam_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
-                #savekey = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
-                #savekey2 = 'grid_del_bl_{0:.2f}_sqGridSideLen_{1}_fixedWidth_beam_sig_{2:.2f}'.format(del_bl,sqGridSideLen,beam_sig)
 
                 analyze(savekey,fqs,mode,"gsm",Ntot_eps,info_eps)
                 #analyze(savekey,fqs,mode,"improved",Ntot_eps,info_eps)
