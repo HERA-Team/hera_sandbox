@@ -46,25 +46,6 @@ aa = a.cal.get_aa(opts.cal, .1, .1, 1) #bogus params in get_aa
 ANTPOS = aa.ant_layout
 del(aa)
 
-# XXX Currently hardcoded for PSA898
-#A_ = [0,16,8,24,4,20,12,28]
-#B_ = [i+1 for i in A_]
-#C_ = [i+2 for i in A_]
-#D_ = [i+3 for i in A_]
-#ANTPOS = n.array([A_, B_, C_, D_])
-
-#Take half of the 64 antenna array. For testing purposes.
-#1/13/14 : take the whole array.
-#ANTPOS = n.array(
-#        [[49,41,47,19,29,28,34,51],
-#         [10, 3,25,48,24,55,27,57],
-#         [ 9,58, 1, 4,17,13,56,59],
-#         [22,61,35,18, 5,32,30,23]])
-#         [20,63,42,37,40,14,54,50],
-#         [43, 2,33, 6,52, 7,12,38],
-#         [53,21,15,16,62,44, 0,26],
-#         [31,45, 8,11,36,60,39,46]])
-
 class CoV:
     '''Covariance class.
         input : Data matrix and bls in set. (X, bls)
@@ -116,93 +97,50 @@ def cov2(m1,m2):
     N = X1.shape[1]
     fact = float(N - 1)
     return (n.dot(X1, X2.T.conj()) / fact).squeeze()
-if False: #turning off the auto sep selection in preperation for deletion
-    # Get a dict of all separations and the bls that contribute.0001
-    #creates a dictionary of separations given a certain baseline
-    #and vice versa, gives baselines for a given separation (returns list).
-    bl2sep = {}
-    sep2bl = {}
-    for ri in range(ANTPOS.shape[0]):
-        for ci in range(ANTPOS.shape[1]):
-            for rj in range(ANTPOS.shape[0]):
-                for cj in range(ci,ANTPOS.shape[1]):
-                    if ri >= rj and ci == cj: continue # exclude repeat +/- listings of certain bls
-                    #sep = a.miriad.ij2bl(rj-ri, cj-ci)
-                    sep = (cj-ci, rj-ri) #(dx,dy) in row spacing units
-                    i,j = ANTPOS[ri,ci], ANTPOS[rj,cj]
-                    bl = a.miriad.ij2bl(i,j)
-                    if i > j:
-                        i,j = j,i
-                        sep = (sep[0]*-1,sep[1]*-1)
-                    bl2sep[bl] = sep
-                    sep2bl[sep] = sep2bl.get(sep,[]) + [bl]
-    #choose unit seperations corresponding to the bls I put in.
-    if len(opts.ant.split('_'))>1: #if there are baselines requested
-        #get a list of miriad format bl ints
-        input_bls = [a.miriad.ij2bl(int(l.split('_')[0]),int(l.split('_')[1])) for l in opts.ant.split(',')]
-        print input_bls
-        myseps = list(set([bl2sep[bl] for bl in input_bls]))#get a list of the seps, one entry per
-        print "based on input baselines, I am including the following seperations"
-        print myseps
-        mybls = []
-        for sep in myseps:
-            mybls += sep2bl[sep]
-            revsep = (-sep[0],-sep[1])
-            mybls += sep2bl[revsep] #don't forget the reverse seps. they count as the same!
-        print "found %d baselines"%len(mybls)
-        opts.ant = ','.join([miriadbl2str(bl) for bl in mybls])
-        print opts.ant
-        sys.stdout.flush()
-    #WARNING: The default is to do _all_ seps in the data.
 
-# Get a dict of all separations and the bls that contribute.0000
-#creates a dictionary of separations given a certain baseline
-#and vice versa, gives baselines for a given separation (returns list).
-bl2sep = {}
-sep2bl = {}
-for ri in range(ANTPOS.shape[0]):
-    for ci in range(ANTPOS.shape[1]):
-        for rj in range(ANTPOS.shape[0]):
-            for cj in range(ci,ANTPOS.shape[1]):
-                if ri >= rj and ci == cj: continue # exclude repeat +/- listings of certain bls
-                #sep = a.miriad.ij2bl(rj-ri, cj-ci)
-                sep = (cj-ci, rj-ri) #(dx,dy) in row spacing units
-                i,j = ANTPOS[ri,ci], ANTPOS[rj,cj]
-                bl = a.miriad.ij2bl(i,j)
-                if i > j: 
-                    i,j = j,i
-                    sep = (sep[0]*-1,sep[1]*-1)
-                bl2sep[bl] = sep
-                sep2bl[sep] = sep2bl.get(sep,[]) + [bl]
-#choose unit seperations corresponding to the bls I put in.
 
-if not opts.usebls:
-    if len(opts.ant.split('_'))>1: #if there are baselines requested
-        #get a list of miriad format bl ints
-        input_bls = [a.miriad.ij2bl(int(l.split('_')[0]),int(l.split('_')[1])) for l in opts.ant.split(',')]
-        print input_bls
-        myseps = list(set([bl2sep[bl] for bl in input_bls]))#get a list of the seps, one entry per 
-        print "based on input baselines, I am including the following seperations"
-        print myseps
-        mybls = []
-        for sep in myseps:
-            mybls += sep2bl[sep]
-            revsep = (-sep[0],-sep[1])
-            mybls += sep2bl[revsep] #don't forget the reverse seps. they count as the same!
-        print "found %d baselines"%len(mybls)
-        opts.ant = ','.join([miriadbl2str(bl) for bl in mybls])
-        print opts.ant
-#WARNING: The default is to do _all_ seps in the data.
+def grid2ij(GRID):
+    bls, conj = {}, {}
+    for ri in range(GRID.shape[0]):
+        for ci in range(GRID.shape[1]):
+            for rj in range(GRID.shape[0]):
+                for cj in range(GRID.shape[1]):
+                    if ci > cj: continue
+#                    if i > rj and ci == cj: continue
+#                    if ci > cj and ri == rj: continue
+                    sep = (rj-ri, cj-ci)
+                    sep = '%d,%d'%sep
+                    i,j = GRID[ri, ci], GRID[rj,cj]
+                    bls[sep] = bls.get(sep,[]) + [(i,j)]
+    for sep in bls.keys():
+        if sep == '0,0' or len(bls[sep]) < 2: del(bls[sep])
+    for sep in bls:
+        conj[sep] = [i>j for i,j in bls[sep]]
 
+    bl_str,bl_conj = {}, {}
+    for sep in bls:
+        bl_str[sep],bl_list = [], []
+        for (i,j),c in zip(bls[sep],conj[sep]):
+            if c: i,j = j,i
+            bl_list.append(a.miriad.ij2bl(i,j))
+            bl_str[sep].append('%d_%d'%(i,j))
+            bl_conj[a.miriad.ij2bl(i,j)] = c
+        bls[sep] = bl_list
+        bl_str[sep] = ','.join(bl_str[sep])
+    return bl_str,bl_conj
+
+if not opts.ant:
+    print 'NO BASELINES. PLEASE INPUT BASELINES ON COMMAND LINE.'
+    exit()
 else:
     print 'Using the following baselines'
     print opts.ant.split(',')
     print 'There are %d of them'%len(opts.ant.split(','))
 
+sep2bl, conjbl = grid2ij(ANTPOS)
+
 
 #checking that our grid indexing is working
-print [a.miriad.bl2ij(bl) for bl in sep2bl[(1,0)]]
-print len(sep2bl[(0,1)])
 
 uv = a.miriad.UV(args[0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
@@ -237,11 +175,6 @@ print 'B:', B
 print 'scalar:', scalar
 sys.stdout.flush()
 
-#cen_fqs = n.arange(.115,.190,.005)
-#cen_fqs = n.array([.150])
-#kwargs = {'cen_fqs':cen_fqs,'B':B, 'ntaps':NTAPS, 'window':WINDOW, 'bm_fqs':afreqs.clip(.120,.190)}
-#window = a.dsp.gen_window(freqs.size, window=WINDOW)
-
 #T is a dictionary of the visibilities and N is the dictionary for noise estimates.
 T, N, W = {}, {}, {}
 times = []
@@ -260,14 +193,10 @@ for filename in args:
         #For 32 array inside 64 array. skip bls not in the subarray, but may be in the data set.
         if not (( i in ANTPOS ) and ( j in ANTPOS )) : continue
         bl = a.miriad.ij2bl(i,j)
-        #sep = bl2sep[bl]
-        #print i,j,':',sep
-        #if n.abs(sep[0]) != 1 or sep[1] !=0:continue
-        #print '-->',i,j
         sys.stdout.flush()
-        #if sep[0] < 0:
-            #print 'Conj:', a.miriad.bl2ij(bl)
-        #    d,sep = n.conj(d),-1*n.array(sep)
+        if conjbl[bl]:
+            print 'Conjugating baseline (%d,%d) or %d'%(i,j,bl)
+            d= n.conj(d)
         #take active data and convert from janksy's to temperature units. Current data is in janskys.
         d,f = d.take(chans), f.take(chans)
         w = n.logical_not(f).astype(n.float)
@@ -439,14 +368,10 @@ def make_groups(bls,ngps=4):
     for gpi in xrange(ngps):
         gps.append(bls_[gpi*nblspg:(gpi+1)*nblspg])
     leftover = nbls - (nblspg*ngps)  
-    print gps
-    print nbls
-    print leftover
     while leftover > 0:
         rc = random.choice(range(ngps))
         gps[rc].append(bls_[-1*leftover])
         leftover-=1
-        print leftover
     for gpi in xrange(ngps):
         gps[gpi] = random.sample(gps[gpi],3) + [random.choice(gps[gpi]) for bl in gps[gpi][:len(gps[gpi])-3]]
     return gps
@@ -458,72 +383,58 @@ def same_group(bli, blj, gps):
     return None
 
 ############################################
+
+
 for boot in xrange(NBOOT):
     #777
     if True: # pick a sample of baselines with replacement
+        #bls_ = [random.choice(bls) for bl in bls]
         bls_ = random.sample(bls, len(bls))
         nbls = len(bls)
-        #nchunks = 2 
-        nchunks = 1
-        chunks = []
-        #Split baselines into chunks that will be diagonalized separately.
-        for nc in xrange(nchunks):
-            chunks.append(bls_[nc*(nbls/nchunks):(nc+1)*(nbls/nchunks)])
-        #chunks does not have repeated baselines.
-        chgps = []
-        #chgps = chunkgroups.
-        #each element of chgps is the ngps used in covariance diag for each of the 
-        #chunks. eg2 [ [[gpi1,gpi2,gpi3]], [[gpj1,gpj2,gpj3]] ] for chunks i,j
-        #baselines may be repeated within a chunk. 
-        for chunk in chunks:
-            chgps.append(make_groups(chunk))
-        print 'chgps: ', chgps         
-        
-        #gp1,gp2,gp3,gp4 = bls_[:14],bls_[14:28],bls_[28:42],bls_[42:] # for 56bl -> 14 * 4
-        #gp1,gp2,gp3,gp4 = bls_[:5],bls_[5:10],bls_[10:15],bls_[15:] # for 21bl
-        # ensure each group has at least 3 kinds of baselines. Otherwise get 0 divide.
-        #gp1 = random.sample(gp1, 3) + [random.choice(gp1) for bl in gp1[:len(gp1)-3]]
-        #gp2 = random.sample(gp2, 3) + [random.choice(gp2) for bl in gp2[:len(gp2)-3]]
-        #gp3 = random.sample(gp3, 3) + [random.choice(gp3) for bl in gp3[:len(gp3)-3]]
-        #gp4 = random.sample(gp4, 3) + [random.choice(gp4) for bl in gp4[:len(gp4)-3]]
-    #else:
-    #    bls_ = random.sample(bls, len(bls))
-    #    gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:]
-    #gp2 = gp2[:len(gp1)] # XXX force gp1 and gp2 to be same size
-    #gp1,gp2 = gp1+gp2,[] # XXX
-    #print 'XXX', len(gp1), len(gp2)
-
-    #get bls used within a chunk
-    chbls_ = []    
-    for i in xrange(nchunks):
-        cb = []
-        for cbc in chgps[i]:cb+=cbc
-        chbls_.append(cb)
-    #get list of all baselines. Record keeping.
-    bls_all = []
-    for i in xrange(nchunks):
-        bls_all.append(chbls_[i]) 
-    bls_all = bls_all[0]
-    print 'bls_all: ', bls_all
-    all_gps = []
-    for i in xrange(nchunks):
-        all_gps += chgps[i]
-    print 'all_gps: ', all_gps
-
+        #gps = make_groups(bls_, ngps=8)
+        gps = make_groups(bls_, ngps=4)
+#        #gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:] # ensure gp1 and gp2 can't share baselines
+#        #gp1,gp2,gp3 = bls_[:4],bls_[4:9],bls_[9:]
+#        #GGG : divide number of bls by 4 for 64 dataset. This is 56 bls for sep01
+#        nblspg = nbls/4
+#        print 'Breaking %d bls into groups of %d'%(nbls, nblspg)
+#        sys.stdout.flush()
+#        #gp1,gp2,gp3,gp4 = bls_[:7],bls_[7:14],bls_[14:21],bls_[21:] # for 28bl i.e. 32 antennas in a grid 4 X 8
+#        gp1,gp2,gp3,gp4 = bls_[:nblspg],bls_[nblspg:nblspg*2],bls_[nblspg*2:nblspg*3],bls_[nblspg*3:nblspg*4] # generic
+#        leftover = nbls - (nblspg*4)
+#        while leftover>0:
+#            i = random.choice(range(4))
+#            [gp1,gp2,gp3,gp4][i].append(bls_[-1*leftover])
+#            leftover -= 1
+#        #gp1,gp2,gp3,gp4 = bls_[:14],bls_[14:28],bls_[28:42],bls_[42:] # for 56bl -> 14 * 4
+#        #gp1,gp2,gp3,gp4 = bls_[:5],bls_[5:10],bls_[10:15],bls_[15:] # for 21bl
+#        # ensure each group has at least 3 kinds of baselines. Otherwise get 0 divide.
+#        gp1 = random.sample(gp1, 3) + [random.choice(gp1) for bl in gp1[:len(gp1)-3]]
+#        gp2 = random.sample(gp2, 3) + [random.choice(gp2) for bl in gp2[:len(gp2)-3]]
+#        gp3 = random.sample(gp3, 3) + [random.choice(gp3) for bl in gp3[:len(gp3)-3]]
+#        gp4 = random.sample(gp4, 3) + [random.choice(gp4) for bl in gp4[:len(gp4)-3]]
+#    else:
+#        bls_ = random.sample(bls, len(bls))
+#        gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:]
+#    #gp2 = gp2[:len(gp1)] # XXX force gp1 and gp2 to be same size
+#    #gp1,gp2 = gp1+gp2,[] # XXX
+#    #print 'XXX', len(gp1), len(gp2)
+    #gp1, gp2, gp3, gp4 = gps##new
+    bls_=[]
+    for gp in gps : bls_+=gp
+    
     print 'Bootstrap sample %d:' % boot,
-    for chunk in chbls_: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in chunk])),
+#    for gp in [gp1,gp2,gp3,gp4]: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
+#    print
+    for gp in gps: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
     print
     #again Ts is the number of bls*channels X number of integrations. Note this rearragnes the order of bls in Ts to be that of bls_. May be repititions.
-    Ts = n.concatenate([T[bl] for bl in bls_all], axis=1).T
-    Ns = n.concatenate([N[bl] for bl in bls_all], axis=1).T
-    #Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
-    #CTs.append(n.concatenate([T[bl] for chbl in chbls_ for bl in chbl], axis=1).T)
-    #CNs.append(n.concatenate([N[bl] for chbl in chbls_ for bl in chbl], axis=1).T)
-    L = len(bls_all)#total size of both chunks
-    temp_noise_var = n.var(n.array([T[bl] for bl in bls_all]), axis=0).T
-    #
-    #temp_noise_var = n.average(n.array([T[bl] for bl in bls_]), axis=0).T
-    #print Ts.shape, temp_noise_var.shape
+    Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
+    Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
+    L = len(bls_)
+    #temp_noise_var = n.var(n.array([T[bl] for bl in bls_]), axis=0).T
+    temp_noise_var = n.average(n.array([T[bl] for bl in bls_]), axis=0).T
+    print Ts.shape, temp_noise_var.shape
     sys.stdout.flush()
 
     _Cxtot,_Cntot = 1, 1
@@ -539,37 +450,13 @@ for boot in xrange(NBOOT):
     for cnt in xrange(PLT1*PLT2-1):
         print cnt, '/', PLT1*PLT2-1
         SZ = Ts.shape[0]
-        #MCx,MCn = CoV(Ts, bls_), CoV(Ns, bls_)
-        MCx,MCn = CoV(Ts, bls_all), CoV(Ns, bls_all)
+        MCx,MCn = CoV(Ts, bls_), CoV(Ns, bls_)
         #Cx,Cn = cov(Ts), cov(Ns)
         Cx,Cn = MCx.C, MCn.C
-        #to turn 64 data into 2 "32" data sets by masking off diagonals.
-        #Big_Mask = n.ones_like(Cx, n.dtype=n.float32)
-        
-        #one_half = ( len(gp1) + len(gp2) ) * n_k #nbls in half times nbins.
-        #other_half = ( len(gp3) + len(gp4) ) * n_k #nbls in other have times nbins.
-        #Big_Mask[:one_half, one_half+1:] = 0.
-        #Big_Mask[one_half+1:, :one_half] = 0.
-        #Cx *= Big_Mask
-        #Cn *= Big_Mask
-        
         if PLOT:
-            if cnt%1==0:
-#                p.figure(7)
-#                capo.arp.waterfall(_Cx, mode='log', mx=8,drng=4); p.colorbar(shrink=.5)
+            if cnt%10==0:
                 p.figure(7)
-                p.clf()
                 capo.arp.waterfall(Cx*scalar, mode='log', mx=8,drng=4); p.colorbar(shrink=.5)
-                #p.savefig('temp/cov%d'%cnt)
-                p.show()
-                #p.figure(7)
-                #p.clf()
-                #capo.arp.waterfall(Cx[3*n_k:4*n_k,1*n_k:2*n_k]*scalar, mode='log', mx=8,drng=4); p.colorbar(shrink=.5)
-                #p.savefig('temp/cov_1pair%d'%cnt)
-#                p.figure(8)
-#                capo.arp.waterfall(avg_Cx, mode='log', mx=8,drng=4); p.colorbar(shrink=.5)
-#                p.figure(9)
-#                capo.arp.waterfall(_Cx -  avg_Cx, mode='log', mx=8,drng=4); p.colorbar(shrink=.5)
             #capo.arp.waterfall(cov(Ts), mode='log', mx=-1,  drng=4); p.colorbar(shrink=.5)
             #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log', mx=0,  drng=3); p.colorbar(shrink=.5)
             #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
@@ -577,16 +464,14 @@ for boot in xrange(NBOOT):
             sys.stdout.flush()
         print "max(cov(Ts))",n.max(Cx)
         #999
-        #SZ is number of rows in Ts. i.e. #bls * #channels.
+        #for c in [Cx,Cn]: # Normalize covariance matrices
         dx = n.diag(Cx); dx.shape = (1,SZ); Cx /= dx
         dn = n.diag(Cn); dn.shape = (1,SZ); Cn /= dn
-
         #g = .3 # for 1*7 baselines
         g = opts.gain # for 4*7 baselines
         print 'gain factor = ', g
         # begin with off-diagonal covariances to subtract off
         # (psuedo-inv for limit of small off-diagonal component)
-#        _Cx,_Cn = -g*_Cx, -g*_Cn
         _Cx,_Cn = -g*Cx, -g*Cn
         ind = n.arange(SZ)
         # XXX do we also need to zero modes adjacent to diagonal, since removing them results in bigger signal loss?
@@ -601,18 +486,18 @@ for boot in xrange(NBOOT):
 
 
         #subtract average
-        _Cx, avg_Cx = subtract_average(_Cx, bls_all, n_k, all_gps)
-        _Cn, avg_Cn = subtract_average(_Cn, bls_all, n_k, all_gps)
-
-
+        #_Cx, avg_Cx = subtract_average(_Cx, bls_, n_k, [gp1,gp2,gp3,gp4])
+        #_Cn, avg_Cn = subtract_average(_Cn, bls_, n_k, [gp1,gp2,gp3,gp4])
+        _Cx, avg_Cx = subtract_average(_Cx, bls_, n_k, gps)
+        _Cn, avg_Cn = subtract_average(_Cn, bls_, n_k, gps)
 ######This is the subtract the average part which has been moved to a function above.######
 
-        #if True: # estimate and remove signal covariance from diagonalization process
-            # do this twice: once for the signal (Cx) and once for the noise (Cn)
-            # using the statistics of the signal and noise, respectively
-            #for _C in [_Cx,_Cn]:
 
 
+#        if True: # estimate and remove signal covariance from diagonalization process
+#            # do this twice: once for the signal (Cx) and once for the noise (Cn)
+#            # using the statistics of the signal and noise, respectively
+#            #for _C in [_Cx,_Cn]:
 #            for _C in [_Cx]:#,_Cn]:
 #                #remember L is the total number of baselines and n_k is the number of kbins (i.e. number of channels). Note shape of covariance is n_k*#bls X n_k*#bls.
 #                _C.shape = (L,n_k,L,n_k)
@@ -661,36 +546,21 @@ for boot in xrange(NBOOT):
 #                _C -= sub_C
 
 
+
+
 #######This is the subtract the average part which has been moved to a function above.END######
 
 
         if PLOT:
-            if cnt%1==0:
+            if cnt%10==0:
                 p.figure(100)
-                p.clf()
-                #capo.arp.waterfall(avg_Cx*scalar*dx/g, mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
-                capo.arp.waterfall(avg_Cx, mode='log'); p.colorbar(shrink=.5)
-                #p.savefig('temp/avg_cov%d'%cnt)
-                p.figure(10)
-                p.clf()
-                capo.arp.waterfall(_Cx*scalar*dx/g, mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
-                #p.savefig('temp/cov_minus_avg_cov%d'%cnt)
-
-               # p.figure(100)
-               # p.clf()
-               # CCCX = avg_Cx*scalar*dx/g
-               # _CCCX = _Cx*scalar*dx/g
-               # capo.arp.waterfall(CCCX[3*n_k:4*n_k,1*n_k:2*n_k], mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
-               # p.savefig('temp/avg_cov1pair%d'%cnt)
-               # p.figure(10)
-               # p.clf()
-               # capo.arp.waterfall(_CCCX[3*n_k:4*n_k,1*n_k:2*n_k], mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
-               # p.savefig('temp/cov_minus_avg_cov1pair%d'%cnt)
-                p.show()
+            #correct for diagonal, scalar, and gain factor
+                capo.arp.waterfall(sub_C*scalar*d/g, mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
             #p.subplot(131);capo.arp.waterfall(sub_C, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
-                #p.subplot(132);capo.arp.waterfall(_Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
-                #p.subplot(133);capo.arp.waterfall(-g*Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
-#                        p.show()
+            #p.subplot(132);capo.arp.waterfall(_Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
+            #p.subplot(133);capo.arp.waterfall(-g*Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
+                p.show()
+            #p.figure(1)
 
         if True:
             # divide bls into two independent groups to avoid cross-contamination of noise
@@ -698,12 +568,7 @@ for boot in xrange(NBOOT):
             # this masks covariances between groups, so no covariance from a bl in one group is subtracted from
             # a bl in another group
             mask = n.ones_like(Cx)
-            # XXX need to clean this section up
-            for i, bli in enumerate(bls_all):
-                for j, blj in enumerate(bls_all):
-                    if not same_group(bli, blj, all_gps) is None: continue
-                    mask[i*n_k:(i+1)*n_k,j*n_k:(j+1)*n_k] = 0
-            
+#            # XXX need to clean this section up
 #            #for bl1 in xrange(len(gp1)):
 #            #    for bl2 in xrange(len(gp1)):
 #            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
@@ -764,6 +629,10 @@ for boot in xrange(NBOOT):
 #            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
 #            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
 #            #BBB All of the above for loops mask the gp-gp baseline pairs. Get a diagonal matrix of covariances within the group.
+            for i, bli in enumerate(bls_):
+                for j, blj in enumerate(bls_):
+                    if not same_group(bli, blj, gps) is None: continue
+                    mask[i*n_k:(i+1)*n_k,j*n_k:(j+1)*n_k] = 0
             _Cx *= mask; _Cn *= mask
         #make diagonal 1 after applying mask.
         _Cx[ind,ind] = _Cn[ind,ind] = 1
@@ -782,21 +651,15 @@ for boot in xrange(NBOOT):
 #    import IPython
 #    IPython.embed()
 #    exit()
-    #Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
-    #Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
-    Ts = n.concatenate([T[bl] for bl in bls_all], axis=1).T
-    Ns = n.concatenate([N[bl] for bl in bls_all], axis=1).T # this noise copy processed as if it were the data
+    Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
+    Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
 
     pspecs,dspecs = [], []
     nspecs,n1specs,n2specs = [], [], []
-    #Cx,Cn = CoV(Ts, bls_), CoV(Ns, bls_)
-    #Cx_ = CoV(n.dot(_Cxtot,Ts), bls_)
-    Cx,Cn = CoV(Ts, bls_), CoV(Ns, bls_all)
-    Cx_ = CoV(n.dot(_Cxtot,Ts), bls_all)
+    Cx,Cn = CoV(Ts, bls_), CoV(Ns, bls_)
+    Cx_ = CoV(n.dot(_Cxtot,Ts), bls_)
     # Cn1 is the noise diagonalized as if it were the signal, Cn2 is the noise with the signal diagonalization applied
-    #Cn1_,Cn2_ = CoV(n.dot(_Cntot,Ns), bls_), CoV(n.dot(_Cxtot,Ns), bls_)
-    Cn1_,Cn2_ = CoV(n.dot(_Cntot,Ns), bls_all), CoV(n.dot(_Cxtot,Ns), bls_all)
-    bls_ = bls_all #THis is new. Use with the chunnk stuff.
+    Cn1_,Cn2_ = CoV(n.dot(_Cntot,Ns), bls_), CoV(n.dot(_Cxtot,Ns), bls_)
     for cnt,bli in enumerate(bls_):
         print cnt
         for blj in bls_[cnt:]:
@@ -809,7 +672,7 @@ for boot in xrange(NBOOT):
             if bli == blj: continue
             #if True: # exclude intra-group pairings # XXX
             #    if (bli in gp1 and blj in gp1) or (bli in gp2 and blj in gp2) or (bli in gp3 and blj in gp3) or (bli in gp4 and blj in gp4): continue
-            if not same_group(bli, blj, all_gps) is None: continue
+            if not same_group(bli, blj, gps) is None: continue
             if not opts.noproj: # do an extra final removal of leakage from particular modes
                 print 'Projecting'
                 Ts = n.concatenate([xi_,xj_], axis=0)
