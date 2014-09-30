@@ -221,19 +221,21 @@ p.subplot(122)
 p.plot([.5], [248**2], 'mv', label='GMRT2013')
 #else: p.plot([-.5, .5], [248**2, 248**2], 'mv', label='GMRT2013')
 #theoretical 64 thermal noise 
-theor_64 = n.load('paper_zsa_lstcnt_zsa_mid_0.164.npz')
-theoks = theor_64['ks'][n.where(theor_64['ks'] < .55)]
-theoerrs = theor_64['T_errs'][n.where(theor_64['ks'] < .55)]
-pktheoerrs = theoerrs*2*n.pi**2 / theoks**3
-pspectheoks = n.concatenate([-1*theoks[::-1], theoks])
-pspectheoerrs = n.concatenate([pktheoerrs[::-1], pktheoerrs])*2*1.9#for 2 sigma and aggressive fringe rate filt.
-p.subplot(121)
-p.plot(pspectheoks, pspectheoerrs, 'k')
-#print pspectheoks
+try: 
+    theor_64 = n.load('paper_zsa_lstcnt_zsa_mid_0.164.npz')
+    theoks = theor_64['ks'][n.where(theor_64['ks'] < .55)]
+    theoerrs = theor_64['T_errs'][n.where(theor_64['ks'] < .55)]
+    pktheoerrs = theoerrs*2*n.pi**2 / theoks**3
+    pspectheoks = n.concatenate([-1*theoks[::-1], theoks])
+    pspectheoerrs = n.concatenate([pktheoerrs[::-1], pktheoerrs])#for 2 sigma and aggressive fringe rate filt.
+    p.subplot(121)
+    p.plot(pspectheoks, pspectheoerrs, 'k')
+    p.subplot(122)
+    p.plot(theoks, theoerrs, 'k')
+except:
+    pass
 #
 #
-p.subplot(122)
-p.plot(theoks, theoerrs*2*1.9, 'k')
 p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k\ [h\ {\rm Mpc}^{-1}]$')
 p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$')
