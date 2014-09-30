@@ -465,8 +465,8 @@ for boot in xrange(NBOOT):
         print "max(cov(Ts))",n.max(Cx)
         #999
         #for c in [Cx,Cn]: # Normalize covariance matrices
-        dx = n.diag(Cx); dx.shape = (1,SZ); Cx /= dx
-        dn = n.diag(Cn); dn.shape = (1,SZ); Cn /= dn
+        dx = n.copy(n.diag(Cx)); dx.shape = (1,SZ); Cx /= dx
+        dn = n.copy(n.diag(Cn)); dn.shape = (1,SZ); Cn /= dn
         #g = .3 # for 1*7 baselines
         g = opts.gain # for 4*7 baselines
         print 'gain factor = ', g
@@ -556,6 +556,8 @@ for boot in xrange(NBOOT):
                 p.figure(100)
             #correct for diagonal, scalar, and gain factor
                 capo.arp.waterfall(avg_Cx*scalar*dx/g, mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
+                p.figure(99)
+                p.plot(dx.flatten())
             #p.subplot(131);capo.arp.waterfall(sub_C, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
             #p.subplot(132);capo.arp.waterfall(_Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
             #p.subplot(133);capo.arp.waterfall(-g*Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
