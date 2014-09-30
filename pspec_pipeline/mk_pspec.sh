@@ -52,9 +52,13 @@ for chan in $chans; do
                 echo `date` | tee -a ${LOGFILE}
 
                 ANTS=`grid2ant.py -C ${cal} --seps="${sep}"`
+                echo ${SCRIPTSDIR}/pspec_redmult_cov_gps.py -C ${cal} -b ${NBOOT} \
+                    -a ${ANTS} -c ${chan} -p ${pol} --window=${WINDOW} \
+                    --gain=${GAIN} --output=${sepdir} ${NOPROJ} ${FILES} 
+
                 ${SCRIPTSDIR}/pspec_redmult_cov_gps.py -C ${cal} -b ${NBOOT} \
                     -a ${ANTS} -c ${chan} -p ${pol} --window=${WINDOW} \
-                    --gain=${GAIN} --output=${sepdir} ${FILES} \
+                    --gain=${GAIN} --output=${sepdir} ${NOPROJ} ${FILES} \
                 | tee -a ${LOGFILE}  
                 echo beginning bootstrap: `date` | tee -a ${LOGFILE} 
                 ${SCRIPTSDIR}/pspec_pk_k3pk_boot.py ${sepdir}/pspec_boot*npz | tee -a ${LOGFILE} 
