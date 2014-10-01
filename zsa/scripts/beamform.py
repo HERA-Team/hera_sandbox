@@ -69,7 +69,7 @@ for filename in args:
                 #print n.average(n.sqrt(u**2+v**2)), '<', opts.minuv
                 continue
             f = n.logical_or(f, dont_use)
-            if opts.noappy:
+            if opts.noapply:
                 gain = 1
             else:
                 gain = aa.passband(i,j)
