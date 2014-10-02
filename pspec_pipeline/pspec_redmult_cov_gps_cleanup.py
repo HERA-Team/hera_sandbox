@@ -30,6 +30,8 @@ o.add_option('--noproj', action='store_true',
           turning it off does not remove sky.')
 o.add_option('--niters', type='string', default='', 
     help='tuple for number of steps in covariance removal')
+o.add_option('--ngps', type='int', default=4,
+    help='Number of groups. Default is 4.')
 opts,args = o.parse_args(sys.argv[1:])
 
 
@@ -185,6 +187,8 @@ for filename in args:
     a.scripting.uv_selector(uvi, opts.ant, opts.pol)
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
         if len(times) == 0 or times[-1] != t:
+            newrandnoise1 = n.random.normal()*n.exp(2*n.pi*1j*n.random.uniform())
+            newrandnoise2 = n.random.normal()*n.exp(2*n.pi*1j*n.random.uniform())
             if len(times) % 8 == 0:
                 #For every 8th integration make random normal noise that is our eor model. Note for every block of 8, this noise is the same. 222
                 eor_mdl[t] = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size))
@@ -241,6 +245,11 @@ for filename in args:
         _Trms = n.fft.fftshift(_Trms)
         _Nrms = n.fft.fftshift(_Nrms)
         _Wrms = n.fft.fftshift(_Wrms)
+    
+        #XXX
+        _Trms[20] += newrandnoise1*.01
+        _Trms[21] += (newrandnoise1*.5 + newrandnoise2*.5)*.01
+
         if False: # swap in a simulated signal post delay transform
             _Trms = n.random.normal(size=_Trms.size) * n.exp(2j*n.pi*n.random.uniform(size=_Trms.size))
             mask = n.ones(_Trms.size); mask[15:25] = 0
@@ -392,7 +401,8 @@ for boot in xrange(NBOOT):
         bls_ = random.sample(bls, len(bls))
         nbls = len(bls)
         #gps = make_groups(bls_, ngps=8)
-        gps = make_groups(bls_, ngps=4)
+#        gps = make_groups(bls_, ngps=4)
+        gps = make_groups(bls_, ngps=opts.ngps)
 #        #gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:] # ensure gp1 and gp2 can't share baselines
 #        #gp1,gp2,gp3 = bls_[:4],bls_[4:9],bls_[9:]
 #        #GGG : divide number of bls by 4 for 64 dataset. This is 56 bls for sep01
@@ -458,7 +468,7 @@ for boot in xrange(NBOOT):
                 p.figure(7)
                 capo.arp.waterfall(Cx*scalar, mode='log', mx=8,drng=4); p.colorbar(shrink=.5)
             #capo.arp.waterfall(cov(Ts), mode='log', mx=-1,  drng=4); p.colorbar(shrink=.5)
-            #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log', mx=0,  drng=3); p.colorbar(shrink=.5)
+            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(Cx*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
             #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
             print "max(cov(Ts))",n.max(Cx)
             sys.stdout.flush()
@@ -552,16 +562,17 @@ for boot in xrange(NBOOT):
 
 
         if PLOT:
-            if cnt%10==0:
-                p.figure(100)
-            #correct for diagonal, scalar, and gain factor
-                capo.arp.waterfall(avg_Cx*scalar*dx/g, mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
-                p.figure(99)
-                p.plot(dx.flatten())
+            pass
+#            if cnt%10==0:
+#                p.figure(100)
+#            #correct for diagonal, scalar, and gain factor
+#                capo.arp.waterfall(avg_Cx*scalar*dx/g, mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
+#                p.figure(99)
+#                p.plot(dx.flatten())
             #p.subplot(131);capo.arp.waterfall(sub_C, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
             #p.subplot(132);capo.arp.waterfall(_Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
             #p.subplot(133);capo.arp.waterfall(-g*Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
-                p.show()
+#                p.show()
             #p.figure(1)
 
         if True:
@@ -644,8 +655,8 @@ for boot in xrange(NBOOT):
 #        p.figure(cnt)
 #        p.subplot(111); capo.arp.waterfall(Ts, mode='log', drng=3);p.colorbar(shrink=.5)
     if PLOT:
-        capo.arp.waterfall(cov(Ts), mode='log', mx=-1, drng=4);p.colorbar(shrink=.5)
-        #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts), mode='log', mx=0, drng=3);p.colorbar(shrink=.5)
+        #capo.arp.waterfall(cov(Ts), mode='log', mx=-1, drng=4);p.colorbar(shrink=.5)
+        p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts)*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
         #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=3)
         p.show()
 
