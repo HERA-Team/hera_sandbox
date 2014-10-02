@@ -49,6 +49,8 @@ o.add_option('--sep', type='str', default='0,1',
           and (0,0) is upper left of array.')
 o.add_option('-w', '--filt_width', type='int', default=401,
     help='Filter width in time domain in number of integration units')
+o.add_option('--outpath', action='store', default='',
+    help='output path.')
 
 opts,args = o.parse_args(sys.argv[1:])
 
@@ -154,10 +156,10 @@ def mfunc(uv, p, d, f):
 
 for filename in args:
     outfile = filename+'L'
-    print 'Writing %s'%outfile
+    print 'Writing %s'%(opts.outpath+'/'+outfile)
     uvi = a.miriad.UV(filename)
     a.scripting.uv_selector(uvi, ants=baselines)
-    uvo = a.miriad.UV(outfile, status='new')
+    uvo = a.miriad.UV(opts.outpath+'/'+outfile, status='new')
     uvo.init_from_uv(uvi)
     uvo.pipe(uvi, mfunc=mfunc, append2hist=' '.join(sys.argv)+'\n', raw=True)
 
