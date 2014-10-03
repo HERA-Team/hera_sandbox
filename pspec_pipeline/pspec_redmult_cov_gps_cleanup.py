@@ -195,7 +195,7 @@ for filename in args:
         bl = a.miriad.ij2bl(i,j)
         sys.stdout.flush()
         if conjbl[bl]:
-            print 'Conjugating baseline (%d,%d) or %d'%(i,j,bl)
+#            print 'Conjugating baseline (%d,%d) or %d'%(i,j,bl)
             d= n.conj(d)
         #take active data and convert from janksy's to temperature units. Current data is in janskys.
         d,f = d.take(chans), f.take(chans)
@@ -555,7 +555,7 @@ for boot in xrange(NBOOT):
             if cnt%10==0:
                 p.figure(100)
             #correct for diagonal, scalar, and gain factor
-                capo.arp.waterfall(sub_C*scalar*d/g, mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
+                capo.arp.waterfall(avg_Cx*scalar*dx/g, mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
             #p.subplot(131);capo.arp.waterfall(sub_C, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
             #p.subplot(132);capo.arp.waterfall(_Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
             #p.subplot(133);capo.arp.waterfall(-g*Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
