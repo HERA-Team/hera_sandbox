@@ -32,6 +32,8 @@ o.add_option('--niters', type='string', default='',
     help='tuple for number of steps in covariance removal')
 o.add_option('--ngps', type='int', default=4,
     help='Number of groups. Default is 4.')
+o.add_option('--boot_number', type='int', 
+    help='Bootstrap number to do. Used with qsub')
 opts,args = o.parse_args(sys.argv[1:])
 
 
@@ -395,6 +397,10 @@ def same_group(bli, blj, gps):
 
 
 for boot in xrange(NBOOT):
+    #continue with this itertion
+    if not opts.boot_number: pass
+    elif opts.boot_number != boot:
+        continue 
     #777
     if True: # pick a sample of baselines with replacement
         #bls_ = [random.choice(bls) for bl in bls]
