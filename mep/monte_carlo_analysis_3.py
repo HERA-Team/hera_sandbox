@@ -78,6 +78,7 @@ def return_MQdagNinv(Q,N,mode,savekey,fq,Nfg_type,eps=10**-4,num_remov=None):
 
 def analyze(savekey,fqs,mode,Nfg_type,Ntot_eps=10**-4,info_eps=10**-4):
     T0s_master = []
+    noiseFactor = []
     for fq in fqs:
         currentFolder = '{0}/MCs/{1}_fq_{2:.3f}'.format(data_loc,savekey,fq)
         print "Looking in...",currentFolder
@@ -91,6 +92,7 @@ def analyze(savekey,fqs,mode,Nfg_type,Ntot_eps=10**-4,info_eps=10**-4):
         MQN_firstRow, WindMatrixRow = return_MQdagNinv(Q,Ntot,mode,savekey,fq,Nfg_type,info_eps,num_remov=None)
         ahat00s = n.einsum('j,ij',MQN_firstRow,ys)
         T0s_master.append(ahat00s.real/n.sqrt(4.*n.pi))
+        noiseFactor.append(n.sum(map(lambda x: x**2, n.abs(MQN_firstRow)))) # See Oct 3, 2014 notes
 
     T0s_master = n.array(T0s_master) # fqs x MCs
     numMCs = T0s_master.shape[1]
@@ -105,6 +107,7 @@ def analyze(savekey,fqs,mode,Nfg_type,Ntot_eps=10**-4,info_eps=10**-4):
     n.savez_compressed('{0}/MCs/T0_MCs_Nfg_type_{3}_{2}_{1}'.format(data_loc,savekey,mode,Nfg_type),T0s=T0s_master)
     n.save('{0}/MCs/T0_bias_Nfg_type_{3}_{2}_{1}.npy'.format(data_loc,savekey,mode,Nfg_type),T0s_bias)
     n.save('{0}/MCs/T0_covar_Nfg_type_{3}_{2}_{1}.npy'.format(data_loc,savekey,mode,Nfg_type),T0s_covar)
+    n.save('{0}/MCs/NoiseFactors_Nfg_type_{3}_{2}_{1}.npy'.format(data_loc,savekey,mode,Nfg_type),noiseFactor)
 
 
     # Plot window functions
