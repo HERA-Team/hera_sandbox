@@ -104,34 +104,43 @@ def cov2(m1,m2):
 
 
 def grid2ij(GRID):
+    '''
+        bl_str = given sep, returns bls in string format.
+        bl_conj = given a baseline (miriad bl) gives separation.
+        bl2sep_str = given baseline (miriad) return its separation.    
+    '''
     bls, conj = {}, {}
     for ri in range(GRID.shape[0]):
         for ci in range(GRID.shape[1]):
             for rj in range(GRID.shape[0]):
                 for cj in range(GRID.shape[1]):
                     if ci > cj: continue
-#                    if i > rj and ci == cj: continue
+#                    if ri > rj and ci == cj: continue
 #                    if ci > cj and ri == rj: continue
                     sep = (rj-ri, cj-ci)
                     sep = '%d,%d'%sep
                     i,j = GRID[ri, ci], GRID[rj,cj]
                     bls[sep] = bls.get(sep,[]) + [(i,j)]
     for sep in bls.keys():
-        if sep == '0,0' or len(bls[sep]) < 2: del(bls[sep])
+        if sep == '0,0' or len(bls[sep]) < 2 or (sep[-1] == '0' and sep[0] == '-'): del(bls[sep
+])
     for sep in bls:
         conj[sep] = [i>j for i,j in bls[sep]]
 
-    bl_str,bl_conj = {}, {}
+    bl_str,bl_conj,bl2sep_str = {}, {}, {}
     for sep in bls:
         bl_str[sep],bl_list = [], []
         for (i,j),c in zip(bls[sep],conj[sep]):
             if c: i,j = j,i
             bl_list.append(a.miriad.ij2bl(i,j))
             bl_str[sep].append('%d_%d'%(i,j))
+            bl2sep_str[a.miriad.ij2bl(i,j)] = bl2sep_str.get(a.miriad.ij2bl(i,j),'') + sep
             bl_conj[a.miriad.ij2bl(i,j)] = c
         bls[sep] = bl_list
         bl_str[sep] = ','.join(bl_str[sep])
-    return bl_str,bl_conj
+    return bl_str,bl_conj,bl2sep_str
+
+
 
 if not opts.ant:
     print 'NO BASELINES. PLEASE INPUT BASELINES ON COMMAND LINE.'
@@ -141,7 +150,7 @@ else:
     print opts.ant.split(',')
     print 'There are %d of them'%len(opts.ant.split(','))
 
-sep2bl, conjbl = grid2ij(ANTPOS)
+sep2bl, conjbl, bl2sep = grid2ij(ANTPOS)
 
 
 #checking that our grid indexing is working
@@ -179,6 +188,29 @@ print 'B:', B
 print 'scalar:', scalar
 sys.stdout.flush()
 
+
+def read_noise_uv(files, ants, pol, chs, conj, win):
+    print 'Reading noise files'
+    print files
+    NRMS = {}
+    window = a.dsp.gen_window(len(chs), win)
+    for fname in files:
+        uvi = a.miriad.UV(fname)
+        a.scripting.uv_selector(uvi, ants, pol)
+        for (crd,t,(i,j)),d,f in uvi.all(raw=True):
+            bl = a.miriad.ij2bl(i,j)
+            if conj[bl]:
+                d = n.conj(d)
+            d,f = d.take(chans), f.take(chans)
+            w = n.logical_not(f).astype(n.float)            
+            #window /= np.sum(window)
+            Nfft = n.fft.ifft(window * d* w)
+            Nffts = n.fft.fftshift(Nfft)
+            NRMS[bl] = NRMS.get(bl, []) + [Nffts]
+    return NRMS
+
+            
+
 #T is a dictionary of the visibilities and N is the dictionary for noise estimates.
 T, N, W = {}, {}, {}
 times = []
@@ -186,17 +218,20 @@ eor_mdl = {}
 for filename in args:
     print 'Reading', filename
     uvi = a.miriad.UV(filename)
+    print opts.ant
     a.scripting.uv_selector(uvi, opts.ant, opts.pol)
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
         if len(times) == 0 or times[-1] != t:
-            newrandnoise1 = n.random.normal()*n.exp(2*n.pi*1j*n.random.uniform())
-            newrandnoise2 = n.random.normal()*n.exp(2*n.pi*1j*n.random.uniform())
-            if len(times) % 8 == 0:
+            #newrandnoise1 = n.random.normal()*n.exp(2*n.pi*1j*n.random.uniform())
+            #newrandnoise2 = n.random.normal()*n.exp(2*n.pi*1j*n.random.uniform())
+            #noise_tm_fq = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size))
+            #if len(times) % 8 == 0:
                 #For every 8th integration make random normal noise that is our eor model. Note for every block of 8, this noise is the same. 222
-                eor_mdl[t] = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size))
-            else: eor_mdl[t] = eor_mdl[times[-1]]
+            #    eor_mdl[t] = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size))
+            #else: eor_mdl[t] = eor_mdl[times[-1]]
             times.append(t)
-        #For 32 array inside 64 array. skip bls not in the subarray, but may be in the data set.
+
+            #For 32 array inside 64 array. skip bls not in the subarray, but may be in the data set.
         if not (( i in ANTPOS ) and ( j in ANTPOS )) : continue
         bl = a.miriad.ij2bl(i,j)
         sys.stdout.flush()
@@ -207,7 +242,8 @@ for filename in args:
         d,f = d.take(chans), f.take(chans)
         w = n.logical_not(f).astype(n.float)
         Trms = d * capo.pspec.jy2T(afreqs)
-        if True: # generate noise
+        #if True: # generate noise
+        if False: # generate noise
             TSYS = 560e3 # mK
             B = 100e6 / uvi['nchan']
             NDAY = 92
@@ -230,7 +266,7 @@ for filename in args:
             window = a.dsp.gen_window(Trms.size, WINDOW)
             #window /= np.sum(window)
             _Trms = n.fft.ifft(window * Trms)
-            _Nrms = n.fft.ifft(window * Nrms)
+#            _Nrms = n.fft.ifft(window * Nrms)
             _Wrms = n.fft.ifft(w)
         #gain = n.abs(_Wrms[0])
         #print 'Gain:', gain
@@ -245,12 +281,12 @@ for filename in args:
         #    _Trms = n.dot(_C, _Trms).squeeze()
         #    _Nrms = n.dot(_C, _Nrms).squeeze()
         _Trms = n.fft.fftshift(_Trms)
-        _Nrms = n.fft.fftshift(_Nrms)
+#        _Nrms = n.fft.fftshift(_Nrms)
         _Wrms = n.fft.fftshift(_Wrms)
     
         #XXX
-        _Trms[20] += newrandnoise1*.01
-        _Trms[21] += (newrandnoise1*.5 + newrandnoise2*.5)*.01
+        #_Trms[20] += newrandnoise1*.01
+        #_Trms[21] += (newrandnoise1*.5 + newrandnoise2*.5)*.01
 
         if False: # swap in a simulated signal post delay transform
             _Trms = n.random.normal(size=_Trms.size) * n.exp(2j*n.pi*n.random.uniform(size=_Trms.size))
@@ -258,8 +294,15 @@ for filename in args:
             _Trms += .3*eor_mdl[times[-1]] * mask
         #Makes list of visibilities for each baseline for all times. number of integrations by number of channels.
         T[bl] = T.get(bl, []) + [_Trms]
-        N[bl] = N.get(bl, []) + [_Nrms]
+#        N[bl] = N.get(bl, []) + [_Nrms]
         W[bl] = W.get(bl, []) + [_Wrms]
+
+
+if True:
+    #overwrite the noise above with that from the noise files.
+    print 'Overwritingnoise from uv noise files'
+    noise_files = [f+'_noiseL' for f in args]
+    N = read_noise_uv(noise_files, opts.ant, opts.pol, chans, conjbl, opts.window)
 
 #444
 n_k = chans.size / NTAPS
@@ -268,7 +311,8 @@ for bl in bls:
     print 'bl shape (nints, nchan):'
     T[bl],N[bl] = n.array(T[bl]),n.array(N[bl])
     print '\t',T[bl].shape
-if True:
+#if True:
+if False:
     print 'Fringe-rate filtering the noise to match the data'
     for bl in N:
         _N = n.fft.ifft(N[bl], axis=0) # iffts along the time axis
@@ -346,7 +390,7 @@ def subtract_average(C, bls, n_k, gps):
             
             _Csum,_Cwgt = 0,0
             for i_ in xrange(nbls):
-                bli_ = bls_[i_]
+                bli_ = bls[i_]
                 if not bli_ in gp: continue # make sure averaging over baseline in same group.
                 if bli == bli_: continue #only average over other bls to better isolate bl systematics.
                 for j_ in xrange(nbls):
@@ -470,11 +514,13 @@ for boot in xrange(NBOOT):
         #Cx,Cn = cov(Ts), cov(Ns)
         Cx,Cn = MCx.C, MCn.C
         if PLOT:
-            if cnt%10==0:
-                p.figure(7)
-                capo.arp.waterfall(Cx*scalar, mode='log', mx=8,drng=4); p.colorbar(shrink=.5)
+            #if cnt%10==0:
+            #    p.figure(7)
+            #    capo.arp.waterfall(Cx*scalar, mode='log', mx=8,drng=4); p.colorbar(shrink=.5)
             #capo.arp.waterfall(cov(Ts), mode='log', mx=-1,  drng=4); p.colorbar(shrink=.5)
-            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(Cx*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
+            #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(Cx*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
+            p.figure(10)
+            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(Cn*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
             #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
             print "max(cov(Ts))",n.max(Cx)
             sys.stdout.flush()
@@ -571,6 +617,8 @@ for boot in xrange(NBOOT):
             pass
 #            if cnt%10==0:
 #                p.figure(100)
+            p.figure(11)
+            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(avg_Cn*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
 #            #correct for diagonal, scalar, and gain factor
 #                capo.arp.waterfall(avg_Cx*scalar*dx/g, mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
 #                p.figure(99)
@@ -662,7 +710,11 @@ for boot in xrange(NBOOT):
 #        p.subplot(111); capo.arp.waterfall(Ts, mode='log', drng=3);p.colorbar(shrink=.5)
     if PLOT:
         #capo.arp.waterfall(cov(Ts), mode='log', mx=-1, drng=4);p.colorbar(shrink=.5)
-        p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts)*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
+        #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts)*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
+        p.figure(10)
+        p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns)*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
+        p.figure(11)
+        p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(avg_Cn*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
         #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=3)
         p.show()
 
