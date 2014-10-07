@@ -75,7 +75,8 @@ omg_lambda = 0.72
 
 def P_k(kmag, sigma=0.01, k0=0.02):
 
-    return numpy.exp(-(kmag-k0)**2/(2*sigma**2)) 
+    return kmag*0+1. #flat P(k)
+    #return numpy.exp(-(kmag-k0)**2/(2*sigma**2)) 
 
 #C_l function
 
@@ -109,7 +110,7 @@ def C_l(freq1, freq2, Pk_interp, l_vals): #freqs are entered in GHz
 #FREQ1 = 0.1 #change these if needed
 #FREQ2 = 0.149
 
-k_data = numpy.arange(0.0,0.1,0.005) #actual data points
+k_data = numpy.arange(0.001,10,0.1) #actual data points
 Pk_data = P_k(k_data)
 Pk_interp = interp1d(k_data, Pk_data, kind='linear')
 l_vals = numpy.arange(0,opts.lmax,1) 
@@ -237,8 +238,8 @@ plt.show()
 
 num_maps = opts.nchan
 
-delta = 45 #step size in real space [Mpc]    #when choosing these, delta*N < Dc_range_in_box
-N = 27 #box size [pixels] #MUST BE ODD
+delta = .05 #step size in real space [Mpc]    #when choosing these, delta*N < Dc_range_in_box
+N = 35 #box size [pixels] #MUST BE ODD
 L = N*delta #size range in real space [Mpc]
 
 print 'real space volume [Mpc] =', L,'x',L,'x',L
@@ -265,8 +266,8 @@ for i in range(len(freqs_range)):
 
 freq_interp = interp1d(Dcs[::-1],freqs_range[::-1],kind='linear')
 
-min_freq = 0.1
-max_freq = 0.199
+min_freq = 0.15418719
+max_freq = 0.17339901
 max_Dc = D_c(min_freq)
 min_Dc = D_c(max_freq)
 Dc_range_in_box = max_Dc-min_Dc
@@ -315,14 +316,26 @@ for i in range(N):
 
             delta_f = delta_freq(delta_z,z_center) #[Hz]
 
-            f = numpy.round(f_center-delta_f*10**-9,decimals=3)
+            #f = numpy.round(f_center-delta_f*10**-9,decimals=3)
+            f = f_center-delta_f*10**-9
+            f_string = str(f)[:len(str(opts.sdf))] #interpolating between 2 freqs
+            f_lower = float(f_string)
+            f_upper = f_lower+opts.sdf
 
             theta = numpy.arctan2(delta_y,delta_x)
             phi = numpy.arccos((Dc_center+delta_z)/Dc)
 
-            map_num = int(((f-opts.sfreq)/opts.sdf)+1)
-            img = all_maps[map_num-1]
-            T_r[i][j][k] = img[theta,phi]
+            #map_num = int(((f-opts.sfreq)/opts.sdf)+1)
+            #img = all_maps[map_num-1]
+            #T_r[i][j][k] = img[theta,phi]
+            map_num_lower = int(((f_lower-opts.sfreq)/opts.sdf)+1)
+            map_num_upper = int(((f_upper-opts.sfreq)/opts.sdf)+1)
+            img_lower = all_maps[map_num_lower-1]
+            img_upper = all_maps[map_num_upper-1]
+            value_lower = img_lower[theta,phi]
+            value_upper = img_upper[theta,phi]
+            finterp = interp1d([f_lower,f_upper],[value_lower[0],value_upper[0]],kind='linear')
+            T_r[i][j][k] = finterp(f)
 
             """
             #test whether map looks correct
@@ -344,7 +357,7 @@ k_cube = numpy.sqrt(kx**2+ky**2+kz**2)
 #binning
 
 k_real = k_cube*2*numpy.pi
-k_sampling = 0.003
+k_sampling = 0.1
 k_bins = numpy.arange(0,numpy.max(k_real)+k_sampling,k_sampling)
 num_bins = len(k_bins)-1
 temp_squared = numpy.zeros(num_bins)
@@ -358,13 +371,13 @@ for i in range(N):
             k_val = k_real[i][j][k]
             for b in range(num_bins):
                 if k_val >= k_bins[lower] and k_val <= k_bins[upper]:
-                    temp_squared[lower] += (numpy.abs(T_tilde[i][j][k]))**2
+                    temp_squared[lower] += numpy.abs(T_tilde[i][j][k]*numpy.conj(T_tilde[i][j][k]))#(numpy.abs(T_tilde[i][j][k]))**2
                     num_in_bins[lower] += 1
                 lower+=1
                 upper+=1
 
-P_k = temp_squared/num_in_bins
-print k_bins, P_k
+Pk = temp_squared/num_in_bins
+print k_bins, Pk
 
 """   
 k_mags = []
@@ -404,13 +417,15 @@ for mag in range(len(k_mags)):
 
 print 'Sky Map P(k):'
 for i in range(len(k_bins)-1):
-    print k_bins[i],'<k<',k_bins[i+1],'   P(k)=',P_k[i]
-    plt.plot(k_bins[i+1],P_k[i],'b.')
+    print k_bins[i],'<k<',k_bins[i+1],'   P(k)=',Pk[i]
+    #plt.plot(k_bins[i+1],P_k[i],'b.')
+    y_err = numpy.sqrt(2/num_in_bins[i])*P_k(k_bins[i]+((k_bins[i+1]-k_bins[i])/2))
+    plt.errorbar(k_bins[i+1],Pk[i]*33,xerr=1/L,yerr=y_err,fmt='.')
 
 print 'Original P(k):'
 for i in range(len(k_data)):
     print 'k=',("%0.5f" % k_data[i]),'   P(k)=', Pk_data[i]
-    plt.plot(k_data[i],Pk_data[i],'k.')
+    #plt.plot(k_data[i],Pk_data[i],'k.')
 plt.show()
 
     

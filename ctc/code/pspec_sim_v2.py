@@ -24,6 +24,7 @@ import optparse
 import os, sys
 import healpy
 import scipy
+import mpmath
 from scipy import integrate
 from scipy.interpolate import interp1d
 
@@ -60,10 +61,12 @@ omg_lambda = 0.72
 
 ###P_k function
 
-def P_k(kmag, sigma=0.01, k0=0.02):
+def P_k(kmag, sigma=0.0001, k0=0.02):
 
-    return numpy.exp(-(kmag-k0)**2/(2*sigma**2)) 
-    #return (10*2*numpy.pi**2)/kmag**3
+    return kmag*0+1. #flat P(k)
+    #return numpy.exp(-(kmag-k0)**2/(2*sigma**2)) #Gaussian
+    #return (10*2*numpy.pi**2)/kmag**3 #Delta^2=100
+
 
 ###C_l function
 
@@ -89,7 +92,15 @@ def C_l(freq1, freq2, Pk_interp, l_vals): #freqs are entered in GHz
         ###summation instead of integral
         ans2=0
         for kk in range(len(k_data)):
-            val = (2/numpy.pi)*Pk_interp(k_data[kk])*(k_data[kk]**2)*scipy.special.sph_jn(l_vals[i],k_data[kk]*Dc1)[0][l_vals[i]]*scipy.special.sph_jn(l_vals[i],k_data[kk]*Dc2)[0][l_vals[i]]
+            #val = (2/numpy.pi)*Pk_interp(k_data[kk])*(k_data[kk]**2)*scipy.special.sph_jn(l_vals[i],k_data[kk]*Dc1)[0][l_vals[i]]*scipy.special.sph_jn(l_vals[i],k_data[kk]*Dc2)[0][l_vals[i]]
+            
+            J_sub = (1/2.)*(2*l_vals[i]+1) #coding out spherical bessel functions (sph_jn doesn't work for high k)
+            x1 = k_data[kk]*Dc1
+            x2 = k_data[kk]*Dc2
+            bessel1 = numpy.sqrt(numpy.pi/2)*scipy.special.jn(J_sub,x1)/(numpy.sqrt(x1))
+            bessel2 = numpy.sqrt(numpy.pi/2)*scipy.special.jn(J_sub,x2)/(numpy.sqrt(x2))
+            val = (2/numpy.pi)*Pk_interp(k_data[kk])*(k_data[kk]**2)*bessel1*bessel2
+            
             ans2+=val
         ans2*=(k_data[1]-k_data[0])
 
@@ -156,8 +167,8 @@ def C_matrix(freqs,Pk_interp,l_vals):
 ###################################
 ###     SIM CODE STARTS HERE    ###
 ###################################
-"""
-k_data = numpy.arange(0.0,0.1,0.005) #actual data points
+
+k_data = numpy.arange(0.01,10,0.1) #actual data points
 Pk_data = P_k(k_data)
 
 Pk_interp = interp1d(k_data, Pk_data, kind='linear')
@@ -237,7 +248,7 @@ for f in range(len(freqs)):
     sky_map = aipy.map.Map(nside=512)
     sky_map.from_alm(a_lms) #make sky map
     sky_map.to_fits('/Users/carinacheng/capo/ctc/images/pspecs/'+dirname+'/pspec1'+("%03i" % (f+1))+'.fits', clobber=True) 
-"""
+
 
 ###################################
 ###       ADDITIONAL TESTS      ###
@@ -265,23 +276,24 @@ for i in range(num):
 print xxt_test/num #(should be T)
 """
 
-
-###make single frequency map
 """
-k_data = numpy.arange(0,0.1,0.005) #actual data points
+###make single frequency map
+
+k_data = numpy.arange(0.001,0.1,0.001) #actual data points
 Pk_data = P_k(k_data)
-plt.plot(k_data,Pk_data,'k.')
-plt.show()
+#plt.plot(k_data,Pk_data,'k.')
+#plt.show()
 
 Pk_interp = interp1d(k_data, Pk_data, kind='linear')
 
 l_vals = numpy.arange(0,opts.lmax,1) 
 
-Cl = C_l(.47,.52,Pk_interp,l_vals)
+Cl = C_l(.1,.15,Pk_interp,l_vals)
 
 #print Cl
 
 plt.plot(l_vals,Cl, 'k-') #l vs. Cl plot
+plt.ylim(-1E-10,1E-10)
 plt.show() #see where l peaks if P(k) is delta function
 
 a_lms = aipy.healpix.Alm(opts.lmax,opts.lmax) #a_lm object
