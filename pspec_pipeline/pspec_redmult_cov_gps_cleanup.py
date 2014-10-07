@@ -34,6 +34,8 @@ o.add_option('--ngps', type='int', default=4,
     help='Number of groups. Default is 4.')
 o.add_option('--boot_number', type='int', 
     help='Bootstrap number to do. Used with qsub')
+o.add_option('--noise', action='store_true',
+    help='use noise uv files.')
 opts,args = o.parse_args(sys.argv[1:])
 
 
@@ -218,17 +220,16 @@ eor_mdl = {}
 for filename in args:
     print 'Reading', filename
     uvi = a.miriad.UV(filename)
-    print opts.ant
     a.scripting.uv_selector(uvi, opts.ant, opts.pol)
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
         if len(times) == 0 or times[-1] != t:
             #newrandnoise1 = n.random.normal()*n.exp(2*n.pi*1j*n.random.uniform())
             #newrandnoise2 = n.random.normal()*n.exp(2*n.pi*1j*n.random.uniform())
             #noise_tm_fq = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size))
-            #if len(times) % 8 == 0:
+            if len(times) % 44 == 0:
                 #For every 8th integration make random normal noise that is our eor model. Note for every block of 8, this noise is the same. 222
-            #    eor_mdl[t] = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size))
-            #else: eor_mdl[t] = eor_mdl[times[-1]]
+                eor_mdl[t] = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size))
+            else: eor_mdl[t] = eor_mdl[times[-1]]
             times.append(t)
 
             #For 32 array inside 64 array. skip bls not in the subarray, but may be in the data set.
@@ -242,8 +243,7 @@ for filename in args:
         d,f = d.take(chans), f.take(chans)
         w = n.logical_not(f).astype(n.float)
         Trms = d * capo.pspec.jy2T(afreqs)
-        #if True: # generate noise
-        if False: # generate noise
+        if True: # generate noise
             TSYS = 560e3 # mK
             B = 100e6 / uvi['nchan']
             NDAY = 92
@@ -266,7 +266,7 @@ for filename in args:
             window = a.dsp.gen_window(Trms.size, WINDOW)
             #window /= np.sum(window)
             _Trms = n.fft.ifft(window * Trms)
-#            _Nrms = n.fft.ifft(window * Nrms)
+            _Nrms = n.fft.ifft(window * Nrms)
             _Wrms = n.fft.ifft(w)
         #gain = n.abs(_Wrms[0])
         #print 'Gain:', gain
@@ -281,7 +281,7 @@ for filename in args:
         #    _Trms = n.dot(_C, _Trms).squeeze()
         #    _Nrms = n.dot(_C, _Nrms).squeeze()
         _Trms = n.fft.fftshift(_Trms)
-#        _Nrms = n.fft.fftshift(_Nrms)
+        _Nrms = n.fft.fftshift(_Nrms)
         _Wrms = n.fft.fftshift(_Wrms)
     
         #XXX
@@ -294,13 +294,13 @@ for filename in args:
             _Trms += .3*eor_mdl[times[-1]] * mask
         #Makes list of visibilities for each baseline for all times. number of integrations by number of channels.
         T[bl] = T.get(bl, []) + [_Trms]
-#        N[bl] = N.get(bl, []) + [_Nrms]
+        N[bl] = N.get(bl, []) + [_Nrms]
         W[bl] = W.get(bl, []) + [_Wrms]
 
 
-if True:
+if opts.noise:
     #overwrite the noise above with that from the noise files.
-    print 'Overwritingnoise from uv noise files'
+    print 'Over writing noise from uv noise files'
     noise_files = [f+'_noiseL' for f in args]
     N = read_noise_uv(noise_files, opts.ant, opts.pol, chans, conjbl, opts.window)
 
@@ -523,8 +523,10 @@ for boot in xrange(NBOOT):
             p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(Cn*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
             #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
             print "max(cov(Ts))",n.max(Cx)
+            print "max(cov(Ns))",n.max(Cn)
             sys.stdout.flush()
         print "max(cov(Ts))",n.max(Cx)
+        print "max(cov(Ns))",n.max(Cn)
         #999
         #for c in [Cx,Cn]: # Normalize covariance matrices
         dx = n.copy(n.diag(Cx)); dx.shape = (1,SZ); Cx /= dx
