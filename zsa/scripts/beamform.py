@@ -14,6 +14,8 @@ o.add_option('--maxuv', type='float', default=n.Inf,
     help='Maximum uv length (in wavelengths) for a baseline to be included.')
 o.add_option('--minsep', type='float', default=0,
     help='Minimum baseline separation in wavelengths.')
+o.add_option('--noapply', action='store_true',
+    help='Dont apply passband and phase corrections.')
 opts,args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
@@ -53,7 +55,11 @@ for filename in args:
             if dist(i,j) < opts.minsep:
                 #print '%d_%d'%(i,j)
                 continue
-            d = aa.phs2src(d, src, i, j)
+            if opts.noapply:
+                phs = aa.gen_phs(src, i, j) * n.exp(1j*2*n.pi*aa.get_phs_offset(i,j))
+                d *= phs
+            else:
+                d = aa.phs2src(d, src, i, j)
             u,v,w = aa.gen_uvw(i, j, src)
             tooshort = n.where(n.sqrt(u**2+v**2) < opts.minuv, 1, 0).squeeze()
             toolong = n.where(n.sqrt(u**2+v**2) > opts.maxuv, 1, 0).squeeze()
@@ -63,7 +69,10 @@ for filename in args:
                 #print n.average(n.sqrt(u**2+v**2)), '<', opts.minuv
                 continue
             f = n.logical_or(f, dont_use)
-            gain = aa.passband(i,j)
+            if opts.noapply:
+                gain = 1
+            else:
+                gain = aa.passband(i,j)
             if opts.beam: gain *= aa.bm_response(i,j,pol=opts.pol).squeeze()
             if opts.srcflux: gain *= src_spec
             d /= gain

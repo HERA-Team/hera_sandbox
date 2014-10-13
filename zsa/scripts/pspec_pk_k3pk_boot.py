@@ -78,6 +78,7 @@ wgts = n.ones_like(avg_pk_2d).data
 #wgts = 1./(n.abs(avg_pk_1d) + nos_std_2d)**2
 
 if False: # override power spectrum with the version w/o covariance diagonalization
+#if True: # override power spectrum with the version w/o covariance diagonalization
     print 'Overriding power spectrum with non-covariance diagonalized version'
     pk_2d = nocov_2d
 
@@ -241,8 +242,6 @@ p.plot(n.median(pk_fold_boot,axis=1))
 p.plot(pk_fold+2*err_fold)
 p.show()
 
-import IPython
-IPython.embed()
 print 'Writing pspec.npz'
 n.savez('pspec.npz', kpl=kpl, pk=pk, err=err, pk_fold=pk_fold, err_fold=err_fold, cmd=cmd)
     

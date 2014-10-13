@@ -215,23 +215,23 @@ class CoV(object):
             mask[i*lg:(i+1)*lgp, i*lg:(i+1)*lgp] = 1.
         return mask
 
-    def get_grp_panel(self, bli, blj):
-        '''
-           Get the group covariance panel where 
-           bli and blj live. 
-           If they don't live in the same group return None.           
-        '''
-        #Are the two bls in the same group?
-        for group_i in self.groups:
-            if bli in group_i and blj in group_i:
-                gp = group_i
-            else: gp = None
-            if gp is None: continue
+    #def get_grp_panel(self, bli, blj):
+    #    '''
+    #       Get the group covariance panel where 
+    #       bli and blj live. 
+    #       If they don't live in the same group return None.           
+    #    '''
+    #    #Are the two bls in the same group?
+    #    for group_i in self.groups:
+    #        if bli in group_i and blj in group_i:
+    #            gp = group_i
+    #        else: gp = None
+    #        if gp is None: continue
 
-        #if gp is None then not in same group.
-        if gp is None: return None
-        #else
-        else:
+    #    #if gp is None then not in same group.
+    #    if gp is None: return None
+    #    #else
+    #    else:
             
             
         
