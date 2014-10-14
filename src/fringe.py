@@ -3,10 +3,8 @@
 Implements a Fringe Rate Filter useing and FIR filter.
 '''
 import aipy as a
-import capo
-import numpy as n, pylab as p
+import numpy as n
 import scipy.interpolate
-import optparse,sys
 
 def sky_fng_thresh(bl_ew_len, inttime, nints, freq, min_fr_frac=-.3, xtalk=-1,
                         max_fr_frac=1.):

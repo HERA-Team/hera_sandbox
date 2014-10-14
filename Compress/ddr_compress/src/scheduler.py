@@ -1,7 +1,7 @@
 import time, logging
 
 logger = logging.getLogger('scheduler')
-
+MAXFAIL=5
 # NEW is for db use internally.  Scheduler only ever gets UV_POT and onward from data base
 # Removing the POT_TO_USA step
 FILE_PROCESSING_STAGES = ['NEW','UV_POT', 'UV', 'UVC', 'CLEAN_UV', 'UVCR', 'CLEAN_UVC',
@@ -90,6 +90,7 @@ class Scheduler:
         for still in xrange(nstills):
             self.launched_actions[still] = []
         self._run = False
+        self.failcount = {}#dict of {obsid+status,failcount}
     def quit(self):
         self._run = False
     def start(self, dbi, ActionClass=None, action_args=(), sleeptime=.1):
@@ -134,18 +135,25 @@ class Scheduler:
         '''Subclass this to actually kill the process.'''
         logger.info('Scheduler.kill_action: called on (%s,%d)' % (a.task, a.obs))
     def clean_completed_actions(self, dbi):
-        '''Check launched actions for completion or timeout.'''
+        '''Check launched actions for completion, timeout or fail'''
         for still in self.launched_actions:
             updated_actions = []
             for cnt, a in enumerate(self.launched_actions[still]):
                 status = dbi.get_obs_status(a.obs)
+                pid = dbi.get_obs_pid(a.obs)
+                try: self.failcount[str(a.obs)+status]
+                except(KeyError): self.failcount[str(a.obs)+status] = 0
                 if status == a.task:
                     logger.info('Task %s for obs %s on still %d completed successfully.' % (a.task, a.obs, still))
                     # not adding to updated_actions removes this from list of launched actions
                 elif a.timed_out():
                     logger.info('Task %s for obs %s on still %d TIMED OUT.' % (a.task, a.obs, still))
                     self.kill_action(a)
+                    self.failcount[str(a.obs)+status] += 1
                     # XXX make db entry for documentation
+                elif pid==-9:
+                    self.failcount[str(a.obs)+status] += 1
+                    logger.info('Task %s for obs %s on still %d HAS DIED. failcount=%d' % (a.task, a.obs, still,self.failcount[str(a.obs)+status]))
                 else: # still active
                     updated_actions.append(a)
             self.launched_actions[still] = updated_actions
@@ -175,6 +183,7 @@ class Scheduler:
         actions = [self.get_action(dbi,f,ActionClass=ActionClass, action_args=action_args) for f in self.active_obs]
         actions = [a for a in actions if not a is None] # remove unactionables
         actions = [a for a in actions if not self.already_launched(a)] # filter actions already launched
+        actions = [a for a in actions if self.failcount.get(str(a.obs)+dbi.get_obs_status(a.obs),0)<MAXFAIL] #filter actions that have utterly failed us
         for a in actions: a.set_priority(self.determine_priority(a,dbi))
         actions.sort(action_cmp, reverse=True) # place most important actions first
         self.action_queue = actions # completely throw out previous action list
@@ -206,7 +215,7 @@ class Scheduler:
         '''Assign a priority to an action based on its status and the time
         order of the obs to which this action is attached.'''
         pol, jdcnt = action.obs / 2**32, action.obs % 2**32 # XXX maybe not make this have to explicitly match dbi bits
-        return jdcnt * 4 + pol # prioritize first by time, then by pol
+        return jdcnt * 4 + pol  # prioritize first by time, then by pol
         # XXX might want to prioritize finishing a obs already started before
         # moving to the latest one (at least, up to a point) to avoid a
         # build up of partial obs.  But if you prioritize obs already
