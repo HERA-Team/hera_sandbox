@@ -36,6 +36,9 @@ o.add_option('--boot_number', type='int',
     help='Bootstrap number to do. Used with qsub')
 o.add_option('--noise', action='store_true',
     help='use noise uv files.')
+o.add_option('--write2uv', action='store_true',
+    help='Instead of forming power spectra, write to uv files after \
+          applying covariance matrix.')
 opts,args = o.parse_args(sys.argv[1:])
 
 
@@ -61,11 +64,12 @@ class CoV:
         nprms = number of channels/kmodes/prms
         C     = covariance of data matrix.
     '''
-    def __init__(self, X, bls):
+    def __init__(self, X, bls, times):
         self.bls = bls
         self.X = X
         self.nprms = X.shape[0] / len(bls)
         self.C = cov(X)
+        self.times = n.array(times)
     def get_C(self, bl1, bl2=None):
         if bl2 is None: bl2 = bl1
         i,j = self.bls.index(bl1), self.bls.index(bl2)
@@ -210,6 +214,42 @@ def read_noise_uv(files, ants, pol, chs, conj, win):
             Nffts = n.fft.fftshift(Nfft)
             NRMS[bl] = NRMS.get(bl, []) + [Nffts]
     return NRMS
+
+def write_2_uv(files, CC, afreqs, channels=(110,150), ending='V'):
+    '''Give input uv files. CC = covariance class that'''
+    window = a.dsp.gen_window(len(afreqs), WINDOW)
+
+    def mfunc(uv, p, d, f):
+        uvw, t, (i,j) = p
+        print (i,j)
+        bl = a.miriad.ij2bl(i,j)
+        print t
+        ti = n.where(CC.times == t); print ti
+#        import IPython
+#        IPython.embed()
+        data = n.zeros(len(d), n.complex64).flatten()
+#        print data.shape
+#        print CC.get_x(bl).shape
+        try:
+            data[channels[0]:channels[1]] = n.fft.fft(n.fft.ifftshift(CC.get_x(bl)[:,ti].flatten()))/(window*capo.pspec.jy2T(afreqs))
+            
+        except:
+            data = None
+            flags = None
+        flags = n.ones(len(f), dtype=f.dtype)
+        flags[channels[0]:channels[1]] = 0
+        return p, data, flags
+
+    for ff in files:
+        outfile = ff + ending
+        print 'writing to %s'%outfile
+        uvi = a.miriad.UV(ff)
+        uvo = a.miriad.UV(outfile, status='new')
+        uvo.init_from_uv(uvi)
+        uvo.pipe(uvi, mfunc, append2hist='covariance applied\n', raw=True)
+          
+        
+    
 
             
 
@@ -510,7 +550,7 @@ for boot in xrange(NBOOT):
     for cnt in xrange(PLT1*PLT2-1):
         print cnt, '/', PLT1*PLT2-1
         SZ = Ts.shape[0]
-        MCx,MCn = CoV(Ts, bls_), CoV(Ns, bls_)
+        MCx,MCn = CoV(Ts, bls_, times), CoV(Ns, bls_, times)
         #Cx,Cn = cov(Ts), cov(Ns)
         Cx,Cn = MCx.C, MCn.C
         if PLOT:
@@ -729,10 +769,13 @@ for boot in xrange(NBOOT):
 
     pspecs,dspecs = [], []
     nspecs,n1specs,n2specs = [], [], []
-    Cx,Cn = CoV(Ts, bls_), CoV(Ns, bls_)
-    Cx_ = CoV(n.dot(_Cxtot,Ts), bls_)
+    Cx,Cn = CoV(Ts, bls_, times), CoV(Ns, bls_, times)
+    Cx_ = CoV(n.dot(_Cxtot,Ts), bls_, times)
     # Cn1 is the noise diagonalized as if it were the signal, Cn2 is the noise with the signal diagonalization applied
-    Cn1_,Cn2_ = CoV(n.dot(_Cntot,Ns), bls_), CoV(n.dot(_Cxtot,Ns), bls_)
+    Cn1_,Cn2_ = CoV(n.dot(_Cntot,Ns), bls_, times), CoV(n.dot(_Cxtot,Ns), bls_, times)
+    if opts.write2uv:
+        write_2_uv( args, Cx_, afreqs, ending='boot%d'%boot)
+        continue
     for cnt,bli in enumerate(bls_):
         print cnt
         for blj in bls_[cnt:]:
@@ -870,8 +913,6 @@ for boot in xrange(NBOOT):
     if not opts.output == '':
         outfile =opts.output+'/'+outfile
     print "Writing", outfile
-    n.savez(outfile, kpl=kpl, pk=avg_1d, err=std_1d, scalar=scalar, times=n.array(times),freq=fq,
-        pk_vs_t=avg_2d, err_vs_t=std_2d, temp_noise_var=temp_noise_var, nocov_vs_t=n.average(dspecs,axis=0),
-        cmd=' '.join(sys.argv))
+    n.savez(outfile, kpl=kpl, pk=avg_1d, err=std_1d, scalar=scalar, times=n.array(times),freq=fq, pk_vs_t=avg_2d, err_vs_t=std_2d, temp_noise_var=temp_noise_var, nocov_vs_t=n.average(dspecs,axis=0), cov_matrix=_Cxtot, bls=bls_, cmd=' '.join(sys.argv))
 if PLOT: p.show()
 
