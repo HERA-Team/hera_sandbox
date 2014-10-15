@@ -502,7 +502,7 @@ for boot in xrange(NBOOT):
         print "Reading from %s" %covfiles[boot]
         bls_ = list(cov_file['bls']) #need list to work well with CoV
         _Cxtot = cov_file['cov_matrix']
-        _Cntot = cov_file['cov_matrix']
+        _Cntot = cov_file['cov_matrix_noise']
         gps = cov_file['gps']
 #    if True: # pick a sample of baselines with replacement
     else: # pick a sample of baselines with replacement
@@ -547,7 +547,8 @@ for boot in xrange(NBOOT):
                 #capo.arp.waterfall(cov(Ts), mode='log', mx=-1,  drng=4); p.colorbar(shrink=.5)
                 #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(Cx*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
                 p.figure(10)
-                p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(Cn*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
+                #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(Cn*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
+                p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(Cx*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
                 #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
                 print "max(cov(Ts))",n.max(Cx)
                 print "max(cov(Ns))",n.max(Cn)
@@ -647,7 +648,8 @@ for boot in xrange(NBOOT):
     #            if cnt%10==0:
     #                p.figure(100)
                 p.figure(11)
-                p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(avg_Cn*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
+                #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(avg_Cn*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
+                p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(avg_Cx*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
     #            #correct for diagonal, scalar, and gain factor
     #                capo.arp.waterfall(avg_Cx*scalar*dx/g, mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
     #                p.figure(99)
@@ -687,9 +689,11 @@ for boot in xrange(NBOOT):
             #capo.arp.waterfall(cov(Ts), mode='log', mx=-1, drng=4);p.colorbar(shrink=.5)
             #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts)*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
             p.figure(10)
-            p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns)*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
+            #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns)*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
+            p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts)*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
             p.figure(11)
-            p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(avg_Cn*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
+            #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(avg_Cn*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
+            p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(avg_Cx*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
             #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=3)
             p.show()
 
@@ -699,7 +703,8 @@ for boot in xrange(NBOOT):
 #    exit()
     Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
     Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
-
+    #need this var in the boot strapping
+    temp_noise_var = n.average(n.array([T[bl] for bl in bls_]), axis=0).T
     pspecs,dspecs = [], []
     nspecs,n1specs,n2specs = [], [], []
     Cx,Cn = CoV(Ts, bls_, times), CoV(Ns, bls_, times)
@@ -846,8 +851,8 @@ for boot in xrange(NBOOT):
     if not opts.output == '':
         outfile =opts.output+'/'+outfile
     print "Writing", outfile
-    #n.savez(outfile, kpl=kpl, pk=avg_1d, err=std_1d, scalar=scalar, times=n.array(times),freq=fq, pk_vs_t=avg_2d, err_vs_t=std_2d, temp_noise_var=temp_noise_var, nocov_vs_t=n.average(dspecs,axis=0), cov_matrix=_Cxtot, bls=bls_, gps=gps, cmd=' '.join(sys.argv))
-    n.savez(outfile, kpl=kpl, pk=avg_1d, err=std_1d, scalar=scalar, times=n.array(times),freq=fq, pk_vs_t=avg_2d, err_vs_t=std_2d, nocov_vs_t=n.average(dspecs,axis=0), cov_matrix=_Cxtot, bls=bls_, gps=gps, cmd=' '.join(sys.argv))
+    n.savez(outfile, kpl=kpl, pk=avg_1d, err=std_1d, scalar=scalar, times=n.array(times),freq=fq, pk_vs_t=avg_2d, err_vs_t=std_2d, temp_noise_var=temp_noise_var, nocov_vs_t=n.average(dspecs,axis=0), cov_matrix=_Cxtot, bls=bls_, gps=gps, cmd=' '.join(sys.argv))
+    #n.savez(outfile, kpl=kpl, pk=avg_1d, err=std_1d, scalar=scalar, times=n.array(times),freq=fq, pk_vs_t=avg_2d, err_vs_t=std_2d, nocov_vs_t=n.average(dspecs,axis=0), cov_matrix=_Cxtot, bls=bls_, gps=gps, cmd=' '.join(sys.argv))
     #kpl = k parallels
     #pk = 
     #err = 
