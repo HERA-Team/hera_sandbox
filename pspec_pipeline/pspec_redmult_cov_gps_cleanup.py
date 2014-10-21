@@ -676,13 +676,17 @@ for boot in xrange(NBOOT):
             Ts,Ns = n.dot(_Cx,Ts), n.dot(_Cn,Ns)
             # These are a running tally of all the diagonalization steps applied
             _Cxtot,_Cntot = n.dot(_Cx,_Cxtot), n.dot(_Cn,_Cntot)
+            p.figure(12)
+            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(_Cxtot*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
     #        p.figure(cnt)
     #        p.subplot(111); capo.arp.waterfall(Ts, mode='log', drng=3);p.colorbar(shrink=.5)
         if opts.savecov:
             print 'Saving covariance matrix'
             cov_outfile = 'pspec_cov%04d.npz'%boot
             print 'Writing to %s'%cov_outfile
-            n.savez(cov_outfile, kpl=kpl, scalar=scalar, times=n.array(times),freq=fq, cov_matrix=_Cxtot, cov_matrix_noise=_Cntot, bls=bls_, gps=gps, cmd=' '.join(sys.argv))
+            n.savez(cov_outfile, kpl=kpl, scalar=scalar, times=n.array(times),freq=fq, cov_matrix=_Cxtot, cov_matrix_noise=_Cntot, cov_matrix_orig_data=cov(Ts), bls=bls_, gps=gps, cmd=' '.join(sys.argv))
+            #NOTE: Ts gets over written below and so is the original covariance matrix. 
+            #The cov(Ts) above is the fully diagonalized covariance matrix from before.
             continue
             
         if PLOT:
@@ -694,6 +698,8 @@ for boot in xrange(NBOOT):
             p.figure(11)
             #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(avg_Cn*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
             p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(avg_Cx*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
+            p.figure(12)
+            p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(_Cxtot*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
             #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=3)
             p.show()
 
@@ -701,6 +707,7 @@ for boot in xrange(NBOOT):
 #    import IPython
 #    IPython.embed()
 #    exit()
+    print bls_
     Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
     Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
     #need this var in the boot strapping
@@ -709,6 +716,18 @@ for boot in xrange(NBOOT):
     nspecs,n1specs,n2specs = [], [], []
     Cx,Cn = CoV(Ts, bls_, times), CoV(Ns, bls_, times)
     Cx_ = CoV(n.dot(_Cxtot,Ts), bls_, times)
+    if PLOT:
+        p.figure(1)
+        capo.arp.waterfall(_Cxtot*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
+        p.title('C : Junk Matrix.')
+        p.figure(2)
+        capo.arp.waterfall(Cx_.C*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
+        p.title('C : after removing off diagonal covariances')
+        p.figure(3)
+        capo.arp.waterfall(Cx.C*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
+        p.title('C : Original covariance matrix of the data.')
+        p.show()
+    
     # Cn1 is the noise diagonalized as if it were the signal, Cn2 is the noise with the signal diagonalization applied
     Cn1_,Cn2_ = CoV(n.dot(_Cntot,Ns), bls_, times), CoV(n.dot(_Cxtot,Ns), bls_, times)
     if opts.write2uv:
