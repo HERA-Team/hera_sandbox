@@ -16,6 +16,8 @@ MASK = True
 DELAY = False
 CHOLESKY = True
 NOAUTOS = True
+NGPS = 4
+AVG_COV = True
 
 def cov(m):
     '''Because numpy.cov is stupid and casts as float.'''
@@ -56,20 +58,18 @@ def ndiag(size, num):
             C[(j+i)%size,j] = 1
     return C
 
-def cov_average(C, bls, n_k, gps):
+def cov_average(C, bls, nchan):
     nbls = len(bls)
     original_shape = C.shape
-    C.shape = (nbls,n_k,nbls,n_k)
-    Cavg = n.zeros_like(C)
-    dsum, dwgt = 0, 0
+    C.shape = (nbls,nchan,nbls,nchan)
+    dsum, dwgt = {}, {}
+    level = dict(zip(bls, [n.trace(C[i,:,i,:])/nchan for i in range(nbls)]))
     for i in xrange(nbls):
         for j in xrange(nbls):
-            if i == j: continue
-            dsum += C[i,:,j,:]
-            dwgt += 1
+            dsum[i == j] = dsum.get(i == j, 0) + C[i,:,j,:]
+            dwgt[i == j] = dwgt.get(i == j, 0) + 1
     C.shape = original_shape
-    davg = dsum / dwgt
-    return tile_panels(davg, bls)
+    return level, dsum[True]/dwgt[True], dsum[False]/dwgt[False]
 
 def get_E(mode, n_k, bls, zero_block_diag=False, zero_repeat_bls=False):
     if not DELAY:
@@ -156,11 +156,22 @@ bls_master = _d.keys()
 nbls = len(bls_master)
 print nbls
 
+_data = n.array([_d[k] for k in bls_master])
+_data = n.reshape(_data, (_data.shape[0]*_data.shape[1], _data.shape[2]))
+C = cov(_data)
+level,auto,cross = cov_average(C, bls_master, nchan)
+
 for boot in xrange(opts.nboot):
     print '%d / %d' % (boot+1,opts.nboot)
-    bls = [random.choice(bls_master) for bl in bls_master]
-    #bls = [bl for bl in bls_master]
-    print ['%d_%d'%a.miriad.bl2ij(bl) for bl in bls]
+    bls = bls_master[:]
+    random.shuffle(bls)
+    bls = bls[:-10] # XXX
+    nbls = len(bls)
+    gps = [bls[i::NGPS] for i in range(NGPS)]
+    #gps = [[random.choice(gp) for bl in gp] for gp in gps]
+    gps = [[bl for bl in gp] for gp in gps]
+    bls = [bl for gp in gps for bl in gp]
+    print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps])
 
     if True: _data = n.array([_d[k] for k in bls])
     else:
@@ -174,48 +185,42 @@ for boot in xrange(opts.nboot):
         print 'ADDING NOISE'
         _data += 1.0 * noise(_data.shape)
 
-    if True:
-        C = cov(_data)
-    else:
-        'OVERRIDING COVARIANCE MATRIX'
-        #C = tile_panels(n.identity(nchan), len(bls))
-        C = tile_panels(n.identity(nchan), bls)
-        C += n.identity(C.shape[0])
-    #capo.arp.waterfall(C, drng=3); p.show()
-    Cavg = cov_average(C, bls, nchan, [bls])
-    N = C - Cavg
+    C = cov(_data)
+    #N = C - cross
 
-    U,S,V = n.linalg.svd(C.conj())
-    if opts.plot:
-        p.subplot(224); p.semilogy(S)
     if MASK: # mask covariance matrix
-        # make block diagonal 
-        C *= 1 - tile_panels(n.ones((nchan,nchan)), bls, zero_block_diag=True)
-        C.shape = (nbls,nchan,nbls,nchan)
-        auto_sum, auto_wgt = 0,0
-        auto_noise = []
-        for i in xrange(nbls):
-            auto_sum += C[i,:,i,:]
-            auto_wgt += 1
-            auto_noise.append(n.trace(C[i,:,i,:])/nchan)
-        auto = auto_sum / auto_wgt
-        for i in xrange(nbls):
-          for j in xrange(nbls):
-            if i == j: C[i,:,j,:] = auto_noise[i] * auto
-            else: C[i,:,j,:] = n.sqrt(auto_noise[i] * auto_noise[j]) * Cavg[:nchan,:nchan]
-        C.shape = (nbls*nchan,nbls*nchan)
-        # XXX Try decomposing C as C_bl X C_ch
+        mask = n.ones((nbls,nchan,nbls,nchan))
+        for i in n.cumsum([len(gp) for gp in gps])[:-1]:
+            mask[:i,:,i:,:] = 0
+            mask[i:,:,:i,:] = 0
+        mask.shape = (nbls*nchan,nbls*nchan)
         #C = C * n.identity(C.shape[0])
         #C = C * n.identity(C.shape[0]) + Cavg * tile_panels(n.identity(nchan), len(bls))
         #C += Cavg * tile_panels(n.identity(nchan), len(bls))
         #C *= tile_panels(n.identity(nchan), len(bls))
         #C = C * ndiag(C.shape[0], 2) + Cavg * tile_panels(ndiag(nchan,2), len(bls))
         #C = C * n.identity(C.shape[0]) + Cavg
+    else: mask = 1
+
+    U,S,V = n.linalg.svd(C.conj())
+    if opts.plot:
+        p.subplot(224); p.semilogy(S)
+
+    if AVG_COV:
+        C.shape = (nbls,nchan,nbls,nchan)
+        for i in xrange(nbls):
+          for j in xrange(nbls):
+            if bls[i] == bls[j]: C[i,:,j,:] = level[bls[i]] * auto
+            else: C[i,:,j,:] = n.sqrt(level[bls[i]] * level[bls[j]]) * cross
+        C.shape = (nbls*nchan,nbls*nchan)
+        # XXX Try decomposing C as C_bl X C_ch
+
+    C *= mask
     print 'Psuedoinverse of C'
     U,S,V = n.linalg.svd(C.conj())
     print S
-    #_S = n.where(S > 1e-3, 1./S, 0)
-    _S = 1./S
+    _S = n.where(S > 1e-3, 1./S, 0)
+    #_S = 1./S
     #_S = n.concatenate([1./S[:100], n.zeros_like(S[100:])])
     _C = n.einsum('ij,j,jk', V.T, _S, U.T)
     _Cx = n.dot(_C, _data)
@@ -235,8 +240,8 @@ for boot in xrange(opts.nboot):
     #_CN = n.dot(_C,N)
     for i in xrange(nchan):
         print 'E',i
-        #E[i] = get_E(i, nchan, len(bls))
-        E[i] = get_E(i, nchan, bls, zero_repeat_bls=NOAUTOS)
+        #E[i] = get_E(i, nchan, bls, zero_repeat_bls=NOAUTOS) * (1 - mask)
+        E[i] = get_E(i, nchan, bls) * (1 - mask)
         _CE[i] = n.dot(_C,E[i])
         #b [i,0] = n.einsum('ij,ji', E[i], N)
         #bC[i,0] = n.einsum('ij,ji', _CE[i], _CN)
