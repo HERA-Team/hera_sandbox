@@ -83,7 +83,6 @@ for filename in args:
 #T/F if conjugation correct/incorrect. 
     for sep in bls:
         conj[sep] = [i>j for i,j in bls[sep]]
-    
     strbls = {}
     conj_bl = {}
     for sep in bls:
@@ -91,13 +90,20 @@ for filename in args:
         bl_list = []
         for (i,j),c in zip(bls[sep],conj[sep]):
             if c: i,j = j,i
-            valid = [64,10,49,65,9,66,72,22,73,80,20,81,88,43,89,96,53,97,104,31,105] 
-            #valid = [0,1,2,3,16,17,18,19,8,9,10,11,24,25,26,27,4,5,6,7,20,21,22,23,12,13,14]
-            #valid = [0,1,2,3,16,17,18,19,12,13,14,15,28,29,30,31]
-            #valid = [49,41,47,19,10,3,25,48,9,58,1,4]
-            #valid=[49,41,47,19,29,28,34,51,10,3,25,48,24,55,27,57,9,58,1,4,17,13,56,59,22,61,35,18,5,32,30,23]
-            #valid = ANTPOS.flatten()
-            #valid = n.delete(valid,n.where(valid==37)[0])
+	        ###cols 0-5:
+            #valid = [25,19,1,64,65,72,80,88,96,104,10,9,22,20,43,53,31,49,66,73,81,89,97,105,3,58,61,63,2,21,45,41,67,74,82,90,98,106,35,42,33,15,8]
+	    ###cols 6-10:
+	    #valid = [25,19,1,47,75,83,91,99,107,48,4,18,37,6,16,11,29,68,76,84,92,100,108,24,17,5,40,52,62,36,28,69,77,85,93,101,109]
+	        ###cols 11-15:
+            #valid = [25,19,1,51,57,71,59,79,23,87,50,95,38,103,26,111,46,27,56,30,54,12,0,39,34,70,78,86,94,102,110,55,13,32,14,7,44,60]
+	    ###whole array:
+	    #valid = ANTPOS.flatten()
+        ###get rid of bad antennas:
+	    #bad_ant = [64,72,10,22,31,43,97,105,2,58,15,33,42,47,91,107]
+	    #for i in bad_ant:
+		    #whr = n.where(n.array(valid)== i)[0]
+            #valid = n.delete(valid,whr)
+	    #valid = list(valid)
             if not i in valid or not j in valid: continue
             #Add valid antennas to the bl_list. Default is all ants.
             bl_list.append(ij2bl(i,j))
@@ -113,7 +119,7 @@ for filename in args:
     del(uv)
     
     #seps = ['0,1','1,1','-1,1'] #+ ['2,1', '-2,1'] + ['0,2','1,2','-1,2']
-#    seps = bls.keys()
+    #seps = bls.keys()
     seps = [sep for sep in bls if len(bls[sep]) > 0]
     #Get the baselines that have separation in seps.
     strbls = ','.join([strbls[sep] for sep in seps if len(strbls[sep])>0])
@@ -123,8 +129,7 @@ for filename in args:
     if opts.verbose:
         print '-'*70
         print strbls
-        print '-'*70
-    
+        print '-'*70 
     #Get times, data, and flags from a given file of specified bls and pols.
     times, d, f = capo.arp.get_dict_of_uv_data([filename], strbls, ','.join(pols), verbose=True)
     for bl in d:
@@ -178,7 +183,6 @@ for filename in args:
     # Without cross-pol data, both pols of reference ant must be manually set to fixed values.
     P['phs'][3,p1,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M['phs'][3] = 0
     P['amp'][1,p1,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M['amp'][1] = 0
-
     outfile = filename+'_%s.npz' % (opts.name)
     dly0,gain0 = {}, {} # Starting point for searching for solution
     #if .npz file exists it loads the starting points into dly0,gain0.
@@ -194,8 +198,7 @@ for filename in args:
             for i,tau,g in zip(ANTPOS.flatten(), C_phs[pi].flatten(), C_amp[pi].flatten()):
                 dly0[pi][i] = tau
                 gain0[pi][i] = g
-        f.close()
-        
+        f.close()    
     for sep in seps:
         cbl = cal_bl[sep]
         i0,j0 = bl2ij(cbl)
@@ -242,7 +245,7 @@ for filename in args:
                     P[m] = n.append(P[m], _P[m], axis=0)
                     M[m] = n.append(M[m], _M[m], axis=0)
                     if opts.verbose:
-                        print '%2d-%2d/%2d-%2d' % (i,j,i0,j0), ''.join(['v-0+^'[int(c)+2] for c in _P[m].flatten()]), '%6.2f' % _M[m][0,0],
+                        print '%2d-%2d/%2d-%2d' % (i,j,i0,j0),''.join(['v-0+^'[int(c)+2] for c in _P[m].flatten()]),'%6.2f' % _M[m][0,0],
                         if m == 'phs':
                             if info['dtau'] > .1: print '*', info['dtau']
                             else: print
@@ -257,6 +260,7 @@ for filename in args:
         P[m].shape = (x0, P[m].size/x0)
         #print P[m].shape, M[m].shape
         pinv = n.linalg.pinv(P[m]) # this succeeds where lstsq fails for some reason
+        print pinv
         C[m] = n.dot(pinv,M[m])
         #C[m] = n.linalg.lstsq(P[m],M[m])[0]
         C[m].shape = (NPOL,) + ANTPOS.shape
@@ -274,3 +278,4 @@ for filename in args:
         C_phs=C['phs'], C_amp=C['amp'], antpos=ANTPOS, time=n.mean(times), pols=pols)
     
 if opts.plot: pylab.show()
+
