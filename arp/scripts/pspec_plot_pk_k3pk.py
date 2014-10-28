@@ -193,7 +193,7 @@ for sep in RS_VS_KPL:
     nos_fold = [1./n.sqrt(dwgt_fold[k]) for k in kpl_fold]
     #d = [RS_VS_KPL[k][0] for k in kpl]
     #nos = [RS_VS_KPL[k][1] for k in kpl]
-    if True: #if 'I' in sep: # Add foregrounds
+    if False: #if 'I' in sep: # Add foregrounds
         for cnt,k in enumerate(kpl):
             k = '%6.3f' % k
             if not FG_VS_KPL.has_key(k): continue
@@ -225,7 +225,7 @@ for sep in RS_VS_KPL:
         nos *= f
         d_fold *= f
         nos_fold *= f
-    if False: # For aggressive fringe-rate filtering, change beam area
+    if True: # For aggressive fringe-rate filtering, change beam area
         f = 1.90 # ratio of power**2 beams for filtered * unfiltered beams: 0.306 / 0.162
         print 'Scaling data and noise by %f for beam constriction in aggressive fringe-rate filtering' % f
         d *= f

@@ -15,9 +15,10 @@ opts,args = o.parse_args(sys.argv[1:])
 MASK = True
 DELAY = False
 CHOLESKY = True
-NOAUTOS = True
-NGPS = 4
+#NGPS = 4
+NGPS = 2
 AVG_COV = True
+LST_STATS = False
 
 def cov(m):
     '''Because numpy.cov is stupid and casts as float.'''
@@ -49,16 +50,17 @@ def tile_panels(panel, bls, zero_block_diag=False, zero_repeat_bls=False):
     C.shape = (nbls*n_k, nbls*n_k)
     return C
 
-def ndiag(size, num):
-    C = n.identity(size)
-    ind = n.arange(size)
-    for i in xrange(1,num):
-        for j in xrange(size):
-            C[j,(j+i)%size] = 1
-            C[(j+i)%size,j] = 1
-    return C
+#def ndiag(size, num):
+#    C = n.identity(size)
+#    ind = n.arange(size)
+#    for i in xrange(1,num):
+#        for j in xrange(size):
+#            C[j,(j+i)%size] = 1
+#            C[(j+i)%size,j] = 1
+#    return C
 
 def cov_average(C, bls, nchan):
+    '''Return bl levels, autos, crosses'''
     nbls = len(bls)
     original_shape = C.shape
     C.shape = (nbls,nchan,nbls,nchan)
@@ -127,18 +129,20 @@ sys.stdout.flush()
 antstr = 'cross'
 times,data,flgs = capo.arp.get_dict_of_uv_data(args, antstr=antstr, polstr='I', verbose=True)
 
-# collect some metadata from the lst binning process
-cnt, var = {}, {}
-for filename in args:
-    print 'Reading', filename
-    uv = a.miriad.UV(filename)
-    a.scripting.uv_selector(uv, opts.ant, opts.pol)
-    for (uvw,t,(i,j)),d,f in uv.all(raw=True):
-        bl = '%d,%d,%d' % (i,j,uv['pol'])
-        cnt[bl] = cnt.get(bl, []) + [uv['cnt']]
-        var[bl] = var.get(bl, []) + [uv['var']]
-cnt = n.array(cnt.values()[0]) # all baselines should be the same
-var = n.array(var.values()[0]) # all baselines should be the same
+if LST_STATS:
+    # collect some metadata from the lst binning process
+    cnt, var = {}, {}
+    for filename in args:
+        print 'Reading', filename
+        uv = a.miriad.UV(filename)
+        a.scripting.uv_selector(uv, opts.ant, opts.pol)
+        for (uvw,t,(i,j)),d,f in uv.all(raw=True):
+            bl = '%d,%d,%d' % (i,j,uv['pol'])
+            cnt[bl] = cnt.get(bl, []) + [uv['cnt']]
+            var[bl] = var.get(bl, []) + [uv['var']]
+    cnt = n.array(cnt.values()[0]) # all baselines should be the same
+    var = n.array(var.values()[0]) # all baselines should be the same
+else: cnt,var = n.ones_like(times), n.ones_like(times)
 
 aa = a.cal.get_aa(opts.cal, n.array([.150]))
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
@@ -165,7 +169,8 @@ for boot in xrange(opts.nboot):
     print '%d / %d' % (boot+1,opts.nboot)
     bls = bls_master[:]
     random.shuffle(bls)
-    bls = bls[:-10] # XXX
+    #bls = bls[:-10] # XXX
+    bls = bls[:-5] # XXX
     nbls = len(bls)
     gps = [bls[i::NGPS] for i in range(NGPS)]
     #gps = [[random.choice(gp) for bl in gp] for gp in gps]
@@ -213,7 +218,6 @@ for boot in xrange(opts.nboot):
             if bls[i] == bls[j]: C[i,:,j,:] = level[bls[i]] * auto
             else: C[i,:,j,:] = n.sqrt(level[bls[i]] * level[bls[j]]) * cross
         C.shape = (nbls*nchan,nbls*nchan)
-        # XXX Try decomposing C as C_bl X C_ch
 
     C *= mask
     print 'Psuedoinverse of C'
