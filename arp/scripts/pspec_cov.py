@@ -19,7 +19,7 @@ CHOLESKY = True
 NGPS = 51
 AVG_COV = False
 LST_STATS = False
-NOISE_SIG = True
+NOISE_SIG = False
 REMOVE_AVG_BL = False
 #NOISE = .5
 #NOISE = 1./32
@@ -91,6 +91,16 @@ def get_E(mode, n_k, bls, zero_block_diag=False, zero_repeat_bls=False):
         E = n.zeros_like(C)
         E[mode,mode] = 1
         return E
+
+def auto_cov(d, n_k):
+    nbls = d.shape[0]/n_k
+    orig_shape = d.shape
+    C = n.zeros((nbls,n_k,nbls,n_k), dtype=d.dtype)
+    d.shape = (nbls,n_k,d.shape[1])
+    for i in xrange(nbls): C[i,:,i,:] = cov(d[i])
+    d.shape = orig_shape
+    C.shape = (nbls*n_k, nbls*n_k)
+    return C
 
 
 args = glob.glob('even/sep0,1/*242.[3456]*uvAL') # XXX
@@ -237,7 +247,8 @@ for boot in xrange(opts.nboot):
         p.subplot(312); capo.arp.waterfall(_data_avg, mode='real', mx=5, drng=10)
         p.subplot(313); capo.arp.waterfall(_data-_data_avg, mode='real', mx=5, drng=10)
         p.show()
-        C = cov(_data-_data_avg + NOISE*noise(_data.shape))
+        C_junk = cov(_data-_data_avg + NOISE*noise(_data.shape))
+        C = auto_cov(_data + NOISE*noise(_data.shape), nchan) + C_junk
     elif JACKNIFE: # XXX override with data from second data set
         #_data = n.array([_d2[k] for k in bls])
         #_data = n.reshape(_data, (_data.shape[0]*_data.shape[1], _data.shape[2]))
@@ -251,10 +262,14 @@ for boot in xrange(opts.nboot):
         p.subplot(413); capo.arp.waterfall(.5*(_data - _data2), mode='real', mx=10, drng=20)
         p.subplot(414); capo.arp.waterfall(.5*(_data + _data2), mode='real', mx=10, drng=20)
         p.show()
-        C_junk = cov((_data - _data2)/2 + NOISE*noise(_data.shape))
+        #C_junk = cov((_data - _data2)/2 + NOISE*noise(_data.shape))
         #C = cov((_data + _data2)/2 + NOISE*noise(_data.shape))
+        _data_dif = (_data - _data2)/2
         _data = (_data + _data2)/2
-        C = cov(_data + NOISE*noise(_data.shape))
+        #C = cov(_data + NOISE*noise(_data.shape))
+        #C = auto_cov(_data + NOISE*noise(_data.shape), nchan) + C_junk
+        C = auto_cov(_data + NOISE*noise(_data.shape), nchan)
+        Cd = auto_cov(_data_dif + NOISE*noise(_data.shape), nchan)
         #_data = _data2
     else:
         C = cov(_data + NOISE*noise(_data.shape))
@@ -284,8 +299,8 @@ for boot in xrange(opts.nboot):
         C = Cavg
         #C -= Cavg
 
-    #C *= mask
-    C = C * mask + C_junk # XXX
+    C *= mask
+    Cd *= mask
 
     print 'Psuedoinverse of C'
     U,S,V = n.linalg.svd(C.conj())
@@ -299,6 +314,10 @@ for boot in xrange(opts.nboot):
     #_S = n.concatenate([1./S[:100], n.zeros_like(S[100:])])
     _C = n.einsum('ij,j,jk', V.T, _S, U.T)
     _Cx = n.dot(_C, _data)
+    U,S,V = n.linalg.svd(Cd.conj())
+    _S = 1./S
+    _Cd = n.einsum('ij,j,jk', V.T, _S, U.T)
+    _Cxd = n.dot(_Cd, _data_dif)
     if opts.plot:
         p.subplot(231); capo.arp.waterfall(C, drng=3)
         p.subplot(232); capo.arp.waterfall(_C, drng=3)
@@ -306,11 +325,14 @@ for boot in xrange(opts.nboot):
         p.subplot(234); p.semilogy(S)
         p.subplot(236); capo.arp.waterfall(V, drng=3)
         p.show()
-        p.subplot(211); capo.arp.waterfall(_data, mode='real', mx=5, drng=10); p.colorbar(shrink=.5)
-        p.subplot(212); capo.arp.waterfall(  _Cx, mode='real'); p.colorbar(shrink=.5)
+        p.subplot(411); capo.arp.waterfall(_data, mode='real', mx=5, drng=10); p.colorbar(shrink=.5)
+        p.subplot(412); capo.arp.waterfall(  _Cx, mode='real'); p.colorbar(shrink=.5)
+        p.subplot(413); capo.arp.waterfall(_data_dif, mode='real', mx=5, drng=10); p.colorbar(shrink=.5)
+        p.subplot(414); capo.arp.waterfall(  _Cxd, mode='real'); p.colorbar(shrink=.5)
         p.show()
 
     E, _CE = {}, {}
+    _CEd = {}
     #bC = n.zeros((nchan,1), dtype=n.complex)
     #b  = n.zeros((nchan,1), dtype=n.complex)
     #_CN = n.dot(_C,N)
@@ -320,20 +342,24 @@ for boot in xrange(opts.nboot):
         E[i] = get_E(i, nchan, bls)
         if MASK: E[i] *= (1 - mask)
         _CE[i] = n.dot(_C,E[i])
+        _CEd[i] = n.dot(_Cd,E[i])
         #b [i,0] = n.einsum('ij,ji', E[i], N)
         #bC[i,0] = n.einsum('ij,ji', _CE[i], _CN)
         #capo.arp.waterfall(E[i], mode='real'); p.show()
     FC = n.zeros((nchan,nchan), dtype=n.complex)
+    FCd = n.zeros((nchan,nchan), dtype=n.complex)
     F  = n.zeros((nchan,nchan), dtype=n.complex)
     for i in xrange(nchan):
         print i
         for j in xrange(nchan):
             FC[i,j] = n.einsum('ij,ji', _CE[i], _CE[j])
+            FCd[i,j] = n.einsum('ij,ji', _CEd[i], _CEd[j])
             F[i,j] = n.einsum('ij,ji', E[i], E[j])
 
     if opts.plot:
-        p.subplot(121); capo.arp.waterfall(FC, drng=4)
-        p.subplot(122); capo.arp.waterfall(F , drng=4)
+        p.subplot(131); capo.arp.waterfall(FC, drng=4)
+        p.subplot(132); capo.arp.waterfall(FCd , drng=4)
+        p.subplot(133); capo.arp.waterfall(F , drng=4)
         p.show()
 
     if False:
@@ -354,14 +380,20 @@ for boot in xrange(opts.nboot):
         order = n.array([10,11,9,12,8,20,0,13,7,14,6,15,5,16,4,17,3,18,2,19,1])
         iorder = n.argsort(order)
         FC_o = n.take(FC,order, axis=0)
+        FCd_o = n.take(FCd,order, axis=0)
         FC_o = n.take(FC_o,order, axis=1)
+        FCd_o = n.take(FCd_o,order, axis=1)
         if CHOLESKY:
             L_o = n.linalg.cholesky(FC_o)
+            Ld_o = n.linalg.cholesky(FCd_o)
             U,S,V = n.linalg.svd(L_o.conj())
             #print S
             #_S = n.where(S > 1, 1./S, 0)
             _S = 1./S
             MC_o = n.dot(n.transpose(V), n.dot(n.diag(_S), n.transpose(U)))
+            U,S,V = n.linalg.svd(Ld_o.conj())
+            _S = 1./S
+            MCd_o = n.dot(n.transpose(V), n.dot(n.diag(_S), n.transpose(U)))
         else:
             U,S,V = n.linalg.svd(FC_o.conj())
             print S
@@ -369,6 +401,8 @@ for boot in xrange(opts.nboot):
             MC_o = n.dot(n.transpose(V), n.dot(n.diag(_S), n.transpose(U)))
         MC = n.take(MC_o,iorder, axis=0)
         MC = n.take(MC,iorder, axis=1)
+        MCd = n.take(MCd_o,iorder, axis=0)
+        MCd = n.take(MCd,iorder, axis=1)
         
     print 'Normalizing Ms and Ws'
     M  = n.identity(nchan, dtype=n.complex128)
@@ -376,27 +410,41 @@ for boot in xrange(opts.nboot):
     norm  = W.sum(axis=-1); norm.shape += (1,); M /= norm; W  = n.dot(M , F )
     WC = n.dot(MC, FC)
     normC = WC.sum(axis=-1); normC.shape += (1,); MC /= normC; WC = n.dot(MC, FC)
+    WCd = n.dot(MCd, FCd)
+    normCd = WCd.sum(axis=-1); normCd.shape += (1,); MCd /= normCd; WCd = n.dot(MCd, FCd)
     print 'Generating qs'
     qCa = n.array([_Cx.conj() * n.dot(E[i], _Cx) for i in xrange(nchan)])
+    qCad = n.array([_Cxd.conj() * n.dot(E[i], _Cxd) for i in xrange(nchan)])
     qCa = n.sum(qCa, axis=1)
+    qCad = n.sum(qCad, axis=1)
     #qCa -= bC # subtract noise bias
     qa = n.array([_data.conj() * n.dot(E[i], _data) for i in xrange(nchan)])
+    qad = n.array([_data_dif.conj() * n.dot(E[i], _data_dif) for i in xrange(nchan)])
     qa = n.sum(qa, axis=1)
+    qad = n.sum(qad, axis=1)
     #qa -= b # subtract noise bias
     print 'Generating ps'
     pCa = n.dot(MC, qCa) * scalar
+    pCad = n.dot(MCd, qCad) * scalar
     pa = n.dot(M, qa) * scalar
+    pad = n.dot(M, qad) * scalar
 
     if opts.plot:
-        p.subplot(411); capo.arp.waterfall(qCa, mode='real'); p.colorbar(shrink=.5)
-        p.subplot(412); capo.arp.waterfall(pCa, mode='real'); p.colorbar(shrink=.5)
-        p.subplot(413); capo.arp.waterfall(qa , mode='real'); p.colorbar(shrink=.5)
-        p.subplot(414); capo.arp.waterfall(pa , mode='real'); p.colorbar(shrink=.5)
+        p.subplot(611); capo.arp.waterfall(qCa, mode='real'); p.colorbar(shrink=.5)
+        p.subplot(612); capo.arp.waterfall(pCa, mode='real'); p.colorbar(shrink=.5)
+        p.subplot(613); capo.arp.waterfall(qCad , mode='real'); p.colorbar(shrink=.5)
+        p.subplot(614); capo.arp.waterfall(pCad , mode='real'); p.colorbar(shrink=.5)
+        p.subplot(615); capo.arp.waterfall(qa , mode='real'); p.colorbar(shrink=.5)
+        p.subplot(616); capo.arp.waterfall(pa , mode='real'); p.colorbar(shrink=.5)
         p.show()
         
         p.plot(kpl, n.average(pCa.real, axis=1), 'b.-')
+        p.plot(kpl, n.average(pCad.real, axis=1), 'g.-')
+        p.plot(kpl, n.average(pCa.real-pCad.real, axis=1), 'r.-')
         #p.plot(kpl, n.dot(MC,bC)[:,0], 'b:')
         p.plot(kpl, n.average( pa.real, axis=1), 'k.-')
+        p.plot(kpl, n.average( pad.real, axis=1), 'c.-')
+        p.plot(kpl, n.average( pa.real-pad.real, axis=1), 'm.-')
         #p.plot(kpl, n.dot(M,b)[:,0], 'k:')
         p.show()
     print 'Writing pspec_boot%04d.npz' % boot
