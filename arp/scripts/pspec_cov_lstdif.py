@@ -18,7 +18,7 @@ o.add_option('--window', dest='window', default='blackman-harris',
 opts,args = o.parse_args(sys.argv[1:])
 
 random.seed(0)
-LST_STATS = False
+LST_STATS = True
 DELAY = False
 MASK = False
 #NGPS = 51
@@ -103,7 +103,7 @@ etas = n.fft.fftshift(capo.pspec.f2eta(afreqs)) #create etas (fourier dual to fr
 kpl = etas * capo.pspec.dk_deta(z) #111
 print kpl
 
-if False:
+if True:
     bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 # correction for beam^2
     scalar = capo.pspec.X2Y(z) * bm * B
 else: scalar = 1
@@ -120,18 +120,19 @@ sys.stdout.flush()
 # acquire the data
 #antstr = '41_49,3_10,9_58,22_61,20_63,2_43,21_53,31_45,41_47,3_25,1_58,35_61,42_63,2_33'
 #antstr = '9_58,42_63'#41_49,3_10,9_58,22_61,20_63'#,2_43,21_53,31_45,41_47,3_25,1_58,35_61,42_63,2_33'
-antstr = '9_58,42_63,2_33,22_61,35_61,28_34,39_46,23_30'
-#antstr = 'cross'
+#antstr = '9_58,42_63,2_33,22_61,35_61,28_34,39_46,23_30'
+antstr = 'cross'
 times1,data1,flgs1 = capo.arp.get_dict_of_uv_data(files1, antstr=antstr, polstr='I', verbose=True)
 times2,data2,flgs2 = capo.arp.get_dict_of_uv_data(files2, antstr=antstr, polstr='I', verbose=True)
 
 if LST_STATS:
     # collect some metadata from the lst binning process
     cnt, var = {}, {}
-    for filename in args:
+    for filename in files1:
         print 'Reading', filename
         uv = a.miriad.UV(filename)
-        a.scripting.uv_selector(uv, opts.ant, opts.pol)
+        #a.scripting.uv_selector(uv, opts.ant, opts.pol)
+        a.scripting.uv_selector(uv, '41_49', 'I')
         for (uvw,t,(i,j)),d,f in uv.all(raw=True):
             bl = '%d,%d,%d' % (i,j,uv['pol'])
             cnt[bl] = cnt.get(bl, []) + [uv['cnt']]
@@ -180,8 +181,14 @@ if INJECT_SIG: # Create a fake EoR signal to inject
     fringe_filter /= n.sqrt(n.sum(fringe_filter))
     for ch in xrange(eor.shape[0]):
         eor[ch] = n.convolve(eor[ch], fringe_filter, mode='same')
+    _eor = n.fft.ifft(eor, axis=0)
+    #wgt = n.exp(-n.fft.ifftshift(kpl)**2/(2*.3**2))
+    wgt = n.zeros(_eor.shape[0]); wgt[0] = 1
+    wgt.shape = wgt.shape + (1,)
+    #_eor *= wgt
     #_eor = n.fft.ifft(eor, axis=0); _eor[4:-3] = 0
     #eor = n.fft.fft(_eor, axis=0)
+    eor *= wgt
     if PLOT:
         capo.arp.waterfall(eor, mode='real'); p.colorbar(); p.show()
 
@@ -242,6 +249,7 @@ for boot in xrange(opts.nboot):
     for m in 'sd':
         print 'Mode:', m
         C[m] = auto_cov(x[m] + NOISE*noise(x[m].shape), nchan)
+        #C[m] = cov(x[m] + NOISE*noise(x[m].shape))
         #Cs *= mask; Cd *= mask # XXX probably not going to use this anymore
 
         # XXX can make covariance inversion faster by inverting C per baseline before
@@ -316,9 +324,11 @@ for boot in xrange(opts.nboot):
         print 'Normalizing M/W'
         WI[m] = n.dot(MI[m], FI[m])
         norm  = WI[m].sum(axis=-1); norm.shape += (1,)
+        #norm  = WI[m].max(axis=-1); norm.shape += (1,) # XXX
         MI[m] /= norm; WI[m] = n.dot(MI[m], FI[m])
         WC[m] = n.dot(MC[m], FC[m])
         norm  = WC[m].sum(axis=-1); norm.shape += (1,)
+        #norm  = WC[m].max(axis=-1); norm.shape += (1,) # XXX
         MC[m] /= norm; WC[m] = n.dot(MC[m], FC[m])
 
         print 'Generating qs'
