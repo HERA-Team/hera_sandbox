@@ -57,14 +57,16 @@ if False: # override power spectrum with the version w/o covariance diagonalizat
     print 'Overriding power spectrum with non-covariance diagonalized version'
     pk_2d = nocov_2d
 
-CLIP = False
+CLIP = True
 if CLIP:
-    #pk_2d = pk_2d[...,250:550]
-    #avg_pk_2d = avg_pk_2d[...,250:550]
-    #wgts = wgts[...,250:550]
-    pk_2d = pk_2d[...,400:1100]
-    avg_pk_2d = avg_pk_2d[...,400:1100]
-    wgts = wgts[...,400:1100]
+    LO,HI = 40,320
+    #LO,HI = 40,600
+    pk_2d = pk_2d[...,LO:HI]
+    avg_pk_2d = avg_pk_2d[...,LO:HI]
+    wgts = wgts[...,LO:HI]
+    #pk_2d = pk_2d[...,400:1100]
+    #avg_pk_2d = avg_pk_2d[...,400:1100]
+    #wgts = wgts[...,400:1100]
     ##pk_2d = pk_2d[...,200:600]
     ##wgts = wgts[...,200:600]
     #pk_2d = pk_2d[...,300:500]
@@ -93,21 +95,21 @@ if True: # plot some stuff
     for cnt,path in enumerate(paths):
         p.subplot(plt2,plt1,cnt+1)
         #C.arp.waterfall(avg_pk_2d[cnt], mx=10, drng=3)
-        C.arp.waterfall(avg_pk_2d[cnt], mode='real', mx=2e7, drng=4e7)
+        C.arp.waterfall(avg_pk_2d[cnt], mode='real', mx=5e7, drng=1e8)
         p.colorbar(shrink=.5) 
     p.subplot(plt2,plt1,1); p.title('Power Spectrum [mK$^2$]'); p.show()
     plt1,plt2 = len(paths),3
     for cnt,path in enumerate(paths):
         p.subplot(plt2,plt1,0*plt1+cnt+1)
         #C.arp.waterfall(avg_pk_2d[cnt], mx=10, drng=4)
-        C.arp.waterfall(avg_pk_2d[cnt], mode='real', mx=2e7, drng=4e7)
+        C.arp.waterfall(avg_pk_2d[cnt], mode='real', mx=5e7, drng=1e8)
         p.colorbar(shrink=.5) 
         p.subplot(plt2,plt1,1*plt1+cnt+1)
         C.arp.waterfall(wgts[cnt])
         p.colorbar(shrink=.5) 
         p.subplot(plt2,plt1,2*plt1+cnt+1)
         #C.arp.waterfall(n.cumsum(avg_pk_2d[cnt]*wgts[cnt],axis=1)/n.cumsum(wgts[cnt],axis=1), mx=10, drng=4)
-        C.arp.waterfall(n.cumsum(avg_pk_2d[cnt]*wgts[cnt],axis=1)/n.cumsum(wgts[cnt],axis=1), mode='real', mx=2e7, drng=4e7)
+        C.arp.waterfall(n.cumsum(avg_pk_2d[cnt]*wgts[cnt],axis=1)/n.cumsum(wgts[cnt],axis=1), mode='real', mx=5e7, drng=1e8)
         p.colorbar(shrink=.5) 
     p.subplot(plt2,plt1,1); p.title('Weighted Power Spectrum [mK$^2$]'); p.show()
 
