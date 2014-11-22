@@ -4,6 +4,10 @@ import capo as C
 import sys, optparse, re, os, random
 
 NBOOT = 400
+MEDIAN = False
+CLIP = True
+LO,HI = 40,320
+#LO,HI = 40,600
 args = sys.argv[1:]
 
 pk_vs_t = {}
@@ -29,6 +33,7 @@ for filename in args:
     nocov_vs_t[path].append(f['nocov_vs_t'])
 
 paths = pk_vs_t.keys()
+k0 = n.abs(kpl).argmin()
 
 pk_2d = n.array([pk_vs_t[path] for path in paths]) # (bltype,bootstraps,kpls,times)
 nocov_2d = n.array([nocov_vs_t[path] for path in paths]) # (bltype,bootstraps,kpls,times), T averaged over all bls
@@ -57,20 +62,10 @@ if False: # override power spectrum with the version w/o covariance diagonalizat
     print 'Overriding power spectrum with non-covariance diagonalized version'
     pk_2d = nocov_2d
 
-CLIP = True
 if CLIP:
-    LO,HI = 40,320
-    #LO,HI = 40,600
     pk_2d = pk_2d[...,LO:HI]
     avg_pk_2d = avg_pk_2d[...,LO:HI]
     wgts = wgts[...,LO:HI]
-    #pk_2d = pk_2d[...,400:1100]
-    #avg_pk_2d = avg_pk_2d[...,400:1100]
-    #wgts = wgts[...,400:1100]
-    ##pk_2d = pk_2d[...,200:600]
-    ##wgts = wgts[...,200:600]
-    #pk_2d = pk_2d[...,300:500]
-    #wgts = wgts[...,300:500]
 else:
     pass
     #for i in xrange(nos_std_2d.shape[0]):
@@ -126,21 +121,25 @@ wgts = wgts.transpose([1,2,0]).copy() # (kpls, times, bltypes)
 wgts.shape = wgts.shape[:-2] + (wgts.shape[-2] * wgts.shape[-1],) # (bootstraps, kpls, timebls)
 
 #ntimes = pk_2d.shape[-1] / 2
+npaths = pk_2d.shape[0]
 ntimes = pk_2d.shape[-1]
-print ntimes
+print npaths, ntimes
 pk_boot = []
 pk_fold_boot = []
 for boot in xrange(NBOOT):
     if boot % 10 == 0: print boot
-    dsum,dwgt = 0, 0
+    #dsum,dwgt = 0, 0
+    dsum,dwgt = [],[]
     for t in xrange(ntimes):
         t = random.choice(range(pk_2d.shape[-1]))
         b = random.choice(range(pk_2d.shape[0]))
-        #dsum += avg_pk_2d[:,t] * wgts[:,t]
-        dsum += pk_2d[b,:,t] * wgts[:,t]
-        dwgt += wgts[:,t]
+        #dsum += pk_2d[b,:,t] * wgts[:,t]
+        #dwgt += wgts[:,t]
+        dsum += [pk_2d[b,:,t] * wgts[:,t]]
+        dwgt += [wgts[:,t]]
+    if MEDIAN: dsum,dwgt = n.median(dsum, axis=0), n.median(dwgt, axis=0)
+    else: dsum,dwgt = n.average(dsum,axis=0), n.average(dwgt,axis=0)
     pk_boot.append(dsum/dwgt)
-    k0 = n.abs(kpl).argmin()
     dsum_fold = dsum[k0:].copy()
     dwgt_fold = dwgt[k0:].copy()
     dsum_fold[1:] = 0
@@ -160,8 +159,8 @@ print 'Sorting bootstraps'
 pk = n.average(pk_boot, axis=1)
 pk_fold = n.average(pk_fold_boot, axis=1)
 # this is excluding imag component in noise estimate `
-pk_boot = n.sort(pk_boot.real, axis=1) # losing imag component here
-pk_fold_boot = n.sort(pk_fold_boot.real, axis=1) # losing imag component here
+pk_boot = n.sort(pk_boot.real, axis=1) # dropping imag component here
+pk_fold_boot = n.sort(pk_fold_boot.real, axis=1) # dropping imag component here
 if True:
     print 'Deriving errors from histogram'
     up_thresh = int(n.around(0.975 * pk_boot.shape[1])) # 2 sigma, single tail
