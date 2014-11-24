@@ -32,6 +32,18 @@ o.add_option('--niters', type='string', default='',
     help='tuple for number of steps in covariance removal')
 o.add_option('--ngps', type='int', default=4,
     help='Number of groups. Default is 4.')
+o.add_option('--boot_number', type='int', 
+    help='Bootstrap number to do. Used with qsub')
+o.add_option('--noise', action='store_true',
+    help='use noise uv files.')
+o.add_option('--write2uv', action='store_true',
+    help='Instead of forming power spectra, write to uv files after \
+          applying covariance matrix.')
+o.add_option('--applycov', action='store', 
+    help='Apply covariance matrices given in these boot npz files. \
+          Should have name cov_matrix.')
+o.add_option('--savecov', action='store_true',
+    help='Save covariance matrices')
 opts,args = o.parse_args(sys.argv[1:])
 
 
@@ -57,11 +69,12 @@ class CoV:
         nprms = number of channels/kmodes/prms
         C     = covariance of data matrix.
     '''
-    def __init__(self, X, bls):
+    def __init__(self, X, bls, times):
         self.bls = bls
         self.X = X
         self.nprms = X.shape[0] / len(bls)
         self.C = cov(X)
+        self.times = n.array(times)
     def get_C(self, bl1, bl2=None):
         if bl2 is None: bl2 = bl1
         i,j = self.bls.index(bl1), self.bls.index(bl2)
@@ -102,34 +115,43 @@ def cov2(m1,m2):
 
 
 def grid2ij(GRID):
+    '''
+        bl_str = given sep, returns bls in string format.
+        bl_conj = given a baseline (miriad bl) gives separation.
+        bl2sep_str = given baseline (miriad) return its separation.    
+    '''
     bls, conj = {}, {}
     for ri in range(GRID.shape[0]):
         for ci in range(GRID.shape[1]):
             for rj in range(GRID.shape[0]):
                 for cj in range(GRID.shape[1]):
                     if ci > cj: continue
-#                    if i > rj and ci == cj: continue
+#                    if ri > rj and ci == cj: continue
 #                    if ci > cj and ri == rj: continue
                     sep = (rj-ri, cj-ci)
                     sep = '%d,%d'%sep
                     i,j = GRID[ri, ci], GRID[rj,cj]
                     bls[sep] = bls.get(sep,[]) + [(i,j)]
     for sep in bls.keys():
-        if sep == '0,0' or len(bls[sep]) < 2: del(bls[sep])
+        if sep == '0,0' or len(bls[sep]) < 2 or (sep[-1] == '0' and sep[0] == '-'): del(bls[sep
+])
     for sep in bls:
         conj[sep] = [i>j for i,j in bls[sep]]
 
-    bl_str,bl_conj = {}, {}
+    bl_str,bl_conj,bl2sep_str = {}, {}, {}
     for sep in bls:
         bl_str[sep],bl_list = [], []
         for (i,j),c in zip(bls[sep],conj[sep]):
             if c: i,j = j,i
             bl_list.append(a.miriad.ij2bl(i,j))
             bl_str[sep].append('%d_%d'%(i,j))
+            bl2sep_str[a.miriad.ij2bl(i,j)] = bl2sep_str.get(a.miriad.ij2bl(i,j),'') + sep
             bl_conj[a.miriad.ij2bl(i,j)] = c
         bls[sep] = bl_list
         bl_str[sep] = ','.join(bl_str[sep])
-    return bl_str,bl_conj
+    return bl_str,bl_conj,bl2sep_str
+
+
 
 if not opts.ant:
     print 'NO BASELINES. PLEASE INPUT BASELINES ON COMMAND LINE.'
@@ -139,7 +161,7 @@ else:
     print opts.ant.split(',')
     print 'There are %d of them'%len(opts.ant.split(','))
 
-sep2bl, conjbl = grid2ij(ANTPOS)
+sep2bl, conjbl, bl2sep = grid2ij(ANTPOS)
 
 
 #checking that our grid indexing is working
@@ -177,6 +199,65 @@ print 'B:', B
 print 'scalar:', scalar
 sys.stdout.flush()
 
+
+def read_noise_uv(files, ants, pol, chs, conj, win):
+    print 'Reading noise files'
+    print files
+    NRMS = {}
+    window = a.dsp.gen_window(len(chs), win)
+    for fname in files:
+        uvi = a.miriad.UV(fname)
+        a.scripting.uv_selector(uvi, ants, pol)
+        for (crd,t,(i,j)),d,f in uvi.all(raw=True):
+            bl = a.miriad.ij2bl(i,j)
+            if conj[bl]:
+                d = n.conj(d)
+            d,f = d.take(chans), f.take(chans)
+            w = n.logical_not(f).astype(n.float)            
+            #window /= np.sum(window)
+            Nfft = n.fft.ifft(window * d* w)
+            Nffts = n.fft.fftshift(Nfft)
+            NRMS[bl] = NRMS.get(bl, []) + [Nffts]
+    return NRMS
+
+def write_2_uv(files, CC, afreqs, channels=(110,150), ending='V'):
+    '''Give input uv files. CC = covariance class that'''
+    window = a.dsp.gen_window(len(afreqs), WINDOW)
+
+    def mfunc(uv, p, d, f):
+        uvw, t, (i,j) = p
+        print (i,j)
+        bl = a.miriad.ij2bl(i,j)
+        print t
+        ti = n.where(CC.times == t); print ti
+#        import IPython
+#        IPython.embed()
+        data = n.zeros(len(d), n.complex64).flatten()
+#        print data.shape
+#        print CC.get_x(bl).shape
+        try:
+            data[channels[0]:channels[1]] = n.fft.fft(n.fft.ifftshift(CC.get_x(bl)[:,ti].flatten()))/(window*capo.pspec.jy2T(afreqs))
+            
+        except:
+            data = None
+            flags = None
+        flags = n.ones(len(f), dtype=f.dtype)
+        flags[channels[0]:channels[1]] = 0
+        return p, data, flags
+
+    for ff in files:
+        outfile = ff + ending
+        print 'writing to %s'%outfile
+        uvi = a.miriad.UV(ff)
+        uvo = a.miriad.UV(outfile, status='new')
+        uvo.init_from_uv(uvi)
+        uvo.pipe(uvi, mfunc, append2hist='covariance applied\n', raw=True)
+          
+        
+    
+
+            
+
 #T is a dictionary of the visibilities and N is the dictionary for noise estimates.
 T, N, W = {}, {}, {}
 times = []
@@ -187,14 +268,16 @@ for filename in args:
     a.scripting.uv_selector(uvi, opts.ant, opts.pol)
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
         if len(times) == 0 or times[-1] != t:
-            newrandnoise1 = n.random.normal()*n.exp(2*n.pi*1j*n.random.uniform())
-            newrandnoise2 = n.random.normal()*n.exp(2*n.pi*1j*n.random.uniform())
-            if len(times) % 8 == 0:
+            #newrandnoise1 = n.random.normal()*n.exp(2*n.pi*1j*n.random.uniform())
+            #newrandnoise2 = n.random.normal()*n.exp(2*n.pi*1j*n.random.uniform())
+            #noise_tm_fq = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size))
+            if len(times) % 44 == 0:
                 #For every 8th integration make random normal noise that is our eor model. Note for every block of 8, this noise is the same. 222
                 eor_mdl[t] = n.random.normal(size=chans.size) * n.exp(2j*n.pi*n.random.uniform(size=chans.size))
             else: eor_mdl[t] = eor_mdl[times[-1]]
             times.append(t)
-        #For 32 array inside 64 array. skip bls not in the subarray, but may be in the data set.
+
+            #For 32 array inside 64 array. skip bls not in the subarray, but may be in the data set.
         if not (( i in ANTPOS ) and ( j in ANTPOS )) : continue
         bl = a.miriad.ij2bl(i,j)
         sys.stdout.flush()
@@ -247,8 +330,8 @@ for filename in args:
         _Wrms = n.fft.fftshift(_Wrms)
     
         #XXX
-        _Trms[20] += newrandnoise1*.01
-        _Trms[21] += (newrandnoise1*.5 + newrandnoise2*.5)*.01
+        #_Trms[20] += newrandnoise1*.01
+        #_Trms[21] += (newrandnoise1*.5 + newrandnoise2*.5)*.01
 
         if False: # swap in a simulated signal post delay transform
             _Trms = n.random.normal(size=_Trms.size) * n.exp(2j*n.pi*n.random.uniform(size=_Trms.size))
@@ -259,6 +342,13 @@ for filename in args:
         N[bl] = N.get(bl, []) + [_Nrms]
         W[bl] = W.get(bl, []) + [_Wrms]
 
+
+if opts.noise:
+    #overwrite the noise above with that from the noise files.
+    print 'Over writing noise from uv noise files'
+    noise_files = [f+'_noiseL' for f in args]
+    N = read_noise_uv(noise_files, opts.ant, opts.pol, chans, conjbl, opts.window)
+
 #444
 n_k = chans.size / NTAPS
 bls = T.keys()
@@ -266,7 +356,8 @@ for bl in bls:
     print 'bl shape (nints, nchan):'
     T[bl],N[bl] = n.array(T[bl]),n.array(N[bl])
     print '\t',T[bl].shape
-if True:
+#if True:
+if False:
     print 'Fringe-rate filtering the noise to match the data'
     for bl in N:
         _N = n.fft.ifft(N[bl], axis=0) # iffts along the time axis
@@ -344,7 +435,7 @@ def subtract_average(C, bls, n_k, gps):
             
             _Csum,_Cwgt = 0,0
             for i_ in xrange(nbls):
-                bli_ = bls_[i_]
+                bli_ = bls[i_]
                 if not bli_ in gp: continue # make sure averaging over baseline in same group.
                 if bli == bli_: continue #only average over other bls to better isolate bl systematics.
                 for j_ in xrange(nbls):
@@ -393,272 +484,218 @@ def same_group(bli, blj, gps):
 
 ############################################
 
+if opts.applycov:
+    import glob
+    covfiles = n.sort(glob.glob(opts.applycov))
+    print covfiles
 
 for boot in xrange(NBOOT):
-    #777
-    if True: # pick a sample of baselines with replacement
-        #bls_ = [random.choice(bls) for bl in bls]
+    #continue with this itertion
+    if not opts.boot_number: pass
+    elif opts.boot_number != boot:
+        continue 
+    #if using previous covariance matrix set variables and skip 
+    #diagonalization process.
+    if opts.applycov:
+        print "Skipping Covariance Diagonalization and over writing bls_, _Cxtot, _Cntot, gps"
+        cov_file = n.load(covfiles[boot])
+        print "Reading from %s" %covfiles[boot]
+        bls_ = list(cov_file['bls']) #need list to work well with CoV
+        _Cxtot = cov_file['cov_matrix']
+        _Cntot = cov_file['cov_matrix_noise']
+        gps = cov_file['gps']
+#    if True: # pick a sample of baselines with replacement
+    else: # pick a sample of baselines with replacement
         bls_ = random.sample(bls, len(bls))
         nbls = len(bls)
-        #gps = make_groups(bls_, ngps=8)
-#        gps = make_groups(bls_, ngps=4)
         gps = make_groups(bls_, ngps=opts.ngps)
-#        #gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:] # ensure gp1 and gp2 can't share baselines
-#        #gp1,gp2,gp3 = bls_[:4],bls_[4:9],bls_[9:]
-#        #GGG : divide number of bls by 4 for 64 dataset. This is 56 bls for sep01
-#        nblspg = nbls/4
-#        print 'Breaking %d bls into groups of %d'%(nbls, nblspg)
-#        sys.stdout.flush()
-#        #gp1,gp2,gp3,gp4 = bls_[:7],bls_[7:14],bls_[14:21],bls_[21:] # for 28bl i.e. 32 antennas in a grid 4 X 8
-#        gp1,gp2,gp3,gp4 = bls_[:nblspg],bls_[nblspg:nblspg*2],bls_[nblspg*2:nblspg*3],bls_[nblspg*3:nblspg*4] # generic
-#        leftover = nbls - (nblspg*4)
-#        while leftover>0:
-#            i = random.choice(range(4))
-#            [gp1,gp2,gp3,gp4][i].append(bls_[-1*leftover])
-#            leftover -= 1
-#        #gp1,gp2,gp3,gp4 = bls_[:14],bls_[14:28],bls_[28:42],bls_[42:] # for 56bl -> 14 * 4
-#        #gp1,gp2,gp3,gp4 = bls_[:5],bls_[5:10],bls_[10:15],bls_[15:] # for 21bl
-#        # ensure each group has at least 3 kinds of baselines. Otherwise get 0 divide.
-#        gp1 = random.sample(gp1, 3) + [random.choice(gp1) for bl in gp1[:len(gp1)-3]]
-#        gp2 = random.sample(gp2, 3) + [random.choice(gp2) for bl in gp2[:len(gp2)-3]]
-#        gp3 = random.sample(gp3, 3) + [random.choice(gp3) for bl in gp3[:len(gp3)-3]]
-#        gp4 = random.sample(gp4, 3) + [random.choice(gp4) for bl in gp4[:len(gp4)-3]]
-#    else:
-#        bls_ = random.sample(bls, len(bls))
-#        gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:]
-#    #gp2 = gp2[:len(gp1)] # XXX force gp1 and gp2 to be same size
-#    #gp1,gp2 = gp1+gp2,[] # XXX
-#    #print 'XXX', len(gp1), len(gp2)
-    #gp1, gp2, gp3, gp4 = gps##new
-    bls_=[]
-    for gp in gps : bls_+=gp
-    
-    print 'Bootstrap sample %d:' % boot,
-#    for gp in [gp1,gp2,gp3,gp4]: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
-#    print
-    for gp in gps: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
-    print
-    #again Ts is the number of bls*channels X number of integrations. Note this rearragnes the order of bls in Ts to be that of bls_. May be repititions.
-    Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
-    Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
-    L = len(bls_)
-    #temp_noise_var = n.var(n.array([T[bl] for bl in bls_]), axis=0).T
-    temp_noise_var = n.average(n.array([T[bl] for bl in bls_]), axis=0).T
-    print Ts.shape, temp_noise_var.shape
-    sys.stdout.flush()
+        bls_=[]
+        for gp in gps : bls_+=gp
+        
+        print 'Bootstrap sample %d:' % boot,
+        for gp in gps: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
+        print
+        #again Ts is the number of bls*channels X number of integrations. Note this rearragnes the order of bls in Ts to be that of bls_. May be repititions.
+        Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
+        Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
+        L = len(bls_)
+        #temp_noise_var = n.var(n.array([T[bl] for bl in bls_]), axis=0).T
+        temp_noise_var = n.average(n.array([T[bl] for bl in bls_]), axis=0).T
+        print Ts.shape, temp_noise_var.shape
+        sys.stdout.flush()
 
-    _Cxtot,_Cntot = 1, 1
-    #PLT1,PLT2 = 4,4
-    if opts.niters:
-        #override number if iters.
-        PLT1,PLT2 = map(int, opts.niters.split(','))
-    else:
-        PLT1,PLT2 = int(3*n.sqrt(0.3/opts.gain)),int(3*n.sqrt(0.3/opts.gain))#scale the number of steps by the gain? -dcj
-    #PLT1,PLT2 = 2,2
-    #PLT1,PLT2 = 1,2
-    #888
-    for cnt in xrange(PLT1*PLT2-1):
-        print cnt, '/', PLT1*PLT2-1
-        SZ = Ts.shape[0]
-        MCx,MCn = CoV(Ts, bls_), CoV(Ns, bls_)
-        #Cx,Cn = cov(Ts), cov(Ns)
-        Cx,Cn = MCx.C, MCn.C
-        if PLOT:
-            if cnt%10==0:
-                p.figure(7)
-                capo.arp.waterfall(Cx*scalar, mode='log', mx=8,drng=4); p.colorbar(shrink=.5)
-            #capo.arp.waterfall(cov(Ts), mode='log', mx=-1,  drng=4); p.colorbar(shrink=.5)
-            p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(Cx*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
-            #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
+        _Cxtot,_Cntot = 1, 1
+        #PLT1,PLT2 = 4,4
+        if opts.niters:
+            #override number if iters.
+            PLT1,PLT2 = map(int, opts.niters.split(','))
+        else:
+            PLT1,PLT2 = int(3*n.sqrt(0.3/opts.gain)),int(3*n.sqrt(0.3/opts.gain))#scale the number of steps by the gain? -dcj
+        #PLT1,PLT2 = 2,2
+        #PLT1,PLT2 = 1,2
+        #888
+        for cnt in xrange(PLT1*PLT2-1):
+            print cnt, '/', PLT1*PLT2-1
+            SZ = Ts.shape[0]
+            MCx,MCn = CoV(Ts, bls_, times), CoV(Ns, bls_, times)
+            #Cx,Cn = cov(Ts), cov(Ns)
+            Cx,Cn = MCx.C, MCn.C
+            if PLOT:
+                #if cnt%10==0:
+                #    p.figure(7)
+                #    capo.arp.waterfall(Cx*scalar, mode='log', mx=8,drng=4); p.colorbar(shrink=.5)
+                #capo.arp.waterfall(cov(Ts), mode='log', mx=-1,  drng=4); p.colorbar(shrink=.5)
+                #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(Cx*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
+                p.figure(10)
+                #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(Cn*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
+                p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(Cx*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
+                #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
+                print "max(cov(Ts))",n.max(Cx)
+                print "max(cov(Ns))",n.max(Cn)
+                sys.stdout.flush()
             print "max(cov(Ts))",n.max(Cx)
-            sys.stdout.flush()
-        print "max(cov(Ts))",n.max(Cx)
-        #999
-        #for c in [Cx,Cn]: # Normalize covariance matrices
-        dx = n.copy(n.diag(Cx)); dx.shape = (1,SZ); Cx /= dx
-        dn = n.copy(n.diag(Cn)); dn.shape = (1,SZ); Cn /= dn
-        #g = .3 # for 1*7 baselines
-        g = opts.gain # for 4*7 baselines
-        print 'gain factor = ', g
-        # begin with off-diagonal covariances to subtract off
-        # (psuedo-inv for limit of small off-diagonal component)
-        _Cx,_Cn = -g*Cx, -g*Cn
-        ind = n.arange(SZ)
-        # XXX do we also need to zero modes adjacent to diagonal, since removing them results in bigger signal loss?
-        for b in xrange(L): # for each redundant baseline, zero out diagonal from covariance diagonalization. Sets each diagonal of each bl-bl covariance to 0.
-            indb = ind[:-b*n_k]
-            _Cx[indb,indb+b*n_k] = 0 
-            _Cx[indb+b*n_k,indb] = 0
-            _Cn[indb,indb+b*n_k] = 0 
-            _Cn[indb+b*n_k,indb] = 0
-        _Cx[ind,ind] = 0 
-        _Cn[ind,ind] = 0 # set these to zero temporarily to avoid noise bias into cross terms
+            print "max(cov(Ns))",n.max(Cn)
+            #999
+            #for c in [Cx,Cn]: # Normalize covariance matrices
+            dx = n.copy(n.diag(Cx)); dx.shape = (1,SZ); Cx /= dx
+            dn = n.copy(n.diag(Cn)); dn.shape = (1,SZ); Cn /= dn
+            #g = .3 # for 1*7 baselines
+            g = opts.gain # for 4*7 baselines
+            print 'gain factor = ', g
+            # begin with off-diagonal covariances to subtract off
+            # (psuedo-inv for limit of small off-diagonal component)
+            _Cx,_Cn = -g*Cx, -g*Cn
+            ind = n.arange(SZ)
+            # XXX do we also need to zero modes adjacent to diagonal, since removing them results in bigger signal loss?
+            for b in xrange(L): # for each redundant baseline, zero out diagonal from covariance diagonalization. Sets each diagonal of each bl-bl covariance to 0.
+                indb = ind[:-b*n_k]
+                _Cx[indb,indb+b*n_k] = 0 
+                _Cx[indb+b*n_k,indb] = 0
+                _Cn[indb,indb+b*n_k] = 0 
+                _Cn[indb+b*n_k,indb] = 0
+            _Cx[ind,ind] = 0 
+            _Cn[ind,ind] = 0 # set these to zero temporarily to avoid noise bias into cross terms
 
 
-        #subtract average
-        #_Cx, avg_Cx = subtract_average(_Cx, bls_, n_k, [gp1,gp2,gp3,gp4])
-        #_Cn, avg_Cn = subtract_average(_Cn, bls_, n_k, [gp1,gp2,gp3,gp4])
-        _Cx, avg_Cx = subtract_average(_Cx, bls_, n_k, gps)
-        _Cn, avg_Cn = subtract_average(_Cn, bls_, n_k, gps)
-######This is the subtract the average part which has been moved to a function above.######
-
-
-
-#        if True: # estimate and remove signal covariance from diagonalization process
-#            # do this twice: once for the signal (Cx) and once for the noise (Cn)
-#            # using the statistics of the signal and noise, respectively
-#            #for _C in [_Cx,_Cn]:
-#            for _C in [_Cx]:#,_Cn]:
-#                #remember L is the total number of baselines and n_k is the number of kbins (i.e. number of channels). Note shape of covariance is n_k*#bls X n_k*#bls.
-#                _C.shape = (L,n_k,L,n_k)
-#                sub_C = n.zeros_like(_C)
-#                # Choose a (i,j) baseline cross-multiple panel in the covariance matrix
-#                for i in xrange(L):
-#                    bli = bls_[i]
-#                    for j in xrange(L):
-#                        blj = bls_[j]
-#                        # even remove signal bias if bli == blj
-#                        # ensure bli and blj belong to the same group
-#                        if bli in gp1 and blj in gp1: gp = gp1
-#                        elif bli in gp2 and blj in gp2: gp = gp2
-#                        elif bli in gp3 and blj in gp3: gp = gp3
-#                        elif bli in gp4 and blj in gp4: gp = gp4
-#                        else: continue # make sure we only compute average using bls in same group
-#                        # Now average over all other panels of covariance matrix (within this group)
-#                        # to get the average signal covariance and subtract that off so that we don't
-#                        # get signal loss removing residual signal covariances.
-#                        #AAA, Why are we not checking if the baselines are in the same group as the one we want to subtract from? i.e. bli_ and blj_ in gp{i}
-#                        #CHANGE TO GP #Seems like it needs to be for i_,j_ in gp:
-#                        _Csum,_Cwgt = 0,0
-#                        for i_ in xrange(L):
-#                            #check if i_ in gp
-#                            bli_ = bls_[i_]
-#                            if not bli_ in gp: continue # make sure averaging over baseline in the same group.
-#                            if bli == bli_: continue # only average over other bls to better isolate bl systematics
-#                            for j_ in xrange(L):
-#                                blj_ = bls_[j_]
-#                                if not blj_ in gp: continue # make sure averaging over baseline in the same group.
-#                                if bli_ == blj_: continue # don't average over panels with noise bias
-#                                if blj == blj_: continue # only average over other bls to better isolate bl systematics
-#                                _Csum += _C[i_,:,j_] # fixes indexing error in earlier ver
-#                                _Cwgt += 1
-#                        try:
-#                            sub_C[i,:,j] = _Csum / _Cwgt # fixes indexing error in earlier ver
-#                        except(ZeroDivisionError): #catches zero weights
-#                           # print gp
-#                           # print i,j,bli,blj
-#                           # print i_,j_,bli_,blj_
-#                           # print _Cwgt
-#                            print 'weights are zero for %d_%d'%(i_,j_)
-#                            sys.stdout.flush()
-#                            sub_C[i,:,j] = _Csum
-#                _C.shape = sub_C.shape = (L*n_k,L*n_k)
-#                _C -= sub_C
+            #subtract average
+            #_Cx, avg_Cx = subtract_average(_Cx, bls_, n_k, [gp1,gp2,gp3,gp4])
+            #_Cn, avg_Cn = subtract_average(_Cn, bls_, n_k, [gp1,gp2,gp3,gp4])
+            _Cx, avg_Cx = subtract_average(_Cx, bls_, n_k, gps)
+            _Cn, avg_Cn = subtract_average(_Cn, bls_, n_k, gps)
+    ######This is the subtract the average part which has been moved to a function above.######
 
 
 
+    #        if True: # estimate and remove signal covariance from diagonalization process
+    #            # do this twice: once for the signal (Cx) and once for the noise (Cn)
+    #            # using the statistics of the signal and noise, respectively
+    #            #for _C in [_Cx,_Cn]:
+    #            for _C in [_Cx]:#,_Cn]:
+    #                #remember L is the total number of baselines and n_k is the number of kbins (i.e. number of channels). Note shape of covariance is n_k*#bls X n_k*#bls.
+    #                _C.shape = (L,n_k,L,n_k)
+    #                sub_C = n.zeros_like(_C)
+    #                # Choose a (i,j) baseline cross-multiple panel in the covariance matrix
+    #                for i in xrange(L):
+    #                    bli = bls_[i]
+    #                    for j in xrange(L):
+    #                        blj = bls_[j]
+    #                        # even remove signal bias if bli == blj
+    #                        # ensure bli and blj belong to the same group
+    #                        if bli in gp1 and blj in gp1: gp = gp1
+    #                        elif bli in gp2 and blj in gp2: gp = gp2
+    #                        elif bli in gp3 and blj in gp3: gp = gp3
+    #                        elif bli in gp4 and blj in gp4: gp = gp4
+    #                        else: continue # make sure we only compute average using bls in same group
+    #                        # Now average over all other panels of covariance matrix (within this group)
+    #                        # to get the average signal covariance and subtract that off so that we don't
+    #                        # get signal loss removing residual signal covariances.
+    #                        #AAA, Why are we not checking if the baselines are in the same group as the one we want to subtract from? i.e. bli_ and blj_ in gp{i}
+    #                        #CHANGE TO GP #Seems like it needs to be for i_,j_ in gp:
+    #                        _Csum,_Cwgt = 0,0
+    #                        for i_ in xrange(L):
+    #                            #check if i_ in gp
+    #                            bli_ = bls_[i_]
+    #                            if not bli_ in gp: continue # make sure averaging over baseline in the same group.
+    #                            if bli == bli_: continue # only average over other bls to better isolate bl systematics
+    #                            for j_ in xrange(L):
+    #                                blj_ = bls_[j_]
+    #                                if not blj_ in gp: continue # make sure averaging over baseline in the same group.
+    #                                if bli_ == blj_: continue # don't average over panels with noise bias
+    #                                if blj == blj_: continue # only average over other bls to better isolate bl systematics
+    #                                _Csum += _C[i_,:,j_] # fixes indexing error in earlier ver
+    #                                _Cwgt += 1
+    #                        try:
+    #                            sub_C[i,:,j] = _Csum / _Cwgt # fixes indexing error in earlier ver
+    #                        except(ZeroDivisionError): #catches zero weights
+    #                           # print gp
+    #                           # print i,j,bli,blj
+    #                           # print i_,j_,bli_,blj_
+    #                           # print _Cwgt
+    #                            print 'weights are zero for %d_%d'%(i_,j_)
+    #                            sys.stdout.flush()
+    #                            sub_C[i,:,j] = _Csum
+    #                _C.shape = sub_C.shape = (L*n_k,L*n_k)
+    #                _C -= sub_C
 
-#######This is the subtract the average part which has been moved to a function above.END######
 
 
+
+    #######This is the subtract the average part which has been moved to a function above.END######
+
+
+            if PLOT:
+                pass
+    #            if cnt%10==0:
+    #                p.figure(100)
+                p.figure(11)
+                #p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(avg_Cn*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
+                p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(avg_Cx*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
+    #            #correct for diagonal, scalar, and gain factor
+    #                capo.arp.waterfall(avg_Cx*scalar*dx/g, mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
+    #                p.figure(99)
+    #                p.plot(dx.flatten())
+                #p.subplot(131);capo.arp.waterfall(sub_C, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
+                #p.subplot(132);capo.arp.waterfall(_Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
+                #p.subplot(133);capo.arp.waterfall(-g*Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
+    #                p.show()
+                #p.figure(1)
+
+            if True:
+                # divide bls into two independent groups to avoid cross-contamination of noise
+                # this is done by setting mask=0 for all panels pairing bls between different groups
+                # this masks covariances between groups, so no covariance from a bl in one group is subtracted from
+                # a bl in another group
+               mask = n.ones_like(Cx)
+               for i, bli in enumerate(bls_):
+                    for j, blj in enumerate(bls_):
+                        if not same_group(bli, blj, gps) is None: continue
+                        mask[i*n_k:(i+1)*n_k,j*n_k:(j+1)*n_k] = 0
+               _Cx *= mask; _Cn *= mask
+            #make diagonal 1 after applying mask.
+            _Cx[ind,ind] = _Cn[ind,ind] = 1
+            Ts,Ns = n.dot(_Cx,Ts), n.dot(_Cn,Ns)
+            # These are a running tally of all the diagonalization steps applied
+            _Cxtot,_Cntot = n.dot(_Cx,_Cxtot), n.dot(_Cn,_Cntot)
+    #        p.figure(cnt)
+    #        p.subplot(111); capo.arp.waterfall(Ts, mode='log', drng=3);p.colorbar(shrink=.5)
+        if opts.savecov:
+            print 'Saving covariance matrix'
+            cov_outfile = 'pspec_cov%04d.npz'%boot
+            print 'Writing to %s'%cov_outfile
+            n.savez(cov_outfile, kpl=kpl, scalar=scalar, times=n.array(times),freq=fq, cov_matrix=_Cxtot, cov_matrix_noise=_Cntot, bls=bls_, gps=gps, cmd=' '.join(sys.argv))
+            continue
+            
         if PLOT:
-            pass
-#            if cnt%10==0:
-#                p.figure(100)
-#            #correct for diagonal, scalar, and gain factor
-#                capo.arp.waterfall(avg_Cx*scalar*dx/g, mode='log', mx=8, drng=4); p.colorbar(shrink=.5)
-#                p.figure(99)
-#                p.plot(dx.flatten())
-            #p.subplot(131);capo.arp.waterfall(sub_C, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
-            #p.subplot(132);capo.arp.waterfall(_Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
-            #p.subplot(133);capo.arp.waterfall(-g*Cx, mode='log',mx=-1, drng=4); p.colorbar(shrink=.5)
-#                p.show()
-            #p.figure(1)
-
-        if True:
-            # divide bls into two independent groups to avoid cross-contamination of noise
-            # this is done by setting mask=0 for all panels pairing bls between different groups
-            # this masks covariances between groups, so no covariance from a bl in one group is subtracted from
-            # a bl in another group
-            mask = n.ones_like(Cx)
-#            # XXX need to clean this section up
-#            #for bl1 in xrange(len(gp1)):
-#            #    for bl2 in xrange(len(gp1)):
-#            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
-#            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-#            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-#            for bl1 in xrange(len(gp1)):
-#                for bl2 in xrange(len(gp2)):
-#                    bl2 += len(gp1)
-#                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-#                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-#            for bl1 in xrange(len(gp1)):
-#                for bl2 in xrange(len(gp3)):
-#                    bl2 += len(gp1) + len(gp2)
-#                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-#                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-#            for bl1 in xrange(len(gp1)):
-#                for bl2 in xrange(len(gp4)):
-#                    bl2 += len(gp1) + len(gp2) + len(gp3)
-#                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-#                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-#            #for bl1 in xrange(len(gp2)):
-#            #    bl1 += len(gp1)
-#            #    for bl2 in xrange(len(gp2)):
-#            #        bl2 += len(gp1)
-#            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
-#            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-#            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-#            for bl1 in xrange(len(gp2)):
-#                bl1 += len(gp1)
-#                for bl2 in xrange(len(gp3)):
-#                    bl2 += len(gp1) + len(gp2)
-#                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-#                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-#            for bl1 in xrange(len(gp2)):
-#                bl1 += len(gp1)
-#                for bl2 in xrange(len(gp4)):
-#                    bl2 += len(gp1) + len(gp2) + len(gp3)
-#                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-#                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-#            #for bl1 in xrange(len(gp3)):
-#            #    bl1 += len(gp1) + len(gp2)
-#            #    for bl2 in xrange(len(gp3)):
-#            #        bl2 += len(gp1) + len(gp2)
-#            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
-#            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-#            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-#            for bl1 in xrange(len(gp3)):
-#                bl1 += len(gp1) + len(gp2)
-#                for bl2 in xrange(len(gp4)):
-#                    bl2 += len(gp1) + len(gp2) + len(gp3)
-#                    mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-#                    mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-#            #for bl1 in xrange(len(gp4)):
-#            #    bl1 += len(gp1) + len(gp2) + len(gp3)
-#            #    for bl2 in xrange(len(gp4)):
-#            #        bl2 += len(gp1) + len(gp2) + len(gp3)
-#            #        if bls_[bl1] != bls_[bl2]: continue # zero out panels where bl1 == bl2
-#            #        mask[bl1*n_k:(bl1+1)*n_k,bl2*n_k:(bl2+1)*n_k] = 0
-#            #        mask[bl2*n_k:(bl2+1)*n_k,bl1*n_k:(bl1+1)*n_k] = 0
-#            #BBB All of the above for loops mask the gp-gp baseline pairs. Get a diagonal matrix of covariances within the group.
-            for i, bli in enumerate(bls_):
-                for j, blj in enumerate(bls_):
-                    if not same_group(bli, blj, gps) is None: continue
-                    mask[i*n_k:(i+1)*n_k,j*n_k:(j+1)*n_k] = 0
-            _Cx *= mask; _Cn *= mask
-        #make diagonal 1 after applying mask.
-        _Cx[ind,ind] = _Cn[ind,ind] = 1
-        Ts,Ns = n.dot(_Cx,Ts), n.dot(_Cn,Ns)
-        # These are a running tally of all the diagonalization steps applied
-        _Cxtot,_Cntot = n.dot(_Cx,_Cxtot), n.dot(_Cn,_Cntot)
-#        p.figure(cnt)
-#        p.subplot(111); capo.arp.waterfall(Ts, mode='log', drng=3);p.colorbar(shrink=.5)
-    if PLOT:
-        #capo.arp.waterfall(cov(Ts), mode='log', mx=-1, drng=4);p.colorbar(shrink=.5)
-        p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts)*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
-        #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=3)
-        p.show()
+            #capo.arp.waterfall(cov(Ts), mode='log', mx=-1, drng=4);p.colorbar(shrink=.5)
+            #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts)*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
+            p.figure(10)
+            #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns)*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
+            p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ts)*scalar, mode='log', mx=8, drng=4);p.colorbar(shrink=.5)
+            p.figure(11)
+            #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(avg_Cn*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
+            p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(avg_Cx*scalar, mode='log', mx=8,  drng=4); p.colorbar(shrink=.5)
+            #p.subplot(PLT1,PLT2,cnt+2); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=3)
+            p.show()
 
 #    p.show()
 #    import IPython
@@ -666,13 +703,17 @@ for boot in xrange(NBOOT):
 #    exit()
     Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
     Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
-
+    #need this var in the boot strapping
+    temp_noise_var = n.average(n.array([T[bl] for bl in bls_]), axis=0).T
     pspecs,dspecs = [], []
     nspecs,n1specs,n2specs = [], [], []
-    Cx,Cn = CoV(Ts, bls_), CoV(Ns, bls_)
-    Cx_ = CoV(n.dot(_Cxtot,Ts), bls_)
+    Cx,Cn = CoV(Ts, bls_, times), CoV(Ns, bls_, times)
+    Cx_ = CoV(n.dot(_Cxtot,Ts), bls_, times)
     # Cn1 is the noise diagonalized as if it were the signal, Cn2 is the noise with the signal diagonalization applied
-    Cn1_,Cn2_ = CoV(n.dot(_Cntot,Ns), bls_), CoV(n.dot(_Cxtot,Ns), bls_)
+    Cn1_,Cn2_ = CoV(n.dot(_Cntot,Ns), bls_, times), CoV(n.dot(_Cxtot,Ns), bls_, times)
+    if opts.write2uv:
+        write_2_uv( args, Cx_, afreqs, ending='boot%d'%boot)
+        continue
     for cnt,bli in enumerate(bls_):
         print cnt
         for blj in bls_[cnt:]:
@@ -810,8 +851,21 @@ for boot in xrange(NBOOT):
     if not opts.output == '':
         outfile =opts.output+'/'+outfile
     print "Writing", outfile
-    n.savez(outfile, kpl=kpl, pk=avg_1d, err=std_1d, scalar=scalar, times=n.array(times),freq=fq,
-        pk_vs_t=avg_2d, err_vs_t=std_2d, temp_noise_var=temp_noise_var, nocov_vs_t=n.average(dspecs,axis=0),
-        cmd=' '.join(sys.argv))
+    n.savez(outfile, kpl=kpl, pk=avg_1d, err=std_1d, scalar=scalar, times=n.array(times),freq=fq, pk_vs_t=avg_2d, err_vs_t=std_2d, temp_noise_var=temp_noise_var, nocov_vs_t=n.average(dspecs,axis=0), cov_matrix=_Cxtot, bls=bls_, gps=gps, cmd=' '.join(sys.argv))
+    #n.savez(outfile, kpl=kpl, pk=avg_1d, err=std_1d, scalar=scalar, times=n.array(times),freq=fq, pk_vs_t=avg_2d, err_vs_t=std_2d, nocov_vs_t=n.average(dspecs,axis=0), cov_matrix=_Cxtot, bls=bls_, gps=gps, cmd=' '.join(sys.argv))
+    #kpl = k parallels
+    #pk = 
+    #err = 
+    #scalara = cosmological scalar
+    #times = times used in estimating covariances
+    #freq = middle frequency
+    #pk_vs_t = 
+    #err_vs_t = 
+    #temp_noise_var = 
+    #nocov_vs_t = 
+    #cov_matrix = Covariance matrix of data. 
+    #bls = baselines used in this bootstrap
+    #gps = gps of baselines.
+    #cmd = command run
 if PLOT: p.show()
 

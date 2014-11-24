@@ -105,15 +105,15 @@ for t in times:
     aa.set_jultime(t)
     lsts.append(aa.sidereal_time())
 
-print lsts
-ii,jj = seps[seps.keys()[0]]
-testbl = a.miriad.ij2bl(ii, jj)
-print data[testbl]['I'].shape
-C.arp.waterfall(data[testbl]['I'], extent=(0,203,lsts[-1],lsts[0]));p.colorbar(shrink=.5)
-p.show()
-frates = n.fft.fftshift(n.fft.fftfreq(len(data[testbl]['I']), 42.8) * 1e3)
-C.arp.waterfall(n.fft.fftshift(n.fft.ifft(n.fft.fftshift(data[testbl]['I'],axes=0),axis=0),axes=0),extent=(0,203,frates[-1],frates[1]));p.colorbar(shrink=.5)
-p.show()
+#print lsts
+#ii,jj = seps[seps.keys()[0]]
+#testbl = a.miriad.ij2bl(ii, jj)
+#print data[testbl]['I'].shape
+#C.arp.waterfall(data[testbl]['I'], extent=(0,203,lsts[-1],lsts[0]));p.colorbar(shrink=.5)
+#p.show()
+#frates = n.fft.fftshift(n.fft.fftfreq(len(data[testbl]['I']), 42.8) * 1e3)
+#C.arp.waterfall(n.fft.fftshift(n.fft.ifft(n.fft.fftshift(data[testbl]['I'],axes=0),axis=0),axes=0),extent=(0,203,frates[-1],frates[1]));p.colorbar(shrink=.5)
+#p.show()
 
 
 for bl in data.keys():
@@ -139,8 +139,8 @@ for bl in data.keys():
             #_d[bl][pol][:,ch] = n.where(flags[bl][pol][:,ch]>0, _d[bl][pol][:,ch]/_w[bl][pol][:,ch], 1)  
             _d[bl][pol][:,ch] = n.where(flg>0, _d[bl][pol][:,ch]/_w[bl][pol][:,ch], 1)  
 
-C.arp.waterfall(n.fft.fftshift(n.fft.ifft(n.fft.fftshift(_d[testbl]['I'],axes=0),axis=0),axes=0),extent=(0,203,frates[-1],frates[1]));p.colorbar(shrink=.5)
-p.show()
+#C.arp.waterfall(n.fft.fftshift(n.fft.ifft(n.fft.fftshift(_d[testbl]['I'],axes=0),axis=0),axes=0),extent=(0,203,frates[-1],frates[1]));p.colorbar(shrink=.5)
+#p.show()
 
 def mfunc(uv, p, d, f):
     uvw,t,(i,j) = p
@@ -159,7 +159,10 @@ for filename in args:
     print 'Writing %s'%(opts.outpath+'/'+outfile)
     uvi = a.miriad.UV(filename)
     a.scripting.uv_selector(uvi, ants=baselines)
-    uvo = a.miriad.UV(opts.outpath+'/'+outfile, status='new')
+    if opts.outpath:
+        uvo = a.miriad.UV(opts.outpath+'/'+outfile, status='new')
+    else:
+        uvo = a.miriad.UV(outfile, status='new')
     uvo.init_from_uv(uvi)
     uvo.pipe(uvi, mfunc=mfunc, append2hist=' '.join(sys.argv)+'\n', raw=True)
 
