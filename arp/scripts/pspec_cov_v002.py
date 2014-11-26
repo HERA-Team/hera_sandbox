@@ -73,10 +73,10 @@ def get_Q(mode, n_k):
 SEP = 'sep0,1'
 dsets = {
     #'only': glob.glob('sep0,1/*242.[3456]*uvL'),
-    'even': glob.glob('even/'+SEP+'/*242.[3456]*uvAL'),
-    'odd' : glob.glob('odd/'+SEP+'/*243.[3456]*uvAL'),
+    #'even': glob.glob('even/'+SEP+'/*242.[3456]*uvAL'),
+    #'odd' : glob.glob('odd/'+SEP+'/*243.[3456]*uvAL'),
 }
-#for i in xrange(10): dsets[i] = glob.glob('lsbinX%d/lst.24562[45]*.[3456]*.uvAL'%i)
+for i in xrange(10): dsets[i] = glob.glob('lstbinX%d/%s/lst.24562[45]*.[3456]*.uvAL'%(i,SEP))
 
 WINDOW = opts.window
 uv = a.miriad.UV(dsets.values()[0][0])
