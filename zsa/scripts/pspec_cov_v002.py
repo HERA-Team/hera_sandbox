@@ -10,6 +10,8 @@ o.add_option('--plot', action='store_true',
     help='Generate plots')
 o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
+o.add_option('--sep', default='sep0,1', action='store',
+    help='Which separation type?')
 opts,args = o.parse_args(sys.argv[1:])
 
 random.seed(0)
@@ -17,7 +19,7 @@ POL = 'I'
 LST_STATS = False
 DELAY = False
 NGPS = 5
-INJECT_SIG = False
+INJECT_SIG = .01
 SAMPLE_WITH_REPLACEMENT = True
 NOISE = .0
 PLOT = opts.plot
@@ -70,13 +72,13 @@ def get_Q(mode, n_k):
         Q[mode,mode] = 1
         return Q
 
-SEP = 'sep0,1'
+SEP = opts.sep
 dsets = {
-    #'only': glob.glob('sep0,1/*242.[3456]*uvL'),
-    #'even': glob.glob('even/'+SEP+'/*242.[3456]*uvAL'),
-    #'odd' : glob.glob('odd/'+SEP+'/*243.[3456]*uvAL'),
+#    'only': glob.glob('sep0,1/*242.[3456]*uvL'),
+    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even/'+SEP+'/*242.[3456]*uvAL'),
+    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd/'+SEP+'/*243.[3456]*uvAL'),
 }
-for i in xrange(10): dsets[i] = glob.glob('lstbinX%d/%s/lst.24562[45]*.[3456]*.uvAL'%(i,SEP))
+#for i in xrange(10): dsets[i] = glob.glob('lstbinX%d/%s/lst.24562[45]*.[3456]*.uvAL'%(i,SEP))
 
 WINDOW = opts.window
 uv = a.miriad.UV(dsets.values()[0][0])
@@ -177,24 +179,55 @@ print 'Baselines:', nbls
 
 if INJECT_SIG > 0.: # Create a fake EoR signal to inject
     print 'INJECTING SIMULATED SIGNAL'
-    eor = noise(x.values()[bls_master[0]].shape) * INJECT_SIG
-    fringe_filter = n.ones((44,))
-    # Maintain amplitude of original noise
-    fringe_filter /= n.sqrt(n.sum(fringe_filter))
-    for ch in xrange(eor.shape[0]):
-        eor[ch] = n.convolve(eor[ch], fringe_filter, mode='same')
-    _eor = n.fft.ifft(eor, axis=0)
-    #wgt = n.exp(-n.fft.ifftshift(kpl)**2/(2*.3**2))
-    wgt = n.zeros(_eor.shape[0]); wgt[0] = 1
-    wgt.shape = wgt.shape + (1,)
-    #_eor *= wgt
-    #_eor = n.fft.ifft(eor, axis=0); _eor[4:-3] = 0
-    #eor = n.fft.fft(_eor, axis=0)
-    eor *= wgt
+    eor_sets = {
+    #    'only': glob.glob('sep0,1/*242.[3456]*uvL'),
+        'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even/'+SEP+'/*242.[3456]*uvAL_signalL'),
+        'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd/'+SEP+'/*243.[3456]*uvAL_signalL'),
+    }
+    eorlsts,eordata,eorflgs = {},{},{}
     for k in days:
-        for bl in x[k]: x[k][bl] += eor
+        eorlsts[k],eordata[k],eorflgs[k] = get_data(eor_sets[k], antstr=antstr, polstr=POL, verbose=True)
+        #cut with same lst cut.
+        for bl in eordata[k]:
+            eordata[k][bl], eorflgs[k][bl] = n.array(eordata[k][bl][:j]), n.array(eorflgs[k][bl][:j])
+    eor = {}
+    for k in days:
+        eor[k] = {}
+        for bl in eordata[k]:
+            ed = eordata[k][bl][:,chans] * jy2T * INJECT_SIG
+            if conj[bl]: ed = n.conj(ed)
+            eor[k][bl] = n.transpose(ed, [1,0]) 
+
+    for k in days:
+        for bl in x[k]:
+#            p.figure(1)
+#            p.plot(x[k][bl])
+#            p.figure(2)
+#            p.plot(eor[k][bl])
+#            p.show()
+            x[k][bl] += eor[k][bl] 
+    
     if PLOT:
-        capo.arp.waterfall(eor, mode='real'); p.colorbar(); p.show()
+        capo.arp.waterfall(x[k][bl], mode='real'); p.colorbar(); p.show()
+       
+    
+    
+    
+    
+#    eor = noise(x.values()[bls_master[0]].shape) * INJECT_SIG
+#    fringe_filter = n.ones((44,))
+#    # Maintain amplitude of original noise
+#    fringe_filter /= n.sqrt(n.sum(fringe_filter))
+#    for ch in xrange(eor.shape[0]):
+#        eor[ch] = n.convolve(eor[ch], fringe_filter, mode='same')
+#    _eor = n.fft.ifft(eor, axis=0)
+#    #wgt = n.exp(-n.fft.ifftshift(kpl)**2/(2*.3**2))
+#    wgt = n.zeros(_eor.shape[0]); wgt[0] = 1
+#    wgt.shape = wgt.shape + (1,)
+#    #_eor *= wgt
+#    #_eor = n.fft.ifft(eor, axis=0); _eor[4:-3] = 0
+#    #eor = n.fft.fft(_eor, axis=0)
+#    eor *= wgt
 
 #Q = {} # Create the Q's that extract power spectrum modes
 #for i in xrange(nchan):
