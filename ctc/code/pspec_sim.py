@@ -3,12 +3,13 @@
 """
 
 NAME: 
-      pspec.py 
+      pspec_sim.py 
 PURPOSE:
       -Generates a cube in k-space filled with T_tilde values that are generated from a Gaussian distribution with variance specified by P(k)
       -Fourier transforms the cube to get T(r)
+      -Plots a slice of the cube onto a Healpix Map
 EXAMPLE CALL:
-      ./pspec.py 
+      ./pspec_sim.py -N 31 --freq 150
 AUTHOR:
       Carina Cheng
 
@@ -21,238 +22,296 @@ import pyfits
 import matplotlib.pyplot as plt
 import optparse
 import os, sys
+from scipy import integrate
 from collections import defaultdict #for multidimensional dictionary
 
+#options
+
+o = optparse.OptionParser()
+o.set_description(__doc__)
+o.add_option('-N', dest='N', default = 3, type = 'int',
+             help='Number of pixels per side of the T_tilde cube. Must be an odd number. Default is 3.')
+o.add_option('--freq', dest='freq', default = 150., type = 'float',
+             help='Observed frequency in MHz. Default is 150.')
+opts, args = o.parse_args(sys.argv[1:])
+
+#P(k) function
+
+def P_k(kmag, sigma=0.0003, k0=0.002):
+
+    return numpy.exp(-(kmag-k0)**2/(2*sigma**2)) #variance
+
+#cosmology calculations
+
+nu21 = 1420.*10**6 #21cm frequency [Hz]
+nuobs = opts.freq*10**6 #observed frequency [Hz]
+c = 3.*10**5 #[km/s]
+H0 = 69.7 #Hubble's constant [km/s/Mpc]
+omg_m = 0.28 
+omg_lambda = 0.72 
+
+z = (nu21/nuobs)-1 #redshift
+
+one_over_E_z = lambda zprime:1/numpy.sqrt(omg_m*(1+zprime)**3+omg_lambda)
+Dc = (c/H0)*integrate.quad(one_over_E_z,0,z)[0] #comoving distance [Mpc]
+
+print 'redshift z =', z
+print 'co-moving distance for', opts.freq, 'MHz [Mpc] =', Dc
+
+#set resolution
+
+wavelength = (3.*10**8)/nuobs #[m]
+baseline = 30. #[m]
+theta = wavelength/baseline
+
+delta = theta*Dc #step size in real space [Mpc]
+L = opts.N*delta #size range in real space [Mpc]
+
+print 'real space volume [Mpc] =', L,'x',L,'x',L
+print 'real space resolution [Mpc] =', delta
+print 'angular scale range on sky [rad] =', L/Dc
+print 'angular resolution on sky [rad] =', theta
 
 #make and fill cube
 
-k0 = 0
-sigma = 1 #adjustable parameters
+kx = numpy.fft.fftfreq(int(opts.N),delta)*2*numpy.pi #the 2pi corrects for fourier conventions
+kx = kx.copy(); kx.shape = (kx.size,1,1)
+ky = kx.copy(); ky.shape = (1,ky.size,1)
+kz = kx.copy(); kz.shape = (1,1,kz.size)
+
+#print kx[1,0,0],ky[0,1,0],kz[0,0,1]
+
+k_mag = numpy.sqrt(kx**2+ky**2+kz**2) #3D cube
+#print numpy.min(k_mag), numpy.max(k_mag)
+
+stdev = numpy.sqrt(P_k(k_mag)/2)
+a_tilde = numpy.random.normal(scale=stdev) 
+b_tilde = numpy.random.normal(scale=stdev) #random num with variance P_k/2
+#sampled from Gaussian distribution of variance 'stdev**2'
+T_tilde = a_tilde+1j*b_tilde
+
+#make cube Hermitian
+
+thing1 = T_tilde[1:1+(kx.size-1)/2,1:,1:] #eliminates 0th rows and cuts cube in half
+T_tilde[:(kx.size-1)/2:-1,:0:-1,:0:-1] = numpy.conj(thing1)
+
+thing2 = T_tilde[1:1+(kx.size-1)/2,:1,1:] 
+T_tilde[:(kx.size-1)/2:-1,0::-1,:0:-1] = numpy.conj(thing2)
+
+thing3 = T_tilde[:1,1:,1:1+(kz.size-1)/2]
+T_tilde[:1,:0:-1,:(kz.size-1)/2:-1] = numpy.conj(thing3)
+
+thing4 = T_tilde[1:1+(kx.size-1)/2,1:,:1]
+T_tilde[:(kx.size-1)/2:-1,:0:-1,:1] = numpy.conj(thing4)
+
+thing5 = T_tilde[1:1+(kx.size-1)/2,:1,:1]
+T_tilde[:(kx.size-1)/2:-1,:1,:1] = numpy.conj(thing5)
+
+thing6 = T_tilde[:1,1:1+(ky.size-1)/2,:1]
+T_tilde[:1,:(ky.size-1)/2:-1,:1] = numpy.conj(thing6)
+
+thing7 = T_tilde[:1,:1,1:1+(kz.size-1)/2]
+T_tilde[:1,:1,:(kz.size-1)/2:-1] = numpy.conj(thing7)
+
+T_tilde[0,0,0] = numpy.real(T_tilde[0,0,0])
+
+#print T_tilde
+
+T_r = numpy.fft.ifftn(T_tilde)/((2*numpy.pi)**3) #the 2pi corrects for fourier conventions
+
+#print T_r
+
+#make Healpix Map
+
+img = aipy.map.Map(nside=128) #needs to be nside=512
+px = numpy.arange(img.npix())
+thetas, phis = img.px2crd(px,ncrd=2)
+
+center_index = (opts.N)/2.-0.5
+
+for i in range(len(thetas)):
+
+    delta_x = Dc*numpy.sin(thetas[i])*numpy.cos(phis[i]) #spherical coordinates
+    delta_y = Dc*numpy.sin(thetas[i])*numpy.sin(phis[i])
+    delta_z = Dc*numpy.cos(thetas[i])
+
+    px_x = delta_x/delta #number of pixels to move by from the center
+    px_y = delta_y/delta
+    px_z = delta_z/delta
+
+    if (px_x < opts.N/2) and (px_y < opts.N/2) and (px_z < opts.N/2):
+
+        value = T_r[center_index+round(px_x),center_index+round(px_y),center_index+round(px_z)]
+        img.put((thetas[i],phis[i]),1.0,value.real)
+
+img.to_fits('/Users/carinacheng/capo/ctc/images/test.fits', clobber=True)
+
+
+
+
+
+
+"""
+##OLD VERSION OF CODE: succesfully makes Hermitian cubes but is inefficient
 
 k_min = 0
-k_max = 2
-k_step = 1 #adjustable parameters
+k_max = 3
+k_step = 1
 
-kx = numpy.arange(-k_max+1,k_max,k_step)
-ky = numpy.arange(-k_max+1,k_max,k_step)
-kz = numpy.arange(k_min,k_max,k_step) #only fill half the values
+kx = numpy.arange(k_min,k_max,k_step) #size of these must be odd #
+ky = numpy.arange(k_min,k_max,k_step)
+kz = numpy.arange(k_min,k_max,k_step) 
 
 k_map = []
+
+#strformat = "%05.1f"
+strformat = "%1.0f" #test case (1 digit)
+
+#0th frequency
+
+indices = []
+indices.append('000')
+kname = str(strformat % k_min)+str(strformat % k_min)+str(strformat % k_min)
+kmag = numpy.sqrt(k_min**2+k_min**2+k_min**2)
+P_k = numpy.exp(-(kmag-k0)**2/(2*sigma**2))
+stdev = numpy.sqrt(P_k) 
+T_tilde = numpy.random.randn()*stdev+k0+0j #no complex part
+k_map.append((kname,T_tilde))
+
+#other freqs 
+
+k_names_pos = []
+k_names_neg = []
+T_tildes_pos = []
+T_tildes_neg = []
+indices_pos = []
+indices_neg = []
 
 for i in range(len(kx)):
     for j in range(len(ky)):
         for m in range(len(kz)):
 
-            kname = str(kx[i])+str(ky[j])+str(kz[m]) #string (ex: '-2-20')
-            kmag = numpy.sqrt(kx[i]**2+ky[j]**2+kz[m]**2)
-            P_k = numpy.exp(-(kmag-k0)**2/(2*sigma**2)) #variance
-            stdev = numpy.sqrt(P_k/2) #stdev
+            kname = str(strformat % kx[i])+str(strformat % ky[j])+str(strformat % kz[m]) #string (ex: '220')
 
-            if kx[i]==0 and ky[j]==0 and kz[m]==0: #no complex part
-                
-                stdev = numpy.sqrt(P_k)
-                T_tilde = numpy.random.randn()*stdev+k0+0j
-                k_map.append((kname, T_tilde))
+            if kx[i]+ky[j]+kz[m] != 0 and (kname not in k_names_pos) and (kname not in k_names_neg):
 
-            else:
-
+                k_names_pos.append(kname)
+                kmag = numpy.sqrt(kx[i]**2+ky[j]**2+kz[m]**2)
+                P_k = numpy.exp(-(kmag-k0)**2/(2*sigma**2)) #variance
+                stdev = numpy.sqrt(P_k/2) #stdev
                 a_tilde = numpy.random.randn()*stdev+k0 
                 b_tilde = numpy.random.randn()*stdev+k0 #random num with variance P_k/2
                 #sampled from Gaussian distribution of mean k0 and variance 'stdev**2'
                 T_tilde = a_tilde+1j*b_tilde
-                k_map.append((kname, T_tilde))
+                T_tildes_pos.append(T_tilde)
+                indices_pos.append(str(i)+str(j)+str(m))
+
+                max = numpy.max(kx)
+        
+                if kx[i] == 0:
+                    term1 = 0
+                else:
+                    term1 = max-kx[i]+k_step
+                if ky[j] == 0:
+                    term2 = 0
+                else:
+                    term2 = max-ky[j]+k_step
+                if kz[m] == 0:
+                    term3 = 0
+                else:
+                    term3 = max-kz[m]+k_step
+
+                maxi = len(kx)-1
+
+                if i == 0:
+                    term1i = 0
+                else:
+                    term1i = maxi-i+1
+                if j == 0:
+                    term2i = 0
+                else:
+                    term2i = maxi-j+1
+                if m == 0:
+                    term3i = 0
+                else:
+                    term3i = maxi-m+1
+            
+                kname_neg = str(strformat % term1)+str(strformat % term2)+str(strformat % term3)
+                k_names_neg.append(kname_neg)
+                T_tilde = numpy.conj(T_tilde)
+                T_tildes_neg.append(T_tilde)
+                indices_neg.append(str(term1i)+str(term2i)+str(term3i))
+
+for i in range(len(indices_pos)):
+    indices.append(indices_pos[i])
+
+for i in range(len(indices_neg)):
+    indices.append(indices_neg[::-1][i])
+
+for i in range(len(k_names_pos)):
+    k_map.append((k_names_pos[i],T_tildes_pos[i]))
+
+for i in range(len(k_names_neg)):
+    k_map.append((k_names_neg[::-1][i],T_tildes_neg[::-1][i]))
 
 d = defaultdict(list)
 for index, value in k_map:
     d[index].append(value)
 
-kz_fill = numpy.arange(-k_max+1,k_min,k_step)
+###can look at T_tildes here by k-value (ex: d['kxkykz'])
 
-for i in range(len(kx)):
-    for j in range(len(ky)):
-        for m in range(len(kz_fill)):
-            kname = str(-1*kx[i])+str(-1*ky[j])+str(kz_fill[m]) 
-            kname_pos = str(kx[i])+str(ky[j])+str(-1*kz_fill[m])
-            T_tilde = numpy.conj(d[kname_pos])[0] #conjugate value
-            k_map.append((kname, T_tilde))
+#putting knames and T_tildes in 1D array (0th freq, then pos freqs, then neg freqs)
 
-d = defaultdict(list)
-for index, value in k_map:
-    d[index].append(value)
-
-###can look at T_tildes here by calling d['kxkykz']
-
-#putting knames and T_tildes in array
-
-names = []
+k_names = []
 T_tildes = []
 for i in range(len(k_map)):
-    names.append(k_map[i][0])
+    k_names.append(k_map[i][0])
     T_tildes.append(k_map[i][1])
 
-#reordering knames and T_tildes to place in 3-dim array
+#print k_names, T_tildes
+#print k_map
 
-cube_size = len(kx)
+#fourier transform 
 
-names_arr = numpy.zeros((cube_size,cube_size,cube_size),dtype=(str,6))
-tildes_arr = numpy.zeros((cube_size,cube_size,cube_size),dtype=complex)
-index1 = 0
-index2 = 0
-index3 = 0
-count = 0
-for i in range(cube_size):
-    index2 = 0
-    for j in range(cube_size):
-        index3 = 0
-        for k in range(cube_size):
-            names_arr[index1,index2,index3] = str(names[count])
-            tildes_arr[index1,index2,index3] = T_tildes[count]
-            index3 += 1
-            count += 1
-        index2 +=1
-    index1 +=1
+arr3d = numpy.zeros((len(kx),len(kx),len(kx)),dtype=complex)
 
-#fourier transform cube
+for i in range(len(indices)):
+    arr3d[indices[i][0],indices[i][1],indices[i][2]] = T_tildes[i]
 
-print names_arr
-print tildes_arr
-
-T_r = numpy.fft.ifftn(tildes_arr,axes=(0,1,2))
+T_r = numpy.fft.ifftn(arr3d)
 
 #print T_r
 
-knames = numpy.ndarray.flatten(names_arr)
-T_r = numpy.ndarray.flatten(T_r)
+pylab.imshow(numpy.real(T_r[0]),interpolation='nearest')
+pylab.colorbar(shrink=0.5)
+pylab.show()
+
+
+###can look at T_r here by index number (ex: T_r[0,0,0])
+
+#linking k's and T_r's
+
+T_rs = []
+
+for i in range(len(indices)):  
+    T_rs.append(T_r[indices[i][0],indices[i][1],indices[i][2]])
 
 T_map = []
 
-for i in range(len(knames)):
-    T_map.append((knames[i], T_r[i]))
-d = defaultdict(list)
+for i in range(len(k_names)):
+    T_map.append((k_names[i], T_rs[i]))
+d_r = defaultdict(list)
 for index, value in T_map:
-    d[index].append(value)
+    d_r[index].append(value)
 
-###can look at T_r here by calling d['kxkykz']
+###can look at T_r here by k-value (ex: d_r['kxkykz'])
 
-
-
-
-
-
-###positive k values only
+#pylab.plot(numpy.real(T_rs))
+#pylab.show()
 
 """
-#make and fill cube
 
-k0 = 1
-sigma = 1 #adjustable parameters
 
-k_min = 0
-k_max = 4
-k_step = 1 #adjustable parameters
 
-kx = numpy.arange(k_min,k_max,k_step)
-ky = numpy.arange(k_min,k_max,k_step)
-kz = numpy.arange(k_min,(k_max-k_min)/2,k_step) #only fill half the values
-print kz
 
-k_map = []
 
-for i in range(len(kx)):
-    for j in range(len(ky)):
-        for m in range(len(kz)):
-            kname = str(kx[i])+str(ky[j])+str(kz[m]) #string (ex: '-2-20')
-            kmag = numpy.sqrt(kx[i]**2+ky[j]**2+kz[m]**2)
-            P_k = numpy.exp(-(kmag-k0)**2/(2*sigma**2)) #variance
-            stdev = numpy.sqrt(P_k/2) #stdev
-            a_tilde = numpy.random.randn()*stdev+k0 
-            b_tilde = numpy.random.randn()*stdev+k0 #random num with variance P_k/2
-            #sampled from Gaussian distribution of mean k0 and variance 'stdev**2'
-            T_tilde = a_tilde+1j*b_tilde
-            k_map.append((kname, T_tilde))
-
-d = defaultdict(list)
-for index, value in k_map:
-    d[index].append(value)
-
-kz_fill = numpy.arange((k_max-k_min)/2,k_max,k_step) #other half of kz values
-
-for i in range(len(kx)):
-    for j in range(len(ky)):
-        for m in range(len(kz_fill)):
-            kname = str(kx[i])+str(ky[j])+str(kz_fill[m]) 
-            maxk = numpy.max(kx)
-            kname_pos = str(maxk-kx[i])+str(maxk-ky[j])+str(maxk-kz_fill[m])
-            T_tilde = numpy.conj(d[kname_pos])[0] #conjugate value
-            k_map.append((kname, T_tilde))
-
-d = defaultdict(list)
-for index, value in k_map:
-    d[index].append(value)
-
-###can look at T_tildes here by calling d['kxkykz']
-
-#putting knames and T_tildes in array
-
-names = []
-T_tildes = []
-for i in range(len(k_map)):
-    names.append(k_map[i][0])
-    T_tildes.append(k_map[i][1])
-
-#reordering knames and T_tildes to place in 3-dim array
-
-cube_size = len(kx)
-names_reordered = []
-T_tildes_reordered = []
-start = 0
-start2 = start+len(names)/2
-for i in range((len(names)/2)/(cube_size/2)):
-    for j in range(cube_size/2):
-        names_reordered.append(names[start])
-        T_tildes_reordered.append(T_tildes[start])
-        start += 1
-    for j in range(cube_size/2):
-        names_reordered.append(names[start2])
-        T_tildes_reordered.append(T_tildes[start2])
-        start2 += 1
-
-names_arr = numpy.zeros((cube_size,cube_size,cube_size),dtype=(str,3))
-tildes_arr = numpy.zeros((cube_size,cube_size,cube_size),dtype=complex)
-index1 = 0
-index2 = 0
-index3 = 0
-count = 0
-for i in range(cube_size):
-    index2 = 0
-    for j in range(cube_size):
-        index3 = 0
-        for k in range(cube_size):
-            names_arr[index1,index2,index3] = str(names_reordered[count])
-            tildes_arr[index1,index2,index3] = T_tildes_reordered[count]
-            index3 += 1
-            count += 1
-        index2 +=1
-    index1 +=1
-
-#fourier transform cube
-
-print tildes_arr
-
-T_r = numpy.fft.ifftn(tildes_arr,axes=(0,1,2))
-
-print T_r
-
-knames = numpy.ndarray.flatten(names_arr)
-T_r = numpy.ndarray.flatten(T_r)
-
-T_map = []
-
-for i in range(len(knames)):
-    T_map.append((knames[i], T_r[i]))
-d = defaultdict(list)
-for index, value in T_map:
-    d[index].append(value)
-
-###can look at T_r here by calling d['kxkykz']
-"""
