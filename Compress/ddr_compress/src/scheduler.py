@@ -1,6 +1,7 @@
 import time, logging
-
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('scheduler')
+logger.setLevel(logging.DEBUG)
 MAXFAIL=5
 # NEW is for db use internally.  Scheduler only ever gets UV_POT and onward from data base
 # Removing the POT_TO_USA step
@@ -91,6 +92,13 @@ class Scheduler:
             self.launched_actions[still] = []
         self._run = False
         self.failcount = {}#dict of {obsid+status,failcount}
+        #formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        #fh = logging.StreamHandler()
+        #fh.setFormatter(formatter)
+        #fh.setLevel(logging.INFO)
+        #logger.addHandler(fh)
+        #logger.setLevel(logging.DEBUG)
+        #logger.info('setting up stream')
     def quit(self):
         self._run = False
     def start(self, dbi, ActionClass=None, action_args=(), sleeptime=.1):
@@ -100,9 +108,12 @@ class Scheduler:
         logger.info('Scheduler.start: entering loop')
         while self._run:
             #tic = time.time()
+            logger.info("getting active obs")
             self.get_new_active_obs(dbi)
+            logger.info('updating action queue')
             self.update_action_queue(dbi, ActionClass, action_args)
             # Launch actions that can be scheduled
+            logger.info('launching actions')
             for still in self.launched_actions:
                 while len(self.get_launched_actions(still,tx=False)) < self.actions_per_still:
                     try: a = self.pop_action_queue(still,tx=False)
@@ -180,10 +191,12 @@ class Scheduler:
         '''Based on the current list of active obs (which you might want
         to update first), generate a prioritized list of actions that
         can be taken.'''
+        failed = dbi.get_terminal_obs()
         actions = [self.get_action(dbi,f,ActionClass=ActionClass, action_args=action_args) for f in self.active_obs]
         actions = [a for a in actions if not a is None] # remove unactionables
         actions = [a for a in actions if not self.already_launched(a)] # filter actions already launched
         actions = [a for a in actions if self.failcount.get(str(a.obs)+dbi.get_obs_status(a.obs),0)<MAXFAIL] #filter actions that have utterly failed us
+        actions = [a for a in actions if not a.obs in failed]#Filter actions that have failed before
         for a in actions: a.set_priority(self.determine_priority(a,dbi))
         actions.sort(action_cmp, reverse=True) # place most important actions first
         self.action_queue = actions # completely throw out previous action list
