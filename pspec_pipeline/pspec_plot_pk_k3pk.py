@@ -232,7 +232,6 @@ for sep in RS_VS_KPL:
         
     d,kpl,nos = n.array(d, dtype=n.complex), n.array(kpl), n.array(nos)
     d_fold,kpl_fold,nos_fold = n.array(d_fold, dtype=n.complex), n.array(kpl_fold), n.array(nos_fold)
-    #if True:
     if opts.flux:
         # PSA32 was calibrated to Pictor A @ 160 MHz = 424 Jy
         # To recalibrate to new Pic A, must multiply by square of ratio of fluxes
@@ -252,7 +251,6 @@ for sep in RS_VS_KPL:
         nos *= f
         d_fold *= f
         nos_fold *= f
-    #if True: # For aggressive fringe-rate filtering, change beam area
     if opts.afrf: # For aggressive fringe-rate filtering, change beam area
         f = opts.afrf_factor
         f = 1.90 # ratio of power**2 beams for filtered * unfiltered beams: 0.306 / 0.162
@@ -261,15 +259,8 @@ for sep in RS_VS_KPL:
         nos *= f
         d_fold *= f
         nos_fold *= f
-    if False: # Used to think that if lstbin cut out outlying data, need to renormalize noise but now have shown that bootstrapping still accurately recovers the variation from noise
-        #f = 1.305 # for lst_v003_I
-        f = 1.586 # for lst_v00[256]_I
-        print 'Scaling noise by %f for noise attenuation from rejecting outliers in LST binning' % f
-        nos *= f
-        nos_fold *= f
-    #if True: # extra penalty for signal loss in covariance diagonalization
     if opts.cov: # extra penalty for signal loss in covariance diagonalization
-        f = 1.5
+        f = 1.2
         print 'Scaling data and noise by %f for signal loss in covariance diagonalization' % f
         d *= f
         nos *= f
@@ -340,7 +331,7 @@ p.savefig('pspec.png')
 #p.grid()
 
 f = n.load(args[0])
-def posterior(kpl, pk, err, pkfold=None):
+def posterior(kpl, pk, err, pkfold=None, errfold=None):
     k0 = n.abs(kpl).argmin()
     kpl = kpl[k0:]
     if pkfold is None:
@@ -352,7 +343,9 @@ def posterior(kpl, pk, err, pkfold=None):
         pkfold[1:] = (pkpos/errpos**2 + pkneg/errneg**2) / (1./errpos**2 + 1./errneg**2)
         errfold[1:] = n.sqrt(1./(1./errpos**2 + 1./errneg**2))
 
-    ind = n.logical_and(kpl>.2, kpl<.5)
+    #ind = n.logical_and(kpl>.2, kpl<.5)
+    ind = n.logical_and(kpl>.15, kpl<.5)
+    #ind = n.logical_and(kpl>.12, kpl<.5)
     #print kpl,pk.real,err
     kpl = kpl[ind]
     pk= kpl**3 * pkfold[ind]/(2*n.pi**2)
@@ -365,11 +358,16 @@ def posterior(kpl, pk, err, pkfold=None):
     data = n.array(data)
     #print data
     #print s
-    data/=n.sum(data)
+    #data/=n.sum(data)
+    data /= n.max(data)
     p.figure(5)
     p.plot(s, data)
+    p.plot(s, n.exp(-.5)*n.ones_like(s))
+    p.plot(s, n.exp(-.5*2**2)*n.ones_like(s))
     p.show()
-#posterior(f['kpl'], f['pk'], f['err'])
+
+#posterior(f['kpl'], f['pk'], f['err'], f['pk_fold'], f['err_fold'])
+posterior(kpl, d, nos, d_fold, nos_fold)
 
 
 if opts.show:
