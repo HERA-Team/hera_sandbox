@@ -327,7 +327,7 @@ class DataBaseInterface(object):
             OBS.status = status
             s.add(OBS)
             s.commit()
-            s.close()
+        s.close()
         return neighbors.keys()
     def get_neighbors(self,obsnum):
         """
