@@ -1,0 +1,2 @@
+MDLVIS: created file.
+MDLVIS: vis_simulation_v3.py --map /data2/home/cacheng/capo/ctc/images/pspecs/pspec40lmax110/ --filename /data2/home/cacheng/capo/ctc/tables/vis_simulation_1004.uv --nchan 40 --inttime 42.8 --sdf 0.00049261 --sfreq 0.15418719
