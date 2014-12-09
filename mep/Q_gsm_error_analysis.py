@@ -2,29 +2,31 @@ import aipy as a, numpy as n, pylab as p
 import useful_functions as uf
 import matplotlib as mpl
 import healpy as hp
+from load_data import *
 
-def load_Q_file(gh='grid',del_bl=4.,num_bl=10,beam_sig=0.09,fq=0.05,lmax=10):
-    if gh=='grid':
-        Q_file = '{0}/Q_matrices/Q_grid_del_bl_{1:.2f}_num_bl_{2}_beam_sig_{3:.2f}_fq_{4:.3f}.npz'.format(data_loc,del_bl,num_bl,beam_sig,fq)
-    elif gh=='hybrid':
-        Q_file = '{0}/Q_matrices/Q_hybrid_del_bl_{1:.2f}_num_bl_{2}_fq_{3:.3f}.npz'.format(data_loc,del_bl,num_bl,fq)
+
+# def load_Q_file(gh='grid',del_bl=4.,num_bl=10,beam_sig=0.09,fq=0.05,lmax=10):
+#     if gh=='grid':
+#         Q_file = '{0}/Q_matrices/Q_grid_del_bl_{1:.2f}_num_bl_{2}_beam_sig_{3:.2f}_fq_{4:.3f}.npz'.format(data_loc,del_bl,num_bl,beam_sig,fq)
+#     elif gh=='hybrid':
+#         Q_file = '{0}/Q_matrices/Q_hybrid_del_bl_{1:.2f}_num_bl_{2}_fq_{3:.3f}.npz'.format(data_loc,del_bl,num_bl,fq)
     
-    Qstuff = n.load(Q_file)
-    Q = Qstuff['Q']
-    Q = Q[:,0:(lmax+1)**2]
-    lms = Qstuff['lms']
-    lms = lms[0:(lmax+1)**2,:]
-    baselines = Qstuff['baselines']
-    return baselines,Q,lms 
+#     Qstuff = n.load(Q_file)
+#     Q = Qstuff['Q']
+#     Q = Q[:,0:(lmax+1)**2]
+#     lms = Qstuff['lms']
+#     lms = lms[0:(lmax+1)**2,:]
+#     baselines = Qstuff['baselines']
+#     return baselines,Q,lms 
 
-def total_noise_covar(ninst_sig,num_bl,fg_file):
-    Nfg_file = n.load(fg_file)
-    Nfg = Nfg_file['matrix']
-    #Nfg = Nfg[1:,1:]
-    #print 'fg ',Nfg.shape
-    Ninst = (ninst_sig**2)*n.identity(num_bl)
-    Ntot = Nfg + Ninst 
-    return Ntot
+# def total_noise_covar(ninst_sig,num_bl,fg_file):
+#     Nfg_file = n.load(fg_file)
+#     Nfg = Nfg_file['matrix']
+#     #Nfg = Nfg[1:,1:]
+#     #print 'fg ',Nfg.shape
+#     Ninst = (ninst_sig**2)*n.identity(num_bl)
+#     Ntot = Nfg + Ninst 
+#     return Ntot
 
 def window_fn_matrix(Q,N,num_remov=None,save_tag=None,lms=None):
     Q = n.matrix(Q); N = n.matrix(N)
@@ -44,8 +46,17 @@ def window_fn_matrix(Q,N,num_remov=None,save_tag=None,lms=None):
         p.ylabel('W_0,lm')
         p.title('First Row of Window Function Matrix')
         p.colorbar()
-        p.savefig('./figures/{0}_W.pdf'.format(save_tag))
+        p.savefig('{0}/{1}_W.pdf'.format(fig_loc,save_tag))
         p.clf()
+
+        print 'W ',W.shape
+        p.imshow(n.real(W))
+        p.title('Window Function Matrix')
+        p.colorbar()
+        p.savefig('{0}/{1}_W_im.pdf'.format(fig_loc,save_tag))
+        p.clf()
+
+
     return W
 
 def return_ahat(y,Q,N,num_remov=None):
