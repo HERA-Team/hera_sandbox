@@ -161,6 +161,7 @@ prms = {
     'off':{
         },
     'bp_r':  n.array([-167333390752.98276, 198581623581.65594, -102487141227.4993, 30027423590.548084, -5459067124.669095, 630132740.98792362, -45056600.848056234, 1822654.0034047314, -31892.9279846797]) * 1.0178**0.5,
+    'bp_i': n.array([[0., 0., 0.]] * 32),
     '32_64_pos_offset': n.array([-13.44311,-21.21483,-2.31634])
 }
 
@@ -171,20 +172,23 @@ def get_aa(freqs):
     nants = len(prms['antpos'])
     for i in prms['delays'].keys():
         beam = bm.prms['beam'](freqs,nside=32,lmax=20,mmax=20,deg=7)
-        try: beam.set_params(bm.prms['bm_prms'])
-        except(AttributeError): pass
+        beam.set_params(bm.prms['bm_prms'])
         pos = prms['antpos'][i]
         if i > 31: pos += prms['32_64_pos_offset'] 
-        try: dly = [prms['delays'][i]['x'],prms['delays'][i]['y']]
-        except(KeyError): dly = 0.
-        bp_r = prms['bp_r']
-        try: amp = [prms['amps'][i]['x'],prms['amps'][i]['y']]
-        except(KeyError): amp = 1.
-        phsoff = [[dly[0],0.],[dly[1],0.]]
+        dly = [prms['delays'][i]['x'],prms['delays'][i]['y']]
+        #bp_r = prms['bp_r']
+        bp_r = prms['bp_r'][i]; bp_r = {'x':bp_r, 'y':bp_r}
+        bp_i = prms['bp_i'][i]; bp_i = {'x':bp_i, 'y':bp_i}
+        #try: amp = [prms['amps'][i]['x'],prms['amps'][i]['y']]
+        #except(KeyError): amp = 1.
+        amp = prms['amps'].get(i, 4e-3); amp = {'x':amp,'y':amp}
+        phsoff = {'x':[dly[0],0.], 'y':[dly[1],0.]}
+        #phsoff = [[dly[0],0.],[dly[1],0.]]
         antennas.append(
-                a.fit.Antenna(pos[0],pos[1],pos[2], beam, dp=True, phsoff=phsoff, amp=amp, bp_r=bp_r, lat=prms['loc'][0] )
+                a.pol.Antenna(pos[0],pos[1],pos[2], beam, dp=True, phsoff=phsoff, amp=amp, bp_r=bp_r, bp_i=bp_i,lat=prms['loc'][0] )
                 )
     aa = a.fit.AntennaArray(prms['loc'], antennas)
+
     return aa
 
 src_prms = {

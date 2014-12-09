@@ -20,9 +20,10 @@ uv2 = a.miriad.UV(args[1])
 def mfunc(uv, p, d, f):
     p2,d2,f2 = uv2.read(raw=True)
     #f = n.logical_or(f,f2)
+    f2 = n.logical_not(f2)
+    if opts.sub: d = d - f2*d2
+    else: d = d + f2*d2
     f = n.zeros_like(d)
-    if opts.sub: d = d - d2
-    else: d = d + d2
     return p, n.where(f, 0, d), f
 
 if opts.sub: filename = args[0] + 'd'
