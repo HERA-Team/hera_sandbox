@@ -27,5 +27,5 @@ else:
 
 dbi = ddr.dbi.DataBaseInterface()
 task_clients = [ddr.task_server.TaskClient(dbi, s,port=p) for (s,p) in zip(STILLS,PORTS)]
-scheduler = ddr.task_server.Scheduler(task_clients, actions_per_still=ACTIONS_PER_STILL, blocksize=BLOCK_SIZE)
+scheduler = ddr.task_server.Scheduler(task_clients, actions_per_still=ACTIONS_PER_STILL,blocksize=BLOCK_SIZE,nstills=len(STILLS))
 scheduler.start(dbi, ActionClass=ddr.task_server.Action, action_args=(task_clients,TIMEOUT), sleeptime=SLEEPTIME)
