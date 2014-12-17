@@ -53,7 +53,7 @@ if False: # override power spectrum with the version w/o covariance diagonalizat
     print 'Overriding power spectrum with non-covariance diagonalized version'
     pk_2d = nocov_2d
 
-CLIP = True
+CLIP = False
 if CLIP:
     #pk_2d = pk_2d[...,250:550]
     #avg_pk_2d = avg_pk_2d[...,250:550]

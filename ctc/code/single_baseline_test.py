@@ -1,12 +1,16 @@
 #!/usr/bin/env python
 
+"""
 
-## NAME: 
-#         single_baseline.py
-## PURPOSE: 
-#         Visibility simulator for a single baseline for all frequencies for 1 Sidereal day
+NAME:
+ single_baseline_test.py
+PURPOSE:
+ Visibility simulator for a single baseline for all frequencies for 1 Sidereal day
+ Different from single_baseline.py in that fringe/beam is computed outside of the loop
 
-#------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+"""
+
 
 import aipy
 import numpy
@@ -22,118 +26,88 @@ print 'setting up miriad UV file...'
 
 uv = aipy.miriad.UV(root + 'tables/single_baseline_test.uv', status='new')
 
-uv.add_var('telescop' ,'a');   uv['telescop'] = 'AIPY'
-uv.add_var('operator' ,'a');   uv['operator'] = 'AIPY'
-uv.add_var('version'  ,'a');   uv['version'] = '0.0.1'
-uv.add_var('epoch'    ,'r');   uv['epoch'] = 2000.
-uv.add_var('sdf'      ,'d');   uv['sdf'] = 0.1/256
-uv.add_var('sfreq'    ,'d');   uv['sfreq'] = 0.1
-uv.add_var('freq'     ,'d');   uv['freq'] = 0.1
-uv.add_var('restfreq' ,'d');   uv['restfreq'] = 0.1
-uv.add_var('nchan'    ,'i');   uv['nchan'] = 256
-uv.add_var('nschan'   ,'i');   uv['nschan'] = 256
-uv.add_var('inttime'  ,'r');   uv['inttime'] = 10.0
-uv.add_var('npol'     ,'i');   uv['npol'] = 1
-uv.add_var('nspect'   ,'i');   uv['nspect'] = 1
-uv.add_var('nants'    ,'i');   uv['nants'] = 32
+uv.add_var('telescop' ,'a'); uv['telescop'] = 'AIPY'
+uv.add_var('operator' ,'a'); uv['operator'] = 'AIPY'
+uv.add_var('version' ,'a'); uv['version'] = '0.0.1'
+uv.add_var('epoch' ,'r'); uv['epoch'] = 2000.
+uv.add_var('nchan' ,'i'); uv['nchan'] = 203
+uv.add_var('sdf' ,'d'); uv['sdf'] = 0.1/uv['nchan']
+uv.add_var('sfreq' ,'d'); uv['sfreq'] = 0.1
+uv.add_var('freq' ,'d'); uv['freq'] = 0.1
+uv.add_var('restfreq' ,'d'); uv['restfreq'] = 0.1
+uv.add_var('nschan' ,'i'); uv['nschan'] = uv['nchan']
+uv.add_var('inttime' ,'r'); uv['inttime'] = 10.0
+uv.add_var('npol' ,'i'); uv['npol'] = 1
+uv.add_var('nspect' ,'i'); uv['nspect'] = 1
+uv.add_var('nants' ,'i'); uv['nants'] = 32
 
 #variables to be updated
 
-uv.add_var('coord'    ,'d')
-uv.add_var('time'     ,'d')
-uv.add_var('lst'      ,'d')
-uv.add_var('ra'       ,'d')
-uv.add_var('obsra'    ,'d')
+uv.add_var('coord' ,'d')
+uv.add_var('time' ,'d')
+uv.add_var('lst' ,'d')
+uv.add_var('ra' ,'d')
+uv.add_var('obsra' ,'d')
 uv.add_var('baseline' ,'r')
-uv.add_var('pol'      ,'i')
+uv.add_var('pol' ,'i')
 
 #get antenna array
 
 print 'getting antenna array...'
 
-freqs = numpy.asarray([0.1,0.12,0.16,0.2])
+#freqs = numpy.asarray([0.1,0.12,0.16,0.2]) #if only doing certain freqs
 
 filename = 'psa898_v003'
-aa = aipy.cal.get_aa(filename, freqs)
-#aa = aipy.cal.get_aa(filename, uv['sdf'],uv['sfreq'],uv['nchan'])
-#freqs = aa.get_afreqs()
+#aa = aipy.cal.get_aa(filename, freqs) #if only doing certain freqs
+aa = aipy.cal.get_aa(filename, uv['sdf'],uv['sfreq'],uv['nchan'])
+freqs = aa.get_afreqs()
 i = 0
 j = 16
-baseline = aa.get_baseline(i,j) #for antennas 0 and 16; array of length 3 in ns
-
-
+bl = aa.get_baseline(i,j) #for antennas 0 and 16; array of length 3 in ns
+blx,bly,blz = bl[0],bl[1],bl[2]
 
 #more miriad variables
 
-uv.add_var('latitud'  ,'d');   uv['latitud'] = aa.lat
-uv.add_var('dec'      ,'d');   uv['dec'] = aa.lat
-uv.add_var('obsdec'   ,'d');   uv['obsdec'] = aa.lat
-uv.add_var('longitu'  ,'d');   uv['longitu'] = aa.long
-uv.add_var('antpos'   ,'d');   uv['antpos'] = (numpy.array([ant.pos for ant in aa], dtype = numpy.double)).transpose().flatten() #transpose is miriad convention
+uv.add_var('latitud' ,'d'); uv['latitud'] = aa.lat
+uv.add_var('dec' ,'d'); uv['dec'] = aa.lat
+uv.add_var('obsdec' ,'d'); uv['obsdec'] = aa.lat
+uv.add_var('longitu' ,'d'); uv['longitu'] = aa.long
+uv.add_var('antpos' ,'d'); uv['antpos'] = (numpy.array([ant.pos for ant in aa], dtype = numpy.double)).transpose().flatten() #transpose is miriad convention
 
-"""
-
-#get Haslam map
-
-img3d = aipy.map.Map(fromfits = root + 'images/lambda_haslam408_dsds_eq.fits') #reads in 3D image; default is nside=512 (3145728 pixels)
-
-#rescale frequency (Haslam map is 408GHz)
-
-r = 150.0/408
-f = r**-2.5 #synchrotron emission (spectral index -2.5)
-
-img3d.map.map *= f #3D image data rescaled (array of size 3145728)
-
-"""
-
-#get eq coordinates for one image 
+#get topocentric coordinates and calculate beam response
 
 print 'calculating beam response...'
 
-img3d1 = aipy.map.Map(fromfits = root + 'images/gsm/gsm256/gsm1001.fits')
+img1 = aipy.map.Map(fromfits = root + 'images/gsm/gsm256/gsm1001.fits')
 
-px = numpy.arange(img3d1.npix()) #number of pixels in map
-crd3d = numpy.array(img3d1.px2crd(px,ncrd=3)) #aipy.healpix.HealpixMap.px2crd?
-x3d,y3d,z3d = crd3d[0], crd3d[1], crd3d[2] #1D arrays of eq coordinates of 3Dimg (can define to be whatever coordinate system, but eq is most useful here)
-
-aa.set_jultime(2454500)
-
-t3d = aipy.coord.eq2top_m(aa.sidereal_time(),aa.lat)
-tx3d, ty3d, tz3d = numpy.dot(t3d,crd3d) #topocentric coordinates
-tops3d = numpy.asarray([tx3d,ty3d,tz3d])
-#tops3d = numpy.append([tx3d,ty3d],[tz3d],axis=0)
-tops3d = tops3d.compress(tops3d[2]>=0,axis=1)
-#tops3d = numpy.asarray([tx3d,ty3d,tz3d])
-bm3d = aa[0].bm_response((tops3d[0],tops3d[1],tops3d[2])) #beam response (makes code slow)
-print bm3d.shape
-#bm3d = numpy.where(tz3d < 0, 0, bm3d) #gets rid of beam values below horizon
-sum_bm3d = numpy.sum(bm3d,axis=1)
-
+px = numpy.arange(img1.npix()) #number of pixels in map
+crd = numpy.array(img1.px2crd(px,ncrd=3)) #aipy.healpix.HealpixMap.px2crd?
+t3 = numpy.asarray(crd)
+t3 = t3.compress(t3[2]>=0,axis=1)
+tx,ty,tz = t3[0], t3[1], t3[2] #1D arrays of top coordinates of 3Dimg (can define to be whatever coordinate system)
+bm = aa[0].bm_response((t3[0],t3[1],t3[2])) #beam response (makes code slow)
+sum_bm = numpy.sum(bm,axis=1)
 
 #loop through frequency to get GSM and calculate fringe
 
 print 'getting GSMs and calculating fringes...'
 
-
-flags = numpy.zeros(len(freqs), dtype=numpy.int32)
-
-img3d = {}
+img = {}
 fng = {}
 for jj, f in enumerate(freqs):
-    img3d[f] = aipy.map.Map(fromfits = root + 'images/gsm/gsm256/gsm1' + str(jj+1).zfill(3) + '.fits', interp=True) 
+    img[f] = aipy.map.Map(fromfits = root + 'images/gsm/gsm256/gsm1' + str(jj+1).zfill(3) + '.fits', interp=True)
     #XXX east-west baseline only
-    fng[f] = numpy.exp(-2j*numpy.pi*tops3d[0]*baseline[0]*f) #fringe pattern
-    fng[f]*= bm3d[jj]/sum_bm3d[jj]
+    fng[f] = numpy.exp(-2j*numpy.pi*(blx*tx+bly*ty+blz*tz)*f) #fringe pattern
+    fng[f]*= bm[jj]/sum_bm[jj]
     print str(f) + ' GHz done'
 
-
 #loop through time to pull out fluxes from changing equatorial coordinates
-#loop through frequency to get GSM and fringe
+#loop through frequency to calculate visibility
 
 print 'writing miriad uv file...'
 
-times = numpy.arange(2454500., 2454501., 300*uv['inttime']/aipy.const.s_per_day)
-#flags = numpy.zeros((uv['nchan'],),dtype=numpy.int32)
+times = numpy.arange(2454500., 2454501., 61*uv['inttime']/aipy.const.s_per_day)
+flags = numpy.zeros(len(freqs), dtype=numpy.int32)
 
 for ii, t in enumerate(times):
 
@@ -144,32 +118,27 @@ for ii, t in enumerate(times):
     uv['ra'] = aa.sidereal_time()
     uv['obsra'] = aa.sidereal_time()
 
-    eq3d = aipy.coord.top2eq_m(aa.sidereal_time(),aa.lat)
-    eqx3d, eqy3d, eqz3d = numpy.dot(eq3d,tops3d) #equatorial coordinates
+    top2eq = aipy.coord.top2eq_m(aa.sidereal_time(),aa.lat)
+    ex,ey,ez = numpy.dot(top2eq,t3) #equatorial coordinates
 
     data = []
 
-    px, wgts = img3d[freqs[0]].crd2px(eqx3d,eqy3d,eqz3d, interpolate=1)
+    px, wgts = img[freqs[0]].crd2px(ex,ey,ez, interpolate=1)
 
     for jj, f in enumerate(freqs):
 
-        fringe3d = fng[f]
-        
-        #fluxes3d = img3d[f][eqx3d,eqy3d,eqz3d]
-        fluxes3d = numpy.sum(img3d[f][px]*wgts, axis=1)
+        fluxes = numpy.sum(img[f][px]*wgts, axis=1)
 
-        p13d = fluxes3d*fringe3d#*bm3d
-        sump13d = numpy.sum(p13d)#/sum_bm3d
-        data.append(sump13d)
+        vis = numpy.sum(fluxes*fng[f])#/sum_bm
+        data.append(vis)
 
         print str(f) + ' GHz done'
     
     data = numpy.asarray(data)
    
-    preamble = (baseline, t, (i,j))
+    preamble = (bl, t, (i,j))
     uv['pol'] = aipy.miriad.str2pol['xx']
     uv.write(preamble, data, flags)
 
 del(uv)
-
 

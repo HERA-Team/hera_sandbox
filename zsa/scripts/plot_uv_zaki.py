@@ -423,7 +423,7 @@ for cnt, bl in enumerate(bls):
             chans = freqs
             label += '%f GHz'
         for c, chan in enumerate(chans):
-            p.plot(plot_times, d[:,c], ',', label=label % chan)
+            p.plot(plot_times, d[:,c], '-', label=label % chan)
         if not opts.max is None: dmax = opts.max
         elif dmax is None: dmax = d.max()
         else: dmax = max(dmax,d.max())

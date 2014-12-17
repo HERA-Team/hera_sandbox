@@ -1,0 +1,3 @@
+MDLVIS: created file.
+MDLVIS: vis_simulation_v2.py --map /Users/carinacheng/capo/ctc/images/gsm/gsm20/ --filename /Users/carinacheng/capo/ctc/tables/vis_simulation_0708.uv --nchan 20 --inttime 42.8 --sdf 0.005
+XRFI: nsig=2.000000 chans=0_3,17_19 mode=none ch_thresh=0.330000 int_thresh=0.990000 raw=None reflag=None share=None

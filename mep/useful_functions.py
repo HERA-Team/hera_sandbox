@@ -2,6 +2,138 @@ import pylab as plt
 import numpy as np
 from scipy import optimize
 
+#  _____                 _   _                 
+# |  ___|   _ _ __   ___| |_(_) ___  _ __  ___ 
+# | |_ | | | | '_ \ / __| __| |/ _ \| '_ \/ __|
+# |  _|| |_| | | | | (__| |_| | (_) | | | \__ \
+# |_|   \__,_|_| |_|\___|\__|_|\___/|_| |_|___/
+                                             
+def vdot(M,v):
+    """
+    Dots a matrix and a vector and returns a vector of shape (n,)
+    Use because np.dot(M,v) will return a vector (1,n) 
+    """
+    assert len(v.shape)==1
+    vec = np.dot(M,v)
+    # print 'uf vec org ',vec.shape
+    if len(vec.shape)==2 and vec.shape[1]==1: vec = np.resize(vec,(vec.shape[0],))
+    if len(vec.shape)==2 and vec.shape[0]==1: vec = np.resize(vec,(vec.shape[1],))
+    # print 'uf M ',M.shape
+    # print 'uf v ',v.shape
+    # print 'uf vec ',vec.shape
+    assert len(vec.shape)==1
+    return vec 
+
+def gaussian(sig,xpoints,ypoints,x0=0.0,y0=0.0):
+    """
+    Returns a gaussian distribution of width sig, centered on x0,y0 
+    for the data points in xpoints and ypoints
+    """
+    gauss = 1/(2*np.pi*sig*sig)*np.exp(-((xpoints-x0)**2+(ypoints-y0)**2)/(2*sig*sig))
+    return gauss
+
+def rand_from_covar(C):
+    """
+    Takes in a covariance matrix C = < x x_dag > and generates a random vector x 
+    that is consistent with C.
+
+    We do this by using a Cholesky decomposition of C = L L_dag where L is lower 
+    triangular. Then the x we want is x = L z where z has uncorrelated random 
+    elements with variance 1. Therefore, < x x_dag > = L < z z_dag > L_dag = L L_dag = C 
+    """
+    L = np.linalg.cholesky(C)
+    z = np.random.randn(C.shape[0])
+    x = np.dot(L,z)
+    x = np.array(x)
+    return x 
+
+def projection_matrix(Z):
+    Z = np.matrix(Z)
+    #print 'Z = \n',Z
+    PP = np.identity(Z.shape[0]) - np.dot(Z,Z.H) #checked by hand
+    return PP 
+
+def pseudo_inverse(MM,num_remov=None):
+    """
+    Computes a matrix pseudo inverse based on equation A4 in Max Tegmark's 
+    1997 paper "How to measure the CMB power spectra without losing information"
+    """
+    eta = np.average(MM)
+    #print 'eta = ',eta
+    MM = np.matrix(MM)
+    #print 'MM = \n',MM
+    eig_vals, eig_vecs = np.linalg.eig(MM) # checked
+    #print 'eig_vecs.shape = ',eig_vecs.shape
+    sorted_ind = np.argsort(np.absolute(eig_vals))
+    sorted_vecs = eig_vecs[:,sorted_ind]
+    sorted_vals = eig_vals[sorted_ind]
+    #print 'eig_vals = \n',sorted_vals
+    #print 'eig vecs = \n',sorted_vecs
+    if num_remov==None:
+        Z = None
+        for kk in range(sorted_vals.shape[0]):
+            #print np.min(sorted_vals[kk:])/np.max(sorted_vals[kk:])
+            if np.min(sorted_vals[kk:])/np.max(sorted_vals[kk:])<1.01*10**-4:
+                #print 'removing lambda ',sorted_vals[kk]
+                if Z==None:
+                    Z = sorted_vecs[:,kk]
+                else:
+                    Z = np.hstack((Z,sorted_vecs[:,kk]))
+            else:
+                #print 'broke at lambda ',sorted_vals[kk]
+                break
+    else:
+        Z = sorted_vecs[:,:num_remov] #checked
+    #Z = np.matrix(Z)
+    #print 'Z = \n',Z
+    PP = projection_matrix(Z) #np.identity(eig_vals.shape[0]) - np.dot(Z,Z.H) #checked by hand
+    #print 'PP = \n',PP
+    MM_tilde = np.dot(PP,np.dot(MM,PP.H)) #checked
+    #print 'MM_tilde = \n',MM_tilde
+    AA = MM_tilde + eta*np.dot(Z,Z.H) 
+    #print 'AA = \n',AA
+    AAinv = np.linalg.inv(AA)
+    #np.set_printoptions(threshold='nan')
+    #print '\nAAinv = \n',AAinv
+    MM_inv = np.dot(PP,np.dot(AAinv,PP.H)) 
+    #print 'MM_inv = \n',MM_inv
+
+    #test the inverse
+    # v1 = sorted_vecs[:,-1]#+ sorted_vecs[:,-2]
+    # v2 = Z[:,0]
+    # dotprod = np.dot(v1.H,v2)
+    # print dotprod[0,0]
+    # v = v1 - np.dot(v1.H,v2)[0,0]*v2
+    # print np.dot(v.H,v2)
+    # print 'test vector = \n',v
+    # vp = np.dot(np.dot(MM_inv,MM_tilde),np.array(v))
+    # print 'recovered vector = \n',vp
+
+    return MM_inv
+
+
+def invertible_matrix(num):
+    """
+    generates an invertible matrix 
+    """
+    vecs = np.random.random((num,num))*100 # note a randomly generated matrix will have full rank with probability 1
+    eig_vals = np.random.random(num)*10 # positive eigenvalues
+    #print 'eig_vals ',eig_vals
+    matrix = np.zeros((num,num))
+    for ii in range(num):
+        v = vecs[:,ii]
+        #print np.sum((v/np.sqrt(np.sum(v*v)))**2)
+        matrix += eig_vals[ii]*np.dot(v.reshape((v.shape[0],1)),v.reshape((1,v.shape[0])))/np.sum(v*v)
+    #print np.linalg.eig(matrix)[0]
+    return matrix 
+
+
+#  _____ _ _   _   _             
+# |  ___(_) |_| |_(_)_ __   __ _ 
+# | |_  | | __| __| | '_ \ / _` |
+# |  _| | | |_| |_| | | | | (_| |
+# |_|   |_|\__|\__|_|_| |_|\__, |
+#                          |___/ 
 
 def general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar,pseudo=False):
     """
@@ -14,6 +146,7 @@ def general_lstsq_fit_with_err(xdata,ydata,Q,noiseCovar,pseudo=False):
     Ninv = np.matrix(noiseCovar).I
     AA = Q.H*Ninv*Q
     if pseudo: AAinv = np.linalg.pinv(AA)
+    elif isinstance(pseudo, int): AAinv = pseudo_inverse(AA,num_remov=pseudo)
     else: AAinv = AA.I
     params = AAinv*Q.H*Ninv*np.matrix(ydata) # params should be 1 by nparam
     return np.array(params), np.array(AAinv)
