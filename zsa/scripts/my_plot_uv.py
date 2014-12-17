@@ -51,6 +51,8 @@ o.add_option('--plot_each', dest='plot_each',
     help='Instead of a waterfall plot, plot each of the specified axis (chan,time)')
 o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
+o.add_option('--marker', dest='marker', default='-',
+    help='Marker to use for plotting')
 
 def convert_arg_range(arg):
     """Split apart command-line lists/ranges into a list of numbers."""
@@ -310,7 +312,7 @@ for cnt, bl in enumerate(bls):
             if cnt == 0: plot_t = plot_t['jd']
             label += 'jd%f'
         for i,t in enumerate(plot_t):
-            p.plot(plot_chans, d[i,:], ',', label=label % t)
+            p.plot(plot_chans, d[i,:], opts.marker, label=label % t)
         p.xlabel(xlabel)
         if not opts.xlim == None: p.xlim(*opts.xlim)
         if not opts.max is None: dmax = opts.max
@@ -347,7 +349,7 @@ for cnt, bl in enumerate(bls):
             chans = freqs
             label += '%f GHz'
         for c, chan in enumerate(chans):
-            p.plot(plot_times, d[:,c], ',', label=label % chan)
+            p.plot(plot_times, d[:,c], opts.marker, label=label % chan)
         if not opts.max is None: dmax = opts.max
         elif dmax is None: dmax = d.max()
         else: dmax = max(dmax,d.max())

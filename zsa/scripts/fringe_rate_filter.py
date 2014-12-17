@@ -80,7 +80,7 @@ def mfunc(uv, p, d, f):
 
 for files in triplets(args):
     print '(%s) %s (%s) ->' % (files[0], files[1], files[2])
-    outfiles = [f+'F' for f in files]
+    outfiles = [os.getcwd() + '/'+ f.split('/')[-1]+'F' for f in files]
     # Don't read triplets for which all output files exist
     if os.path.exists(outfiles[0]) and os.path.exists(outfiles[1]) and os.path.exists(outfiles[2]):
         print '    All output files exist.  Skipping...'
@@ -162,7 +162,7 @@ for files in triplets(args):
                 data[bl][pol][ti] = data[bl][pol].get(ti, 0) + di * wi * fi
                 wgts[bl][pol][ti] = wgts[bl][pol].get(ti, 0) + (wi * fi)**2
     filename = files[0]
-    outfile = filename+'F'
+    outfile = os.getcwd() + '/'+ filename.split('/')[-1]+'F'
     if os.path.exists(outfile):
         print '    %s exists.  Skipping...' % outfile
         continue
@@ -174,7 +174,7 @@ for files in triplets(args):
     del(uvo) # helps the file be available for reading sooner
 
 for filename in files[1:]:
-    outfile = filename+'F'
+    outfile = os.getcwd() + '/' + filename.split('/')[-1]+'F'
     if os.path.exists(outfile):
         print '    %s exists.  Skipping...' % outfile
         continue

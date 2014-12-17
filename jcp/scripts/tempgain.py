@@ -13,7 +13,8 @@ o.add_option('--T0',dest='T0', type='float', default=300,
     help='Temperature where gain should be 1, in Kelvin.  Default 300')
 opts,args = o.parse_args(sys.argv[1:])
 
-goms = map(int, opts.gom.split(','))
+if opts.gom == '': goms = []
+else: goms = map(int, opts.gom.split(','))
 
 def gain(H, T): return 10**(H*(T - opts.T0)/10)
 
@@ -29,7 +30,9 @@ for filename in args:
     if os.path.exists(filename+'t'):
         print 'File exists: skipping'
         continue
-    uvi = a.miriad.UV(filename)
+    #this hack leads to no output for files where the temperature data is corrupted
+    try: uvi = a.miriad.UV(filename)
+    except(IOError): continue
     uvo = a.miriad.UV(filename+'t', status='new')
     uvo.init_from_uv(uvi)
     uvo.pipe(uvi, mfunc=mfunc, raw=True, append2hist='TEMPGAIN: Removed temperature-dependent gain: H_balun=%f H_cable=%f T0=%f' % (opts.H_balun, opts.H_cable, opts.T0))
