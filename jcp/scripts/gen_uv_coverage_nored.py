@@ -6,11 +6,11 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o,cal=True)
 opts, args = o.parse_args(sys.argv[1:])
 
-array = 'paper'
+array = 'baobab'
 
 if array == 'baobab':
     obs_duration = 30. # minutes
-    dish_size_in_lambda = 8 #simple lambda/D
+    dish_size_in_lambda = 5 #simple lambda/D
     SIZE = 300 #uv plane size in wavelengths
     sigma = 1. #not used with delta function gridding
 
@@ -51,6 +51,12 @@ if array == 'skalo1':
     SIZE = 600 #uv plane size in wavelengths
     sigma = 1/(2*n.pi*0.02577)
 
+if array == 'skamid1':
+    obs_duration = 40. # minutes
+    dish_size_in_lambda = 7.5 #simple lambda/D
+    SIZE = 2000 #uv plane size in wavelengths
+    sigma = 1/(2*n.pi*0.02577)
+
 def beamgridder(sigma,xcen,ycen,size):
     #makes FFT of 2D gaussian beam with sigma; returns an array of size x size
     crds = n.mgrid[0:size,0:size]
@@ -59,7 +65,7 @@ def beamgridder(sigma,xcen,ycen,size):
     ycen = -1*ycen + cen
     #beam = n.exp(-((crds[1]-xcen)**2/(2*sigma**2)))*n.exp(-((crds[0]-ycen)**2/(2*sigma**2))) #beam gridder
     beam = n.zeros((size,size))
-    if round(ycen) > size - 1 or round(xcen) > size - 1: 
+    if n.abs(round(ycen)) > size - 1 or n.abs(round(xcen)) > size - 1: 
         return beam
     else:
         beam[round(ycen),round(xcen)] = 1. #single pixel gridder
@@ -98,7 +104,7 @@ for i in xrange(nants):
         if i == j: continue
         u,v,w = aa.gen_uvw(i,j,src=obs_zen)
         uvbin = '%.1f,%.1f' % (u,v)
-        if True:
+        if False:
             #hack for danny
             if uvbin not in ['-15.0,0.0','15.0,0.0','-15.0,-0.0','15.0,-0.0','15.0,2.0','15.0,-2.0','-15.0,2.0','-15.0,-2.0']: continue
             cnt +=1
@@ -110,11 +116,12 @@ print 'There are %i baseline types' % len(uvbins.keys())
 #print uvbins.keys()
 
 dim = n.round(SIZE/dish_size_in_lambda/2)*2 - 1 # round to nearest odd
+print 'dim', dim
 uvplane = {}
 uvsum,quadsum = n.zeros((dim,dim)), n.zeros((dim,dim))
 for cnt, uvbin in enumerate(uvbins):
     print 'working on %i of %i uvbins' % (cnt+1, len(uvbins))
-    uvplane[uvbin] = n.zeros((dim,dim))
+    uvplane = n.zeros((dim,dim))
     for t in times:
         aa.set_jultime(t)
         lst = aa.sidereal_time()
@@ -127,18 +134,16 @@ for cnt, uvbin in enumerate(uvbins):
         u,v,w = aa.gen_uvw(i,j,src=obs_zen)
         _beam = beamgridder(sigma=sigma/dish_size_in_lambda,xcen=u/dish_size_in_lambda,ycen=v/dish_size_in_lambda,size=dim)
         #print sigma/dish_size_in_lambda, u/dish_size_in_lambda,v/dish_size_in_lambda, dim       
-        uvplane[uvbin] += nbls*_beam
+        uvplane += nbls*_beam
         uvsum += nbls*_beam
-    quadsum += (uvplane[uvbin])**2
+    quadsum += (uvplane)**2
 
 #uv[:,:dim/2] = 0
 #uv[dim/2:,dim/2] = 0
 
 quadsum = quadsum**.5
-uvplane['sum'] = uvsum
-uvplane['quadsum'] = quadsum
 
-n.savez('uvcov.npz',sum=uvplane['sum'],quadsum=uvplane['quadsum'])
+n.savez('uvcov.npz',sum=uvsum,quadsum=quadsum)
 
 print 'there are %i minutes of integration in the uv plane' % n.sum(uvsum)
 

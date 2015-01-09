@@ -19,7 +19,8 @@ for filename in args:
     #read the sav file
     savfile = readsav(filename)
     pol = filename.split('_')[-1][:-4].lower()
-    vis_array = savfile['vis_ptr']
+    try: vis_array = savfile['vis_ptr']
+    except(KeyError): vis_array = savfile['vis_model_ptr']
     obs = savfile['obs']
     times = obs['baseline_info'][0]['JDATE'][0]
     ants1 = obs['baseline_info'][0]['TILE_A'][0]
@@ -53,6 +54,8 @@ for filename in args:
     uvi = a.miriad.UV(mirpath[:-1])
     (uvw,t0,(i,j)), dat = uvi.read()
     del(uvi)
+    #t0 = float(mirname.split('.')[1]+'.'+mirname.split('.')[2])
+    print 'initial time', t0
     aa.set_jultime(t0+5.*60./a.const.s_per_day)
     RA = str(aa.sidereal_time())
     dec= str(aa.lat)
@@ -81,6 +84,7 @@ for filename in args:
         #unphase the data
         aa.set_jultime(time)
         src.compute(aa)
+        print src
         d = n.conj(d) #you need to conjugate all the data and i dont know why
         d = aa.unphs2src(d,src,i,j)
  
