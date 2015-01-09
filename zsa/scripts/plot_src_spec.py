@@ -53,6 +53,7 @@ for src in [calsrc] + cat.values():
     for cnt, filename in enumerate(srcfiles):
         filetype = filename[len(src.src_name):]
         color = colors[filetype]
+        print color
         print 'Reading', filename
         _f = open(filename)
         f = n.load(_f)
@@ -64,8 +65,13 @@ for src in [calsrc] + cat.values():
             valid = n.where(n.logical_and(afreqs > .120, afreqs < 0.170), 1, 0)
             spec = spec.compress(valid)
             afreqs = afreqs.compress(valid)
+        p.loglog(afreqs, spec, label='unmodified spec')
         src.update_jys(afreqs)
+        p.loglog(afreqs, src.jys, label='actual src')
+#        print src.jys
+#        print afreqs
         bp = n.sqrt(spec / src.jys)
+        p.loglog(afreqs, bp, label='bandpass = spec/src.jys')
         bp_poly = n.polyfit(afreqs, bp, deg=opts.deg)
         if not calsrc is None and src.src_name == calsrc.src_name:
             print 'Calibrating to', src.src_name
@@ -86,6 +92,8 @@ for src in [calsrc] + cat.values():
             p.loglog(afreqs, spec, color+'.', label='Measured')
             p.loglog(afreqs, 10**n.polyval(src_poly, n.log10(afreqs/src.mfreq)), color+'-', 
                 label='Fit Power Law')
+            p.legend()
+            p.show()
     if not opts.quiet:
         #p.loglog(afreqs, src.jys, color+':', label='%f, %s' % (src._jys, str(src.index)))
         p.xticks(n.arange(.1,.2,.02), ['100','120','140','160','180'])

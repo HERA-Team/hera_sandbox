@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#!/usr/bin/python
 """
 Prints the logs for a given obsnum or input file
 
@@ -45,65 +45,40 @@ print "Total observations in still:", Nobs
 print "Number complete:",Ncomplete
 print "Number in progress:",Nprogress
 print "broken down by night [most recent activity]"
+pending = 0
 for night in nights:
     Night_complete = s.query(Observation).filter(Observation.julian_date.like(str(night)+'%'),Observation.status=='COMPLETE').count()
     Night_total = s.query(Observation).filter(Observation.julian_date.like(str(night)+'%')).count()
     OBSs = s.query(Observation).filter(Observation.julian_date.like(str(night)+'%')).all()
     obsnums = [OBS.obsnum for OBS in OBSs]
+    if s.query(Log).filter(Log.obsnum.in_(obsnums)).count()<1 and opts.v:
+        print night,':','completeness',0,'/',Night_total,'[Pending]'
+    if s.query(Log).filter(Log.obsnum.in_(obsnums)).count()<1:
+        pending +=Night_total
+        continue
     LOG = s.query(Log).filter(Log.obsnum.in_(obsnums)).order_by(Log.timestamp.desc()).limit(1).one()
-    print night,':','completeness',Night_complete,'/',Night_total,LOG.timestamp
+    if LOG.timestamp>(datetime.utcnow()-timedelta(5.0)) or opts.v:
+        print night,':','completeness',Night_complete,'/',Night_total,LOG.timestamp
 #find all obses that have failed in the last 12 hours
+print "observations pending:",pending
 FAIL_LOGs = s.query(Log).filter(Log.exit_status>0,Log.timestamp>(datetime.utcnow()-timedelta(0.5))).all()
 logger.debug("found %d FAILURES"%len(FAIL_LOGs))
 #break it down by stillhost
 fail_obsnums = [LOG.obsnum for LOG in FAIL_LOGs]
-FAIL_OBSs = s.query(Observation).filter(Observation.obsnum.in_(fail_obsnums)).all()
-fail_stills = list(set([OBS.stillhost for OBS in FAIL_OBSs]))#list of stills with fails
 print "fails in the last 12 hours"
-for fail_still in fail_stills:
-    #get failed obsnums broken down by still
-    fail_count = s.query(Observation).filter(Observation.obsnum.in_(fail_obsnums),Observation.stillhost==fail_still).count()
-    print fail_still,':',fail_count
-sys.exit()
-obsnums = [OBS.obsnum for OBS in OBSs]
-still_times ={}
-for i,OBS in enumerate(OBSs):
-    obsnum = OBS.obsnum
-    if OBS.stillhost is None:continue
-    print '\t'.join(map(str,[obsnum,OBS.stillhost,dbi.get_input_file(obsnum)[2],OBS.status])),
-    LOGs = s.query(Log).filter(Log.obsnum==obsnum).order_by(Log.timestamp.desc()).all()
-    if len(LOGs)==0:print 'NO LOGS';continue
-    stoptime=LOGs[0].timestamp
-    computation_start=0
-    if opts.v:
-        for LOG in LOGs[1:]:
-            if LOG.stage=='UV_POT' or LOG.stage=='NEW':break
-            print LOG.stage+"="+str(n.round((stoptime - LOG.timestamp).total_seconds()/3600,1)),
-            if LOG.exit_status != 0: print '!',
-            print '({stat},{pid})'.format(stat=LOG.exit_status,pid=OBS.currentpid),
-            stoptime = LOG.timestamp
-        print
-
-    else:
-        for LOG in LOGs:
-            logger.debug(LOG.stage+':'+str(LOG.timestamp))
-            if LOG.stage=='NEW':starttime=LOG.timestamp;break
-            if LOG.stage=='UV_POT': starttime=LOG.timestamp;break
-            if LOG.stage=='UV': computation_start = LOG.timestamp
-        print LOG.timestamp,
-        try:print stoptime-starttime,
-        except(NameError):print 'NA',
-        try:
-            print stoptime-computation_start
-            if OBS.status == 'COMPLETE':
-                try :still_times[OBS.stillhost] += [stoptime-computation_start]
-                except(KeyError): still_times[OBS.stillhost] = [stoptime-computation_start]
-        except(NameError):print 'NA'
-print "run time summary"
-print "by hosti:minutes (min,mean,max)"
-for key in still_times:
-    ts = [t.total_seconds() for t in still_times[key]]
-    print key,':',n.round(n.min(ts)/60),n.round(n.mean(ts)/60),n.round(n.max(ts)/60)
-
-
+if len(fail_obsnums)<1: print 'None'
+else:
+    FAIL_OBSs = s.query(Observation).filter(Observation.obsnum.in_(fail_obsnums)).all()
+    fail_stills = list(set([OBS.stillhost for OBS in FAIL_OBSs]))#list of stills with fails
+    for fail_still in fail_stills:
+        #get failed obsnums broken down by still
+        fail_count = s.query(Observation).filter(Observation.obsnum.in_(fail_obsnums),Observation.stillhost==fail_still).count()
+        print fail_still,':',fail_count
+    print "most recent fails"
+    for FAIL_OBS in FAIL_OBSs:
+        print FAIL_OBS.obsnum,FAIL_OBS.status,FAIL_OBS.stillhost
+print "Number of observations completed in the last 24 hours",
+good_obscount = s.query(Log).filter(Log.exit_status==0,Log.timestamp>(datetime.utcnow()-timedelta(1.0)),Log.stage=='CLEAN_UVCRE').count()
+print good_obscount
 s.close()
+sys.exit()

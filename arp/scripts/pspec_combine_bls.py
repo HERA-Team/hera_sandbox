@@ -8,15 +8,17 @@ import capo as C
 import optparse, sys, os
 
 o = optparse.OptionParser()
-a.scripting.add_standard_options(o, ant=True, pol=True)
+a.scripting.add_standard_options(o, ant=True, pol=True, cal=True)
 opts,args = o.parse_args(sys.argv[1:])
 
 # XXX Currently hardcoded for PSA898
-A_ = [0,16,8,24,4,20,12,28]
-B_ = [i+1 for i in A_]
-C_ = [i+2 for i in A_]
-D_ = [i+3 for i in A_]
-ANTPOS = n.array([A_, B_, C_, D_])
+#A_ = [0,16,8,24,4,20,12,28]
+#B_ = [i+1 for i in A_]
+#C_ = [i+2 for i in A_]
+#D_ = [i+3 for i in A_]
+#ANTPOS = n.array([A_, B_, C_, D_])
+aa = a.cal.get_aa(opts.cal, n.array([.150]))
+ANTPOS = aa.ant_layout
 
 bl2bin = {}
 for i in range(ANTPOS.max()+1):

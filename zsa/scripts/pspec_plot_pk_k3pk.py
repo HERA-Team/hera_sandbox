@@ -3,6 +3,25 @@ import aipy as a, numpy as n, pylab as p
 import capo as C
 import sys, optparse, re, os
 
+o=optparse.OptionParser()
+o.add_option('--flux', action='store_true', 
+                help='Scale data due to flux calibration errors from pictor. Scales by factor in f option.')
+o.add_option('-f', dest='flux_factor', action='store', type='float', default=.736,
+            help='scaling factor for flux')
+o.add_option('--beam', action='store_true',
+                help='scale data by beam square instead of beam')
+o.add_option('--afrf', action='store_true',
+                help='scale data by factor from aggresive fringe rate filtering.')
+o.add_option('-a', dest='afrf_factor', action='store', type='float', default=1.9,
+            help='scaling factor for aggressive fring rate filtering.')
+o.add_option('--cov', action='store_true',
+            help='scale factor for signal loss in covariance removal')
+o.add_option('--show', action='store_true',
+            help='Show the plot')
+opts,args = o.parse_args(sys.argv[1:])
+print args
+
+
 ONLY_POS_K = True
 
 def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.164, color='', bins=None):
@@ -82,6 +101,9 @@ def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.164, color=
     for _k,_k3pk,_k3err in zip(k[k0:],k3[k0:]*pkfold,k3[k0:]*errfold):
         print '%6.3f, %9.5f (%9.5f +/- %9.5f)' % (_k, _k3pk+_k3err,_k3pk,_k3err)
     print '-'*20
+    print "saving pspec_pk_k3pk.npz"
+    print "output @ freq = ",f0
+    n.savez('pspec_pk_k3pk.npz',kpl=kpl,pk=pk,err=err,k=k[k0:], k3pk=k3[k0:]*pkfold, k3err=k3[k0:]*errfold,freq=f0)
     #pos = n.where(kpl >= 0, 1, 0)
     #neg = n.where(kpl <= 0, 1, 0)
     #posneg = 0.5*(k3pk.compress(pos) + k3pk.compress(neg)[::-1])
@@ -100,15 +122,15 @@ def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.164, color=
 #o = optparse.OptionParser()
 #opts,args = o.parse_args(sys.argv[1:])
 #args = ['data/pspec_t1_c110-149.npz']
-args = sys.argv[1:]
+#args = sys.argv[1:]
 
 FG_VS_KPL_NOS = 168.74e6
 FG_VS_KPL = { # K^2
-    '-0.054':   5.37262e+13,
-    '-0.027':   7.15304e+14, 
+#    '-0.054':   5.37262e+13,
+#    '-0.027':   7.15304e+14, 
     ' 0.000':   3.50958e+15, 
-    ' 0.027':   4.12396e+14, 
-    ' 0.054':   2.60795e+13,
+#    ' 0.027':   4.12396e+14, 
+#    ' 0.054':   2.60795e+13,
     #-0.0536455587089:   5.37262e+13,
     #-0.0268227793545:   7.15304e+14, 
     #0.0:                3.50958e+15, 
@@ -147,6 +169,7 @@ for filename in args:
             RS_VS_KPL_FOLD[filename][_kpl] = (_pk, _err)
             dsum_fold[_kpl] = dsum_fold.get(_kpl, 0) + _pk / _err**2
             dwgt_fold[_kpl] = dwgt_fold.get(_kpl, 0) + 1 / _err**2
+freq = f['freq']
 #RS_VS_KPL = {}
 if True:
     RS_VS_KPL['total'] = {}
@@ -207,41 +230,43 @@ for sep in RS_VS_KPL:
         
     d,kpl,nos = n.array(d, dtype=n.complex), n.array(kpl), n.array(nos)
     d_fold,kpl_fold,nos_fold = n.array(d_fold, dtype=n.complex), n.array(kpl_fold), n.array(nos_fold)
-    if True:
+    #if True:
+    if opts.flux:
         # PSA32 was calibrated to Pictor A @ 160 MHz = 424 Jy
         # To recalibrate to new Pic A, must multiply by square of ratio of fluxes
         # Jacobs et al 2013 says Pic A = 382 @ 150 MHz, index=-0.76, so at 160 MHz, Pic A = 364 Jy
         #f = 0.76 # psa747 calibration of Pic A = 370.6 Jy @ 160 MHz (which includes resolution effects)
         #f = 0.736 # rescale by (364/424)**2 to correct flux scale
-        #for psa64
-        f = 1 # rescale by (364/424)**2 to correct flux scale
+        f = opts.flux_factor
         print 'Scaling data and noise by %f for recalibration to PicA from Jacobs et al. 2013 (PSA32 only)' % f
         d *= f
         nos *= f
         d_fold *= f
         nos_fold *= f
-    if True:
+    if opts.beam:
         f = 2.35 # Use power**2 beam, which is a 1.69/0.72=2.35 penalty factor
         print 'Scaling data and noise by %f for correcting cosmo scalar to use power^2 beam' % f
         d *= f
         nos *= f
         d_fold *= f
         nos_fold *= f
-    if False: # For aggressive fringe-rate filtering, change beam area
+    #if True: # For aggressive fringe-rate filtering, change beam area
+    if opts.afrf: # For aggressive fringe-rate filtering, change beam area
+        f = opts.afrf_factor
         f = 1.90 # ratio of power**2 beams for filtered * unfiltered beams: 0.306 / 0.162
         print 'Scaling data and noise by %f for beam constriction in aggressive fringe-rate filtering' % f
         d *= f
         nos *= f
         d_fold *= f
         nos_fold *= f
-    if 0: # if lstbin cut out outlying data, need to renormalize noise
-        #THERE IS NO PENALTY FACTOR FOR THIS.
+    if False: # Used to think that if lstbin cut out outlying data, need to renormalize noise but now have shown that bootstrapping still accurately recovers the variation from noise
         #f = 1.305 # for lst_v003_I
         f = 1.586 # for lst_v00[256]_I
         print 'Scaling noise by %f for noise attenuation from rejecting outliers in LST binning' % f
         nos *= f
         nos_fold *= f
-    if True: # extra penalty for signal loss in covariance diagonalization
+    #if True: # extra penalty for signal loss in covariance diagonalization
+    if opts.cov: # extra penalty for signal loss in covariance diagonalization
         f = 1.5
         print 'Scaling data and noise by %f for signal loss in covariance diagonalization' % f
         d *= f
@@ -257,7 +282,7 @@ for sep in RS_VS_KPL:
         nos = n.std(n.concatenate([d[:8], d[-8:]])) * n.ones_like(d)
     '''
     if d_fold.size == 0: d_fold,nos_fold = None, None
-    dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS) # 2-sigma error bars
+    dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS,f0=freq) # 2-sigma error bars
     #dual_plot(kpl, d, nos, color=colors[0], bins=BINS) # 2-sigma error bars
     colors = colors[1:] + colors[0]
 
@@ -296,4 +321,54 @@ p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$')
 p.ylim(1e0,1e9)
 p.xlim(0, 0.6)
 p.grid()
-p.show()
+p.savefig('pspec.png')
+
+#p.figure(2)
+#dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS,f0=freq) # 2-sigma error bars
+#p.subplot(121)
+#p.xlabel(r'$k_\parallel\ [h\ {\rm Mpc}^{-1}]$')
+#p.ylabel(r'$P(k)\ [{\rm mK}^2\ (h^{-1}\ {\rm Mpc})^3]$')
+#p.ylim(-1e2,1e5)
+#p.grid()
+#p.subplot(122)
+#p.xlabel(r'$k\ [h\ {\rm Mpc}^{-1}]$')
+#p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$')
+#p.ylim(-1e3,1e3)
+#p.xlim(0, 0.6)
+#p.grid()
+
+f = n.load(args[0])
+def posterior(kpl, pk, err, pkfold=None):
+    k0 = n.abs(kpl).argmin()
+    kpl = kpl[k0:]
+    if pkfold is None:
+        print 'Folding for posterior'
+        pkfold = pk[k0:].copy()
+        errfold = err[k0:].copy()
+        pkpos,errpos = pk[k0+1:].copy(), err[k0+1:].copy()
+        pkneg,errneg = pk[k0-1:0:-1].copy(), err[k0-1:0:-1].copy()
+        pkfold[1:] = (pkpos/errpos**2 + pkneg/errneg**2) / (1./errpos**2 + 1./errneg**2)
+        errfold[1:] = n.sqrt(1./(1./errpos**2 + 1./errneg**2))
+
+    ind = n.logical_and(kpl>.2, kpl<.5)
+    #print kpl,pk.real,err
+    kpl = kpl[ind]
+    pk= kpl**3 * pkfold[ind]/(2*n.pi**2)
+    err = kpl**3 * errfold[ind]/(2*n.pi**2)
+    s = n.logspace(1,3.5,100)
+    data = []
+    for ss in s:
+        data.append(n.exp(-.5*n.sum((pk.real - ss)**2 / err**2)))
+    #    print data[-1]
+    data = n.array(data)
+    #print data
+    #print s
+    data/=n.sum(data)
+    p.figure(5)
+    p.plot(s, data)
+    p.show()
+posterior(f['kpl'], f['pk'], f['err'])
+
+
+if opts.show:
+    p.show()
