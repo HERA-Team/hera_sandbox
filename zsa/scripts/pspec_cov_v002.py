@@ -12,6 +12,11 @@ o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 o.add_option('--sep', default='sep0,1', action='store',
     help='Which separation type?')
+o.add_option('--loss', action='store', 
+    help='In signal loss mode to measure the signal loss. Uses default data in my path. Give it the path to the simulated signal data. Assumes ends in ')
+o.add_option('--level', type='float', default=-1.0,
+    help='Scalar to multiply the default signal level for simulation runs.')
+
 opts,args = o.parse_args(sys.argv[1:])
 
 random.seed(0)
@@ -19,10 +24,18 @@ POL = 'I'
 LST_STATS = False
 DELAY = False
 NGPS = 5
-INJECT_SIG = .01
+INJECT_SIG = 0.
 SAMPLE_WITH_REPLACEMENT = True
 NOISE = .0
 PLOT = opts.plot
+
+if opts.loss:
+    if opts.level >= 0.0:
+        INJECT_SIG = opts.level
+        print 'Running in signal loss mode, with an injection signal of %s*default level'%(opts.level)
+    else:
+        print 'Exiting. If in signal loss mode, need a signal level to input.'
+        exit()
 
 def get_data(filenames, antstr, polstr, verbose=False):
     # XXX could have this only pull channels of interest to save memory
@@ -74,11 +87,29 @@ def get_Q(mode, n_k):
 
 SEP = opts.sep
 dsets = {
+#
 #    'only': glob.glob('sep0,1/*242.[3456]*uvL'),
-    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even/'+SEP+'/*242.[3456]*uvAL'),
-    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd/'+SEP+'/*243.[3456]*uvAL'),
+#    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even/'+SEP+'/*242.[3456]*uvAL'),
+#    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd/'+SEP+'/*243.[3456]*uvAL'),
+#    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even_nomni/'+SEP+'/*242.[3456]*uvAL'),
+#    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd_nomni/'+SEP+'/*243.[3456]*uvAL'),
+#    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even/'+SEP+'/*242.[3456]*uvAF'),
+#    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd/'+SEP+'/*243.[3456]*uvAF'),
+#    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even/'+SEP+'/*242.[3456]*uvALG'),
+#    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd/'+SEP+'/*243.[3456]*uvALG'),
+    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/data/even/*242.[3456]*uvALG'),
+    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/data/odd/*243.[3456]*uvALG'),
+#    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/signal/even/*242.[3456]*uv_perf'),
+#    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/signal/odd/*243.[3456]*uv_perf'),
+#    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even/'+SEP+'/*242.[3456]*uvALG_signalL'),
+#    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd/'+SEP+'/*243.[3456]*uvALG_signalL'),
 }
 #for i in xrange(10): dsets[i] = glob.glob('lstbinX%d/%s/lst.24562[45]*.[3456]*.uvAL'%(i,SEP))
+if opts.loss:
+    dsets = {
+    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/data/even/*242.[3456]*uvALG'),
+    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/data/odd/*243.[3456]*uvALG'),
+}
 
 WINDOW = opts.window
 uv = a.miriad.UV(dsets.values()[0][0])
@@ -131,6 +162,7 @@ lsts,data,flgs = {},{},{}
 days = dsets.keys()
 for k in days:
     lsts[k],data[k],flgs[k] = get_data(dsets[k], antstr=antstr, polstr=POL, verbose=True)
+    print data[k].keys()
 
 if LST_STATS:
     # collect some metadata from the lst binning process
@@ -147,28 +179,38 @@ if LST_STATS:
     var = n.array(var.values()[0]) # all baselines should be the same
 else: cnt,var = n.ones_like(lsts.values()[0]), n.ones_like(lsts.values()[0])
 
-
-# Align data sets in LST
-lstmax = max([lsts[k][0] for k in days])
-for k in days:
-    print k
-    for i in xrange(len(lsts[k])):
-        # allow for small numerical differences (which shouldn't exist!)
-        if lsts[k][i] >= lstmax - .001: break
-    lsts[k] = lsts[k][i:]
-    for bl in data[k]:
-        data[k][bl],flgs[k][bl] = data[k][bl][i:],flgs[k][bl][i:]
-j = min([len(lsts[k]) for k in days])
-for k in days:
-    lsts[k] = lsts[k][:j]
-    for bl in data[k]:
-        data[k][bl],flgs[k][bl] = n.array(data[k][bl][:j]),n.array(flgs[k][bl][:j])
+if True:
+#if False:
+    # Align data sets in LST
+    print [lsts[k][0] for k in days]
+    lstmax = max([lsts[k][0] for k in days])
+    for k in days:
+        print k
+        for i in xrange(len(lsts[k])):
+            # allow for small numerical differences (which shouldn't exist!)
+            if lsts[k][i] >= lstmax - .001: break
+        lsts[k] = lsts[k][i:]
+        for bl in data[k]:
+            data[k][bl],flgs[k][bl] = data[k][bl][i:],flgs[k][bl][i:]
+    print [len(lsts[k]) for k in days]
+    j = min([len(lsts[k]) for k in days])
+    for k in days:
+        lsts[k] = lsts[k][:j]
+        for bl in data[k]:
+            data[k][bl],flgs[k][bl] = n.array(data[k][bl][:j]),n.array(flgs[k][bl][:j])
+else:
+    for k in days:
+        for bl in data[k]:
+            data[k][bl], flgs[k][bl] = n.array(data[k][bl][:]), n.array(flgs[k][bl][:])
 lsts = lsts.values()[0]
 
 x = {}
+print len(data[k][bl])
+print type(chans)
 for k in days:
     x[k] = {}
     for bl in data[k]:
+        print k, bl
         d = data[k][bl][:,chans] * jy2T
         if conj[bl]: d = n.conj(d)
         x[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
@@ -181,8 +223,10 @@ if INJECT_SIG > 0.: # Create a fake EoR signal to inject
     print 'INJECTING SIMULATED SIGNAL'
     eor_sets = {
     #    'only': glob.glob('sep0,1/*242.[3456]*uvL'),
-        'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even/'+SEP+'/*242.[3456]*uvAL_signalL'),
-        'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd/'+SEP+'/*243.[3456]*uvAL_signalL'),
+#        'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even/'+SEP+'/*242.[3456]*uvALG_signalL'),
+#        'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd/'+SEP+'/*243.[3456]*uvALG_signalL'),
+        'even': glob.glob(opts.loss+'/even/*242.[3456]*uvALG_signalL'),
+        'odd' : glob.glob(opts.loss+'/odd/*243.[3456]*uvALG_signalL'),
     }
     eorlsts,eordata,eorflgs = {},{},{}
     for k in days:
