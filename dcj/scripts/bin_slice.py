@@ -75,18 +75,30 @@ lst_model = n.repeat(lst_model,gridded_data.shape[1],axis=1)
 #### PLOT THE GRID
 subplot(131)
 imshow(n.abs(gridded_data),aspect='auto',vmax=0.05,interpolation='nearest',extent=(0,jds.max()-jds.min(),lst_grid.max()*r2h,lst_grid.min()*r2h))
-colorbar()
 text(0.92,-0.07,"+%i"%jds.min(),fontsize=10,transform=gca().transAxes)
 #hist(n.abs(gridded_data.ravel()),bins=100)
-subplot(132)
-imshow(counts,aspect='auto',cmap='Greys',interpolation='nearest',extent=(0,jds.max()-jds.min(),lst_grid.max()*r2h,lst_grid.min()*r2h))
+ax2 = subplot(132)
+imshow(gridded_data.real,aspect='auto',vmax=0.05,interpolation='nearest',extent=(0,jds.max()-jds.min(),lst_grid.max()*r2h,lst_grid.min()*r2h))
 text(0.92,-0.07,"+%i"%jds.min(),fontsize=10,transform=gca().transAxes)
-colorbar()
+ax2.set_yticklabels([])
 subplot(133)
-imshow(n.abs(gridded_data-lst_model)/n.abs(gridded_data),aspect='auto',interpolation='nearest',
-    extent=(0,jds.max()-jds.min(),lst_grid.max()*r2h,lst_grid.min()*r2h),vmax=0.5)
+imshow(n.abs(gridded_data-lst_model),aspect='auto',interpolation='nearest',
+    extent=(0,jds.max()-jds.min(),lst_grid.max()*r2h,lst_grid.min()*r2h),vmax=0.05)
 colorbar()
+subplots_adjust(hspace=0)
 
+### PLOT a lst slice.
+mylst = 4.36/r2h #hours of lst
+mylst_i = n.abs(lst_grid-mylst).argmin()
+print mylst_i
+figure()
+for i in range(mylst_i-3,mylst_i+3):
+    #lstname = hms(lst_grid[i])
+    lstname = str(n.round(lst_grid[i]*r2h,2))
+    plot(jd_grid-jd_grid.min(),n.abs(gridded_data-lst_model)[i,:],label=lstname)
+legend()
+text(0.92,-0.07,"+%i"%jd_grid.min(),fontsize=10,transform=gca().transAxes)
+title('lst slices')
 #lets look at the day to day correlation
 # I want to see a matrix of day_n x day_n, averaged over lst...
 def cov(m):
@@ -107,15 +119,23 @@ def cov2(m1,m2):
     N = X1.shape[1]
     fact = float(N - 1)
     return (n.dot(X1, X2.T.conj()) / fact).squeeze()
-
+def corrcoef(x):
+    C = cov(x)
+    return C/n.sqrt(n.outer(n.diag(C),n.diag(C)))
+### PLot COVARIANCES
 C = cov(gridded_data.T)
 print gridded_data.shape,C.shape
 figure()
-subplot(121)
+subplot(131)
 imshow(n.abs(C),interpolation='nearest')
 res_C = cov(gridded_data-lst_model)
-subplot(122)
+subplot(132)
 imshow(n.abs(res_C),interpolation='nearest')
+subplot(133)
+corr = corrcoef(gridded_data.T)
+imshow(n.abs(corr),interpolation='nearest')
+
+### plot/fit a historgram to the residuals
 figure()
 d = (gridded_data-lst_model).ravel().real
 d = d[d!=0]
@@ -130,10 +150,13 @@ print H.max(),H[n.abs(X)<1e-3]
 fit = lambda x: MAX*n.exp(-(x-MEAN)**2/(2*WIDTH**2))
 fitnarrow = lambda x: MAX*n.exp(-(x-MEAN)**2/(2*WHM**2))
 #hist(d[d!=0],bins=100,histtype='step')
-semilogy(X,H)
-plot(X,fit(X))
+plot(X,H,label='res')
+plot(X,fit(X),label='fit')
+legend()
 #plot(X,fitnarrow(X))
 ylim([H[H>0].min(),H.max()])
+
+
 
 #### PLOT AN ANIMATION
 #make a Zheng-like thingy
