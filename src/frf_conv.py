@@ -98,7 +98,8 @@ def get_oldfilter(aa, (bli,blj), inttime, nints, freqs):
            fr_bins, windowed_bwfrs
      
 def mk_fng(bl, ex, ey, ez):
-    return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
+    # negative to match conjugation convention of AIPY
+    return -2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
 
 def get_optimal_kernel_at_ref(aa, ch, (bli, blj), binwidth=.00005):
     '''
