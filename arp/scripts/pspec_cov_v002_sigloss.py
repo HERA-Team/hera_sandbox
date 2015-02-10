@@ -6,17 +6,12 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
 o.add_option('-b', '--nboot', type='int', default=20,
     help='Number of bootstraps.  Default is 20')
+o.add_option('-i', '--inject_sig', type='float', default=1.,
+    help='Inject signal amplitude.  Default is 1.')
 o.add_option('--plot', action='store_true',
     help='Generate plots')
 o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
-o.add_option('--sep', default='sep0,1', action='store',
-    help='Which separation type?')
-o.add_option('--loss', action='store', 
-    help='In signal loss mode to measure the signal loss. Uses default data in my path. Give it the path to the simulated signal data. Assumes ends in ')
-o.add_option('--level', type='float', default=-1.0,
-    help='Scalar to multiply the default signal level for simulation runs.')
-
 opts,args = o.parse_args(sys.argv[1:])
 
 random.seed(0)
@@ -24,18 +19,12 @@ POL = 'I'
 LST_STATS = False
 DELAY = False
 NGPS = 5
-INJECT_SIG = 0.
-SAMPLE_WITH_REPLACEMENT = True
+#NGPS = 1
+#INJECT_SIG = False
+INJECT_SIG = opts.inject_sig
+FRF_WIDTH = 401
 NOISE = .0
 PLOT = opts.plot
-
-if opts.loss:
-    if opts.level >= 0.0:
-        INJECT_SIG = opts.level
-        print 'Running in signal loss mode, with an injection signal of %s*default level'%(opts.level)
-    else:
-        print 'Exiting. If in signal loss mode, need a signal level to input.'
-        exit()
 
 def get_data(filenames, antstr, polstr, verbose=False):
     # XXX could have this only pull channels of interest to save memory
@@ -70,7 +59,8 @@ def cov(m):
     return (n.dot(X, X.T.conj()) / fact).squeeze()
 
 def noise(size):
-    return n.random.normal(size=size) * n.exp(1j*n.random.uniform(0,2*n.pi,size=size))
+    sig = 1./n.sqrt(2)
+    return n.random.normal(scale=sig, size=size) + 1j*n.random.normal(scale=sig, size=size)
 
 def get_Q(mode, n_k):
     if not DELAY:
@@ -85,37 +75,24 @@ def get_Q(mode, n_k):
         Q[mode,mode] = 1
         return Q
 
-SEP = opts.sep
+SEP = 'sep0,1'
+#SEP = 'sep1,1'
+#SEP = 'sep-1,1'
 dsets = {
-#
-#    'only': glob.glob('sep0,1/*242.[3456]*uvL'),
-#    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even/'+SEP+'/*242.[3456]*uvAL'),
-#    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd/'+SEP+'/*243.[3456]*uvAL'),
-#    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even_nomni/'+SEP+'/*242.[3456]*uvAL'),
-#    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd_nomni/'+SEP+'/*243.[3456]*uvAL'),
-#    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even/'+SEP+'/*242.[3456]*uvAF'),
-#    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd/'+SEP+'/*243.[3456]*uvAF'),
-#    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even/'+SEP+'/*242.[3456]*uvALG'),
-#    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd/'+SEP+'/*243.[3456]*uvALG'),
-    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/data/even/*242.[3456]*uvALG'),
-    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/data/odd/*243.[3456]*uvALG'),
-#    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/signal/even/*242.[3456]*uv_perf'),
-#    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/signal/odd/*243.[3456]*uv_perf'),
-#    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even/'+SEP+'/*242.[3456]*uvALG_signalL'),
-#    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd/'+SEP+'/*243.[3456]*uvALG_signalL'),
+    #'only': glob.glob('sep0,1/*242.[3456]*uvL'),
+    'even': glob.glob('even/'+SEP+'/*242.[3456]*uvAL'),
+    'odd' : glob.glob('odd/'+SEP+'/*243.[3456]*uvAL'),
+    #'eor': glob.glob('even/'+SEP+'/*242.[3456]*signalL'),
+    #'fg' : glob.glob('*242.[3456]*uvA'),
 }
 #for i in xrange(10): dsets[i] = glob.glob('lstbinX%d/%s/lst.24562[45]*.[3456]*.uvAL'%(i,SEP))
-if opts.loss:
-    dsets = {
-    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/data/even/*242.[3456]*uvALG'),
-    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/data/odd/*243.[3456]*uvALG'),
-}
 
 WINDOW = opts.window
 uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
+inttime = uv['inttime'] * 4 # XXX hack for *E files that have inttime set incorrectly
 del(uv)
 
 afreqs = freqs.take(chans)
@@ -123,7 +100,8 @@ nchan = chans.size
 fq = n.average(afreqs)
 z = capo.pspec.f2z(fq)
 
-aa = a.cal.get_aa(opts.cal, n.array([.150]))
+#aa = a.cal.get_aa(opts.cal, n.array([.150]))
+aa = a.cal.get_aa(opts.cal, freqs)
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
 jy2T = capo.pspec.jy2T(afreqs)
 window = a.dsp.gen_window(nchan, WINDOW)
@@ -162,162 +140,118 @@ lsts,data,flgs = {},{},{}
 days = dsets.keys()
 for k in days:
     lsts[k],data[k],flgs[k] = get_data(dsets[k], antstr=antstr, polstr=POL, verbose=True)
-    print data[k].keys()
 
 if LST_STATS:
     # collect some metadata from the lst binning process
     cnt, var = {}, {}
-    for filename in dsets.values[0]:
+    times = []
+    for filename in dsets.values()[0]:
         print 'Reading', filename
         uv = a.miriad.UV(filename)
         a.scripting.uv_selector(uv, '41_49', POL)
         for (uvw,t,(i,j)),d,f in uv.all(raw=True):
+            if len(times) == 0 or times[-1] != uv['lst']: times.append(uv['lst'])
             bl = '%d,%d,%d' % (i,j,uv['pol'])
             cnt[bl] = cnt.get(bl, []) + [uv['cnt']]
             var[bl] = var.get(bl, []) + [uv['var']]
     cnt = n.array(cnt.values()[0]) # all baselines should be the same
     var = n.array(var.values()[0]) # all baselines should be the same
+    times = n.array(times)
 else: cnt,var = n.ones_like(lsts.values()[0]), n.ones_like(lsts.values()[0])
 
-if True:
-#if False:
-    # Align data sets in LST
-    print [lsts[k][0] for k in days]
-    lstmax = max([lsts[k][0] for k in days])
-    for k in days:
-        print k
-        for i in xrange(len(lsts[k])):
-            # allow for small numerical differences (which shouldn't exist!)
-            if lsts[k][i] >= lstmax - .001: break
-        lsts[k] = lsts[k][i:]
-        for bl in data[k]:
-            data[k][bl],flgs[k][bl] = data[k][bl][i:],flgs[k][bl][i:]
-    print [len(lsts[k]) for k in days]
-    j = min([len(lsts[k]) for k in days])
-    for k in days:
-        lsts[k] = lsts[k][:j]
-        for bl in data[k]:
-            data[k][bl],flgs[k][bl] = n.array(data[k][bl][:j]),n.array(flgs[k][bl][:j])
-else:
-    for k in days:
-        for bl in data[k]:
-            data[k][bl], flgs[k][bl] = n.array(data[k][bl][:]), n.array(flgs[k][bl][:])
-lsts = lsts.values()[0]
 
-x = {}
-print len(data[k][bl])
-print type(chans)
+# Align data sets in LST
+lstmax = max([lsts[k][0] for k in days])
 for k in days:
-    x[k] = {}
+    print k
+    for i in xrange(len(lsts[k])):
+        # allow for small numerical differences (which shouldn't exist!)
+        if lsts[k][i] >= lstmax - .001: break
+    lsts[k] = lsts[k][i:]
     for bl in data[k]:
-        print k, bl
-        d = data[k][bl][:,chans] * jy2T
-        if conj[bl]: d = n.conj(d)
-        x[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
-        
-bls_master = x.values()[0].keys()
-nbls = len(bls_master)
-print 'Baselines:', nbls
-
-if INJECT_SIG > 0.: # Create a fake EoR signal to inject
-    print 'INJECTING SIMULATED SIGNAL'
-    eor_sets = {
-    #    'only': glob.glob('sep0,1/*242.[3456]*uvL'),
-#        'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even/'+SEP+'/*242.[3456]*uvALG_signalL'),
-#        'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd/'+SEP+'/*243.[3456]*uvALG_signalL'),
-        'even': glob.glob(opts.loss+'/even/*242.[3456]*uvALG_signalL'),
-        'odd' : glob.glob(opts.loss+'/odd/*243.[3456]*uvALG_signalL'),
-    }
-    eorlsts,eordata,eorflgs = {},{},{}
-    for k in days:
-        eorlsts[k],eordata[k],eorflgs[k] = get_data(eor_sets[k], antstr=antstr, polstr=POL, verbose=True)
-        #cut with same lst cut.
-        for bl in eordata[k]:
-            eordata[k][bl], eorflgs[k][bl] = n.array(eordata[k][bl][:j]), n.array(eorflgs[k][bl][:j])
-    eor = {}
-    for k in days:
-        eor[k] = {}
-        for bl in eordata[k]:
-            ed = eordata[k][bl][:,chans] * jy2T * INJECT_SIG
-            if conj[bl]: ed = n.conj(ed)
-            eor[k][bl] = n.transpose(ed, [1,0]) 
-
-    for k in days:
-        for bl in x[k]:
-#            p.figure(1)
-#            p.plot(x[k][bl])
-#            p.figure(2)
-#            p.plot(eor[k][bl])
-#            p.show()
-            x[k][bl] += eor[k][bl] 
-    
-    if PLOT:
-        capo.arp.waterfall(x[k][bl], mode='real'); p.colorbar(); p.show()
-       
-    
-    
-    
-    
-#    eor = noise(x.values()[bls_master[0]].shape) * INJECT_SIG
-#    fringe_filter = n.ones((44,))
-#    # Maintain amplitude of original noise
-#    fringe_filter /= n.sqrt(n.sum(fringe_filter))
-#    for ch in xrange(eor.shape[0]):
-#        eor[ch] = n.convolve(eor[ch], fringe_filter, mode='same')
-#    _eor = n.fft.ifft(eor, axis=0)
-#    #wgt = n.exp(-n.fft.ifftshift(kpl)**2/(2*.3**2))
-#    wgt = n.zeros(_eor.shape[0]); wgt[0] = 1
-#    wgt.shape = wgt.shape + (1,)
-#    #_eor *= wgt
-#    #_eor = n.fft.ifft(eor, axis=0); _eor[4:-3] = 0
-#    #eor = n.fft.fft(_eor, axis=0)
-#    eor *= wgt
-
-#Q = {} # Create the Q's that extract power spectrum modes
-#for i in xrange(nchan):
-#    Q[i] = get_Q(i, nchan)
-Q = [get_Q(i,nchan) for i in xrange(nchan)]
-
-# Compute baseline auto-covariances and apply inverse to data
-I,_I,_Ix = {},{},{}
-C,_C,_Cx = {},{},{}
+        data[k][bl],flgs[k][bl] = data[k][bl][i:],flgs[k][bl][i:]
+j = min([len(lsts[k]) for k in days])
 for k in days:
-    I[k],_I[k],_Ix[k] = {},{},{}
-    C[k],_C[k],_Cx[k] = {},{},{}
-    for bl in x[k]:
-        C[k][bl] = cov(x[k][bl])
-        I[k][bl] = n.identity(C[k][bl].shape[0])
-        U,S,V = n.linalg.svd(C[k][bl].conj())
-        _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
-        _I[k][bl] = n.identity(_C[k][bl].shape[0])
-        _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
-        _Ix[k][bl] = x[k][bl].copy()
-        if PLOT and False:
-            #p.plot(S); p.show()
-            p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
-            p.subplot(323); capo.arp.waterfall(C[k][bl])
-            p.subplot(324); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
-            p.subplot(313); capo.arp.waterfall(_Cx[k][bl], mode='real')
-            p.show()
-        
-
+    lsts[k] = lsts[k][:j]
+    for bl in data[k]:
+        data[k][bl],flgs[k][bl] = n.array(data[k][bl][:j]),n.array(flgs[k][bl][:j])
+lsts = lsts.values()[0]
 
 for boot in xrange(opts.nboot):
     print '%d / %d' % (boot+1,opts.nboot)
+    x = {}
+    for k in days:
+        x[k] = {}
+        for bl in data[k]:
+            d = data[k][bl][:,chans] * jy2T
+            if conj[bl]: d = n.conj(d)
+            x[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
+
+    #eor = x.pop('eor'); days = x.keys() # make up for putting eor in list above
+    bls_master = x.values()[0].keys()
+    nbls = len(bls_master)
+    print 'Baselines:', nbls
+        
+    if INJECT_SIG > 0.: # Create a fake EoR signal to inject
+        print 'INJECTING SIMULATED SIGNAL'
+        eor1 = noise(x[days[0]][bls_master[0]].shape) * INJECT_SIG
+        if False: # this hack of a fringe_filter doesn't seem to be representative
+            fringe_filter = n.ones((44,))
+            # Maintain amplitude of original noise
+            fringe_filter /= n.sqrt(n.sum(fringe_filter))
+            for ch in xrange(eor1.shape[0]):
+                eor1[ch] = n.convolve(eor1[ch], fringe_filter, mode='same')
+        else: # this one is the exact one
+            bl = a.miriad.bl2ij(bls_master[0])
+            beam_w_fr = capo.frf_conv.get_beam_w_fr(aa, bl)
+            t, firs, frbins,frspace = capo.frf_conv.get_fringe_rate_kernels(beam_w_fr, inttime, FRF_WIDTH)
+            for cnt,ch in enumerate(chans):
+                eor1[cnt] = n.convolve(eor1[cnt], firs[ch], mode='same')
+        #eor2 = eor.values()[0] * INJECT_SIG
+        eor = eor1 * INJECT_SIG
+        for k in days:
+            for bl in x[k]: x[k][bl] += eor
+        if False and PLOT:
+            p.subplot(211); capo.arp.waterfall(eor1, mode='real'); p.colorbar()
+            p.subplot(212); capo.arp.waterfall(eor2, mode='real'); p.colorbar(); p.show()
+
+    #Q = {} # Create the Q's that extract power spectrum modes
+    #for i in xrange(nchan):
+    #    Q[i] = get_Q(i, nchan)
+    Q = [get_Q(i,nchan) for i in xrange(nchan)]
+
+    # Compute baseline auto-covariances and apply inverse to data
+    I,_I,_Ix = {},{},{}
+    C,_C,_Cx = {},{},{}
+    for k in days:
+        I[k],_I[k],_Ix[k] = {},{},{}
+        C[k],_C[k],_Cx[k] = {},{},{}
+        for bl in x[k]:
+            C[k][bl] = cov(x[k][bl])
+            I[k][bl] = n.identity(C[k][bl].shape[0])
+            U,S,V = n.linalg.svd(C[k][bl].conj())
+            _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
+            _I[k][bl] = n.identity(_C[k][bl].shape[0])
+            #_Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
+            #_Ix[k][bl] = x[k][bl].copy()
+            _Cx[k][bl] = n.dot(_C[k][bl], eor) # XXX
+            _Ix[k][bl] = eor.copy() # XXX
+            if PLOT and False:
+                #p.plot(S); p.show()
+                print a.miriad.bl2ij(bl), k
+                p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
+                p.subplot(323); capo.arp.waterfall(C[k][bl])
+                p.subplot(324); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
+                p.subplot(313); capo.arp.waterfall(_Cx[k][bl], mode='real')
+                p.show()
+        
     bls = bls_master[:]
     if True: # shuffle and group baselines for bootstrapping
-        if not SAMPLE_WITH_REPLACEMENT:
-            random.shuffle(bls)
-            bls = bls[:-5] # XXX
-        else: # sample with replacement
-            bls = [random.choice(bls) for bl in bls]
+        random.shuffle(bls)
+        #bls = bls[:-5] # XXX
         gps = [bls[i::NGPS] for i in range(NGPS)]
         gps = [[random.choice(gp) for bl in gp] for gp in gps]
-    else: # assign each baseline its own group
-        #gps = [[bl] for bl in bls]
-        #gps = [bls]
-        gps = [bls[i::NGPS] for i in range(NGPS)]
-    #gps = [[bl for bl in gp] for gp in gps]
+    else: gps = [bls[i::NGPS] for i in range(NGPS)]
     bls = [bl for gp in gps for bl in gp]
     print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps])
     _Iz,_Isum,_IsumQ = {},{},{}
@@ -350,6 +284,7 @@ for boot in xrange(opts.nboot):
             _Csumk.shape = (NGPS*nchan, NGPS*nchan)
             #_Csum[k] = _Csumk
             _Czk = n.array([_Cz[k][i] for i in _Cz[k]])
+            print _Czk.shape
             _Czk = n.reshape(_Czk, (_Czk.shape[0]*_Czk.shape[1], _Czk.shape[2]))
             p.subplot(211); capo.arp.waterfall(_Czk, mode='real')
             p.subplot(223); capo.arp.waterfall(_Csumk)
@@ -368,9 +303,8 @@ for boot in xrange(opts.nboot):
             if not Q_Cz.has_key(k2): Q_Cz[k2] = {}
             for bl1 in _Cz[k1]:
                 for bl2 in _Cz[k2]:
-                    #if k1 == k2 and bl1 == bl2: continue # this results in a significant bias
                     if k1 == k2 or bl1 == bl2: continue
-                    #if k1 == k2: continue
+                    #if k1 == k2 and bl1 == bl2: continue # this results in a significant bias
                     #if bl1 == bl2: continue # also a significant noise bias
                     print k1, k2, bl1, bl2
                     if PLOT and False:
@@ -453,6 +387,7 @@ for boot in xrange(opts.nboot):
         p.subplot(414); capo.arp.waterfall(pI, mode='real'); p.colorbar(shrink=.5)
         p.show()
 
+    print 'pI=', n.average(pI.real), 'pC=', n.average(pC.real), 'pI/pC=', n.average(pI.real)/n.average(pC.real)
     if PLOT:
         p.plot(kpl, n.average(pC.real, axis=1), 'b.-')
         p.plot(kpl, n.average(pI.real, axis=1), 'k.-')
