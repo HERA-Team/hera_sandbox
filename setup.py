@@ -11,6 +11,7 @@ setup_args = {
     'packages' : ['capo'],
     'scripts': glob.glob('scripts/*'),
     'version': __version__,
+    'package_data' : {'capo':['data/*.txt']}
 }
 
 if __name__ == '__main__':
