@@ -98,8 +98,7 @@ def get_oldfilter(aa, (bli,blj), inttime, nints, freqs):
            fr_bins, windowed_bwfrs
      
 def mk_fng(bl, ex, ey, ez):
-    # negative to match conjugation convention of AIPY
-    return -2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
+    return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
 
 def get_optimal_kernel_at_ref(aa, ch, (bli, blj), binwidth=.00005):
     '''
@@ -127,7 +126,9 @@ def get_optimal_kernel_at_ref(aa, ch, (bli, blj), binwidth=.00005):
     print 'Baseline:', bl
     fng = mk_fng(bl, *xyz) 
 
-    h_I, bin_edges = n.histogram(fng, bins=bin_edges, weights=bm_I) 
+    #h_I, bin_edges = n.histogram(fng, bins=bin_edges, weights=bm_I) # This is wrong
+    h_I, bin_edges = n.histogram(fng, bins=bin_edges, weights=bm_I**2) 
+    h_I = n.sqrt(h_I)
     #square the power beam.Dont do this. Only need to put in one factor 
     #of the beam. The measurement contains the other.
 #    h_I = h_I**2
