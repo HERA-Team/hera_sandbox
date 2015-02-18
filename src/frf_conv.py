@@ -226,6 +226,8 @@ def get_fringe_rate_kernels(bwfrs, inttime, nbins):
                         for i in range(bwfrs.size)])
     #window  to multiply by.
     window = a.dsp.gen_window(nbins,'blackman-harris')
+    #subtract off average to suppress fr=0 bin.
+    kernels = kernels - n.average(kernels,axis=0)
     #in time domain, multiply kernel by window
     kernels = kernels*window
     #going back in to fringe rate space with window applied.
