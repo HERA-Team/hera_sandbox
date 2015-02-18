@@ -189,7 +189,8 @@ def get_beam_w_fr(aa, (bli, blj), timespan=86240*6, ref_chan=160):
 
     #get fits for all freqs by changing gaussian params
     gfits = n.array([scipy.interpolate.interp1d(fr_bins,gauss(
-            fr_bins, cen*r, wid*r)*tanh(fr_bins,zero_bin_fr*r,1e-5, a=-1.0),
+            fr_bins, cen*r, wid*r)*tanh(fr_bins,zero_bin_fr*r,1e-5, a=-1.0)* tanh(fr_bins,.00035,1e-5,a=1),
+            #fr_bins, cen*r, wid*r)*tanh(fr_bins,zero_bin_fr*r,1e-5, a=-1.0),
             kind='linear') for r in ratios])
 #    gfits = n.array([scipy.interpolate.interp1d(fr_bins,gauss(
 #            fr_bins, cen*r, wid*r),
