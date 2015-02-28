@@ -22,48 +22,45 @@ src= a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
 
 ant1=0
 ant2=12
-antdict={}
+d={}
 
-dt=0.003
+dt=0.03
 TIME=n.arange(2456240.2,2456240.3, dt)
 
 distlim=0.01
 
-for time in TIME:
-    aa.set_jultime(time)
-    src.compute(aa)
-    u0,v0,w0 = aa.gen_uvw(ant1,ant2,src=src)
-
-    u0,v0 = u0[0,0], v0[0,0]
-
-    antdict[u0,v0]=[[ant1,ant2,time]]
-
+time=2456240.2-dt
+aa.set_jultime(time)
+src.compute(aa)
 for i in range(nants):
-    print i
     for j in range(i+1,nants):
-        for time in TIME:
-            aa.set_jultime(time)
-            src.compute(aa)
-            u1,v1,w1 = aa.gen_uvw(i,j,src=src)
-            u1,v1 = u1.flatten()[0], v1.flatten()[0]
-            for key in antdict.keys():
-                u=key[0]-u1
-                v=key[1]-v1
-                #print u,v
-                delt=n.abs(time-antdict[key][0][2])
-                for entry in antdict[key]:
-                    if n.abs(entry[2]-time)<delt:
-                        delt=n.abs(entry[2]-time)
+        u0,v0,w0 = aa.gen_uvw(i,j,src=src)
+        u0,v0 = n.around(u0[0,0],decimals=2), n.around(v0[0,0],decimals=2)
+        d[u0,v0]=d.get((u0,v0),[])+[([i,j],time)]
 
-                if n.sqrt(u**2+v**2)<distlim and delt>1.5*dt:
-                    antdict[key].append([i,j,time])
-                    #print key
-                else:
-                    antdict[u1,v1]=[[i,j,time]]
+repbl=[]
+for key in d.keys():
+    repbl.append(d[key][0][0])
+
+print repbl
+
+for i,j in repbl:
+
+    for time in TIME:
+        aa.set_jultime(time)
+        src.compute(aa)
+        u1,v1,w1 = aa.gen_uvw(i,j,src=src)
+        u1,v1 = n.around(u1.flatten()[0],decimals=2), n.around(v1.flatten()[0],decimals=2)
+        d[u1,v1]=d.get((u1,v1),[])+[([i,j],time)]
+        #if n.sqrt(u**2+v**2)<distlim and delt>1.5*dt:
+        #    antdict[key].append([i,j,time])
+        #    #print key
+        #else:
+        #    antdict[u1,v1]=[[i,j,time]]
 
 
-for key in antdict.keys():
-    if len(antdict[key])<2:
-        del antdict[key]
-print antdict
+for key in d.keys():
+    if len(d[key])<2:
+        del d[key]
+print d
 
