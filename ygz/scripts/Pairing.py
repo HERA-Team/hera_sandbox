@@ -13,15 +13,15 @@ X,Y,Z=img.get_top(center=(200,200))
 shape0=X.shape
 X,Y,Z=X.flatten(),Y.flatten(),Z.flatten()
 
-aa=a.cal.get_aa('psa898_v003',n.array([.15]))
+aa=a.cal.get_aa('psa6622_v001',n.array([.15]))
 #aa=a.cal.get_aa('paper128',n.array([.15]))
-nants=12
+nants=32
 rad2deg=180/n.pi
 src= a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
 #src=a.fit.RadioSpecial("Sun")
 
 ant1=0
-ant2=1
+ant2=12
 antdict={}
 
 dt=0.003

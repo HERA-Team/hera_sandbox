@@ -22,8 +22,8 @@ time_range=n.arange(2456240.2,2456240.6,.05)
 peak=[]
 for i in range(nants):
   for j in range(i+1,nants):
-      for time in time_range:
-            aa.set_jultime(time)
+      #for time in time_range:
+       #     aa.set_jultime(time)
             #print aa.get_jultime()
             print 'Computing Antenna Pair', i, j
             src.compute(aa)
@@ -44,7 +44,7 @@ for i in range(nants):
             fbm=n.fft.fft2(bmp)
             frequv=n.fft.fftfreq(400,d=d)
             freqk=frequv*2*n.pi
-            fbmamp=n.abs(fbm)
+            fbmamp=n.log(fbm.real)
             #fbmamp=n.abs(fbm)
 
             numf=40
@@ -59,20 +59,21 @@ for i in range(nants):
             freqax=[freq[0],freq[len(freq)-1], freq[0],freq[len(freq)-1]]
             mid=len(freq)/2
             peak.append(fbmamp[mid,mid])
-
+            #for dat in fbmamp:
+            #    if isinstance(dat, float) != 'True':
+            #        print dat
             #im = plt.imshow(bmp, interpolation=None, extent=rax)
-            #im = plt.imshow(fbmamp, interpolation=None, extent=freqax)
+            im = plt.imshow(fbmamp, interpolation='nearest', extent=freqax)
 
-            
                     #p.plot(time, aa.sidereal_time(),'k.')
                     #p.plot(u,v,'.',ms=2,color = (((j*17)%33)/33., (32-i)*17%33/33., (i+j)/65., 1)) 
                     #print u,v
             
             #p.plot(-u,-v,'ko')
-#plt.colorbar()
+plt.colorbar()
 #p.xlabel('u',size=14)
 #p.ylabel('v',size=14)
 mid=len(freq)/2
 #plt.plot(freq[(mid-10):(mid+10)],fbmamp[mid-5,(mid-10):(mid+10)])
-plt.plot(time_range,peak)
+#plt.plot(time_range,peak)
 plt.show()

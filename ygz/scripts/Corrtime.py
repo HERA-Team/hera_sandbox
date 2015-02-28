@@ -21,8 +21,8 @@ src= a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
 
 ant1=9
 ant2=10
-ant3=15
-ant4=16
+ant3=9
+ant4=10
 
 aa.set_jultime(2456240.3)
 src.compute(aa)
@@ -34,7 +34,7 @@ p.figure()
 
 U=[]
 V=[]
-TIME=n.arange(2456240.2,2456240.6,.01)
+TIME=n.arange(2456240.2,2456240.4,.01)
 for time in TIME:
     aa.set_jultime(time)
     #print aa.get_jultime()
@@ -59,33 +59,34 @@ bm2x=aa[ant2].bm_response(ntop,pol='x')[0]
 bm3x=aa[ant3].bm_response(ntop,pol='x')[0]
 bm4x=aa[ant4].bm_response(ntop,pol='x')[0]
 bm=bm1x*n.conj(bm2x)
-bmsq=(bm1x*n.conj(bm2x))*(bm3x*n.conj(bm4x))
-print bmsq.shape
+
+bmsq=(bm1x*n.conj(bm2x))*n.conj(bm3x*n.conj(bm4x))
+
 
 #Tranform the square of the beams
 bmp=bmsq
 bmp.shape=shape0
 
-print bmp.shape
 fbm=n.fft.fft2(bmp)
 frequv=n.fft.fftfreq(400,d=d)
 freqk=frequv*2*n.pi
-fbmamp=n.abs(fbm)
+fbmamp=fbm
 #fbmamp=n.abs(fbm)
 
 numf=40
 freq=frequv
 fbmamp=n.fft.fftshift(fbmamp)
 freq=n.fft.fftshift(freq)
+
 f = interpolate.interp2d(freq, freq, fbmamp, kind='cubic')
 
 
 val=n.diagonal(f(U,V))
 
-#p.plot(TIME,val)
+p.plot(TIME,val)
 #p.plot(TIME,U)
 #p.plot(TIME,V)
-p.plot(U,V)
+#p.plot(U,V)
 p.xlabel('jultime',size=12)
 p.ylabel('FT(A^2)',size=12)
 plt.show()
