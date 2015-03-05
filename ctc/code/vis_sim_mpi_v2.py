@@ -206,17 +206,16 @@ else: #other processors do this
         #sum_bmyy = numpy.sum(bmyy,axis=1)
         e3 = numpy.asarray(crd)
 
-        img = {}
         fngxx = {}
         #fngyy = {}
         fluxes = {}
 
         for jj, f in enumerate(freqs):
-            img[f] = aipy.map.Map(fromfits = opts.mappath+opts.map+'1'+str(jj+1).zfill(3)+'.fits', interp=True)
+            img = aipy.map.Map(fromfits = opts.mappath+opts.map+'1'+str(jj+1).zfill(3)+'.fits', interp=True)
             fng = numpy.exp(-2j*numpy.pi*(blx*tx+bly*ty+blz*tz)*f) #fringe pattern
             fngxx[f] = fng*bmxx[jj]/sum_bmxx[jj]
             #fngyy[f] = fng*bmyy[jj]/sum_bmyy[jj]
-            fluxes[f] = img[f][px] #fluxes preserved in equatorial grid
+            fluxes[f] = img[px] #fluxes preserved in equatorial grid
 
     while True:
         comm.send(None,dest=0,tag=0) #ready tag
@@ -235,7 +234,8 @@ else: #other processors do this
             dataxx = []
             #datayy = []
 
-            px,wgts = img[freqs[0]].crd2px(tx,ty,tz,interpolate=1)
+            img = aipy.map.Map(fromfits = opts.mappath+opts.map+'1001.fits',interp=True)
+            px,wgts = img.crd2px(tx,ty,tz,interpolate=1)
 
             for jj, f in enumerate(freqs):
                 efngxx = numpy.sum(fngxx[f][px]*wgts, axis=1)
