@@ -3,6 +3,8 @@ import matplotlib.cm as cm
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 from scipy import interpolate
+import Fbeam
+
 sz=200
 d=1./sz
 img=a.img.Img(200,res=0.5)
@@ -54,34 +56,8 @@ U, V=n.array(U), n.array(V)
 U, V=U.flatten(), V.flatten()
 
 ntop=n.array([X,Y,Z])
-bm1x=aa[ant1].bm_response(ntop,pol='x')[0]
-bm2x=aa[ant2].bm_response(ntop,pol='x')[0]
-bm3x=aa[ant3].bm_response(ntop,pol='x')[0]
-bm4x=aa[ant4].bm_response(ntop,pol='x')[0]
-bm=bm1x*n.conj(bm2x)
 
-bmsq=(bm1x*n.conj(bm2x))*n.conj(bm3x*n.conj(bm4x))
-
-
-#Tranform the square of the beams
-bmp=bmsq
-bmp.shape=shape0
-
-fbm=n.fft.fft2(bmp)
-frequv=n.fft.fftfreq(400,d=d)
-freqk=frequv*2*n.pi
-fbmamp=fbm
-#fbmamp=n.abs(fbm)
-
-numf=40
-freq=frequv
-fbmamp=n.fft.fftshift(fbmamp)
-freq=n.fft.fftshift(freq)
-
-f = interpolate.interp2d(freq, freq, fbmamp, kind='cubic')
-
-
-val=n.diagonal(f(U,V))
+val=Fbeam.get_overlap(aa[ant1],ntop,shape0,'x',d,400,U,V)
 
 p.plot(TIME,val)
 #p.plot(TIME,U)
