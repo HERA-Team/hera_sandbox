@@ -13,8 +13,6 @@ aa=a.cal.get_aa('psa898_v003',n.array([.15]))
 #aa=a.cal.get_aa('paper128',n.array([.15]))
 nants=2
 rad2deg=180/n.pi
-src= a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
-#src=a.fit.RadioSpecial("Sun")
 
 p.figure()
 aa.set_jultime(2456240.2)
@@ -26,15 +24,13 @@ for i in range(nants):
        #     aa.set_jultime(time)
             #print aa.get_jultime()
             print 'Computing Antenna Pair', i, j
-            src.compute(aa)
 
             ntop=n.array([X,Y,Z])
             bm1x=aa[i].bm_response(ntop,pol='x')[0]
             bm2x=aa[j].bm_response(ntop,pol='x')[0]
 
             bm=bm1x*n.conj(bm2x)
-            bmsq=(bm1x*n.conj(bm2x))**2
-            print bmsq.shape
+            bmsq=(bm1x*n.conj(bm2x))*(bm1x*n.conj(bm2x))
 
             #Tranform the square of the beams
             bmp=bmsq
@@ -52,8 +48,6 @@ for i in range(nants):
             freq=frequv
             fbmamp=n.fft.fftshift(fbmamp)
             freq=n.fft.fftshift(freq)
-            #fbmamp=fbmamp[(400-numf):, :numf]
-            #freq=frequv[:numf]
 
             rax=[-1,1,-1,1]
             freqax=[freq[0],freq[len(freq)-1], freq[0],freq[len(freq)-1]]
@@ -62,8 +56,8 @@ for i in range(nants):
             #for dat in fbmamp:
             #    if isinstance(dat, float) != 'True':
             #        print dat
-            #im = plt.imshow(bmp, interpolation=None, extent=rax)
-            im = plt.imshow(fbmamp, interpolation='nearest', extent=freqax)
+            im = plt.imshow(bmp, interpolation=None, extent=rax)
+            #im = plt.imshow(fbmamp, interpolation='nearest', extent=freqax)
 
                     #p.plot(time, aa.sidereal_time(),'k.')
                     #p.plot(u,v,'.',ms=2,color = (((j*17)%33)/33., (32-i)*17%33/33., (i+j)/65., 1)) 
