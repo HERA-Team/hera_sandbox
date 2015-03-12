@@ -22,7 +22,7 @@ def Fbeam(bmp, dreal, nreal):
         fbm=n.fft.fft2(bmp)
         frequv=n.fft.fftfreq(nreal,d=dreal)
         freqk=frequv*2*n.pi
-        fbmamp=n.log(fbm.real)
+        fbmamp=fbm.real
         #fbmamp=n.abs(fbm)
 
         freq=frequv

@@ -12,16 +12,15 @@ U=[]
 V=[]
 I=[]
 J=[]
+aa.set_jultime(2456240.3)
+src.compute(aa)
 for i in range(nants):
     #print i
-    aa.set_jultime(2456240.3)
-    src.compute(aa)
-    if src.alt>0:
-        u,v,w = aa.gen_uvw(i,0,src=src)
-        u,v = u.flatten(), v.flatten()
-        U.append(u)
-        V.append(v)
-        I.append(i)
+    u,v,w = aa.gen_uvw(i,0,src=src)
+    u,v = u.flatten(), v.flatten()
+    U.append(u)
+    V.append(v)
+    I.append(i)
 
         #p.plot(time, aa.sidereal_time(),'k.')
 
