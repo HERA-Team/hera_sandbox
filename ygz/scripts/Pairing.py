@@ -28,7 +28,7 @@ src   = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
 nants= 128
 dt   = 0.005
 TIME = n.arange(2456240.2,2456240.3, dt)
-dist = 0.5 #size of cells to store in dictionary.
+dist = 0.2 #size of cells to store in dictionary.
 bmp  = Fbeam.Rbeam(aa[0], ntop, shape0, 'x')
 freq, fbmamp = Fbeam.Fbeam(bmp, d, 400)
 d    = Fpair.Fpair_coarse(aa,nants, src,TIME,dt,dist)

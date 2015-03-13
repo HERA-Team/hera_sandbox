@@ -10,7 +10,8 @@ def Fpair_coarse(aa,nants, src,TIME,dt,dist):
     src.compute(aa)
     dist_ini=2.
     for i in range(nants):
-        for j in range(i+1,nants):
+        #for j in range(i+1,nants):
+        for j in range(nants):
             u0,v0,w0 = aa.gen_uvw(i,j,src=src)
             u0r,v0r = n.around(u0[0,0]/dist_ini,decimals=0)*dist_ini, n.around(v0[0,0]/dist_ini,decimals=0)*dist_ini
             d[u0r,v0r]=d.get((u0r,v0r),[])+[([i,j],time,[u0[0,0],v0[0,0]])]
