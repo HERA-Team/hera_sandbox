@@ -74,6 +74,9 @@ else:
         #get failed obsnums broken down by still
         fail_count = s.query(Observation).filter(Observation.obsnum.in_(fail_obsnums),Observation.stillhost==fail_still).count()
         print fail_still,':',fail_count
+    print "most recent fails"
+    for FAIL_OBS in FAIL_OBSs:
+        print FAIL_OBS.obsnum,FAIL_OBS.status,FAIL_OBS.stillhost
 print "Number of observations completed in the last 24 hours",
 good_obscount = s.query(Log).filter(Log.exit_status==0,Log.timestamp>(datetime.utcnow()-timedelta(1.0)),Log.stage=='CLEAN_UVCRE').count()
 print good_obscount
