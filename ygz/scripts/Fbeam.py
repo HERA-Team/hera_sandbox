@@ -32,11 +32,11 @@ def Fbeam(bmp, dreal, nreal):
         return freq, fbmamp
 
 #Interpolates for the overlap of two baselines given a (u,v) coordinate
-def get_overlap(ant, ntop, shape0, pol, dreal, nreal, u, v):
-        bmp=Rbeam(ant, ntop, shape0, pol)
-        freq, fbmamp= Fbeam(bmp, dreal, nreal)
+def get_overlap(freq,fbmamp, u, v):
 
         f = interpolate.interp2d(freq, freq, fbmamp, kind='cubic')
 
-        #print f(u,v)
-        return n.diagonal(f(u,v))
+        if len(f(u,v))>1:
+            return n.diagonal(f(u,v))
+        else:
+            return f(u,v)

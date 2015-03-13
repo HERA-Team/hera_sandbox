@@ -14,15 +14,15 @@ X,Y,Z=img.get_top(center=(200,200))
 shape0=X.shape
 X,Y,Z=X.flatten(),Y.flatten(),Z.flatten()
 
-aa=a.cal.get_aa('psa898_v003',n.array([.15]))
+aa=a.cal.get_aa('psa6622_v001',n.array([.15]))
 #aa=a.cal.get_aa('paper128',n.array([.15]))
 src= a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
 #src=a.fit.RadioSpecial("Sun")
 
-ant1=51
-ant2=71
-ant3=27
-ant4=56
+ant1=13
+ant2=15
+ant3=17
+ant4=21
 
 aa.set_jultime(2456240.3)
 src.compute(aa)
@@ -39,14 +39,14 @@ for time in TIME:
     src.compute(aa)
 
     u0,v0,w0 = aa.gen_uvw(ant1,ant2,src=src)
-    u0,v0 = u0.flatten(), v0.flatten()
+    u0,v0 = u0[0][0], v0[0][0]
     u1,v1,w1 = aa.gen_uvw(ant3,ant4,src=src)
-    u1,v1 = u1.flatten(), v1.flatten()
+    u1,v1 = u1[0][0], v1[0][0]
 
-    print time, u0, u1
 
     u=u0-u1
     v=v0-v1
+    #print time, u0,u1,u
     U.append(u)
     V.append(v)
 
@@ -56,7 +56,9 @@ U, V=U.flatten(), V.flatten()
 
 ntop=n.array([X,Y,Z])
 
-val=Fbeam.get_overlap(aa[ant1],ntop,shape0,'x',d,400,U,V)
+bmp= Fbeam.Rbeam(aa[ant1], ntop, shape0, 'x')
+freq, fbmamp= Fbeam.Fbeam(bmp, d, 400)
+val=Fbeam.get_overlap(freq,fbmamp,U,V)
 
 p.figure()
 #p.plot(TIME,val)

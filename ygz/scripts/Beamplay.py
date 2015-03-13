@@ -10,7 +10,7 @@ X,Y,Z=img.get_top(center=(200,200))
 shape0=X.shape
 X,Y,Z=X.flatten(),Y.flatten(),Z.flatten()
 
-aa=a.cal.get_aa('psa898_v003',n.array([.15]))
+aa=a.cal.get_aa('psa6622_v001',n.array([.15]))
 #aa=a.cal.get_aa('paper128',n.array([.15]))
 nants=2
 rad2deg=180/n.pi
@@ -41,6 +41,4 @@ for i in range(nants):
 plt.colorbar()
 #p.xlabel('u',size=14)
 #p.ylabel('v',size=14)
-#plt.plot(freq[(mid-10):(mid+10)],fbmamp[mid-5,(mid-10):(mid+10)])
-#plt.plot(time_range,peak)
 plt.show()
