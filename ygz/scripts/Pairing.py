@@ -7,18 +7,18 @@ from scipy import interpolate
 import Fpair, Fbeam
 
 
-f1=open('./Pairing.out', 'w')
+f1 = open('./Pairing.out', 'w')
 f1.close()
-f1=open('./Pairing.out', 'a')
-sz=200
-d=1./sz
-img=a.img.Img(200,res=0.5)
+f1 = open('./Pairing.out', 'a')
+sz = 200
+d = 1./sz
+img = a.img.Img(200,res=0.5)
 #400 by 400 image, i.e. 200 boxes, with 4 pixels per box
 #this will give freq space kmax=100, dk=0.5
-X,Y,Z=img.get_top(center=(200,200))
-shape0=X.shape
-X,Y,Z=X.flatten(),Y.flatten(),Z.flatten()
-ntop=n.array([X,Y,Z])
+X,Y,Z = img.get_top(center=(200,200))
+shape0 = X.shape
+X,Y,Z = X.flatten(),Y.flatten(),Z.flatten()
+ntop = n.array([X,Y,Z])
 
 aa    = a.cal.get_aa('psa6622_v001',n.array([.15]))
 #aa=a.cal.get_aa('paper128',n.array([.15]))
@@ -27,12 +27,12 @@ src   = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
 
 nants= 128
 dt   = 0.005
-TIME = n.arange(2456240.2,2456240.3, dt)
+times = n.arange(2456240.2,2456240.3, dt)
 dist = 0.2 #size of cells to store in dictionary.
 bmp  = Fbeam.Rbeam(aa[0], ntop, shape0, 'x')
 freq, fbmamp = Fbeam.Fbeam(bmp, d, 400)
-d    = Fpair.Fpair_coarse(aa,nants, src,TIME,dt,dist)
-dict = Fpair.Fpair_fine(d,freq,fbmamp)
+d    = Fpair.pair_coarse(aa, src,times,dist)
+dict = Fpair.pair_fine(d,freq,fbmamp)
 
 #for key in d.keys():
 #    print key, d[key]
