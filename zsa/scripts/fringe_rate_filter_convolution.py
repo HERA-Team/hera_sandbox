@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 '''Fringe Rate Filter Hack'''
-import frf_conv 
 import aipy as a, numpy as n, sys, os, optparse
 import capo as C
 import pylab as p
@@ -89,8 +88,8 @@ print seps
 filters = {}
 frspace_filters = {}
 for sep in seps.keys():
-    beam_w_fr = frf_conv.get_beam_w_fr(aa, seps[sep])
-    t, firs, frbins,frspace = frf_conv.get_fringe_rate_kernels(beam_w_fr, inttime, opts.filt_width)
+    beam_w_fr = C.frf_conv.get_beam_w_fr(aa, seps[sep])
+    t, firs, frbins,frspace = C.frf_conv.get_fringe_rate_kernels(beam_w_fr, inttime, opts.filt_width)
     filters[sep] = firs
     frspace_filters[sep] = frspace
 
