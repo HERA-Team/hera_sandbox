@@ -4,7 +4,7 @@ import matplotlib.cm as cm
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 from scipy import interpolate
-import Fpair, Fbeam
+import select_pair, export_beam
 
 
 f1 = open('./Pairing.out', 'w')
@@ -27,12 +27,13 @@ src   = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
 
 nants= 128
 dt   = 0.005
-times = n.arange(2456240.2,2456240.3, dt)
-dist = 0.2 #size of cells to store in dictionary.
-bmp  = Fbeam.Rbeam(aa[0], ntop, shape0, 'x')
-freq, fbmamp = Fbeam.Fbeam(bmp, d, 400)
-d    = Fpair.pair_coarse(aa, src,times,dist)
-dict = Fpair.pair_fine(d,freq,fbmamp)
+times_coarse = n.arange(2456240.2,2456240.3, dt)
+times_fine = n.arange(2456240.2,2456240.3, 0.001)
+dist = 0.1 #size of cells to store in dictionary.
+bmp  = export_beam.beam_real(aa[0], ntop, shape0, 'x')
+freq, fbmamp = export_beam.beam_fourier(bmp, d, 400)
+d    = select_pair.pair_coarse(aa, src,times_coarse,dist,2.)
+dict = select_pair.pair_fine(d,freq,fbmamp)
 
 #for key in d.keys():
 #    print key, d[key]

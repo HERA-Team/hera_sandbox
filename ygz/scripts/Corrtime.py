@@ -56,8 +56,8 @@ U, V=U.flatten(), V.flatten()
 
 ntop=n.array([X,Y,Z])
 
-bmp= Fbeam.Rbeam(aa[ant1], ntop, shape0, 'x')
-freq, fbmamp= Fbeam.Fbeam(bmp, d, 400)
+bmp= Fbeam.beam_real(aa[ant1], ntop, shape0, 'x')
+freq, fbmamp= Fbeam.beam_fourier(bmp, d, 400)
 val=Fbeam.get_overlap(freq,fbmamp,U,V)
 
 p.figure()
