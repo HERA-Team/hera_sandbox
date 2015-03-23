@@ -9,7 +9,7 @@ setup_args = {
     'license': 'GPL',
     'package_dir' : {'capo':'src'},
     'packages' : ['capo'],
-    'scripts': glob.glob('scripts/*.*'),
+    'scripts': glob.glob('scripts/*'),
     'version': __version__,
 }
 

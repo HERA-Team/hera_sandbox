@@ -33,6 +33,7 @@ for npzfile in args:
         #if i != 49 and j != 49: continue
         if i == 40 or j == 40: continue
         if i == 55 or j == 55: continue
+        #if i == 59 or j == 59: continue
         crd = aa.get_baseline(i,j)*fq
         umag = (crd[0]**2 + crd[1]**2)**.5
         #pick predominantly east-west baselines
@@ -48,14 +49,19 @@ for npzfile in args:
 keys = uDat.keys()
 for umag in keys:
     uDat[umag] /= uWgt[umag]
-    
+
+keys = n.array(keys).astype(float)    
+keys.sort()
 
 for umag in keys:
+    umag = str(umag).split('.')[0]
+    if umag == '1': continue #CLUDGE!
     if opts.k3pk: f = n.abs(kpl)**3*(2*n.pi**2)**-1
     else: f = 1.
     if opts.nobin: label = str(a.miriad.bl2ij(umag))
     else: label = str(umag)
     p.loglog(n.abs(kpl),f*n.abs(n.real(uDat[umag])),label=label)
+    #p.loglog(n.abs(kpl),f*n.abs(n.imag(uDat[umag])),label=label)
 
 p.legend()
 p.show()

@@ -1,43 +1,38 @@
-#$ -S /bin/bash
+#$ -V
+#$ -cwd
+#$ -l paper
+#$ -l h_vmem=2G
 #$ -j y
-#$ -N lst_bin
-#$ -o /data1/paper/jacobsda/stokes/pgb050/grid_output
-DLST=.3
-LSTS=`python -c "import numpy as n; print ' '.join(['%f_%f' % (a, a+${DLST}) for a in n.arange(0,2*n.pi,${DLST})])"`
-MYLSTS=`pull_args.py $LSTS`
+#$ -N lstbin
+#$ -o grid_output
 
-if ! ls /scratch/paper &> /dev/null; then
-    mkdir /scratch/paper
-fi
-LOCAL=/scratch/paper/pgb050/
-if ! ls $LOCAL &> /dev/null; then
-    echo Creating local data dir...
-    mkdir $LOCAL
-#    mv /tmp/lst*uv $LOCAL
-fi
-TARGS=
-INP=$*
-#DATA_ROOT=`python -c "print '${INP}'.split(' ')[0]"`
-#DATA_ROOT=`python -c "import string as s; print s.join('${DATA_ROOT}'.split('/')[:-1],'/')+'/'"`
-#echo Moving data from: $DATA_ROOT
-for lst in $MYLSTS; do
-    lst_h=`python -c "import string as s; print str(float('${lst}'.split('_')[0])*12/3.14159)+'_'+ str(float('${lst}'.split('_')[1])*12/3.1415)"`
-    echo finding files in lst range $lst_h "(hours)"
- #   FS=`lst_select.py --ra=${lst_h} -C pgb015_v004 $*`
-    FS=$*
-    echo Preloading: ${FS}
-    for F in $FS; do
-        rsync -avz shredder:${F} $LOCAL
-        TARGS=${LOCAL}`python -c "print '${F}'.split('/')[-1]"`" "${TARGS}
-    done
- #   echo -e processing ${TARGS}
-    echo lstbin.py -p yy,xx,xy,yx -a "all,-1" -l $lst $TARGS
-    /data1/paper/jacobsda/scripts/lstbin.py -p yy,xx,yx,xy -a "all,-1" -l $lst $TARGS
+#usage 
+# batch_lstbin.sh mylstbinrun.cfg
+#to be defined
+#export START_LST= <hours>
+#export END_LST=  <hours>
+#export DLST= <hours>
+#export CAPO=/path/to/capo/
+#export CAL=psaXXX_v00X
+#export LST_RES=<seconds>
+#export TFILE=<length of file in seconds>
+#export FILES=your data ex `ls -d /data4/raw_data/psa903-930/psa*/*RREXCBR`
+
+( #the parens keep the vars defined in the config local
+echo HELLO.
+echo RUNNING YOUR CFG SCRIPT
+. $* #execute the cfg file as a script
+shopt -s extglob
+. /usr/global/paper/paperenv.sh
+workon dcj-PAPER
+~/scripts/pywhich psa898_v003
+myLSTS=`${CAPO}/dcj/scripts/pull_args.py ${LSTS}`
+for LST in $myLSTS
+do
+echo Working on $LST
+LSTFILES=`${CAPO}/pspec_pipeline/lst_select.py -C ${CAL} --ra=${LST} --suntime=n ${FILES}`
+echo working on  `echo ${LSTFILES} | wc -w`/ `echo ${FILES} | wc -w ` files
+echo ${CAPO}/jcp/scripts/lstbin_v02.py -C ${CAL} -a 0_16 -p I ${LSTFILES}
+${CAPO}/jcp/scripts/lstbin_v02.py -C ${CAL} -a 0_16 -p I ${LSTFILES}
 done
-#remove duplicate files from the list
-#TARGS = `python -c "print ' '.join(set('${TARGS}'.split()))"`
-#echo -e processing ${TARGS}
-#for lst in $MYLSTS ; do
-#    echo lstbin.py -p yy,xx,xy,yx -a "all,-1" -l $lst $TARGS 
-#    lstbin.py -p yy,xx,yx,xy -a "all,-1" -l $lst $TARGS
-#done
+)

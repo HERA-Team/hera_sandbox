@@ -1,0 +1,67 @@
+#! /bin/bash
+
+FILENAME='/home/obs/Trigger.txt'
+ARXIVDIR=/home/obs/Share/grid_output
+
+POLS=('' 'xx' 'xy' 'yx' 'yy')
+
+while :
+do
+if [ -f $FILENAME ]
+    then
+        echo "trigger ${FILENAME} detected, beginning transfer"
+        sleep 1
+        tstart=`date -u`
+        ustart=`date -u "+%F_%H.%M.%S"`
+        THISDIR=${ustart}
+        mkdir $ARXIVDIR/$THISDIR
+
+        TRIGGER=$ARXIVDIR/$THISDIR/Trigger.txt
+        echo; echo "Moving trigger $FILENAME to archive $TRIGGER"; echo
+        mv $FILENAME $ARXIVDIR/$THISDIR/Trigger.txt
+#        cp $FILENAME $ARXIVDIR/$THISDIR/Trigger.txt
+
+        echo; echo "Starting Transfer"; echo
+        for i in {1..4};
+        do
+            HOST=still${i}
+            (( $i == 1 )) && HOST=cask0
+            #first, wipe the scratch space
+            echo "Wiping scratch from ${HOST}"
+            ssh -q -o ConnectTimeout=3 ${HOST} "rm -r /home/obs/Scratch/*"
+            #cat $TRIGGER | while read line;
+            while read line
+            do
+                if [[ $line == *${POLS[$i]}* ]]
+                then
+                    #THis would be a nice feature, but it breaks the while loop.
+                    if ssh ${HOST} test -e /home/obs/Scratch/${line##*/} < /dev/null
+                    then
+                        echo "Target File(${HOST}:/home/obs/Scratch/${line##*/}) Exists!"
+                    else
+                        echo $line
+                       if [[ $line == /data0/* ]]
+                       then
+                           echo "scp -rp -c arcfour256 pot0:${line} ${HOST}:/home/obs/Scratch/"
+                           scp -rp -c arcfour256 pot0:${line} ${HOST}:/home/obs/Scratch/
+                       else
+                           echo "scp -rp -c arcfour256 pot1:${line} ${HOST}:/home/obs/Scratch/"
+                           scp -rp -c arcfour256 pot1:${line} ${HOST}:/home/obs/Scratch/
+                       fi
+                    fi
+                    if ssh ${HOST} test -e /home/obs/Scratch/${line##*/} < /dev/null
+                    then
+                        echo "Success!"
+                    else
+                        echo $line >> $ARXIVDIR/$THISDIR/MissingFiles.txt
+                    fi
+                fi
+            done < $TRIGGER
+            python /home/obs/Share/redux/submit_to_grid.py -o $ARXIVDIR/$THISDIR -q S${i} -t 10
+        done
+        ssh -q -o ConnectTimeout=3 pot0 "python /home/obs/daily_move_pot0.py /data0/zen.*uv"
+        ssh -q -o ConnectTimeout=3 pot1 "python /home/obs/daily_move_pot1.py /data1/zen.*uv"
+        tend=`date -u`
+        echo "Tx begin: ${tstart}\nTx end: ${tend}" > $ARXVIDIR/$THISDIR/TransferLog.txt
+    fi
+done

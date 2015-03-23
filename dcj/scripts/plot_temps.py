@@ -26,8 +26,12 @@ t_cable = []
 times = []
 lst = []
 for filename in args:
-    uvi = a.miriad.UV(filename)
-    print filename
+    try:
+        print filename
+        uvi = a.miriad.UV(filename)
+    except IOError as e:
+        print "IOError, skipping..."
+        print e
     sys.stdout.flush()
     for (uvw,t,(i,j)),d in uvi.all():
         t_load.append(uvi['t_load'])

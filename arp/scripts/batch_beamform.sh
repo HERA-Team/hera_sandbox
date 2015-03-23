@@ -1,4 +1,8 @@
 #$ -S /bin/bash
+#$ -V
+#$ -cwd
+#$ -l paper
+#$ -l h_vmem=2G
 SRCS=`cat srclist.txt`
 SRCS=`pull_args.py ${SRCS}`
 
@@ -10,5 +14,5 @@ for SRC in $SRCS ; do
     echo mv lst.2455*.uv lst747_${SRC}.uv
     mv lst.2455*.uv lst747_${SRC}.uv
     echo fringe_rate_filter.py --maxfr=.0001 --minfr=-.0001 --clean=1e-6 lst747_${SRC}.uv
-    fringe_rate_filter.py --maxfr=.0001 --minfr=-.0001 --clean=1e-6 lst747_${SRC}.uv
+    fringe_rate_filter_static.py --maxfr=.0001 --minfr=-.0001 --clean=1e-6 lst747_${SRC}.uv
 done
