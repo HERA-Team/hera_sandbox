@@ -3,8 +3,9 @@ __author__ = 'yunfanzhang'
 import aipy as a, numpy as n
 import Fbeam
 
-def rnd(val, res, decimals=0):
-    return n.around(val/res,decimals=decimals) * res
+#round values to cell size
+def rnd(val, cell, decimals=0):
+    return n.around(val/cell,decimals=decimals) * cell
 
 def pair_coarse(aa, src, times, dist=2.):
     d = {}
@@ -38,13 +39,9 @@ def pair_coarse(aa, src, times, dist=2.):
             new_sample = (bl,t,(uvw[0],uvw[1]))
             try: samples = d[uv_r]
             except(KeyError): d[uv_r] = [new_sample]
-            if samples[-1][0] == bl: continue # bail if repeat entry of same baseline
-            d[uv_r].append(new_sample)
-            #if n.sqrt(u**2+v**2)<distlim and delt>1.5*dt:
-            #    antd[key].append([i,j,time])
-            #    #print key
-            #else:
-            #    antd[u1,v1]=[[i,j,time]]
+            else:
+                if samples[-1][0] == bl: continue # bail if repeat entry of same baseline
+                d[uv_r].append(new_sample)
     for key in d.keys(): # remove entries with no redundancy
         if len(d[key]) < 2: del d[key]
     return d
