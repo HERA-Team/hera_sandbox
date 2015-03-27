@@ -31,4 +31,4 @@ def get_overlap(freq,fbmamp, u, v):
         if len(f(u,v)) > 1:
             return n.diagonal(f(u,v))
         else:
-            return f(u,v)
+            return f(u,v)[0]

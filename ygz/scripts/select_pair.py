@@ -1,7 +1,7 @@
 __author__ = 'yunfanzhang'
 
 import aipy as a, numpy as n
-import export_beam
+import export_beam, quick_sort
 
 #round values to cell size
 def rnd(val, cell, decimals=0):
@@ -48,16 +48,15 @@ def pair_coarse(aa, src, times, dist, dist_ini=0):
 
 
 def pair_fine(pairings, freq, fbmamp, cell=0.1, cutoff=0.):
-    d = {}
+    sorted = []
     for key in pairings:
         L = len(pairings[key])
         for i in range(L):  # get the points pairwise
             for j in range(i+1,L):
                 pt1,pt2 = pairings[key][i],pairings[key][j]
-                duv = pt1[2] - pt2[2]
+                duv = tuple(x - y for x,y in zip(pt1[2], pt2[2]))
                 val = export_beam.get_overlap(freq,fbmamp,*duv)
-                if val > cutoff:
-                    d[duv] = pairings.get((duv),[]) + ((pt1[0],pt1[1]),(pt2[0],pt2[1]))
-    for key in d:
-        if len(d[key]) > 1: print 'Stacked entries', key, d[key]
-    return d
+                if n.abs(val) > cutoff:
+                    sorted.append((val,(pt1[0],pt1[1]),(pt2[0],pt2[1])))
+    quick_sort.quick_sort(sorted,0,len(sorted)-1)
+    return sorted
