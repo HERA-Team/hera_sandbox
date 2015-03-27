@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # Written by Magnus Lie Hetland, modified by Yunfan Zhang
+#sorts correlations from large to small
 
 def partition(array, start, end):
     pivot = array[end]                          # Partition around the last value
