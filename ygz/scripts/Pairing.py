@@ -33,7 +33,7 @@ dist = 0.1 #size of cells to store in dictionary.
 bmp  = export_beam.beam_real(aa[0], ntop, shape0, 'x')
 freq, fbmamp = export_beam.beam_fourier(bmp, d, 400)
 d    = select_pair.pair_coarse(aa, src,times_coarse,dist,2.)
-dict = select_pair.pair_fine(d,freq,fbmamp)
+dict = select_pair.pair_fine(d,freq,fbmamp,0.1)
 
 #for key in d.keys():
 #    print key, d[key]

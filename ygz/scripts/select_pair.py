@@ -47,12 +47,11 @@ def pair_coarse(aa, src, times, dist, dist_ini=0):
     return d
 
 
-def pair_fine(pairings, freq, fbmamp, cell, cutoff=0.):
+def pair_fine(pairings, freq, fbmamp, cell=0.1, cutoff=0.):
     d = {}
     for key in pairings:
         L = len(pairings[key])
-        #d[key] = [val.flatten().flatten()]
-        for i in range(L):
+        for i in range(L):  # get the points pairwise
             for j in range(i+1,L):
                 pt1,pt2 = pairings[key][i],pairings[key][j]
                 duv = pt1[2] - pt2[2]
