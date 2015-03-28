@@ -35,6 +35,7 @@ clos_app = select_pair.get_closest(pairs_sorted)           #determine closest ap
 pairs_final = select_pair.pair_fin(clos_app,5*dt,aa,src,freq,fbmamp,corr_tol)  #output final sorted pairs
 for j in n.arange(len(pairs_final)):
     print pairs_final[j]
+    print pairs_final[j] >> f1
 print 'Total time:', sys_time.clock(), 'seconds'
 
 
