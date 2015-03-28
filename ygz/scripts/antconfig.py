@@ -1,3 +1,4 @@
+#plots configuration of antenna array
 import aipy as a, numpy as n, pylab as p, ephem as e
 
 aa=a.cal.get_aa('psa6622_v001',n.array([.15]))
@@ -6,12 +7,10 @@ nants=128
 rad2deg=180/n.pi
 src= a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
 #src=a.fit.RadioSpecial("Sun")
-
-
-U=[]
-V=[]
-I=[]
-J=[]
+U = []
+V = []
+I = []
+J = []
 aa.set_jultime(2456240.3)
 src.compute(aa)
 for i in range(nants):

@@ -7,9 +7,10 @@ import export_beam, quick_sort
 def rnd(val, cell, decimals=0):
     return n.around(val/cell,decimals=decimals) * cell
 
+#coarsely determine crossings by griding the uv plane
 def pair_coarse(aa, src, times, dist, dist_ini=0):
     d = {}
-    t = times[20]
+    t = times[10]
     aa.set_jultime(t)
     src.compute(aa)
     if dist_ini == 0: dist_ini = dist
@@ -23,11 +24,7 @@ def pair_coarse(aa, src, times, dist, dist_ini=0):
             new_sample = ((i,j),t,(uvw[0],uvw[1]))
             d[uv_r] = d.get(uv_r,[]) + [new_sample]
     repbl = []
-    for key in d.keys():
-        repbl.append(d[key][0][0])
-    #print repbl
-   # for i,j in repbl:
-   #     print i,j, aa.gen_uvw(i,j,src=src)[0][0][0],aa.gen_uvw(i,j,src=src)[1][0][0]
+    for key in d.keys(): repbl.append(d[key][0][0])
     d = {}
     for t in times:
         aa.set_jultime(t)
@@ -47,8 +44,8 @@ def pair_coarse(aa, src, times, dist, dist_ini=0):
         if len(d[key]) < 2: del d[key]
     return d
 
-
-def pair_sort(pairings, freq, fbmamp, cutoff=9000.):
+#sorts the given dictionary of crossings in order of decreasing correlations
+def pair_sort(pairings, freq, fbmamp, cutoff=0.):
     sorted = []
     for key in pairings:
         L = len(pairings[key])
@@ -58,41 +55,57 @@ def pair_sort(pairings, freq, fbmamp, cutoff=9000.):
                 duv = tuple(x - y for x,y in zip(pt1[2], pt2[2]))
                 val = export_beam.get_overlap(freq,fbmamp,*duv)
                 if n.abs(val) > cutoff:
-                    sorted.append((val,(pt1[0],pt1[1]),(pt2[0],pt2[1])))
+                    sorted.append((val,(pt1[0],pt1[1]),(pt2[0],pt2[1]),pt1[2]))
     quick_sort.quick_sort(sorted,0,len(sorted)-1)
     return sorted
 
+#get dictionary of closest approach points, assuming each two tracks only cross ONCE
+def get_closest(pairs_sorted):
+    clos_app = {}
+    for k in n.arange(len(pairs_sorted)):
+        ckey = (pairs_sorted[k][1][0],pairs_sorted[k][2][0])
+        count = clos_app.get(ckey,[])
+        if count == []: clos_app[ckey] = (pairs_sorted[k][0],pairs_sorted[k][1][1],pairs_sorted[k][2][1],pairs_sorted[k][3])
+    return clos_app
+
+#computes correlations of baselines bl1, bl2 at times t1, t2
 def get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2):
     aa.set_jultime(t1)
     src.compute(aa)
-    uvw1 = aa.gen_uvw(*bl1,src=src).flatten()
-    if uvw1[0] < 0: uvw1 = -uvw1
+    if src.alt>0:
+        uvw1 = aa.gen_uvw(*bl1,src=src).flatten()
+        if uvw1[0] < 0: uvw1 = -uvw1
+    else: return 0  #if src below horizon, will break out of while loop
     aa.set_jultime(t2)
     src.compute(aa)
-    uvw2 = aa.gen_uvw(*bl2,src=src).flatten()
-    if uvw2[0] < 0: uvw2 = -uvw2
-    duv = (uvw1[0]-uvw2[0],uvw1[1]-uvw2[1])
+    if src.alt>0:
+        uvw2 = aa.gen_uvw(*bl2,src=src).flatten()
+        if uvw2[0] < 0: uvw2 = -uvw2
+        duv = (uvw1[0]-uvw2[0],uvw1[1]-uvw2[1])
+    else: return 0
     return export_beam.get_overlap(freq,fbmamp,*duv)
 
-def pair_fin(pairs_sorted,dt, aa, src, freq,fbmamp,cutoff=9000.):
-    clos_app = {}  #dictionary of closest approach points
-    for k in n.arange(len(pairs_sorted)):
-        #print pairs_sorted[k] #>> f1
-        ckey = (pairs_sorted[k][1][0],pairs_sorted[k][2][0])
-        count = clos_app.get(ckey,[])
-        if count == []: clos_app[ckey] = (pairs_sorted[k][0],pairs_sorted[k][1][1],pairs_sorted[k][2][1])
+#Outputs the final array of sorted pairs of points in uv space,
+#spaced in time to avoid over computing information already extracted from fringe rate filtering
+def pair_fin(clos_app,dt, aa, src, freq,fbmamp,cutoff=9000.):
     final = []
+    cnt, N = 0,len(clos_app)
     for key in clos_app:
-        #print key, clos_app[key]
+        cnt = cnt+1
+        print 'Calculating baseline pair %d out of %d:' % (cnt,N)
         bl1,bl2 = key[0],key[1]
         t1,t2 = clos_app[key][1],clos_app[key][2]
         correlation = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
+        if correlation == 0: continue
         while correlation > cutoff:
+            final.append((correlation,(bl1,t1),(bl2,t2)))
             t1,t2 = t1+dt,t2+dt
             correlation = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
-
-        t1,t2 = clos_app[key][1],clos_app[key][2]
+        t1,t2 = clos_app[key][1]-dt,clos_app[key][2]-dt
         correlation = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
         while correlation > cutoff:
+            final.append((correlation,(bl1,t1),(bl2,t2)))
             t1,t2 = t1-dt,t2-dt
             correlation = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
+    quick_sort.quick_sort(final,0,len(final)-1)
+    return final

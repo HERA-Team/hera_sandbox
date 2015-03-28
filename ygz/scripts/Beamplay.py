@@ -3,7 +3,7 @@ import matplotlib.cm as cm
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 import export_beam
-
+# plots the beam and the Fourier transform of the beam squared
 sz=200
 d=1./sz
 img=a.img.Img(200,res=0.5)
