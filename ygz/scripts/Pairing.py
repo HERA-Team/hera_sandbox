@@ -1,10 +1,6 @@
 __author__ = 'yunfanzhang'
-import aipy as a, numpy as n, pylab as p, ephem as e
-import matplotlib.cm as cm
-import matplotlib.mlab as mlab
-import matplotlib.pyplot as plt
-from scipy import interpolate
-import select_pair, export_beam
+import aipy as a, numpy as n
+import select_pair, export_beam, plot_pair
 import time as sys_time
 
 f1 = open('./Pairing.out', 'w')
@@ -12,25 +8,21 @@ f1.close()
 f1 = open('./Pairing.out', 'a')
 sz = 200
 d = 1./sz
-img = a.img.Img(200,res=0.5)
-#400 by 400 image, i.e. 200 boxes, with 4 pixels per box
-#this will give freq space kmax=100, dk=0.5
+img = a.img.Img(200,res=0.5)   #400 by 400 image, i.e. 200 boxes, with 4 pixels per box,freq space kmax=100, dk=0.5
 X,Y,Z = img.get_top(center=(200,200))
 shape0 = X.shape
 X,Y,Z = X.flatten(),Y.flatten(),Z.flatten()
 ntop = n.array([X,Y,Z])
-
 aa = a.cal.get_aa('psa6622_v001',n.array([.15]))
 src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
 #src=a.fit.RadioSpecial("Sun")
-
 nants = 128
 dt = 0.001
 dt_fine = 43./3600/24
 times_coarse = n.arange(2456240.3,2456240.4, dt)
 times_fine = n.arange(2456240.3,2456240.4, dt_fine)
-dist = 2.  #size of cells to store in dictionary.
-corr_tol = 5000. #cutoff of minimum correlation
+dist = 2.                           #size of cells to store in dictionary.
+corr_tol = 5000.                    #cutoff of minimum correlation
 bmp  = export_beam.beam_real(aa[0], ntop, shape0, 'x')
 freq, fbmamp = export_beam.beam_fourier(bmp, d, 400)
 print 'Time to initialize:', sys_time.clock(), 'seconds'
@@ -45,22 +37,11 @@ for j in n.arange(len(pairs_final)):
     print pairs_final[j]
 print 'Total time:', sys_time.clock(), 'seconds'
 
-#plot all the closest approach points
-fig = p.figure()
-ax = fig.add_subplot(111)
-U,V = [],[]
-for key in clos_app.keys():
-    for item in clos_app[key]:
-        U.append(item[3][0])
-        V.append(item[3][1])
-p.plot(U,V,'.',ms=5)
-p.grid()
-#p.xlim(-200,200)
-#p.ylim(-200,200)
-p.xlabel('u',size=14)
-p.ylabel('v',size=14)
-figname = './corr'+str(int(corr_tol))+'.png'
-p.savefig(figname)
 
+#call plotting routines
+figname = './corr'+str(int(corr_tol))+'.png'
+plot_pair.plot_closapp(clos_app,corr_tol,figname)
+pair_xampl = select_pair.test_sample(pairs_final,dt,aa, src,freq,fbmamp,3000.)
+plot_pair.plot_pair_xampl(pair_xampl)
 
 f1.close()
