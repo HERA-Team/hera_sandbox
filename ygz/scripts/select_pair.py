@@ -1,6 +1,6 @@
 __author__ = 'yunfanzhang'
 
-import aipy as a, numpy as n
+import numpy as n
 import export_beam, quick_sort
 
 #round values to cell size
@@ -8,6 +8,7 @@ def rnd(val, cell, decimals=0):
     return n.around(val/cell,decimals=decimals) * cell
 
 #coarsely determine crossings by griding the uv plane
+#Format: d[ur_rounded] = [(bl,t,(u,v)),...]
 def pair_coarse(aa, src, times, dist, dist_ini=0):
     d = {}
     t = times[10]
@@ -45,6 +46,7 @@ def pair_coarse(aa, src, times, dist, dist_ini=0):
     return d
 
 #sorts the given dictionary of crossings in order of decreasing correlations
+#Format: sorted = [(val,(bl1,t1),(bl2,t2),(u1,v1)),...] (u1v1 used for test plots only)
 def pair_sort(pairings, freq, fbmamp, cutoff=0.):
     sorted = []
     for key in pairings:
@@ -60,12 +62,36 @@ def pair_sort(pairings, freq, fbmamp, cutoff=0.):
     return sorted
 
 #get dictionary of closest approach points, assuming each two tracks only cross ONCE
+#format: clos_app[bl1,bl2] = (val, t1, t2, (u1,v1))
 def get_closest(pairs_sorted):
     clos_app = {}
     for k in n.arange(len(pairs_sorted)):
         ckey = (pairs_sorted[k][1][0],pairs_sorted[k][2][0])
         count = clos_app.get(ckey,[])
-        if count == []: clos_app[ckey] = (pairs_sorted[k][0],pairs_sorted[k][1][1],pairs_sorted[k][2][1],pairs_sorted[k][3])
+        if count == []:
+            clos_app[ckey] = (pairs_sorted[k][0],pairs_sorted[k][1][1],pairs_sorted[k][2][1],pairs_sorted[k][3])
+    return clos_app
+
+#Alternative way to pair_sort + get_closest, usually faster (~n vs ~nlog(n))
+#format: clos_app[bl1,bl2] = (val, t1, t2, (u1,v1))
+def alter_clos(pairings, freq, fbmamp, cutoff=0.):
+    clos_app = {}
+    for key in pairings:
+        L = len(pairings[key])
+        for i in range(L):  # get the points pairwise
+            for j in range(i+1,L):
+                pt1,pt2 = pairings[key][i],pairings[key][j]
+                duv = tuple(x - y for x,y in zip(pt1[2], pt2[2]))
+                val = export_beam.get_overlap(freq,fbmamp,*duv)
+                blkey = (pt1[0],pt2[0])
+                clos_app[blkey] = clos_app.get(blkey,[])+[(val,pt1[1],pt2[1],pt1[2])]
+    for blkey in clos_app.keys():
+        N = len(clos_app[blkey])
+        max,max_val = 0,0.
+        for i in range(N):
+            if max_val < n.abs(clos_app[blkey][i][0]):
+                max,max_val = i, n.abs(clos_app[blkey][i][0])
+        clos_app[blkey] = clos_app[blkey][max]
     return clos_app
 
 #computes correlations of baselines bl1, bl2 at times t1, t2
@@ -83,6 +109,7 @@ def get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2):
         if uvw2[0] < 0: uvw2 = -uvw2
         duv = (uvw1[0]-uvw2[0],uvw1[1]-uvw2[1])
     else: return 0
+    #print n.sqrt(duv[0]*duv[0]+duv[1]*duv[1])
     return export_beam.get_overlap(freq,fbmamp,*duv)
 
 #Outputs the final array of sorted pairs of points in uv space,
@@ -92,7 +119,8 @@ def pair_fin(clos_app,dt, aa, src, freq,fbmamp,cutoff=9000.):
     cnt, N = 0,len(clos_app)
     for key in clos_app:
         cnt = cnt+1
-        print 'Calculating baseline pair %d out of %d:' % (cnt,N)
+        if (cnt/500)*500 == cnt:
+            print 'Calculating baseline pair %d out of %d:' % (cnt,N)
         bl1,bl2 = key[0],key[1]
         t1,t2 = clos_app[key][1],clos_app[key][2]
         correlation = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
@@ -111,11 +139,12 @@ def pair_fin(clos_app,dt, aa, src, freq,fbmamp,cutoff=9000.):
     return final
 
 #create a test sample to plot the pairs of points
-def test_sample(pairs_final,dt,aa, src,freq,fbmamp,cutoff=3000.):
+def test_sample(pairs_final,dt,aa, src,freq,fbmamp,cutoff=5000.):
     pairs = []
     bl1,bl2 = pairs_final[0][1][0],pairs_final[0][2][0]
     t1,t2 = pairs_final[0][1][1],pairs_final[0][2][1]
     correlation = pairs_final[0][0]
+    print pairs_final[0]
     aa1,aa2 = aa,aa
     src1,src2 = src,src
     while correlation > cutoff:
