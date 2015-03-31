@@ -20,7 +20,7 @@ dt = 0.001
 dt_fine = 43./3600/24
 times_coarse = n.arange(2456240.3,2456240.4, dt)
 times_fine = n.arange(2456240.3,2456240.4, dt_fine)
-dist = 0.2                           #size of cells to store in dictionary.
+dist = 0.02                           #size of cells to store in dictionary.
 corr_tol = 5000.                    #cutoff of minimum correlation
 bmp  = export_beam.beam_real(aa[0], ntop, shape0, 'x')
 freq, fbmamp = export_beam.beam_fourier(bmp, d, 400)
@@ -45,6 +45,6 @@ f1.close()
 #call plotting routines
 figname = './corr'+str(int(corr_tol))+'.png'
 plot_pair.plot_closapp(clos_app,corr_tol,figname)
-pair_xampl = select_pair.test_sample(pairs_final,dt,aa, src,freq,fbmamp,3000.)
+pair_xampl = select_pair.test_sample(pairs_final,dt,aa,src,freq,fbmamp,3000.)
 plot_pair.plot_pair_xampl(pair_xampl)
 
