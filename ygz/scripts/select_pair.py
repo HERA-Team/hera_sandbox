@@ -92,8 +92,8 @@ def alter_clos(pairings, freq, fbmamp, cutoff=0.):
         N = len(clos_app[blkey])
         max,max_val = 0,0.
         for i in range(N):
-            if max_val < n.abs(clos_app[blkey][i][0]):
-                max,max_val = i, n.abs(clos_app[blkey][i][0])
+            if max_val < abs(clos_app[blkey][i][0]):
+                max,max_val = i, abs(clos_app[blkey][i][0])
         clos_app[blkey] = clos_app[blkey][max]
     return clos_app
 
@@ -113,12 +113,28 @@ def get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2):
         duv = (uvw1[0]-uvw2[0],uvw1[1]-uvw2[1])
     else: return 0
     #print n.sqrt(duv[0]*duv[0]+duv[1]*duv[1])
-    return export_beam.get_overlap(freq,fbmamp,*duv)
+    return export_beam.get_overlap(freq,fbmamp,*duv), (uvw1,uvw2)
 
-#Outputs the final array of sorted pairs of points in uv space,
-#spaced in time to avoid over computing information already extracted from fringe rate filtering
-#format pair_fin = [(val,(bl1,t1),(bl2,t2))...]
-def pair_fin(clos_app,dt, aa, src, freq,fbmamp,cutoff=9000.):
+
+
+def get_weight(aa,bl1,bl2,u,v,multweight,noiseweight):
+    weight = 1.
+    ant_dict = {}
+    NU,NV = len(aa.ant_layout),len(aa.ant_layout[0])
+    for i in range(NU):
+        for j in range(NV):
+            ant_dict[aa.ant_layout[i][j]] = (i,j)  #ant_dict[random ant#]=antlayoutindex
+    try: multfactor = (NU-abs(ant_dict[bl1][0]-ant_dict[bl2][0]))*(NV-abs(ant_dict[bl1][1]-ant_dict[bl2][1]))
+    except(KeyError): multfactor = 1
+    if multweight: weight = weight*multfactor
+    noisefactor = (u*u+v*v)**1.5
+    if noiseweight: weight = weight+noisefactor
+    return weight
+
+# Outputs the final array of sorted pairs of points in uv space,
+# spaced in time to avoid over computing information already extracted from fringe rate filtering
+# format pair_fin = [(val,(bl1,t1),(bl2,t2))...]
+def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=False,noiseweight=False,cutoff=9000.):
     final = []
     cnt, N = 0,len(clos_app)
     for key in clos_app:
@@ -127,68 +143,33 @@ def pair_fin(clos_app,dt, aa, src, freq,fbmamp,cutoff=9000.):
             print 'Calculating baseline pair %d out of %d:' % (cnt,N)
         bl1,bl2 = key[0],key[1]
         t1,t2 = clos_app[key][1],clos_app[key][2]
-        correlation = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
+        correlation,(uvw1,uvw2) = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
         if correlation == 0: continue
+        weight = get_weight(aa,bl1,bl2,uvw1[0],uvw1[1],multweight,noiseweight)
         while correlation > cutoff:
-            final.append((correlation,(bl1,t1),(bl2,t2)))
+            final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
             t1,t2 = t1+dt,t2+dt
-            correlation = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
+            correlation,(uvw1,uvw2)  = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
+            weight = get_weight(aa,bl1,bl2,uvw1[0],uvw1[1],multweight,noiseweight)
         t1,t2 = clos_app[key][1]-dt,clos_app[key][2]-dt
-        correlation = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
+        correlation,(uvw1,uvw2)  = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
+        weight = get_weight(aa,bl1,bl2,uvw1[0],uvw1[1],multweight,noiseweight)
         while correlation > cutoff:
-            final.append((correlation,(bl1,t1),(bl2,t2)))
+            final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
             t1,t2 = t1-dt,t2-dt
-            correlation = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
+            correlation,(uvw1,uvw2)  = get_corr(aa, src, freq,fbmamp, t1,t2, bl1,bl2)
+            weight = get_weight(aa,bl1,bl2,uvw1[0],uvw1[1],multweight,noiseweight)
+
     quick_sort.quick_sort(final,0,len(final)-1)
     return final
 
-
 #create a test sample to plot the pairs of points
-def test_sample(pairs_final,dt,aa, src,freq,fbmamp,cutoff=3000.):
+def test_sample(pairs_final,cutoff=3000.):
     pairs = []
-    bl1,bl2 = pairs_final[0][1][0],pairs_final[0][2][0]
-    t1,t2 = pairs_final[0][1][1],pairs_final[0][2][1]
-    correlation = pairs_final[0][0]
+    bl1,bl2 = pairs_final[0][2][0],pairs_final[0][3][0]
     print pairs_final[0]
-    aa1,aa2 = aa,aa
-    src1,src2 = src,src
-    while correlation > cutoff:
-        aa1.set_jultime(t1)
-        src1.compute(aa1)
-        alt1 = src1.alt
-        aa2.set_jultime(t2)
-        src2.compute(aa2)
-        alt2 = src2.alt
-        if alt1>0 and alt2>0:
-            uvw1 = aa1.gen_uvw(*bl1,src=src1).flatten()
-            if uvw1[0] < 0: uvw1 = -uvw1
-            uvw2 = aa2.gen_uvw(*bl2,src=src2).flatten()
-            if uvw2[0] < 0: uvw2 = -uvw2
-            pairs.append(((uvw1[0],uvw1[1]),(uvw2[0],uvw2[1])))
-        else: break
-        t1,t2 = t1+dt,t2+dt
-        duv = (uvw1[0]-uvw2[0],uvw1[1]-uvw2[1])
-        correlation = export_beam.get_overlap(freq,fbmamp,*duv)
-        print correlation, duv
-
-    t1,t2 = pairs_final[0][1][1]-dt,pairs_final[0][2][1]-dt
-    correlation = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
-    while correlation > cutoff:
-        aa1.set_jultime(t1)
-        src1.compute(aa1)
-        alt1 = src1.alt
-        aa2.set_jultime(t2)
-        src2.compute(aa2)
-        alt2 = src2.alt
-        if alt1>0 and alt2>0:
-            uvw1 = aa1.gen_uvw(*bl1,src=src1).flatten()
-            if uvw1[0] < 0: uvw1 = -uvw1
-            uvw2 = aa2.gen_uvw(*bl2,src=src2).flatten()
-            if uvw2[0] < 0: uvw2 = -uvw2
-            pairs.append(((uvw1[0],uvw1[1]),(uvw2[0],uvw2[1])))
-        else: break
-        t1,t2 = t1-dt,t2-dt
-        duv = (uvw1[0]-uvw2[0],uvw1[1]-uvw2[1])
-        correlation = export_beam.get_overlap(freq,fbmamp,*duv)
-        print correlation, duv
+    for entry in pairs_final:
+        if (entry[2][0],entry[3][0]) != (bl1,bl2): continue
+        uvw1,uvw2 = entry[2][2],entry[3][2]
+        pairs.append(((uvw1[0],uvw1[1]),(uvw2[0],uvw2[1])))
     return pairs

@@ -20,7 +20,7 @@ dt = 0.001
 dt_fine = 43./3600/24
 times_coarse = n.arange(2456240.3,2456240.4, dt)
 times_fine = n.arange(2456240.3,2456240.4, dt_fine)
-dist = 0.02                           #size of cells to store in dictionary.
+dist = 0.01                           #size of cells to store in dictionary.
 corr_tol = 5000.                    #cutoff of minimum correlation
 bmp  = export_beam.beam_real(aa[0], ntop, shape0, 'x')
 freq, fbmamp = export_beam.beam_fourier(bmp, d, 400)
@@ -32,7 +32,7 @@ print 'Time after coarse selection:', sys_time.clock(), 'seconds'
 #clos_app = select_pair.get_closest(pairs_sorted)           #determine closest approach points
 clos_app = select_pair.alter_clos(d,freq,fbmamp)            #determine closest approach points
 print 'Found closest approach points after:', sys_time.clock(), 'seconds'
-pairs_final = select_pair.pair_fin(clos_app,5*dt,aa,src,freq,fbmamp,corr_tol)  #output final sorted pairs
+pairs_final = select_pair.pair_fin(clos_app,5*dt,aa,src,freq,fbmamp,False,True,5000.)  #output final sorted pairs
 print 'Total time:', sys_time.clock(), 'seconds'
 
 #write result to file and screen
@@ -45,6 +45,6 @@ f1.close()
 #call plotting routines
 figname = './corr'+str(int(corr_tol))+'.png'
 plot_pair.plot_closapp(clos_app,corr_tol,figname)
-pair_xampl = select_pair.test_sample(pairs_final,dt,aa,src,freq,fbmamp,3000.)
+pair_xampl = select_pair.test_sample(pairs_final)
 plot_pair.plot_pair_xampl(pair_xampl)
 
