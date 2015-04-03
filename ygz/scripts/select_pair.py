@@ -138,7 +138,7 @@ def get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2):
     #print n.sqrt(duv[0]*duv[0]+duv[1]*duv[1])
     return export_beam.get_overlap(freq,fbmamp,*duv), (uvw1,uvw2)
 
-def get_weight(aa,bl1,bl2,u,v,multweight,noiseweight):
+def get_weight(aa,bl1,bl2,uvw,multweight,noiseweight):
     weight = 1.
     ant_dict = {}
     NU,NV = len(aa.ant_layout),len(aa.ant_layout[0])
@@ -148,7 +148,7 @@ def get_weight(aa,bl1,bl2,u,v,multweight,noiseweight):
     try: multfactor = (NU-abs(ant_dict[bl1][0]-ant_dict[bl2][0]))*(NV-abs(ant_dict[bl1][1]-ant_dict[bl2][1]))
     except(KeyError): multfactor = 1
     if multweight: weight = weight*multfactor
-    noisefactor = (u*u+v*v)**(-1.5)
+    noisefactor = (uvw[0]*uvw[0]+uvw[1]*uvw[1]+uvw[2]*uvw[2])**(-1.5)
     if noiseweight: weight = weight*noisefactor
     return weight
 
@@ -166,13 +166,13 @@ def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=False,noiseweight=Fals
         t1,t2 = clos_app[key][1],clos_app[key][2]
         correlation,(uvw1,uvw2) = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
         if correlation == 0: continue
-        weight = get_weight(aa,bl1,bl2,uvw1[0],uvw1[1],multweight,noiseweight)
+        weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight)
         while correlation > cutoff:
             final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
             t1,t2 = t1+dt,t2+dt
             try: correlation,(uvw1,uvw2)  = get_corr(aa, src,freq,fbmamp, t1,t2, bl1, bl2)
             except(TypeError): correlation  = 0.
-            else: weight = get_weight(aa,bl1,bl2,uvw1[0],uvw1[1],multweight,noiseweight)
+            else: weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight)
         t1,t2 = clos_app[key][1]-dt,clos_app[key][2]-dt
         correlation,(uvw1,uvw2)  = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
         weight = get_weight(aa,bl1,bl2,uvw1[0],uvw1[1],multweight,noiseweight)

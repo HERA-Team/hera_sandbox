@@ -32,7 +32,7 @@ print 'Time after coarse selection:', sys_time.clock(), 'seconds'
 #clos_app = select_pair.get_closest(pairs_sorted)           #determine closest approach points
 clos_app = select_pair.alter_clos(d,freq,fbmamp)            #determine closest approach points
 print 'Found closest approach points after:', sys_time.clock(), 'seconds'
-pairs_final = select_pair.pair_fin(clos_app,10*dt,aa,src,freq,fbmamp,True,True,5000.)  #output final sorted pairs
+pairs_final = select_pair.pair_fin(clos_app,dt,aa,src,freq,fbmamp,True,True,5000.)  #output final sorted pairs
 print 'Total time:', sys_time.clock(), 'seconds'
 
 #write result to file and screen
