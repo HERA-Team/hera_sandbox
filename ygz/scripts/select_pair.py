@@ -13,14 +13,20 @@ def pair_coarse(aa, src, times, dist,redundant=False):
     ant_dict,repbl = {},{}
     NU,NV = len(aa.ant_layout),len(aa.ant_layout[0])
     nants = len(aa)
+    print "pair_coarse: nants, NU, NV =", nants, NU, NV
     for i in range(NU):
         for j in range(NV):
-            repbl[aa.ant_layout[i][j]] = (i,j)  #ant_dict[random ant#]=antlayoutindex
+            ant_dict[aa.ant_layout[i][j]] = (i,j)  #ant_dict[random ant#]=antlayoutindex
+    print ant_dict
     for i in range(nants):
         for j in range(i+1,nants):
-            try: dkey = (abs(ant_dict[i][0]-ant_dict[j][0]),abs(ant_dict[i][1]-ant_dict[j][1]))
+            try: dkey = (ant_dict[i][0]-ant_dict[j][0],ant_dict[i][1]-ant_dict[j][1])
             except(KeyError): dkey = (i,j)
+            else:
+                if dkey[0]<0: dkey = (-dkey[0],-dkey[1])
             repbl[dkey] = (i,j)
+    print "pair_coarse:", len(repbl), "representative baselines, 4432 expected"
+    #print repbl
   #  d = {}
   #  t = times[10]
   #  aa.set_jultime(t)
@@ -91,6 +97,7 @@ def get_closest(pairs_sorted):
 #format: clos_app[bl1,bl2] = (val, t1, t2, (u1,v1))
 def alter_clos(pairings, freq, fbmamp, cutoff=0.):
     clos_app = {}
+    print "alter_clos: len(pairings)=", len(pairings)
     for key in pairings:
         L = len(pairings[key])
         for i in range(L):  # get the points pairwise
@@ -175,15 +182,15 @@ def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=False,noiseweight=Fals
             try: correlation,(uvw1,uvw2)  = get_corr(aa, src,freq,fbmamp, t1,t2, bl1, bl2)
             except(TypeError): correlation  = 0.
             else: weight = get_weight(aa,bl1,bl2,uvw1[0],uvw1[1],multweight,noiseweight)
-
     quick_sort.quick_sort(final,0,len(final)-1)
     return final
 
 #create a test sample to plot the pairs of points
 def test_sample(pairs_final,cutoff=3000.):
     pairs = []
-    bl1,bl2 = pairs_final[0][2][0],pairs_final[0][3][0]
+    print len(pairs_final)
     print pairs_final[0]
+    bl1,bl2 = pairs_final[0][2][0],pairs_final[0][3][0]
     for entry in pairs_final:
         if (entry[2][0],entry[3][0]) != (bl1,bl2): continue
         uvw1,uvw2 = entry[2][2],entry[3][2]
