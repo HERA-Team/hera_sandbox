@@ -75,6 +75,7 @@ for sep in seps:
     i0,j0 = bl2ij(cbl)
     if conj_bl.has_key(cbl) and conj_bl[cbl]: i0,j0 = j0,i0
     for bl in bls[sep]:
+        if not d.has_key(bl): continue
         if bl == cbl: continue
         i,j = bl2ij(bl)
         if conj_bl.has_key(bl) and conj_bl[bl]: i,j = j,i

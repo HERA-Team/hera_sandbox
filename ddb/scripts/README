@@ -1,0 +1,8 @@
+--------WATERFALL--------
+PAPER flagging waterfall plots:
+	waterfall.py contains the class that does work and can be run interactively
+	wf.py is a command line script to run it
+	jd_cal.py is included in the waterfall.py file to avoid moving it around with it
+
+--------MISC--------
+	jd_cal.py has some julian/calendar date conversion stuff

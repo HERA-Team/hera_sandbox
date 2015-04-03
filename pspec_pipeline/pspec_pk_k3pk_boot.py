@@ -56,7 +56,8 @@ if False: # override power spectrum with the version w/o covariance diagonalizat
     print 'Overriding power spectrum with non-covariance diagonalized version'
     pk_2d = nocov_2d
 
-CLIP = True
+#CLIP = True
+CLIP = False
 if CLIP:
     #pk_2d = pk_2d[...,250:550]
     #avg_pk_2d = avg_pk_2d[...,250:550]
@@ -83,17 +84,20 @@ if PLOT: # plot some stuff
         C.arp.waterfall(n.abs(n.average(temp_data[cnt], axis=0))**2 * scalar, mx=10, drng=3)
         p.colorbar(shrink=.5) 
     p.subplot(plt2,plt1,1); p.title(r'$|\langle\tilde V_b\rangle|^2$'); p.savefig('pspec_boot_1.png')
+    p.clf()
     for cnt,path in enumerate(paths):
         p.subplot(plt2,plt1,cnt+1)
         C.arp.waterfall(nos_std_2d[cnt], mx=10, drng=3)
         p.colorbar(shrink=.5) 
     p.subplot(plt2,plt1,1); p.title('Thermal Noise [mK$^2$]'); p.savefig('pspec_boot_2.png')
+    p.clf()
     for cnt,path in enumerate(paths):
         p.subplot(plt2,plt1,cnt+1)
         #C.arp.waterfall(avg_pk_2d[cnt], mx=10, drng=3)
-        C.arp.waterfall(avg_pk_2d[cnt], mode='real', mx=1e8, drng=2e8)
+        C.arp.waterfall(avg_pk_2d[cnt], mode='log', mx=8, drng=5)
         p.colorbar(shrink=.5) 
     p.subplot(plt2,plt1,1); p.title('Power Spectrum [mK$^2$]'); p.savefig('spec_boot_3.png')
+    p.clf()
     plt1,plt2 = len(paths),3
     for cnt,path in enumerate(paths):
         p.subplot(plt2,plt1,0*plt1+cnt+1)
@@ -157,13 +161,17 @@ pk_fold = n.average(pk_fold_boot, axis=1)
 # this is excluding imag component in noise estimate `
 pk_boot = n.sort(pk_boot.real, axis=1) # losing imag component here
 pk_fold_boot = n.sort(pk_fold_boot.real, axis=1) # losing imag component here
+#pk_boot = n.sort(pk_boot.imag, axis=1) # losing imag component here
+#pk_fold_boot = n.sort(pk_fold_boot.imag, axis=1) # losing imag component here
 if True:
     print 'Deriving errors from histogram'
     up_thresh = int(n.around(0.975 * pk_boot.shape[1])) # 2 sigma, single tail
     # important to only include real component in estimation of error
     err = (pk_boot[:,up_thresh] - pk.real) / 2 # effective "1 sigma" derived from actual 2 sigma
+#    err = (pk_boot[:,up_thresh] - pk.imag) / 2 # effective "1 sigma" derived from actual 2 sigma
     up_thresh_fold = int(n.around(0.975 * pk_fold_boot.shape[1])) # 2 sigma, single tail
     err_fold = (pk_fold_boot[:,up_thresh_fold] - pk_fold.real) / 2 # effective "1 sigma" derived from actual 2 sigma
+#    err_fold = (pk_fold_boot[:,up_thresh_fold] - pk_fold.imag) / 2 # effective "1 sigma" derived from actual 2 sigma
     for k_,pk_,err_ in zip(kpl, pk/1e6, 2*err/1e6):
         print '%6.3f, %9.5f (%9.5f +/- %9.5f)' % (k_, pk_+err_,pk_,err_)
     print '-'*70

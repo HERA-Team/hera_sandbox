@@ -24,18 +24,24 @@ for npzfile in args:
     keys.remove('kpl')
     
     #bin in uv-plane
+    sums = []
+    for bl in keys:
+        sums.append(n.sum(dat[bl]))
     for bl in keys:
         if bl[0] == 'w': continue
         wbl = 'w'+str(bl)
         i,j = a.miriad.bl2ij(bl)
         if i == 40 or j == 40: continue
         if i == 55 or j == 55: continue
-        #what is this phased to?
         crd = aa.get_baseline(i,j)*fq
         u,v = crd[0],crd[1]
         bin = C.pspec.uv2bin(u,v,0)
-        uDat[bin] = uDat.get(bin,0) + dat[bl]
-        uWgt[bin] = uWgt.get(bin,0) + dat[wbl]
+        #try flagging on sum bin per 10 min file
+        #if n.sum(dat[bl]) > 3*n.std(sums): flag = 0
+        #else: flag = 1
+        flag = 1
+        uDat[bin] = uDat.get(bin,0) + flag * dat[bl]
+        uWgt[bin] = uWgt.get(bin,0) + flag * dat[wbl]
 
 slices = ['sum','hor-min','hor','hor-plus']
 
@@ -75,14 +81,14 @@ for slice in slices:
 
 xplots = n.ceil(n.sqrt(len(slices)))
 yplots = n.floor(n.sqrt(len(slices)))
-vmax = [7.,5.,5.,5.]
-vmin = [4.,0.,0.,0.]
+vmax = [17.,15.,15.,15.]
+vmin = [13.,9.,9.,9.]
 for plot,slice in enumerate(slices):
     uvplane[slice] /= uvplane_wgt[slice].clip(1.,n.Inf)
     p.subplot(xplots,yplots,plot+1)
     p.title(slice)
     #p.imshow(n.log10(uvplane[slice].clip(1.,n.Inf)),interpolation='nearest',vmax=vmax[plot],vmin=vmin[plot])
-    p.imshow(n.log10(n.abs(uvplane[slice])),interpolation='nearest',vmax=vmax[plot],vmin=vmin[plot])
+    p.imshow(n.log10(n.abs(uvplane[slice].T)),interpolation='nearest',vmax=vmax[plot],vmin=vmin[plot])
     #p.imshow(uvplane_wgt[slice].clip(0.,1.),interpolation='nearest')
-    #p.colorbar()
+    p.colorbar()
 p.show()
