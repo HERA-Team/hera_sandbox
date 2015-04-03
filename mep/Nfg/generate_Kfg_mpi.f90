@@ -95,9 +95,9 @@
 		chunkMap(totalChunksToDo,1)=mpi_vecLen*(totalChunksToDo-1)+1
 		chunkMap(totalChunksToDo,2)=npix*(npix+1)/2
 
-		do i=1,totalChunksToDo
-			print *, chunkMap(i,1),chunkMap(i,2)
-		enddo
+		!do i=1,totalChunksToDo
+		!	print *, chunkMap(i,1),chunkMap(i,2)
+		!enddo
 
 		numsent=0
 		do k=1,min(nproc-1,totalChunksToDo)
@@ -120,7 +120,7 @@
 			do i=bottomBound,upperBound
 				covarVect(i)=smallCovarVect(i-bottomBound+1)
 			enddo
-			print *, 'Master just got',chunkNum,"back, sending out",numsent+1
+			!print *, 'Master just got',chunkNum,"back, sending out",numsent+1
 
 			if (numsent < totalChunksTodo) then
 				bottomBound=chunkMap(numsent+1,1)
@@ -147,8 +147,8 @@
 			chunkNum=status(MPI_TAG)
             call mpi_recv(upperBound,1,MPI_INTEGER,master,&
                     MPI_ANY_TAG,MPI_COMM_WORLD,status,ierr)
-			print *, 'Hey! I am process',mytid,'and got',chunkNum,&
-					bottomBound,upperBound
+			!print *, 'Hey! I am process',mytid,'and got',chunkNum,&
+			!		bottomBound,upperBound
 
 			if (bottomBound .eq. 0) then
 				complete=1

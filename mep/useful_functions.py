@@ -32,6 +32,24 @@ def gaussian(sig,xpoints,ypoints,x0=0.0,y0=0.0):
     gauss = 1/(2*np.pi*sig*sig)*np.exp(-((xpoints-x0)**2+(ypoints-y0)**2)/(2*sig*sig))
     return gauss
 
+def gaussian(sig,xpoints,ypoints,x0=0.0,y0=0.0):
+    """
+    Returns a gaussian distribution of width sig, centered on x0,y0 
+    for the data points in xpoints and ypoints
+    """
+    gauss = 1/(2*np.pi*sig*sig)*np.exp(-((xpoints-x0)**2+(ypoints-y0)**2)/(2*sig*sig))
+    return gauss
+
+def cosine_gaussian(sig,thetas):
+    gauss = np.cos(thetas)
+    for i,angle in enumerate(thetas):
+        if angle < np.pi/2.:
+            gauss[i] *= np.exp(-0.5*(angle / sig)**2)
+        else:
+            gauss[i] = 0.
+    return gauss
+
+
 def rand_from_covar(C):
     """
     Takes in a covariance matrix C = < x x_dag > and generates a random vector x 
