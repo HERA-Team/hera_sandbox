@@ -175,13 +175,13 @@ def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=False,noiseweight=Fals
             else: weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight)
         t1,t2 = clos_app[key][1]-dt,clos_app[key][2]-dt
         correlation,(uvw1,uvw2)  = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
-        weight = get_weight(aa,bl1,bl2,uvw1[0],uvw1[1],multweight,noiseweight)
+        weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight)
         while correlation > cutoff:
             final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
             t1,t2 = t1-dt,t2-dt
             try: correlation,(uvw1,uvw2)  = get_corr(aa, src,freq,fbmamp, t1,t2, bl1, bl2)
             except(TypeError): correlation  = 0.
-            else: weight = get_weight(aa,bl1,bl2,uvw1[0],uvw1[1],multweight,noiseweight)
+            else: weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight)
     quick_sort.quick_sort(final,0,len(final)-1)
     return final
 
