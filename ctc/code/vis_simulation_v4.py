@@ -18,15 +18,16 @@ AUTHOR:
 
 import aipy
 import numpy
-import pylab
-import pyfits
-import matplotlib.pyplot as plt
+#import pylab
+#import pyfits
+#import matplotlib.pyplot as plt
 import optparse
 import os, sys
 
 o = optparse.OptionParser()
 o.set_usage('vis_simulation_v2.py [options] *.uv')
 o.set_description(__doc__)
+aipy.scripting.add_standard_options(o,cal=True,ant=True)
 o.add_option('--map', dest='map', default='/Users/carinacheng/capo/ctc/images/pspecs/pspec40lmax110/',
              help='Directory where PSPEC files are (labeled pspec1001.fits, pspec1002.fits, etc.). Include final / when typing path.')
 o.add_option('--filename', dest='filename', default='/Users/carinacheng/capo/ctc/tables/testpspec.uv',
@@ -39,13 +40,15 @@ o.add_option('--sfreq', dest='sfreq', default=0.1, type='float',
              help='Start frequency (GHz). Default is 0.1.')
 o.add_option('--sdf', dest='sdf', default=0.1/203, type='float',
              help='Channel spacing (GHz).  Default is .1/203')
-o.add_option('--startjd', dest='startjd', default=2454500., type='float',
-             help='Julian Date to start observation.  Default is 2454500')
-o.add_option('--endjd', dest='endjd', default=2454501., type='float',
-             help='Julian Date to end observation.  Default is 2454501')
-o.add_option('--psa', dest='psa', default='psa898_v003', 
-             help='Name of PSA file.')
+#o.add_option('--startjd', dest='startjd', default=2454500., type='float',
+#             help='Julian Date to start observation.  Default is 2454500')
+#o.add_option('--endjd', dest='endjd', default=2454501., type='float',
+#             help='Julian Date to end observation.  Default is 2454501')
+#o.add_option('--psa', dest='psa', default='psa898_v003', 
+#             help='Name of PSA file.')
 opts, args = o.parse_args(sys.argv[1:])
+
+i,j = map(int,opts.ant.split('_'))
 
 #miriad uv file set-up
 
@@ -92,11 +95,8 @@ uv.add_var('pol' ,'i')
 
 print 'getting antenna array...'
 
-filename = opts.psa
-aa = aipy.cal.get_aa(filename, uv['sdf'],uv['sfreq'],uv['nchan'])
+aa = aipy.cal.get_aa(opts.cal, uv['sdf'],uv['sfreq'],uv['nchan'])
 freqs = aa.get_afreqs()
-i = 0
-j = 16
 bl = aa.get_baseline(i,j) #for antennas 0 and 16; array of length 3 in ns
 blx,bly,blz = bl[0],bl[1],bl[2]
 
@@ -151,7 +151,8 @@ for jj, f in enumerate(freqs):
 
 print 'writing miriad uv file...'
 
-times = numpy.arange(opts.startjd, opts.endjd, uv['inttime']/aipy.const.s_per_day)
+#times = numpy.arange(opts.startjd, opts.endjd, uv['inttime']/aipy.const.s_per_day)
+times = map(float,args) #converts args to floats
 flags = numpy.zeros(len(freqs), dtype=numpy.int32)
 
 for ii, t in enumerate(times):
