@@ -49,6 +49,14 @@ o.add_option('--sdf', dest='sdf', default=0.1/203, type='float',
 opts, args = o.parse_args(sys.argv[1:])
 
 i,j = map(int,opts.ant.split('_'))
+times = map(float,args) #converts args to floats
+
+print 'getting antenna array...'
+
+aa = aipy.cal.get_aa(opts.cal, opts.sdf, opts.sfreq, opts.nchan)
+freqs = aa.get_afreqs()
+bl = aa.get_baseline(i,j) #for antennas 0 and 16; array of length 3 in ns
+blx,bly,blz = bl[0],bl[1],bl[2]
 
 #miriad uv file set-up
 
@@ -92,13 +100,6 @@ uv.add_var('baseline' ,'r')
 uv.add_var('pol' ,'i')
 
 #get antenna array
-
-print 'getting antenna array...'
-
-aa = aipy.cal.get_aa(opts.cal, uv['sdf'],uv['sfreq'],uv['nchan'])
-freqs = aa.get_afreqs()
-bl = aa.get_baseline(i,j) #for antennas 0 and 16; array of length 3 in ns
-blx,bly,blz = bl[0],bl[1],bl[2]
 
 #more miriad variables
 
@@ -151,9 +152,12 @@ for jj, f in enumerate(freqs):
 
 print 'writing miriad uv file...'
 
-#times = numpy.arange(opts.startjd, opts.endjd, uv['inttime']/aipy.const.s_per_day)
-times = map(float,args) #converts args to floats
-flags = numpy.zeros(len(freqs), dtype=numpy.int32)
+shape = (len(times),len(freqs))
+
+flags = numpy.zeros(shape, dtype=numpy.int32)
+
+uvgridxx = numpy.zeros(shape, dtype=numpy.complex64)
+uvgridyy = numpy.zeros(shape, dtype=numpy.complex64)
 
 for ii, t in enumerate(times):
 
@@ -169,8 +173,8 @@ for ii, t in enumerate(times):
     #t3 = t3.compress(t3[2]>=0,axis=1) #gets rid of coordinates below horizon
     tx,ty,tz = t3[0], t3[1], t3[2] 
 
-    dataxx = []
-    datayy = []
+    #dataxx = []
+    #datayy = []
 
     px, wgts = img[freqs[0]].crd2px(tx,ty,tz, interpolate=1) #converts coordinates to pixels for first PSPEC file (pixel numbers don't change with frequency)
     #NOTE: img and fluxes are still in equatorial coordinates... just getting pixels here
@@ -182,18 +186,21 @@ for ii, t in enumerate(times):
         
         visxx = numpy.sum(fluxes[f]*efngxx)
         visyy = numpy.sum(fluxes[f]*efngyy)
-        dataxx.append(visxx)
-        datayy.append(visyy)
+        #dataxx.append(visxx)
+        #datayy.append(visyy)
+
+        uvgridxx[ii,jj] = visxx
+        uvgridyy[ii,jj] = visyy
 
         print ("%.8f" % f) + ' GHz done'
     
-    dataxx = numpy.asarray(dataxx)
-    datayy = numpy.asarray(datayy)
-   
+    #dataxx = numpy.asarray(dataxx)
+    #datayy = numpy.asarray(datayy)
+
     preamble = (bl, t, (i,j))
     uv['pol'] = aipy.miriad.str2pol['xx']
-    uv.write(preamble, dataxx, flags)
+    uv.write(preamble, uvgridxx[ii], flags[ii])
     uv['pol'] = aipy.miriad.str2pol['yy']
-    uv.write(preamble, datayy, flags)
+    uv.write(preamble, uvgridyy[ii], flags[ii])
 
 del(uv)
