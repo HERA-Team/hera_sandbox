@@ -9,29 +9,53 @@ def rnd(val, cell, decimals=0):
 
 #coarsely determine crossings by griding the uv plane
 #Format: d[ur_rounded] = [(bl,t,(u,v)),...]
-def pair_coarse(aa, src, times, dist,redundant=False):
-    ant_dict,repbl = {},{}
+def pair_coarse(aa, src, times, dist,redundant=False, add_tol=1.):
+    f2 = open('./redundant_bl.out', 'w')
+    f2.close()
+    f2 = open('./redundant_bl.out', 'a')
+    ant_dict,ant_dict2,ant_dict3,repbl = {},{},{},{}
+    t_ad = times[10]
+    aa.set_jultime(t_ad)
+    src.compute(aa)
     NU,NV = len(aa.ant_layout),len(aa.ant_layout[0])
     nants = len(aa)
     print "pair_coarse: nants, NU, NV =", nants, NU, NV
     for i in range(NU):
         for j in range(NV):
             ant_dict[aa.ant_layout[i][j]] = (i,j)  #ant_dict[random ant#]=antlayoutindex
-    print ant_dict
+    ant_dict2 = {114:(100,100),116:(100,101),117:(100,102),118:(100,103),119:(100,104),120:(100,105)}
+    ant_dict3 = {123:(101,100),124:(101,101),125:(101,102),126:(101,103),127:(101,104)}
+    f2.write(str(ant_dict)+'\n')
+    f2.write(str(ant_dict2)+'\n')
+    f2.write(str(ant_dict3)+'\n')
     for i in range(nants):
         for j in range(i+1,nants):
             try: dkey = (ant_dict[i][0]-ant_dict[j][0],ant_dict[i][1]-ant_dict[j][1])
-            except(KeyError): dkey = (i,j)
+            except(KeyError):
+                try: dkey = (100,ant_dict2[i][0]-ant_dict2[j][0],ant_dict2[i][1]-ant_dict2[j][1])
+                except(KeyError):
+                    try: dkey = (101,ant_dict3[i][0]-ant_dict3[j][0],ant_dict3[i][1]-ant_dict3[j][1])
+                    except(KeyError):
+                        uvw = aa.gen_uvw(i,j,src=src).flatten()
+                        if uvw[0] < 0: uvw = -uvw
+                        uvw_r = rnd(uvw, add_tol)
+                        uv_r = (uvw_r[0],uvw_r[1])
+                        dkey = uv_r
+                        repbl[dkey] = repbl.get(dkey,[]) + [(i,j)]
+                    else:
+                        if dkey[0]<0: dkey = (-dkey[0],-dkey[1])
+                        repbl[dkey] = [(i,j)]
+                else:
+                    if dkey[0]<0: dkey = (-dkey[0],-dkey[1])
+                    repbl[dkey] = [(i,j)]
             else:
                 if dkey[0]<0: dkey = (-dkey[0],-dkey[1])
-            repbl[dkey] = (i,j)
+                repbl[dkey] = [(i,j)]
     print "pair_coarse:", len(repbl), "representative baselines, 4432 expected"
     #print repbl
   #  d = {}
-  #  t = times[10]
-  #  aa.set_jultime(t)
-  #  src.compute(aa)
-  #  if dist_ini == 0: dist_ini = dist
+  #
+  #
   #  nants = len(aa)
   #  print "dist_ini = ", dist_ini
   #  for i in range(nants):
@@ -47,7 +71,12 @@ def pair_coarse(aa, src, times, dist,redundant=False):
         aa.set_jultime(t)
         src.compute(aa)
         for key in repbl:
-            bl = repbl[key]
+            print key, repbl[key]
+            if len(repbl[key]) == 1: bl = repbl[key][0]
+            else:
+                print "Found simultaneously redundant baseline:", key, repbl[key]
+                f2.write("Found simultaneously redundant bls:"+str(key)+str(repbl[key]))
+                continue
             uvw = aa.gen_uvw(*bl,src=src).flatten()
             if uvw[0] < 0: uvw = -uvw
             uvw_r = rnd(uvw, dist)
@@ -64,6 +93,7 @@ def pair_coarse(aa, src, times, dist,redundant=False):
                 d[uv_r].append(new_sample)
     for key in d.keys(): # remove entries with no redundancy
         if len(d[key]) < 2: del d[key]
+    f2.close()
     return d
 
 #sorts the given dictionary of crossings in order of decreasing correlations
@@ -104,7 +134,7 @@ def alter_clos(pairings, freq, fbmamp, cutoff=0.):
             for j in range(i+1,L):
                 pt1,pt2 = pairings[key][i],pairings[key][j]
                 if pt1[0] == pt2[0]:
-                    print "alter_clos: ignore self-correlating baseline: ", pt1[0]
+                    #print "alter_clos: ignore self-correlating baseline: ", pt1[0]
                     continue
                 duv = tuple(x - y for x,y in zip(pt1[2], pt2[2]))
                 val = export_beam.get_overlap(freq,fbmamp,*duv)
@@ -113,6 +143,10 @@ def alter_clos(pairings, freq, fbmamp, cutoff=0.):
                 clos_app[blkey] = clos_app.get(blkey,[])+[(val,pt1[1],pt2[1],pt1[2])]
     for blkey in clos_app.keys():
         N = len(clos_app[blkey])
+        #if N > 10:
+        #    print "Found simultaneously redundant baseline:", blkey
+        #    del clos_app[blkey]
+        #    continue
         max,max_val = 0,0.
         for i in range(N):
             if max_val < abs(clos_app[blkey][i][0]):
@@ -160,7 +194,7 @@ def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=False,noiseweight=Fals
     cnt, N = 0,len(clos_app)
     for key in clos_app:
         cnt = cnt+1
-        if (cnt/500)*500 == cnt:
+        if (cnt/100)*100 == cnt:
             print 'Calculating baseline pair %d out of %d:' % (cnt,N)
         bl1,bl2 = key[0],key[1]
         t1,t2 = clos_app[key][1],clos_app[key][2]
