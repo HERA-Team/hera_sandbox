@@ -10,8 +10,9 @@ echo CODE START
 
 startjd=2454500
 endjd=2454501
-inttime=5000
+inttime=20000
 numchunks=4 #number of processors
+
 nchunks=`seq ${numchunks}`
 echo nchunks: ${nchunks}
 
@@ -33,12 +34,11 @@ for chunk in ${loopargs}; do
 
     #echo ${ARGS} | cut -d " " -f ${startindex}-$((${startindex}+${chunksize}-1)) #list of times broken into chunks
     list="$(echo ${ARGS} | cut -d " " -f ${startindex}-$((${startindex}+${chunksize}-1)))" #list of times broken into chunks
-    echo ${list}
+    #echo ${list}
     name=`echo ${list} | cut -d " " -f 1` 
-    echo ${name}
-    #vis_simulation_v4.py --sdf 0.001 --sfreq 0.1 --nchan 10 --inttime 20000 --map pspec --mappath /data2/home/cacheng/capo/ctc/images/pspecs/pspec203lmax200/ --filename test.uv -C psa898_v003 -a 0_16 ${list}
+    #echo ${name}
+    vis_simulation_v4.py --sdf 0.001 --sfreq 0.1 --nchan 10 --inttime ${inttime} --map pspec --mappath /data2/home/cacheng/capo/ctc/images/pspecs/pspec100lmax100/ --filename test_${name}.uv -C psa898_v003 -a 0_16 ${list}
 
-    
     startindex=$((${startindex}+${chunksize}));
  
 done
