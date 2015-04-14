@@ -2,6 +2,7 @@ __author__ = 'yunfanzhang'
 
 import numpy as n
 import export_beam, quick_sort
+import pdb
 
 #round values to cell size
 def rnd(val, cell, decimals=0):
@@ -23,34 +24,36 @@ def pair_coarse(aa, src, times, dist,redundant=False, add_tol=1.):
     for i in range(NU):
         for j in range(NV):
             ant_dict[aa.ant_layout[i][j]] = (i,j)  #ant_dict[random ant#]=antlayoutindex
-    ant_dict2 = {114:(100,100),116:(100,101),117:(100,102),118:(100,103),119:(100,104),120:(100,105)}
-    ant_dict3 = {123:(101,100),124:(101,101),125:(101,102),126:(101,103),127:(101,104)}
     f2.write(str(ant_dict)+'\n')
-    f2.write(str(ant_dict2)+'\n')
-    f2.write(str(ant_dict3)+'\n')
+    if nants == 128:
+        ant_dict2 = {114:(100,100),116:(100,101),117:(100,102),118:(100,103),119:(100,104),120:(100,105)}
+        ant_dict3 = {123:(101,100),124:(101,101),125:(101,102),126:(101,103),127:(101,104)}
+        f2.write(str(ant_dict2)+'\n')
+        f2.write(str(ant_dict3)+'\n')
     for i in range(nants):
         for j in range(i+1,nants):
-            try: dkey = (ant_dict[i][0]-ant_dict[j][0],ant_dict[i][1]-ant_dict[j][1])
+            try: dkey = (0,ant_dict[i][0]-ant_dict[j][0],ant_dict[i][1]-ant_dict[j][1])
             except(KeyError):
-                try: dkey = (100,ant_dict2[i][0]-ant_dict2[j][0],ant_dict2[i][1]-ant_dict2[j][1])
-                except(KeyError):
-                    try: dkey = (101,ant_dict3[i][0]-ant_dict3[j][0],ant_dict3[i][1]-ant_dict3[j][1])
+                if nants == 128:
+                    try: dkey = (1,ant_dict2[i][0]-ant_dict2[j][0],ant_dict2[i][1]-ant_dict2[j][1])
                     except(KeyError):
-                        uvw = aa.gen_uvw(i,j,src=src).flatten()
-                        if uvw[0] < 0: uvw = -uvw
-                        uvw_r = rnd(uvw, add_tol)
-                        uv_r = (uvw_r[0],uvw_r[1])
-                        dkey = uv_r
-                        repbl[dkey] = repbl.get(dkey,[]) + [(i,j)]
+                        try: dkey = (2,ant_dict3[i][0]-ant_dict3[j][0],ant_dict3[i][1]-ant_dict3[j][1])
+                        except(KeyError):
+                            pdb.set_trace()
+                            uvw = aa.gen_uvw(i,j,src=src).flatten()
+                            if uvw[0] < 0: uvw = -uvw
+                            uvw_r = rnd(uvw, add_tol)
+                            dkey = (3,uvw_r[0],uvw_r[1])
+                        else:
+                            if dkey[1]<0 or (dkey[1]==0 and dkey[2]<0): dkey = (dkey[0],-dkey[1],-dkey[2])
                     else:
-                        if dkey[0]<0: dkey = (-dkey[0],-dkey[1])
-                        repbl[dkey] = [(i,j)]
+                        if dkey[1]<0 or (dkey[1]==0 and dkey[2]<0): dkey = (dkey[0],-dkey[1],-dkey[2])
                 else:
-                    if dkey[0]<0: dkey = (-dkey[0],-dkey[1])
-                    repbl[dkey] = [(i,j)]
+                    pdb.set_trace()  #all 64 antennas should be in ant_layout
+                    break
             else:
-                if dkey[0]<0: dkey = (-dkey[0],-dkey[1])
-                repbl[dkey] = [(i,j)]
+                if dkey[1]<0 or (dkey[1]==0 and dkey[2]<0): dkey = (dkey[0],-dkey[1],-dkey[2])
+            repbl[dkey] = repbl.get(dkey,[]) + [(i,j)]
     print "pair_coarse:", len(repbl), "representative baselines, 4432 expected"
     #print repbl
   #  d = {}
@@ -71,12 +74,12 @@ def pair_coarse(aa, src, times, dist,redundant=False, add_tol=1.):
         aa.set_jultime(t)
         src.compute(aa)
         for key in repbl:
-            print key, repbl[key]
-            if len(repbl[key]) == 1: bl = repbl[key][0]
-            else:
+            #print key, repbl[key]
+            if key[0] == 3 and len(repbl[key]) > 1:
                 print "Found simultaneously redundant baseline:", key, repbl[key]
                 f2.write("Found simultaneously redundant bls:"+str(key)+str(repbl[key]))
                 continue
+            else: bl = repbl[key][0]
             uvw = aa.gen_uvw(*bl,src=src).flatten()
             if uvw[0] < 0: uvw = -uvw
             uvw_r = rnd(uvw, dist)
@@ -194,7 +197,7 @@ def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=False,noiseweight=Fals
     cnt, N = 0,len(clos_app)
     for key in clos_app:
         cnt = cnt+1
-        if (cnt/100)*100 == cnt:
+        if (cnt/200)*200 == cnt:
             print 'Calculating baseline pair %d out of %d:' % (cnt,N)
         bl1,bl2 = key[0],key[1]
         t1,t2 = clos_app[key][1],clos_app[key][2]

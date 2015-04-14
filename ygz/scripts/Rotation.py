@@ -1,7 +1,7 @@
 import aipy as a, numpy as n, pylab as p, ephem as e
 #Plot tracks of the entire array as the earth rotates
 aa=a.cal.get_aa('psa6622_v001',n.array([.15]))
-#aa=a.cal.get_aa('paper128',n.array([.15]))
+#aa=a.cal.get_aa('psa6420_v003',n.array([.15]))
 nants=128
 rad2deg=180/n.pi
 src= a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')

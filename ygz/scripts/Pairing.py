@@ -13,9 +13,10 @@ shape0 = X.shape
 X,Y,Z = X.flatten(),Y.flatten(),Z.flatten()
 ntop = n.array([X,Y,Z])
 aa = a.cal.get_aa('psa6622_v001',n.array([.15]))
+#aa = a.cal.get_aa('psa6240_v003',n.array([.15]))
 src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
 #src=a.fit.RadioSpecial("Sun")
-nants = 128
+nants = len(aa)
 dt = 0.001
 dt_fine = 43./3600/24
 times_coarse = n.arange(2456240.3,2456240.4, dt)
