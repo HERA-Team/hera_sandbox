@@ -39,7 +39,7 @@ def pair_coarse(aa, src, times, dist,redundant=False, add_tol=1.):
                     except(KeyError):
                         try: dkey = (2,ant_dict3[i][0]-ant_dict3[j][0],ant_dict3[i][1]-ant_dict3[j][1])
                         except(KeyError):
-                            pdb.set_trace()
+                            #pdb.set_trace()
                             uvw = aa.gen_uvw(i,j,src=src).flatten()
                             if uvw[0] < 0: uvw = -uvw
                             uvw_r = rnd(uvw, add_tol)
@@ -49,7 +49,7 @@ def pair_coarse(aa, src, times, dist,redundant=False, add_tol=1.):
                     else:
                         if dkey[1]<0 or (dkey[1]==0 and dkey[2]<0): dkey = (dkey[0],-dkey[1],-dkey[2])
                 else:
-                    pdb.set_trace()  #all 64 antennas should be in ant_layout
+                    #pdb.set_trace()  #all 64 antennas should be in ant_layout
                     break
             else:
                 if dkey[1]<0 or (dkey[1]==0 and dkey[2]<0): dkey = (dkey[0],-dkey[1],-dkey[2])
