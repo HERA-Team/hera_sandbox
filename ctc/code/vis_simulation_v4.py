@@ -73,10 +73,10 @@ crd = numpy.array(img1.px2crd(px,ncrd=3)) #aipy.healpix.HealpixMap.px2crd?
 t3 = numpy.asarray(crd)
 #t3 = t3.compress(t3[2]>=0,axis=1) #gets rid of coordinates below horizon
 tx,ty,tz = t3[0], t3[1], t3[2] #1D arrays of top coordinates of img1 (can define to be whatever coordinate system)
-bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')**2 #beam response (makes code slow)
-bmyy = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='y')**2
-sum_bmxx = numpy.sum(bmxx,axis=1)
-sum_bmyy = numpy.sum(bmyy,axis=1)
+#bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')**2 #beam response (makes code slow)
+#bmyy = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='y')**2
+#sum_bmxx = numpy.sum(bmxx,axis=1)
+#sum_bmyy = numpy.sum(bmyy,axis=1)
 
 #get equatorial coordinates
 
@@ -98,8 +98,13 @@ uvgridyy = numpy.zeros(shape, dtype=numpy.complex64)
 for jj, f in enumerate(freqs):
     img = aipy.map.Map(fromfits = opts.mappath+opts.map + '1' + str(jj+1).zfill(3) + '.fits', interp=True)
     fng = numpy.exp(-2j*numpy.pi*(blx*tx+bly*ty+blz*tz)*f) #fringe pattern
-    fngxx = fng*bmxx[jj]/sum_bmxx[jj] #factor used later in visibility calculation
-    fngyy = fng*bmyy[jj]/sum_bmyy[jj]
+    aa.select_chans([jj]) #selects specific frequency
+    bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')**2
+    bmyy = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='y')**2
+    sum_bmxx = numpy.sum(bmxx,axis=1)
+    sum_bmyy = numpy.sum(bmyy,axis=1)
+    fngxx = fng*bmxx[0]/sum_bmxx[0] #factor used later in visibility calculation
+    fngyy = fng*bmyy[0]/sum_bmyy[0]
     fluxes = img[px] #fluxes preserved in equatorial grid
     #print ("%.8f" % f) + ' GHz done'
 
