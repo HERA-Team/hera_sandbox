@@ -25,12 +25,18 @@ o.add_option('--uvnew', default='/Users/carinacheng/capo/ctc/tables/test.uv',
              help='Path and name of outputted UV file.')
 opts,args = o.parse_args(sys.argv[1:])
 
-names=[]
+uvo = aipy.miriad.UV(opts.uvnew, status='new')
+uvo.init_from_uv(aipy.miriad.UV(args[0]))
 
 for uvfile in args:
 
-    names.append(uvfile)
-    #uvi = aipy.miriad.UV(uvfile)
-    #print uvfile,'->',opts.uvnew
+    uvi = aipy.miriad.UV(uvfile)
+    print uvfile,'->',opts.uvnew
 
-print names
+    for p,d,f in uvi.all(raw=True):
+   
+        uvo.copyvr(uvi) 
+        uvo['pol']=uvi['pol']
+        uvo.write(p,d,f)
+        
+    
