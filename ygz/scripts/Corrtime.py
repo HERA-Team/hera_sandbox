@@ -18,10 +18,10 @@ aa = a.cal.get_aa('psa6622_v001',n.array([.15]))
 src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
 #src=a.fit.RadioSpecial("Sun")
 
-ant1 = 24
-ant2 = 113
-ant3 = 115
-ant4 = 114
+ant1 = 67
+ant2 = 117
+ant3 = 121
+ant4 = 124
 
 aa.set_jultime(2456240.309)
 src.compute(aa)

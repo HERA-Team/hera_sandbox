@@ -10,7 +10,7 @@ def rnd(val, cell, decimals=0):
 
 #coarsely determine crossings by griding the uv plane
 #Format: d[ur_rounded] = [(bl,t,(u,v)),...]
-def pair_coarse(aa, src, times, dist,redundant=False, add_tol=1.):
+def pair_coarse(aa, src, times, dist,redundant=False, add_tol=0.5):
     f2 = open('./redundant_bl.out', 'w')
     f2.close()
     f2 = open('./redundant_bl.out', 'a')

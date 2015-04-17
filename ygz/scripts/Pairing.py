@@ -12,16 +12,16 @@ X,Y,Z = img.get_top(center=(200,200))
 shape0 = X.shape
 X,Y,Z = X.flatten(),Y.flatten(),Z.flatten()
 ntop = n.array([X,Y,Z])
-aa = a.cal.get_aa('psa6622_v001',n.array([.15]))
-#aa = a.cal.get_aa('psa6240_v003',n.array([.15]))
+#aa = a.cal.get_aa('psa6622_v001',n.array([.15]))
+aa = a.cal.get_aa('psa6240_v003',n.array([.15]))
 src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
 #src=a.fit.RadioSpecial("Sun")
 nants = len(aa)
 dt = 0.001
 dt_fine = 43./3600/24
-times_coarse = n.arange(2456240.3,2456240.4, dt)
-times_fine = n.arange(2456240.3,2456240.4, dt_fine)
-dist = 0.1                           #size of cells to store in dictionary.
+times_coarse = n.arange(2456249.2,2456249.5, dt)
+times_fine = n.arange(2456249.2,2456249.5, dt_fine)
+dist = 1.2                           #size of cells to store in dictionary.
 corr_tol = 5000.                    #cutoff of minimum correlation
 bmp  = export_beam.beam_real(aa[0], ntop, shape0, 'x')
 freq, fbmamp = export_beam.beam_fourier(bmp, d, 400)
