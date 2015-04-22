@@ -26,17 +26,22 @@ o.add_option('--uvnew', default='/Users/carinacheng/capo/ctc/tables/test.uv',
 opts,args = o.parse_args(sys.argv[1:])
 
 uvo = aipy.miriad.UV(opts.uvnew, status='new')
-uvo.init_from_uv(aipy.miriad.UV(args[0]))
+#uvo.init_from_uv(aipy.miriad.UV(args[0]))
 
 for uvfile in args:
 
     uvi = aipy.miriad.UV(uvfile)
     print uvfile,'->',opts.uvnew
 
-    for p,d,f in uvi.all(raw=True):
-   
-        uvo.copyvr(uvi) 
-        uvo['pol']=uvi['pol']
-        uvo.write(p,d,f)
+    uvo.init_from_uv(uvi)
+    uvo.pipe(uvi)
+
+    #for p,d,f in uvi.all(raw=True):
+        #print uvi['lst']
+        #uvo.copyvr(uvi) 
+        #uvo['lst']=uvi['lst']
+        #uvo.write(p,d,f)
+        #print uvo['lst']
         
     
+del(uvo)
