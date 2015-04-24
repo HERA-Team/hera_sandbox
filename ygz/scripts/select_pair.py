@@ -156,6 +156,8 @@ def alter_clos(pairings, freq, fbmamp, cutoff=0.):
             if max_val < abs(clos_app[blkey][i][0]):
                 max,max_val = i, abs(clos_app[blkey][i][0])
         clos_app[blkey] = clos_app[blkey][max]
+    return clos_app
+
 #computes correlations of baselines bl1, bl2 at times t1, t2
 def get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2):
     aa.set_jultime(t1)
