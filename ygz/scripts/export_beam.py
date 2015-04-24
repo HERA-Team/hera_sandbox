@@ -3,13 +3,14 @@ import aipy as a, numpy as n
 from scipy import interpolate
 
 #computes the beam squared
-def beam_real(ant, ntop, shape0, pol):
+def beam_real(ant, ntop, shape0, pol, sq=True):
         bm1x = ant.bm_response(ntop,pol=pol)[0]
         bm2x = ant.bm_response(ntop,pol=pol)[0]
         bm = bm1x*n.conj(bm2x)
         bmsq = (bm1x*n.conj(bm2x))*(bm1x*n.conj(bm2x))
         #Tranform the square of the beams
-        bmp = bmsq
+        bmp = bm
+        if sq: bmp = bmsq
         bmp.shape = shape0
         return bmp
 

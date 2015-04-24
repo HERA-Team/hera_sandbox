@@ -2,6 +2,7 @@ __author__ = 'yunfanzhang'
 
 import numpy as n
 import export_beam, quick_sort
+from scipy import interpolate
 import pdb
 
 #round values to cell size
@@ -155,8 +156,6 @@ def alter_clos(pairings, freq, fbmamp, cutoff=0.):
             if max_val < abs(clos_app[blkey][i][0]):
                 max,max_val = i, abs(clos_app[blkey][i][0])
         clos_app[blkey] = clos_app[blkey][max]
-    return clos_app
-
 #computes correlations of baselines bl1, bl2 at times t1, t2
 def get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2):
     aa.set_jultime(t1)
@@ -175,8 +174,16 @@ def get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2):
     #print n.sqrt(duv[0]*duv[0]+duv[1]*duv[1])
     return export_beam.get_overlap(freq,fbmamp,*duv), (uvw1,uvw2)
 
-def get_weight(aa,bl1,bl2,uvw,multweight,noiseweight):
-    weight = 1.
+def get_ovlp(aa,t1,t2,rbm2interp):
+    aa.set_jultime(t1)
+    ra1 = aa.radec_of(0,n.pi/2)[0]
+    aa.set_jultime(t2)
+    dra = aa.radec_of(0,n.pi/2)[0]-ra1
+    dl = n.sin(dra)
+    return rbm2interp(dl,0)
+
+def get_weight(aa,bl1,bl2,uvw,multweight,noiseweight, ovlp=1.):
+    weight = ovlp
     ant_dict = {}
     NU,NV = len(aa.ant_layout),len(aa.ant_layout[0])
     for i in range(NU):
@@ -192,9 +199,16 @@ def get_weight(aa,bl1,bl2,uvw,multweight,noiseweight):
 # Outputs the final array of sorted pairs of points in uv space,
 # spaced in time to avoid over computing information already extracted from fringe rate filtering
 # format pair_fin = [(val,(bl1,t1),(bl2,t2))...]
-def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=False,noiseweight=False,cutoff=6000.):
+def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=False,noiseweight=False,ovlpweight=False,cutoff=6000.):
     final = []
     cnt, N = 0,len(clos_app)
+    if ovlpweight:
+        fbm2 = n.multiply(fbmamp,fbmamp)   #element wise square for power beam
+        rbm2 = n.fft.fft2(fbm2)
+        freqlm = n.fft.fftfreq(len(freq),d=(freq[1]-freq[0]))
+        rbm2 = n.fft.fftshift(rbm2)
+        freqlm = n.fft.fftshift(freqlm)
+        rbm2interp = interpolate.interp2d(freqlm, freqlm, rbm2, kind='cubic')
     for key in clos_app:
         cnt = cnt+1
         if (cnt/200)*200 == cnt:
@@ -203,22 +217,30 @@ def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=False,noiseweight=Fals
         t1,t2 = clos_app[key][1],clos_app[key][2]
         correlation,(uvw1,uvw2) = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
         if correlation == 0: continue
-        weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight)
+        if ovlpweight: ovlp = get_ovlp(aa,t1,t2,rbm2interp)
+        else: ovlp = 1.
+        weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight,ovlp)
         while correlation > cutoff:
             final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
             t1,t2 = t1+dt,t2+dt
             try: correlation,(uvw1,uvw2)  = get_corr(aa, src,freq,fbmamp, t1,t2, bl1, bl2)
             except(TypeError): correlation  = 0.
-            else: weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight)
-        t1,t2 = clos_app[key][1]-dt,clos_app[key][2]-dt
-        correlation,(uvw1,uvw2)  = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
-        weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight)
+            else:
+                if ovlpweight: ovlp = get_ovlp(aa,t1,t2,rbm2interp)
+                else: ovlp = 1.
+                weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight,ovlp)
+        if ovlpweight: ovlp = get_ovlp(aa,t1,t2,rbm2interp)
+        else: ovlp = 1.
+        weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight,ovlp)
         while correlation > cutoff:
             final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
             t1,t2 = t1-dt,t2-dt
             try: correlation,(uvw1,uvw2)  = get_corr(aa, src,freq,fbmamp, t1,t2, bl1, bl2)
             except(TypeError): correlation  = 0.
-            else: weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight)
+            else:
+                if ovlpweight: ovlp = get_ovlp(aa,t1,t2,rbm2interp)
+                else: ovlp = 1.
+                weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight,ovlp)
     quick_sort.quick_sort(final,0,len(final)-1)
     return final
 

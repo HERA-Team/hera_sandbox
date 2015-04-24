@@ -18,9 +18,10 @@ src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
 #src=a.fit.RadioSpecial("Sun")
 nants = len(aa)
 dt = 0.001
-dt_fine = 43./3600/24
-times_coarse = n.arange(2456249.2,2456249.5, dt)
-times_fine = n.arange(2456249.2,2456249.5, dt_fine)
+#dt_fine = 43./3600/24
+dt_fine = 0.0004971027374267578
+times_coarse = n.arange(2456249.20169,2456249.50791, dt)
+times_fine = n.arange(2456249.20169,2456249.50791, dt_fine)
 dist = 1.2                           #size of cells to store in dictionary.
 corr_tol = 5000.                    #cutoff of minimum correlation
 bmp  = export_beam.beam_real(aa[0], ntop, shape0, 'x')
@@ -33,7 +34,7 @@ print 'Time after coarse selection:', sys_time.clock(), 'seconds'
 #clos_app = select_pair.get_closest(pairs_sorted)           #determine closest approach points
 clos_app = select_pair.alter_clos(d,freq,fbmamp)            #determine closest approach points
 print 'Found closest approach points after:', sys_time.clock(), 'seconds'
-pairs_final = select_pair.pair_fin(clos_app,dt,aa,src,freq,fbmamp,True,True,5000.)  #output final sorted pairs
+pairs_final = select_pair.pair_fin(clos_app,dt_fine,aa,src,freq,fbmamp,True,True,True,5000.)  #output final sorted pairs
 print 'Total time:', sys_time.clock(), 'seconds'
 
 #write result to file and screen
