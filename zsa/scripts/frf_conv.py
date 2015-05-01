@@ -97,10 +97,8 @@ def get_oldfilter(aa, (bli,blj), inttime, nints, freqs):
     return time_bins, kernels, \
            fr_bins, windowed_bwfrs
      
-#def mk_fng(bl, ex, ey, ez):
-#    return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
 def mk_fng(bl, ex, ey, ez):
-    return -2*n.pi/a.const.sidereal_day * n.dot(n.cross(n.array([0,0,1.]),bl), n.array([ex,ey,ez]))
+    return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
 
 def get_optimal_kernel_at_ref(aa, ch, (bli, blj), binwidth=.00005):
     '''
@@ -123,14 +121,12 @@ def get_optimal_kernel_at_ref(aa, ch, (bli, blj), binwidth=.00005):
     bmyy = n.where(top_z > 0, _bmy**2, 0)
     bm_I = 0.5 * (bmxx + bmyy)
 
-    #xyz = (xyz[1], xyz[0], xyz[2])
+    xyz = (xyz[1], xyz[0], xyz[2])
     bl = aa.get_baseline(bli,blj,'r') * freq
     print 'Baseline:', bl
     fng = mk_fng(bl, *xyz) 
 
-    #h_I, bin_edges = n.histogram(fng, bins=bin_edges, weights=bm_I) # This is wrong
-    h_I, bin_edges = n.histogram(fng, bins=bin_edges, weights=bm_I**2) 
-    h_I = n.sqrt(h_I)
+    h_I, bin_edges = n.histogram(fng, bins=bin_edges, weights=bm_I) 
     #square the power beam.Dont do this. Only need to put in one factor 
     #of the beam. The measurement contains the other.
 #    h_I = h_I**2
@@ -191,8 +187,7 @@ def get_beam_w_fr(aa, (bli, blj), timespan=86240*6, ref_chan=160):
 
     #get fits for all freqs by changing gaussian params
     gfits = n.array([scipy.interpolate.interp1d(fr_bins,gauss(
-            fr_bins, cen*r, wid*r)*tanh(fr_bins,zero_bin_fr*r,1e-5, a=-1.0)* tanh(fr_bins,.00035,1e-5,a=1),
-            #fr_bins, cen*r, wid*r)*tanh(fr_bins,zero_bin_fr*r,1e-5, a=-1.0),
+            fr_bins, cen*r, wid*r)*tanh(fr_bins,zero_bin_fr*r,1e-5, a=-1.0),
             kind='linear') for r in ratios])
 #    gfits = n.array([scipy.interpolate.interp1d(fr_bins,gauss(
 #            fr_bins, cen*r, wid*r),
