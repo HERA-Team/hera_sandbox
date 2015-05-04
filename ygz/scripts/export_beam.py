@@ -4,15 +4,18 @@ from scipy import interpolate
 
 #computes the beam squared
 def beam_real(ant, ntop, shape0, pol, sq=True):
-        bm1x = ant.bm_response(ntop,pol=pol)[0]
-        bm2x = ant.bm_response(ntop,pol=pol)[0]
-        bm = bm1x*n.conj(bm2x)
-        bmsq = (bm1x*n.conj(bm2x))*(bm1x*n.conj(bm2x))
-        #Tranform the square of the beams
-        bmp = bm
-        if sq: bmp = bmsq
-        bmp.shape = shape0
-        return bmp
+        Nfreq = len(ant.bm_response(ntop,pol=pol))
+        bmp_list = []
+        for nf in range(Nfreq):
+            bm1x = ant.bm_response(ntop,pol=pol)[nf]
+            bm2x = ant.bm_response(ntop,pol=pol)[nf]
+            bm = bm1x*n.conj(bm2x)
+            bmsq = bm*bm
+            bmp = bm
+            if sq: bmp = bmsq
+            bmp.shape = shape0
+            bmp_list.append(bmp)
+        return bmp_list
 
 #computes the fourier transform of give beam pattern bmp
 def beam_fourier(bmp, dreal, nreal):

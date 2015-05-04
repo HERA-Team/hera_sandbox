@@ -134,6 +134,7 @@ def alter_clos(pairings, freq, fbmamp, cutoff=0.):
     print "alter_clos: len(pairings)=", len(pairings)
     for key in pairings:
         L = len(pairings[key])
+        print L
         for i in range(L):  # get the points pairwise
             for j in range(i+1,L):
                 pt1,pt2 = pairings[key][i],pairings[key][j]
@@ -201,7 +202,7 @@ def get_weight(aa,bl1,bl2,uvw,multweight,noiseweight, ovlp=1.):
 # Outputs the final array of sorted pairs of points in uv space,
 # spaced in time to avoid over computing information already extracted from fringe rate filtering
 # format pair_fin = [(val,(bl1,t1),(bl2,t2))...]
-def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=False,noiseweight=False,ovlpweight=False,cutoff=6000.):
+def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=True,noiseweight=True,ovlpweight=True,cutoff=6000.):
     final = []
     cnt, N = 0,len(clos_app)
     if ovlpweight:

@@ -11,14 +11,16 @@ img = a.img.Img(200,res=0.5)
 X,Y,Z = img.get_top(center=(200,200))
 shape0 = X.shape
 X,Y,Z = X.flatten(),Y.flatten(),Z.flatten()
-aa = a.cal.get_aa('psa6622_v001',n.array([.15]))
+aa = a.cal.get_aa('psa6622_v001',n.array([.15, .18]))
 
 
 aa.set_jultime(2456240.2)
 peak = []
 sample_ant = 1
 ntop = n.array([X,Y,Z])  #note all beams are the same
-bmp = export_beam.beam_real(aa[sample_ant], ntop, shape0, 'x')
+bmp_list = export_beam.beam_real(aa[sample_ant], ntop, shape0, 'x')
+
+bmp = bmp_list[1]
 freq, fbmamp = export_beam.beam_fourier(bmp, d, 400)
 rax = [-1,1,-1,1]
 freq_pl = 5
