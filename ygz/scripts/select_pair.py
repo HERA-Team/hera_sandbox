@@ -1,7 +1,7 @@
 __author__ = 'yunfanzhang'
 
-import numpy as n
-import export_beam, quick_sort
+import numpy as n, multiprocessing as mp
+import export_beam, quick_sort, itertools
 from scipy import interpolate
 import pdb
 
@@ -127,25 +127,38 @@ def get_closest(pairs_sorted):
             clos_app[ckey] = (pairs_sorted[k][0],pairs_sorted[k][1][1],pairs_sorted[k][2][1],pairs_sorted[k][3])
     return clos_app
 
+def alter_clos_p1(key,arr,freq,fbmamp,clos_app):
+    L = len(arr)
+    print L
+    for i in range(L):  # get the points pairwise
+        for j in range(i+1,L):
+            pt1,pt2 = arr[i],arr[j]
+            if pt1[0] == pt2[0]:
+                #print "alter_clos: ignore self-correlating baseline: ", pt1[0]
+                continue
+            duv = tuple(x - y for x,y in zip(pt1[2], pt2[2]))
+            val = export_beam.get_overlap(freq,fbmamp,*duv)
+            blkey = (pt1[0],pt2[0])
+            #if blkey==((92,112),(0,91)) or blkey==((0,91),(92,112)): print blkey,val, duv
+            clos_app[blkey] = clos_app.get(blkey,[])+[(val,pt1[1],pt2[1],pt1[2])]
+    return
+
 #Alternative way to pair_sort + get_closest, usually faster (~n vs ~nlog(n))
 #format: clos_app[bl1,bl2] = (val, t1, t2, (u1,v1))
-def alter_clos(pairings, freq, fbmamp, cutoff=0.):
-    clos_app = {}
+def alter_clos(pairings, freq, fbmamp, cutoff=0., nproc=1):
+    manager = mp.Manager()
+    work = manager.Queue(nproc)
+    clos_app = manager.dict()
     print "alter_clos: len(pairings)=", len(pairings)
-    for key in pairings:
-        L = len(pairings[key])
-        print L
-        for i in range(L):  # get the points pairwise
-            for j in range(i+1,L):
-                pt1,pt2 = pairings[key][i],pairings[key][j]
-                if pt1[0] == pt2[0]:
-                    #print "alter_clos: ignore self-correlating baseline: ", pt1[0]
-                    continue
-                duv = tuple(x - y for x,y in zip(pt1[2], pt2[2]))
-                val = export_beam.get_overlap(freq,fbmamp,*duv)
-                blkey = (pt1[0],pt2[0])
-                #if blkey==((92,112),(0,91)) or blkey==((0,91),(92,112)): print blkey,val, duv
-                clos_app[blkey] = clos_app.get(blkey,[])+[(val,pt1[1],pt2[1],pt1[2])]
+    pool = []
+    for i in xrange(nproc):
+        p = mp.Process(target=alter_clos_p1, args=(work,pairings[work],freq,fbmamp,clos_app))
+        p.start()
+        pool.append(p)
+    iters = itertools.chain(pairings.keys(), (None,)*nproc)
+    for key in iters:
+        if key != None: work.put(key)
+    for p in pool: p.join()
     for blkey in clos_app.keys():
         N = len(clos_app[blkey])
         #if N > 10:

@@ -18,7 +18,7 @@ dt = 0.001
 dt_fine = 0.0004971027374267578
 times_coarse = n.arange(2456249.20169,2456249.50791, dt)
 times_fine = n.arange(2456249.20169,2456249.50791, dt_fine)
-dist = 0.2                           #size of cells to store in dictionary.
+dist = .2                           #size of cells to store in dictionary.
 corr_tol = 5000.                    #cutoff of minimum correlation
 aa = a.cal.get_aa('psa6240_v003',n.array(list_freq))
 src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.18, name='test')
@@ -36,7 +36,7 @@ for ni in range(len(list_freq)):
     print 'Time after coarse selection:', sys_time.clock(), 'seconds'
     #pairs_sorted = select_pair.pair_sort(d,freq,fbmamp)        #sort crossings
     #clos_app = select_pair.get_closest(pairs_sorted)           #determine closest approach points
-    clos_app = select_pair.alter_clos(d,freq,fbmamp)            #determine closest approach points
+    clos_app = select_pair.alter_clos(d,freq,fbmamp,nproc=1)            #determine closest approach points
     print 'Found closest approach points after:', sys_time.clock(), 'seconds'
     pairs_final = select_pair.pair_fin(clos_app,dt_fine,aa,src,freq,fbmamp,False,False,False,5000.)  #output final sorted pairs
     print 'Total time:', sys_time.clock(), 'seconds'
