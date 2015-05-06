@@ -127,7 +127,7 @@ def get_closest(pairs_sorted):
             clos_app[ckey] = (pairs_sorted[k][0],pairs_sorted[k][1][1],pairs_sorted[k][2][1],pairs_sorted[k][3])
     return clos_app
 
-def alter_clos_p1(key,arr,freq,fbmamp,clos_app):
+def alter_clos_p1(arr,freq,fbmamp,clos_app):
     L = len(arr)
     print L
     for i in range(L):  # get the points pairwise
@@ -147,17 +147,17 @@ def alter_clos_p1(key,arr,freq,fbmamp,clos_app):
 #format: clos_app[bl1,bl2] = (val, t1, t2, (u1,v1))
 def alter_clos(pairings, freq, fbmamp, cutoff=0., nproc=1):
     manager = mp.Manager()
-    work = manager.Queue(nproc)
+    que = manager.Queue(nproc)
     clos_app = manager.dict()
     print "alter_clos: len(pairings)=", len(pairings)
     pool = []
     for i in xrange(nproc):
-        p = mp.Process(target=alter_clos_p1, args=(work,pairings[work],freq,fbmamp,clos_app))
+        p = mp.Process(target=alter_clos_p1, args=(que,freq,fbmamp,clos_app))
         p.start()
         pool.append(p)
     iters = itertools.chain(pairings.keys(), (None,)*nproc)
     for key in iters:
-        if key != None: work.put(key)
+        if key != None: que.put(pairings[key])
     for p in pool: p.join()
     for blkey in clos_app.keys():
         N = len(clos_app[blkey])
