@@ -28,12 +28,15 @@ o.add_option('--pspec', dest='pspec', default='pspec50lmax200',
 opts, args = o.parse_args(sys.argv[1:])
 
 path = '/Users/carinacheng/capo/ctc/images/pspecs/' + opts.pspec
+#path = '/Users/carinacheng/capo/ctc//images/gsm/' + opts.pspec
 
 for root, dirs, filenames in os.walk(path):
     for f in filenames:
         if f[9:] == '.fits':
+        #if f[7:] == '.fits':
             newname = f.replace('.fits','.png')
             command = 'plot_map.py -m real -o ' + str(newname) + ' ' + str(f)
+            #command = 'plot_map.py -o ' + str(newname) + ' ' + str(f)
             os.chdir(path)
             os.system(command)
 
