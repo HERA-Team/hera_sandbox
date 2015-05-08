@@ -36,7 +36,7 @@ for ni in range(len(list_freq)):
     print 'Time after coarse selection:', sys_time.clock(), 'seconds'
     #pairs_sorted = select_pair.pair_sort(d,freq,fbmamp)        #sort crossings
     #clos_app = select_pair.get_closest(pairs_sorted)           #determine closest approach points
-    clos_app = select_pair.alter_clos(d,freq,fbmamp,nproc=1)            #determine closest approach points
+    clos_app = select_pair.alter_clos(d,freq,fbmamp,nproc=2)            #determine closest approach points
     print 'Found closest approach points after:', sys_time.clock(), 'seconds'
     pairs_final = select_pair.pair_fin(clos_app,dt_fine,aa,src,freq,fbmamp,False,False,False,5000.)  #output final sorted pairs
     print 'Total time:', sys_time.clock(), 'seconds'
