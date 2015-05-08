@@ -36,7 +36,7 @@ for uvfile in args:
     uvo.init_from_uv(uvi)
     uvo.pipe(uvi)
 
-    #for p,d,f in uvi.all(raw=True):
+    #for p,d,f in uvi.all(raw=True):   #XXX: this way doesn't update UV variables each time unless explicitly told
         #print uvi['lst']
         #uvo.copyvr(uvi) 
         #uvo['lst']=uvi['lst']

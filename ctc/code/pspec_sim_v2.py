@@ -35,7 +35,7 @@ from scipy.interpolate import interp1d
 ###options
 
 o = optparse.OptionParser()
-o.set_usage('vis_simulation_v2.py [options] *.uv')
+o.set_usage('pspec_sim_v2.py [options] *.uv')
 o.set_description(__doc__)
 o.add_option('--nchan', dest='nchan', default=203, type='int',
              help='Number of channels in simulated data. Default is 203.')
