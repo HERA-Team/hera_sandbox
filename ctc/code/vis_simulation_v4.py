@@ -28,8 +28,10 @@ o = optparse.OptionParser()
 o.set_usage('vis_simulation_v2.py [options] *.uv')
 o.set_description(__doc__)
 aipy.scripting.add_standard_options(o,cal=True,ant=True)
-o.add_option('--map', dest='map', default='/Users/carinacheng/capo/ctc/images/pspecs/pspec40lmax110/',
-             help='Directory where PSPEC files are (labeled pspec1001.fits, pspec1002.fits, etc.). Include final / when typing path.')
+o.add_option('--mappath', dest='mappath', default='/Users/carinacheng/capo/ctc/images/pspecs/pspec40lmax110/',
+             help='Directory where maps are. Include final / when typing path.')
+o.add_option('--map', dest='map', default='gsm',
+            help='Map type (gsm or pspec).')
 o.add_option('--filename', dest='filename', default='/Users/carinacheng/capo/ctc/tables/testpspec.uv',
              help='Filename of created Miriad UV file (ex: test.uv).')
 o.add_option('--nchan', dest='nchan', default=203, type='int',
@@ -51,12 +53,85 @@ opts, args = o.parse_args(sys.argv[1:])
 i,j = map(int,opts.ant.split('_'))
 times = map(float,args) #converts args to floats
 
+assert(not os.path.exists(opts.filename)) #checks if UV file exists already
+
 print 'getting antenna array...'
 
 aa = aipy.cal.get_aa(opts.cal, opts.sdf, opts.sfreq, opts.nchan)
 freqs = aa.get_afreqs()
 bl = aa.get_baseline(i,j) #for antennas 0 and 16; array of length 3 in ns
 blx,bly,blz = bl[0],bl[1],bl[2]
+
+#get topocentric coordinates and calculate beam response
+
+print 'calculating beam response...'
+
+img1 = aipy.map.Map(fromfits = opts.mappath+opts.map + '1001.fits', interp=True)
+
+px = numpy.arange(img1.npix()) #number of pixels in map
+crd = numpy.array(img1.px2crd(px,ncrd=3)) #aipy.healpix.HealpixMap.px2crd?
+t3 = numpy.asarray(crd)
+#t3 = t3.compress(t3[2]>=0,axis=1) #gets rid of coordinates below horizon
+tx,ty,tz = t3[0], t3[1], t3[2] #1D arrays of top coordinates of img1 (can define to be whatever coordinate system)
+#bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')**2 #beam response (makes code slow)
+#bmyy = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='y')**2
+#sum_bmxx = numpy.sum(bmxx,axis=1)
+#sum_bmyy = numpy.sum(bmyy,axis=1)
+
+#get equatorial coordinates
+
+e3 = numpy.asarray(crd)
+ex,ey,ez = e3[0], e3[1], e3[2] #1D arrays of eq coordinates of img
+
+#loop through frequency to get PSPECS and calculate fringe
+
+print 'getting maps and calculating fringes...'
+
+#loop through time to pull out fluxes and fringe pattern
+#loop through frequency to calculate visibility
+
+shape = (len(times),len(freqs))
+flags = numpy.zeros(shape, dtype=numpy.int32)
+uvgridxx = numpy.zeros(shape, dtype=numpy.complex64)
+uvgridyy = numpy.zeros(shape, dtype=numpy.complex64)
+
+for jj, f in enumerate(freqs):
+    img = aipy.map.Map(fromfits = opts.mappath+opts.map + '1' + str(jj+1).zfill(3) + '.fits', interp=True)
+    fng = numpy.exp(-2j*numpy.pi*(blx*tx+bly*ty+blz*tz)*f) #fringe pattern
+    aa.select_chans([jj]) #selects specific frequency
+    bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')**2
+    bmyy = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='y')**2
+    sum_bmxx = numpy.sum(bmxx,axis=1)
+    sum_bmyy = numpy.sum(bmyy,axis=1)
+    fngxx = fng*bmxx[0]/sum_bmxx[0] #factor used later in visibility calculation
+    fngyy = fng*bmyy[0]/sum_bmyy[0]
+    fluxes = img[px] #fluxes preserved in equatorial grid
+
+    print 'Frequency %d/%d' % (jj+1, len(freqs)) 
+
+    for ii, t in enumerate(times):
+
+        print '   Timestep %d/%d' % (ii+1, len(times))
+        aa.set_jultime(t)
+
+        eq2top = aipy.coord.eq2top_m(aa.sidereal_time(),aa.lat) #conversion matrix
+        t3rot = numpy.dot(eq2top,e3) #topocentric coordinates
+        #t3 = t3.compress(t3[2]>=0,axis=1) #gets rid of coordinates below horizon
+        txrot,tyrot,tzrot = t3rot[0], t3rot[1], t3rot[2] 
+
+        pxrot, wgts = img.crd2px(txrot,tyrot,tzrot, interpolate=1) #converts coordinates to pixels for first PSPEC file (pixel numbers don't change with frequency)
+        #NOTE: img and fluxes are still in equatorial coordinates... just getting pixels here
+
+        efngxx = numpy.sum(fngxx[pxrot]*wgts, axis=1)
+        efngyy = numpy.sum(fngyy[pxrot]*wgts, axis=1)
+        
+        visxx = numpy.sum(fluxes*efngxx)
+        visyy = numpy.sum(fluxes*efngyy)
+
+        uvgridxx[ii,jj] = visxx
+        uvgridyy[ii,jj] = visyy
+
+    print ("%.8f" % f) + ' GHz done'
 
 #miriad uv file set-up
 
@@ -109,93 +184,14 @@ uv.add_var('obsdec' ,'d'); uv['obsdec'] = aa.lat
 uv.add_var('longitu' ,'d'); uv['longitu'] = aa.long
 uv.add_var('antpos' ,'d'); uv['antpos'] = (numpy.array([ant.pos for ant in aa], dtype = numpy.double)).transpose().flatten() #transpose is miriad convention
 
-#get topocentric coordinates and calculate beam response
-
-print 'calculating beam response...'
-
-img1 = aipy.map.Map(fromfits = opts.map + 'pspec1001.fits', interp=True)
-
-px = numpy.arange(img1.npix()) #number of pixels in map
-crd = numpy.array(img1.px2crd(px,ncrd=3)) #aipy.healpix.HealpixMap.px2crd?
-t3 = numpy.asarray(crd)
-#t3 = t3.compress(t3[2]>=0,axis=1) #gets rid of coordinates below horizon
-tx,ty,tz = t3[0], t3[1], t3[2] #1D arrays of top coordinates of img1 (can define to be whatever coordinate system)
-bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')**2 #beam response (makes code slow)
-bmyy = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='y')**2
-sum_bmxx = numpy.sum(bmxx,axis=1)
-sum_bmyy = numpy.sum(bmyy,axis=1)
-
-#get equatorial coordinates
-
-e3 = numpy.asarray(crd)
-ex,ey,ez = e3[0], e3[1], e3[2] #1D arrays of eq coordinates of img
-
-#loop through frequency to get PSPECS and calculate fringe
-
-print 'getting PSPECs and calculating fringes...'
-
-img = {}
-fngxx = {}
-fngyy = {}
-fluxes = {}
-
-for jj, f in enumerate(freqs):
-    img[f] = aipy.map.Map(fromfits = opts.map + 'pspec1' + str(jj+1).zfill(3) + '.fits', interp=True)
-    fng = numpy.exp(-2j*numpy.pi*(blx*tx+bly*ty+blz*tz)*f) #fringe pattern
-    fngxx[f] = fng*bmxx[jj]/sum_bmxx[jj] #factor used later in visibility calculation
-    fngyy[f] = fng*bmyy[jj]/sum_bmyy[jj]
-    fluxes[f] = img[f][px] #fluxes preserved in equatorial grid
-    print ("%.8f" % f) + ' GHz done'
-
-#loop through time to pull out fluxes and fringe pattern
-#loop through frequency to calculate visibility
-
-print 'writing miriad uv file...'
-
-shape = (len(times),len(freqs))
-
-flags = numpy.zeros(shape, dtype=numpy.int32)
-
-uvgridxx = numpy.zeros(shape, dtype=numpy.complex64)
-uvgridyy = numpy.zeros(shape, dtype=numpy.complex64)
-
 for ii, t in enumerate(times):
 
-    print 'Timestep %d/%d' %(ii+1, len(times))
+    print '%d/%d' % (ii+1, len(times))+' done'
     aa.set_jultime(t)
     uv['time'] = t
     uv['lst'] = aa.sidereal_time()
     uv['ra'] = aa.sidereal_time()
-    uv['obsra'] = aa.sidereal_time()
-
-    eq2top = aipy.coord.eq2top_m(aa.sidereal_time(),aa.lat) #conversion matrix
-    t3 = numpy.dot(eq2top,e3) #topocentric coordinates
-    #t3 = t3.compress(t3[2]>=0,axis=1) #gets rid of coordinates below horizon
-    tx,ty,tz = t3[0], t3[1], t3[2] 
-
-    #dataxx = []
-    #datayy = []
-
-    px, wgts = img[freqs[0]].crd2px(tx,ty,tz, interpolate=1) #converts coordinates to pixels for first PSPEC file (pixel numbers don't change with frequency)
-    #NOTE: img and fluxes are still in equatorial coordinates... just getting pixels here
-
-    for jj, f in enumerate(freqs):
-
-        efngxx = numpy.sum(fngxx[f][px]*wgts, axis=1)
-        efngyy = numpy.sum(fngyy[f][px]*wgts, axis=1)
-        
-        visxx = numpy.sum(fluxes[f]*efngxx)
-        visyy = numpy.sum(fluxes[f]*efngyy)
-        #dataxx.append(visxx)
-        #datayy.append(visyy)
-
-        uvgridxx[ii,jj] = visxx
-        uvgridyy[ii,jj] = visyy
-
-        print ("%.8f" % f) + ' GHz done'
-    
-    #dataxx = numpy.asarray(dataxx)
-    #datayy = numpy.asarray(datayy)
+    uv['obsra'] = aa.sidereal_time()    
 
     preamble = (bl, t, (i,j))
     uv['pol'] = aipy.miriad.str2pol['xx']

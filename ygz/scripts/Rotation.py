@@ -1,16 +1,16 @@
 import aipy as a, numpy as n, pylab as p, ephem as e
 #Plot tracks of the entire array as the earth rotates
-aa=a.cal.get_aa('psa6622_v001',n.array([.15]))
-#aa=a.cal.get_aa('paper128',n.array([.15]))
-nants=128
+#aa=a.cal.get_aa('psa6622_v001',n.array([.15]))
+aa = a.cal.get_aa('psa6240_v003',n.array([.15]))
+nants = len(aa)
 rad2deg=180/n.pi
-src= a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
+src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
 #src=a.fit.RadioSpecial("Sun")
 
 p.figure()
 #aa.set_jultime(2456240.2)
-dt   = 0.01
-TIME = n.arange(2456240.2,2456240.3, dt)
+dt = 0.01
+TIME = n.arange(2456249.3,2456249.5, dt)
 for i in range(nants):
   for j in range(i+1,nants):
       for time in TIME:
@@ -23,7 +23,6 @@ for i in range(nants):
                 #print u,v
         
             #p.plot(-u,-v,'ko')
-    
     
 
 #rs = 10**n.arange(1,2.5,rstep)
