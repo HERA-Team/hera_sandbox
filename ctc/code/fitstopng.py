@@ -7,7 +7,7 @@ NAME:
 PURPOSE: 
       Converts a directory of pspec .fits images to .png images
 EXAMPLE CALL:
-      ./fitstopng.py --pspec pspec50lmax200
+      ./fitstopng.py --pspec /Users/carinacheng/capo/ctc/images/pspecs/pspec50lmax200
 AUTHOR:
       Carina Cheng
 
@@ -23,7 +23,7 @@ import os, sys
 o = optparse.OptionParser()
 o.set_usage('fitstopng.py [options]')
 o.set_description(__doc__)
-o.add_option('--pspec', dest='pspec', default='pspec50lmax200',
+o.add_option('--pspec', dest='pspec', default='/Users/carinacheng/capo/ctc/images/pspecs/pspec50lmax200',
              help='Directory where pspec images are contained.')
 opts, args = o.parse_args(sys.argv[1:])
 

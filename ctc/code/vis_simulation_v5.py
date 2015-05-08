@@ -3,15 +3,11 @@
 """
 
 NAME: 
-      vis_simulation_v4.py 
+      vis_simulation_v5.py 
 PURPOSE:
-      Set-up for grid engine on folio
-      Models visibilities using power spectra (pspecs) from pspec_sim_v2.py and creates a new Miriad UV file
-      Differs from vis_simulation.py in that the sky image uses eq. coordinates and the fringe/beam is rotated with time (interpolation happens for fringe)
-EXAMPLE CALL: 
-      ./vis_simulation_v4.py --sdf 0.001 --sfreq 0.1 --nchan 10 --inttime 20000 --map pspec --mappath /Users/carinacheng/capo/ctc/images/pspecs/pspec100lmax100/ --filename test.uv -a 0_16 `python -c "import numpy; import aipy; print ' '.join(map(str,numpy.arange(2454500,2454501,20000/aipy.const.s_per_day)))"` -C psa898_v003
-IMPORTANT NOTE: 
-      Be careful when changing sdf and sfreq because they need to match the pspec files!
+      Models visibilities of maps of different polarizations, julian dates, and frequencies
+EXAMPLE CALL:
+      ./vis_simulation_v5.py --sdf 0.001 --sfreq 0.1 --nchan 10 --inttime 20000 --mappath /data4/paper/exchange_sa_upenn/Carina/ --filename test.uv -a 0_16 `python -c "import numpy; import aipy; print ' '.join(map(str,numpy.arange(2454500,2454501,20000/aipy.const.s_per_day)))"` -C psa898_v003
 AUTHOR:
       Carina Cheng
 
@@ -26,29 +22,24 @@ import optparse
 import os, sys
 
 o = optparse.OptionParser()
-o.set_usage('vis_simulation_v4.py [options] *.uv')
+o.set_usage('vis_simulation_v5.py [options] *.uv')
 o.set_description(__doc__)
 aipy.scripting.add_standard_options(o,cal=True,ant=True)
-o.add_option('--mappath', dest='mappath', default='/Users/carinacheng/capo/ctc/images/pspecs/pspec40lmax110/',
+o.add_option('--mappath', dest='mappath', default='/data4/paper/exchange_sa_upenn/Carina/',
              help='Directory where maps are. Include final / when typing path.')
-o.add_option('--map', dest='map', default='gsm',
-            help='Map type (gsm or pspec).')
+#o.add_option('--map', dest='map', default='gsm',
+#            help='Map type (gsm or pspec).')
 o.add_option('--filename', dest='filename', default='/Users/carinacheng/capo/ctc/tables/testpspec.uv',
              help='Filename of created Miriad UV file (ex: test.uv).')
-o.add_option('--nchan', dest='nchan', default=203, type='int',
-             help='Number of channels in simulated data. Default is 203.')
-o.add_option('--inttime', dest='inttime', default=10., type='float',
-             help='Integration time (s). Default is 10.') 
-o.add_option('--sfreq', dest='sfreq', default=0.1, type='float',
-             help='Start frequency (GHz). Default is 0.1.')
-o.add_option('--sdf', dest='sdf', default=0.1/203, type='float',
-             help='Channel spacing (GHz).  Default is .1/203')
-#o.add_option('--startjd', dest='startjd', default=2454500., type='float',
-#             help='Julian Date to start observation.  Default is 2454500')
-#o.add_option('--endjd', dest='endjd', default=2454501., type='float',
-#             help='Julian Date to end observation.  Default is 2454501')
-#o.add_option('--psa', dest='psa', default='psa898_v003', 
-#             help='Name of PSA file.')
+#o.add_option('--nchan', dest='nchan', default=203, type='int',
+#             help='Number of channels in simulated data. Default is 203.')
+#o.add_option('--inttime', dest='inttime', default=10., type='float',
+#             help='Integration time (s). Default is 10.') 
+#o.add_option('--sfreq', dest='sfreq', default=0.1, type='float',
+#             help='Start frequency (GHz). Default is 0.1.')
+#o.add_option('--sdf', dest='sdf', default=0.1/203, type='float',
+#             help='Channel spacing (GHz).  Default is .1/203')
+
 opts, args = o.parse_args(sys.argv[1:])
 
 i,j = map(int,opts.ant.split('_'))
@@ -56,35 +47,42 @@ times = map(float,args) #converts args to floats
 
 assert(not os.path.exists(opts.filename)) #checks if UV file exists already
 
+freq_file = numpy.load(opts.mappath+'frequency.npz')
+freqs = freq_file['freq']/(10**9)
+sdf = freqs[1]-freqs[0]
+
+JD_file = numpy.load(opts.mappath+'judian_dates.npz')
+jds = JD_file['jd']
+
+nchan = len(freqs)
+inttime = (jds[1]-jds[0])*24*60*60 #seconds
+
+print freqs, jds, nchan, inttime
+
 print 'getting antenna array...'
 
-aa = aipy.cal.get_aa(opts.cal, opts.sdf, opts.sfreq, opts.nchan)
-freqs = aa.get_afreqs()
+aa = aipy.cal.get_aa(opts.cal, sdf, freqs[0], nchan)
 bl = aa.get_baseline(i,j) #for antennas 0 and 16; array of length 3 in ns
 blx,bly,blz = bl[0],bl[1],bl[2]
 
-#get topocentric coordinates and calculate beam response
+#get topocentric coordinates 
 
-print 'calculating beam response...'
+print 'getting coordinates...'
 
-img1 = aipy.map.Map(fromfits = opts.mappath+opts.map + '1001.fits', interp=True)
+img1 = aipy.map.Map(fromfits = opts.mappath + 'healpix_maps-I-f' + ('%.2f' % (float(freqs[0])*10**3)) + '_l' + ('%.5f' % jds[0]) + '.fits', interp=True)
 
 px = numpy.arange(img1.npix()) #number of pixels in map
 crd = numpy.array(img1.px2crd(px,ncrd=3)) #aipy.healpix.HealpixMap.px2crd?
 t3 = numpy.asarray(crd)
 #t3 = t3.compress(t3[2]>=0,axis=1) #gets rid of coordinates below horizon
 tx,ty,tz = t3[0], t3[1], t3[2] #1D arrays of top coordinates of img1 (can define to be whatever coordinate system)
-#bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')**2 #beam response (makes code slow)
-#bmyy = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='y')**2
-#sum_bmxx = numpy.sum(bmxx,axis=1)
-#sum_bmyy = numpy.sum(bmyy,axis=1)
 
 #get equatorial coordinates
 
 e3 = numpy.asarray(crd)
 ex,ey,ez = e3[0], e3[1], e3[2] #1D arrays of eq coordinates of img
 
-#loop through frequency to get PSPECS and calculate fringe
+#loop through frequency to get maps and calculate fringe
 
 print 'getting maps and calculating fringes...'
 
@@ -96,9 +94,12 @@ flags = numpy.zeros(shape, dtype=numpy.int32)
 uvgridxx = numpy.zeros(shape, dtype=numpy.complex64)
 uvgridyy = numpy.zeros(shape, dtype=numpy.complex64)
 
+#NOTE TO SELF: I STOPPED EDITING AT THIS POINT... FITS FILES HAVE ERROR BEING READ BY AIPY
+#NEED TO GET RID OF BEAM STUFF BELOW AND SET IT UP FOR 4 POLS
+
+"""
 for jj, f in enumerate(freqs):
     img = aipy.map.Map(fromfits = opts.mappath+opts.map + '1' + str(jj+1).zfill(3) + '.fits', interp=True)
-    #img = aipy.map.Map(fromfits = opts.mappath+opts.map + '1001.fits', interp=True) #reading same map over and over again
     fng = numpy.exp(-2j*numpy.pi*(blx*tx+bly*ty+blz*tz)*f) #fringe pattern
     aa.select_chans([jj]) #selects specific frequency
     bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')**2
@@ -202,3 +203,4 @@ for ii, t in enumerate(times):
     uv.write(preamble, uvgridyy[ii], flags[ii])
 
 del(uv)
+"""
