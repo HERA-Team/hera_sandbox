@@ -8,8 +8,10 @@ PURPOSE:
       Set-up for grid engine on folio
       Models visibilities using power spectra (pspecs) from pspec_sim_v2.py and creates a new Miriad UV file
       Differs from vis_simulation.py in that the sky image uses eq. coordinates and the fringe/beam is rotated with time (interpolation happens for fringe)
-EXAMPLE CALL:
-      ./vis_simulation_v4 --sdf 0.001 --sfreq 0.1 --nchan 10 --inttime 20000 --map pspec --mappath /Users/carinacheng/capo/ctc/images/pspecs/pspec100lmax100/ --filename test.uv -a 0_16 `python -c "import numpy; import aipy; print ' '.join(map(str,numpy.arange(2454500,2454501,20000/aipy.const.s_per_day)))"` -C psa898_v003.py
+EXAMPLE CALL: 
+      ./vis_simulation_v4.py --sdf 0.001 --sfreq 0.1 --nchan 10 --inttime 20000 --map pspec --mappath /Users/carinacheng/capo/ctc/images/pspecs/pspec100lmax100/ --filename test.uv -a 0_16 `python -c "import numpy; import aipy; print ' '.join(map(str,numpy.arange(2454500,2454501,20000/aipy.const.s_per_day)))"` -C psa898_v003
+IMPORTANT NOTE: 
+      Be careful when changing sdf and sfreq because they need to match the pspec files!
 AUTHOR:
       Carina Cheng
 

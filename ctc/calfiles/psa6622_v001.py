@@ -565,6 +565,7 @@ def get_aa(freqs):
         gain=prms['gain'], amp_coeffs=prms['amp_coeffs'],
         dly_coeffs=prms['dly_coeffs'], dly_xx_to_yy=prms['dly_xx_to_yy'], ant_layout=prms['ant_layout'])"""
     aa = a.pol.AntennaArray(prms['loc'], antennas)
+    #aa = a.pol.AntennaArray(prms['loc'], antennas,ant_layout=prms['ant_layout'])
     for i in range(nants):
         pos = prms['antpos'][i]
         i = str(i)
