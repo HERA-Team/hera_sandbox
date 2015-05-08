@@ -106,11 +106,12 @@ for jj, f in enumerate(freqs):
     fngxx = fng*bmxx[0]/sum_bmxx[0] #factor used later in visibility calculation
     fngyy = fng*bmyy[0]/sum_bmyy[0]
     fluxes = img[px] #fluxes preserved in equatorial grid
-    #print ("%.8f" % f) + ' GHz done'
+
+    print 'Frequency %d/%d' % (jj+1, len(freqs)) 
 
     for ii, t in enumerate(times):
 
-        print 'Timestep %d/%d' %(ii+1, len(times))
+        print '   Timestep %d/%d' % (ii+1, len(times))
         aa.set_jultime(t)
 
         eq2top = aipy.coord.eq2top_m(aa.sidereal_time(),aa.lat) #conversion matrix

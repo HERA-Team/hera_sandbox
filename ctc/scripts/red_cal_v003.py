@@ -95,7 +95,7 @@ for filename in args:
 	    ###cols 6-10:
 	    #valid = [25,19,1,47,75,83,91,99,107,48,4,18,37,6,16,11,29,68,76,84,92,100,108,24,17,5,40,52,62,36,28,69,77,85,93,101,109]
 	        ###cols 11-15:
-            #valid = [25,19,1,51,57,71,59,79,23,87,50,95,38,103,26,111,46,27,56,30,54,12,0,39,34,70,78,86,94,102,110,55,13,32,14,7,44,60]
+            valid = [25,19,1,51,57,71,59,79,23,87,50,95,38,103,26,111,46,27,56,30,54,12,0,39,34,70,78,86,94,102,110,55,13,32,14,7,44,60]
 	    ###whole array:
 	    #valid = ANTPOS.flatten()
         ###get rid of bad antennas:
@@ -260,7 +260,6 @@ for filename in args:
         P[m].shape = (x0, P[m].size/x0)
         #print P[m].shape, M[m].shape
         pinv = n.linalg.pinv(P[m]) # this succeeds where lstsq fails for some reason
-        print pinv
         C[m] = n.dot(pinv,M[m])
         #C[m] = n.linalg.lstsq(P[m],M[m])[0]
         C[m].shape = (NPOL,) + ANTPOS.shape

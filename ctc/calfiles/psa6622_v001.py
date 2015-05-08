@@ -293,7 +293,8 @@ prms = {
 46: 0.000000, 
 47: 0.000000, 
 48: -11.567718, 
-49: 3.880354, 
+#49: 3.880354, 
+49:-70.0,
 50: 0.000000, 
 51: -47.982136, 
 52: -7.288210, 
@@ -547,16 +548,18 @@ def get_aa(freqs):
         beam = prms['beam'](freqs, nside=32, lmax=20, mmax=20, deg=7)
         try: beam.set_params(prms['bm_prms'])
         except(AttributeError): pass
-        phsoff = {'x':[0.,0.], 'y':[0.,0.]}
+        #phsoff = {'x':[0.,0.], 'y':[0.,0.]}
+        phsoff = {'x':[prms['delays'][i],0.],'y':[0.,0.]}
         amp = prms['amps'].get(i, 4e-3); amp = {'x':amp,'y':amp}
         bp_r = prms['bp_r'][i]; bp_r = {'x':bp_r, 'y':bp_r}
         bp_i = prms['bp_i'][i]; bp_i = {'x':bp_i, 'y':bp_i}
         twist = prms['twist'][i]
         antennas.append(a.pol.Antenna(0., 0., 0., beam, phsoff=phsoff,
                 amp=amp, bp_r=bp_r, bp_i=bp_i, pointing=(0.,n.pi/2,twist)))
-    aa = AntennaArray(prms['loc'], antennas, tau_ew=prms['tau_ew'], tau_ns=prms['tau_ns'],
+    """aa = AntennaArray(prms['loc'], antennas, tau_ew=prms['tau_ew'], tau_ns=prms['tau_ns'],
         gain=prms['gain'], amp_coeffs=prms['amp_coeffs'],
-        dly_coeffs=prms['dly_coeffs'], dly_xx_to_yy=prms['dly_xx_to_yy'], ant_layout=prms['ant_layout'])
+        dly_coeffs=prms['dly_coeffs'], dly_xx_to_yy=prms['dly_xx_to_yy'], ant_layout=prms['ant_layout'])"""
+    aa = a.pol.AntennaArray(prms['loc'], antennas,ant_layout=prms['ant_layout'])
     for i in range(nants):
         pos = prms['antpos'][i]
         i = str(i)
