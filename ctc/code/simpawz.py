@@ -76,6 +76,7 @@ if opts.gsm == True:
     gsmargs = open('args.dat','w')
     gsmargs.write(' '.join(['gsm',str(SFREQ*1000),str(SDF*1000),str(NCHAN)]))
     gsmargs.close()
+    os.chdir(FILEPATH)
        
     if os.path.exists('gsm1001.fits') == True:
         if opts.vis == False:
@@ -86,7 +87,8 @@ if opts.gsm == True:
             print 'Deleting GSM .fits files...'
             os.system("rm -r gsm*fits")
             print 'Making GSM maps...'
-            os.system(out)
+            os.chdir(out[:-9])
+            os.system(out) #makes maps
             os.system('mv gsm*dat '+FILEPATH)
             os.chdir(FILEPATH)
 
@@ -101,7 +103,8 @@ if opts.gsm == True:
     if os.path.exists('gsm1001.dat') == False:
 
         print 'Making GSM maps...'
-        os.system(out) #makes sky maps
+        os.chdir(out[:-9])
+        os.system(out) #makes maps
         os.system('mv gsm*dat '+FILEPATH) #moves sky mapsi
         os.chdir(FILEPATH)
 
