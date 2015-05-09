@@ -50,7 +50,7 @@ PK_VALS = 0.000505*(2*numpy.pi**2)/(K_VALS**3) #Pk-values to make maps for
 
 ANT = '0_16'
 
-FILEPATH = '/home/cacheng/capo/ctc/simpawz_test/' #path to save all outputs
+FILEPATH = '/Users/carinacheng/capo/ctc/simpawz_test/' #path to save all outputs
 
 
 #OPTIONS
