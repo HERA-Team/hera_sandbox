@@ -128,8 +128,9 @@ def get_closest(pairs_sorted):
     return clos_app
 
 def alter_clos_p1(que,freq,fbmamp,clos_app):
-    while que.empty() == False:
+    while True:
         arr = que.get(block=True, timeout=2)
+        if arr == None: break
         L = len(arr)
         print L
         for i in range(L):  # get the points pairwise
@@ -143,8 +144,8 @@ def alter_clos_p1(que,freq,fbmamp,clos_app):
                 blkey = (pt1[0],pt2[0])
                 #if blkey==((92,112),(0,91)) or blkey==((0,91),(92,112)): print blkey,val, duv
                 clos_app[blkey] = clos_app.get(blkey,[])+[(val,pt1[1],pt2[1],pt1[2])]
-        print "exiting parallel 1"
-    if que.empty(): print "queue is empty"
+    #print "exiting parallel 1"
+    #if que.empty(): print "queue is empty"
     return
 
 #Alternative way to pair_sort + get_closest, usually faster (~n vs ~nlog(n))
@@ -163,6 +164,11 @@ def alter_clos(pairings, freq, fbmamp, cutoff=0., nproc=1):
         iters = itertools.chain(pairings.keys(), (None,)*nproc)
         for key in iters:
             if key != None: que.put(pairings[key])
+            else:
+                que.put(None)
+                que.put(None)
+                que.put(None)
+                que.put(None)
         for p in pool: p.join()
         for blkey in clos_app.keys():
             N = len(clos_app[blkey])
