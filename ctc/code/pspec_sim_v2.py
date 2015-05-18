@@ -22,9 +22,9 @@ import pyfits
 import matplotlib.pyplot as plt
 import optparse
 import os, sys
-import healpy
+#import healpy
 import scipy
-import mpmath
+#import mpmath
 from scipy import integrate
 from scipy.interpolate import interp1d
 
@@ -61,11 +61,11 @@ omg_lambda = 0.72
 
 ###P_k function
 
-def P_k(kmag, sigma=0.0001, k0=0.02):
+def P_k(kmag, sigma=0.01, k0=0.02):
 
     return kmag*0+1. #flat P(k)
     #return numpy.exp(-(kmag-k0)**2/(2*sigma**2)) #Gaussian
-    #return (10*2*numpy.pi**2)/kmag**3 #Delta^2=100
+    #return numpy.exp(-(kmag-k0)**2/(2*sigma**2))+numpy.exp(-(kmag-k1)**2/(2*sigma**2)) #2 Gaussians
 
 
 ###C_l function
@@ -165,13 +165,32 @@ def C_matrix(freqs,Pk_interp,l_vals):
  
       
 ###################################
-###     SIM CODE STARTS HERE    ###
+###     PARAMETERS TO CHANGE    ###
 ###################################
 
-k_data = numpy.arange(0.01,10,0.1) #actual data points
+###if using P(k) function
+"""
+k_data = numpy.arange(0.01,0.5,0.01) #actual data points
 Pk_data = P_k(k_data)
 
 Pk_interp = interp1d(k_data, Pk_data, kind='linear')
+"""
+###if using P(k) points
+
+#delta_sq = numpy.array([0.9413099, 2.047375, 5.35123, 9.884925, 19.12472, 24.78529, 28.9412, 29.81639, 29.235, 29.36708, 34.75652, 54.99383, 87.24504])
+#ks = numpy.array([0.0281599, 0.04730816, 0.06677343, 0.09664913, 0.144889, 0.21846043, 0.327466, 0.49140543, 0.73756543, 1.10653729, 1.65998857, 2.39712429, 3.13152])
+#Pk_data = delta_sq*(2*numpy.pi**2)/(ks**3)
+
+#Pk_interp = interp1d(ks, Pk_data, kind='linear')
+
+k_data = numpy.arange(0.001,0.5,0.01) #edit this
+delta_sq = 0.000505 #K^2
+Pk_data = delta_sq*(2*numpy.pi**2)/(k_data**3)
+Pk_interp = interp1d(k_data,Pk_data,kind='linear')
+#print k_data,Pk_data
+###################################
+###     SIM CODE STARTS HERE    ###
+###################################
 
 l_vals = numpy.arange(0,opts.lmax,1) 
 a_lms = aipy.healpix.Alm(opts.lmax,opts.lmax) #a_lm object
@@ -187,7 +206,7 @@ Cmatrix = C_matrix(freqs,Pk_interp,l_vals)
 #for each freq, fill all a_lms and make sky map
 
 dirname = 'pspec'+str(opts.nchan)+'lmax'+str(opts.lmax)
-os.system('mkdir /Users/carinacheng/capo/ctc/images/pspecs/'+dirname)
+os.system('mkdir ~/capo/ctc/images/pspecs/'+dirname)
 
 alms_all = []
 
@@ -247,12 +266,36 @@ for f in range(len(freqs)):
     
     sky_map = aipy.map.Map(nside=512)
     sky_map.from_alm(a_lms) #make sky map
-    sky_map.to_fits('/Users/carinacheng/capo/ctc/images/pspecs/'+dirname+'/pspec1'+("%03i" % (f+1))+'.fits', clobber=True) 
+    sky_map.to_fits('/home/cacheng/capo/ctc/images/pspecs/'+dirname+'/pspec1'+("%03i" % (f+1))+'.fits', clobber=True) 
 
 
 ###################################
 ###       ADDITIONAL TESTS      ###
 ###################################
+"""
+###test what lmax is needed
+
+test_ks = numpy.arange(min(k_data),max(k_data),0.001)
+max_Pk = Pk_interp(test_ks[0])
+
+for i in range(len(test_ks)): #find highest k with highest Pk
+    test_Pk = Pk_interp(test_ks[i])
+    if test_Pk >= max_Pk:
+        max_Pk = test_Pk
+        max_k = test_ks[i] 
+        index = i
+
+print 'k=',max_k,', Pkmax=',max_Pk
+
+factor = 0.1 #10% below max Pk
+test2_ks = test_ks[index:]
+
+for i in range(len(test2_ks)): #find k when Pk drops to some factor of its max
+    test2_Pk = Pk_interp(test2_ks[i])
+    if test2_Pk < factor*max_Pk:
+        print 'kmax=',test2_ks[i],', Pk=',test2_Pk
+        break
+"""    
 
 """
 ###test a_lm function (recovering T)
@@ -262,7 +305,7 @@ cov_T = [[10,5,2],[5,15,5],[2,5,20]] #symmetric
 print cov_T
 
 xxt_test = numpy.zeros_like(cov_T)
-num = 1000
+num = 1
 
 for i in range(num):
 
@@ -279,21 +322,18 @@ print xxt_test/num #(should be T)
 """
 ###make single frequency map
 
-k_data = numpy.arange(0.001,0.1,0.001) #actual data points
-Pk_data = P_k(k_data)
-#plt.plot(k_data,Pk_data,'k.')
-#plt.show()
+plt.plot(k_data,Pk_data,'k.')
+plt.show()
 
-Pk_interp = interp1d(k_data, Pk_data, kind='linear')
+#Pk_interp = interp1d(k_data, Pk_data, kind='linear')
 
 l_vals = numpy.arange(0,opts.lmax,1) 
 
-Cl = C_l(.1,.15,Pk_interp,l_vals)
+Cl = C_l(.15,.15,Pk_interp,l_vals)
 
 #print Cl
 
-plt.plot(l_vals,Cl, 'k-') #l vs. Cl plot
-plt.ylim(-1E-10,1E-10)
+plt.plot(l_vals,Cl, 'k.') #l vs. Cl plot
 plt.show() #see where l peaks if P(k) is delta function
 
 a_lms = aipy.healpix.Alm(opts.lmax,opts.lmax) #a_lm object
@@ -316,7 +356,7 @@ for i in range(len(Cl)):
 
 sky_map = aipy.map.Map(nside=512)
 sky_map.from_alm(a_lms)
-sky_map.to_fits('/Users/carinacheng/capo/ctc/images/test.fits', clobber=True)   
+sky_map.to_fits('/Users/carinacheng/capo/ctc/images/test10.fits', clobber=True)   
 """
 
 """
