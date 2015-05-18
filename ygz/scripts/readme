@@ -1,0 +1,22 @@
+Descriptions of scripts on the rotation redundancy project. 
+This project aims to determine the valuable pairs of baselines to correlate as the earth rotates during time of observation. 
+
+Scripts:
+Beamplay.py:  A simple scripts that plots the beam and the Fourier transform of the beam squared
+antconfig.py: script that plots the configuration of the entire array. 
+Rotation.py: plots tracks of the entire array as the earth rotates. 
+Corrtime.py: Given two baselines, plots their correlation vs. time, or their differential UV track. Can also fix one baseline in time.
+Pairing.py: The main script. Outputs informations on which data files to correlate, at what time, in order of inportance. Plots visualizations. 
+ 
+
+Modules:
+export_beam.py: module that contains beam related functions
+select_pair.py: The main module, contains functions calle in Pairing.py. 
+quick_sort.py: A quicksort algorithm specifically for the format of dictionaries in select_pair.py
+plot_pair.py: plotting routines that plot closest approach points and pairings for a sample crossing
+
+Output Files:
+Pairing.out: result of Pairing.py, tells you which  pairs of data to correlate
+
+
+

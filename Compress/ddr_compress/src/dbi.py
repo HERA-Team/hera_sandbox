@@ -118,10 +118,12 @@ class Cal(Base):
     calnum = Column(Integer,primary_key=True)
     obsnum = Column(BigInteger,ForeignKey('observation.obsnum'))
     last_activity = Column(DateTime,nullable=False,default=func.current_timestamp())
+    cal_date = Column(DateTime)
     calfile = Column(Text)
     output_dir = Column(Text)
     input_file = Column(Text)
     logtext = Column(Text)
+    observation = relationship(Observation,backref=backref('cals',uselist=True))
 
 
 

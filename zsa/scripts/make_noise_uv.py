@@ -17,6 +17,9 @@ opts,args = o.parse_args(sys.argv[1:])
 curtime=None
 noise_t_fr=None
 
+def noise(nsamp, var):
+    return n.random.normal(size=nsamp)*n.sqrt(var/2.) + 1j*n.random.normal(size=nsamp)*n.sqrt(var/2. )
+
 def mfunc(uv, p, d, f):
     global curtime, noise_t_fr
     uvw, t, (i,j) = p
@@ -24,8 +27,10 @@ def mfunc(uv, p, d, f):
     if curtime != t:
         curtime = t
         #new noise for every time step/freq but same for all baselines.
-        noise_t_fr = n.random.normal(size=len(d)) * n.exp(2j*n.pi*n.random.uniform(size=len(d)))
-    noise_t_fr_bl = n.random.normal(size=len(d)) * n.exp(2j*n.pi*n.random.uniform(size=len(d)))
+        #noise_t_fr = n.random.normal(size=len(d)) * n.exp(2j*n.pi*n.random.uniform(size=len(d)))
+        noise_t_fr = noise(len(d), 1.0)
+    #noise_t_fr_bl = n.random.normal(size=len(d)) * n.exp(2j*n.pi*n.random.uniform(size=len(d)))
+    noise_t_fr_bl = noise(len(d), 1.0)
 
     if opts.signal:
         if conj[bl]:
@@ -48,12 +53,13 @@ def mfunc(uv, p, d, f):
     return p, data, f
 
 for filename in args:
+    filename_end = filename.split('/')[-1]
     if opts.signal:
-        outfile = filename + '_signal'
+        outfile = filename_end + '_signal'
     elif opts.noise:
-        outfile = filename + '_noise'
+        outfile = filename_end + '_noise'
     else:
-        outfile = filename + 's+n'
+        outfile = filename_end + 's+n'
      
     print 'Writing %s'%(outfile)
     uvi = a.miriad.UV(filename)
