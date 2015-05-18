@@ -191,12 +191,17 @@ def get_ovlp(aa,t1,t2,rbm2interp):
 def get_weight(aa,bl1,bl2,uvw,multweight,noiseweight, ovlp=1.):
     weight = ovlp
     ant_dict = {}
+    num_ant = len(aa)
     NU,NV = len(aa.ant_layout),len(aa.ant_layout[0])
     for i in range(NU):
         for j in range(NV):
             ant_dict[aa.ant_layout[i][j]] = (i,j)  #ant_dict[random ant#]=antlayoutindex
     try: multfactor = (NU-abs(ant_dict[bl1][0]-ant_dict[bl2][0]))*(NV-abs(ant_dict[bl1][1]-ant_dict[bl2][1]))
-    except(KeyError): multfactor = 1
+    except(KeyError):
+        if num_ant<=64:
+            print "get_weight: KeyError"
+            return
+        else: multfactor = 1
     if multweight: weight = weight*multfactor
     noisefactor = (uvw[0]*uvw[0]+uvw[1]*uvw[1]+uvw[2]*uvw[2])**(-1.5)
     if noiseweight: weight = weight*noisefactor

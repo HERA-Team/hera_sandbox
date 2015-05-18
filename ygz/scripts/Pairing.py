@@ -38,7 +38,7 @@ for ni in range(len(list_freq)):
     #clos_app = select_pair.get_closest(pairs_sorted)           #determine closest approach points
     clos_app = select_pair.alter_clos(d,bm_intpl)            #determine closest approach points
     print 'Found closest approach points after:', sys_time.clock(), 'seconds'
-    pairs_final = select_pair.pair_fin(clos_app,dt_fine,aa,src,freq, fbmamp,True,False,False,5000.)  #output final sorted pairs
+    pairs_final = select_pair.pair_fin(clos_app,dt_fine,aa,src,freq, fbmamp,multweight=True,noiseweight=False,ovlpweight=False,cutoff=5000.)
     print 'Total time:', sys_time.clock(), 'seconds'
 
     #write result to file and screen
