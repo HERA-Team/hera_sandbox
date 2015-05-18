@@ -131,10 +131,13 @@ def get_closest(pairs_sorted):
 #format: clos_app[bl1,bl2] = (val, t1, t2, (u1,v1))
 def alter_clos(pairings, bm_intpl, cutoff=0.):
     clos_app = {}
-    print "alter_clos: len(pairings)=", len(pairings)
+    cnt = 0
+    #print "alter_clos: len(pairings)=", len(pairings)
     for key in pairings:
+        cnt = cnt+1
+        if (cnt/20)*20 == cnt:
+            print 'alter_clos: Processing key %d out of %d:' % (cnt,len(pairings))
         L = len(pairings[key])
-        print L
         for i in range(L):  # get the points pairwise
             for j in range(i+1,L):
                 pt1,pt2 = pairings[key][i],pairings[key][j]
@@ -215,7 +218,7 @@ def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=True,noiseweight=True,
         rbm2interp = interpolate.interp2d(freqlm, freqlm, rbm2, kind='cubic')
     for key in clos_app:
         cnt = cnt+1
-        if (cnt/200)*200 == cnt:
+        if (cnt/1000)*1000 == cnt:
             print 'Calculating baseline pair %d out of %d:' % (cnt,N)
         bl1,bl2 = key[0],key[1]
         t1,t2 = clos_app[key][1],clos_app[key][2]
