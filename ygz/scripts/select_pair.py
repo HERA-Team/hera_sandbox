@@ -196,10 +196,13 @@ def get_weight(aa,bl1,bl2,uvw,multweight,noiseweight, ovlp=1.):
     for i in range(NU):
         for j in range(NV):
             ant_dict[aa.ant_layout[i][j]] = (i,j)  #ant_dict[random ant#]=antlayoutindex
-    try: multfactor = (NU-abs(ant_dict[bl1][0]-ant_dict[bl2][0]))*(NV-abs(ant_dict[bl1][1]-ant_dict[bl2][1]))
+    try:
+        m1 = (NU-abs(ant_dict[bl1[0]][0]-ant_dict[bl1[1]][0]))*(NV-abs(ant_dict[bl1[0]][1]-ant_dict[bl1[1]][1]))
+        m2 = (NU-abs(ant_dict[bl2[0]][0]-ant_dict[bl2[1]][0]))*(NV-abs(ant_dict[bl2[0]][1]-ant_dict[bl2[1]][1]))
+        multfactor = m1*m2
     except(KeyError):
         if num_ant<=64:
-            print "get_weight: KeyError"
+            print "get_weight: KeyError", bl1, bl2
             return
         else: multfactor = 1
     if multweight: weight = weight*multfactor
