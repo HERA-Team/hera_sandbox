@@ -213,7 +213,7 @@ def get_weight(aa,bl1,bl2,uvw,multweight,noiseweight, ovlp=1.):
 # Outputs the final array of sorted pairs of points in uv space,
 # spaced in time to avoid over computing information already extracted from fringe rate filtering
 # format pair_fin = [(val,(bl1,t1),(bl2,t2))...]
-def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=True,noiseweight=True,ovlpweight=True,cutoff=6000.):
+def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=True,noiseweight=True,ovlpweight=True,cutoff=6000.,puv=False):
     final = []
     cnt, N = 0,len(clos_app)
     bm_intpl = export_beam.beam_interpol(freq,fbmamp,'cubic')
@@ -236,7 +236,8 @@ def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=True,noiseweight=True,
         else: ovlp = 1.
         weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight,ovlp)
         while correlation > cutoff:
-            final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
+            if puv: final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
+            else: final.append((weight*correlation,correlation,(bl1,t1),(bl2,t2)))
             t1,t2 = t1+dt,t2+dt
             try: correlation,(uvw1,uvw2)  = get_corr(aa, src,bm_intpl, t1,t2, bl1, bl2)
             except(TypeError): correlation  = 0.
@@ -248,7 +249,8 @@ def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=True,noiseweight=True,
         else: ovlp = 1.
         weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight,ovlp)
         while correlation > cutoff:
-            final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
+            if puv: final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
+            else: final.append((weight*correlation,correlation,(bl1,t1),(bl2,t2)))
             t1,t2 = t1-dt,t2-dt
             try: correlation,(uvw1,uvw2)  = get_corr(aa, src,bm_intpl, t1,t2, bl1, bl2)
             except(TypeError): correlation  = 0.
