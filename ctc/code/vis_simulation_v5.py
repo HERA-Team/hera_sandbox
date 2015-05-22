@@ -5,9 +5,9 @@
 NAME: 
       vis_simulation_v5.py 
 PURPOSE:
-      Models visibilities of maps of different polarizations, julian dates, and frequencies
+      Models visibilities of maps of different polarizations, julian dates, and frequencies (adapted for Gianni Bernardi)
 EXAMPLE CALL:
-      ./vis_simulation_v5.py --sdf 0.001 --sfreq 0.1 --nchan 10 --inttime 20000 --mappath /data4/paper/exchange_sa_upenn/Carina/ --filename test.uv -a 0_16 `python -c "import numpy; import aipy; print ' '.join(map(str,numpy.arange(2454500,2454501,20000/aipy.const.s_per_day)))"` -C psa898_v003
+      vis_simulation_v5.py --mappath /data4/paper/exchange_sa_upenn/carina/ --filename test.uv -a 0_16 -C psa898_v003 `python -c "import numpy; file=numpy.load('julian_dates.npz'); print ' '.join(map(str,file['jd']))"`
 AUTHOR:
       Carina Cheng
 
@@ -15,9 +15,6 @@ AUTHOR:
 
 import aipy
 import numpy
-#import pylab
-#import pyfits
-#import matplotlib.pyplot as plt
 import optparse
 import os, sys
 
@@ -27,37 +24,27 @@ o.set_description(__doc__)
 aipy.scripting.add_standard_options(o,cal=True,ant=True)
 o.add_option('--mappath', dest='mappath', default='/data4/paper/exchange_sa_upenn/Carina/',
              help='Directory where maps are. Include final / when typing path.')
-#o.add_option('--map', dest='map', default='gsm',
-#            help='Map type (gsm or pspec).')
 o.add_option('--filename', dest='filename', default='/Users/carinacheng/capo/ctc/tables/testpspec.uv',
              help='Filename of created Miriad UV file (ex: test.uv).')
-#o.add_option('--nchan', dest='nchan', default=203, type='int',
-#             help='Number of channels in simulated data. Default is 203.')
-#o.add_option('--inttime', dest='inttime', default=10., type='float',
-#             help='Integration time (s). Default is 10.') 
-#o.add_option('--sfreq', dest='sfreq', default=0.1, type='float',
-#             help='Start frequency (GHz). Default is 0.1.')
-#o.add_option('--sdf', dest='sdf', default=0.1/203, type='float',
-#             help='Channel spacing (GHz).  Default is .1/203')
 
 opts, args = o.parse_args(sys.argv[1:])
 
 i,j = map(int,opts.ant.split('_'))
 times = map(float,args) #converts args to floats
-
 assert(not os.path.exists(opts.filename)) #checks if UV file exists already
 
 freq_file = numpy.load(opts.mappath+'frequency.npz')
 freqs = freq_file['freq']/(10**9)
 sdf = freqs[1]-freqs[0]
+sfreq = freqs[0]
 
-JD_file = numpy.load(opts.mappath+'judian_dates.npz')
+JD_file = numpy.load(opts.mappath+'julian_dates.npz')
 jds = JD_file['jd']
 
 nchan = len(freqs)
 inttime = (jds[1]-jds[0])*24*60*60 #seconds
 
-print freqs, jds, nchan, inttime
+#print freqs, jds, nchan, inttime
 
 print 'getting antenna array...'
 
@@ -69,12 +56,11 @@ blx,bly,blz = bl[0],bl[1],bl[2]
 
 print 'getting coordinates...'
 
-img1 = aipy.map.Map(fromfits = opts.mappath + 'healpix_maps-I-f' + ('%.2f' % (float(freqs[0])*10**3)) + '_l' + ('%.5f' % jds[0]) + '.fits', interp=True)
+img1 = aipy.map.Map(fromfits = opts.mappath + 'healpix_maps-I-f' + str(int(freqs[0]*10**3)) + '_j' + ('%.5f' % jds[0]) + '.fits', interp=True)
 
 px = numpy.arange(img1.npix()) #number of pixels in map
 crd = numpy.array(img1.px2crd(px,ncrd=3)) #aipy.healpix.HealpixMap.px2crd?
 t3 = numpy.asarray(crd)
-#t3 = t3.compress(t3[2]>=0,axis=1) #gets rid of coordinates below horizon
 tx,ty,tz = t3[0], t3[1], t3[2] #1D arrays of top coordinates of img1 (can define to be whatever coordinate system)
 
 #get equatorial coordinates
@@ -91,25 +77,14 @@ print 'getting maps and calculating fringes...'
 
 shape = (len(times),len(freqs))
 flags = numpy.zeros(shape, dtype=numpy.int32)
-uvgridxx = numpy.zeros(shape, dtype=numpy.complex64)
-uvgridyy = numpy.zeros(shape, dtype=numpy.complex64)
+uvgridI = numpy.zeros(shape, dtype=numpy.complex64)
+uvgridQ = numpy.zeros(shape, dtype=numpy.complex64)
+uvgridU = numpy.zeros(shape, dtype=numpy.complex64)
+uvgridV = numpy.zeros(shape, dtype=numpy.complex64)
 
-#NOTE TO SELF: I STOPPED EDITING AT THIS POINT... FITS FILES HAVE ERROR BEING READ BY AIPY
-#NEED TO GET RID OF BEAM STUFF BELOW AND SET IT UP FOR 4 POLS
-
-"""
 for jj, f in enumerate(freqs):
-    img = aipy.map.Map(fromfits = opts.mappath+opts.map + '1' + str(jj+1).zfill(3) + '.fits', interp=True)
     fng = numpy.exp(-2j*numpy.pi*(blx*tx+bly*ty+blz*tz)*f) #fringe pattern
-    aa.select_chans([jj]) #selects specific frequency
-    bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')**2
-    bmyy = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='y')**2
-    sum_bmxx = numpy.sum(bmxx,axis=1)
-    sum_bmyy = numpy.sum(bmyy,axis=1)
-    fngxx = fng*bmxx[0]/sum_bmxx[0] #factor used later in visibility calculation
-    fngyy = fng*bmyy[0]/sum_bmyy[0]
-    fluxes = img[px] #fluxes preserved in equatorial grid
-
+    
     print 'Frequency %d/%d' % (jj+1, len(freqs)) 
 
     for ii, t in enumerate(times):
@@ -117,22 +92,20 @@ for jj, f in enumerate(freqs):
         print '   Timestep %d/%d' % (ii+1, len(times))
         aa.set_jultime(t)
 
-        eq2top = aipy.coord.eq2top_m(aa.sidereal_time(),aa.lat) #conversion matrix
-        t3rot = numpy.dot(eq2top,e3) #topocentric coordinates
-        #t3 = t3.compress(t3[2]>=0,axis=1) #gets rid of coordinates below horizon
-        txrot,tyrot,tzrot = t3rot[0], t3rot[1], t3rot[2] 
+        imgI = aipy.map.Map(fromfits = opts.mappath + 'healpix_maps-I-f' + str(int(f*10**3)) + '_j' + ('%.5f' % t) + '.fits', interp=True)
+        imgQ = aipy.map.Map(fromfits = opts.mappath + 'healpix_maps-Q-f' + str(int(f*10**3)) + '_j' + ('%.5f' % t) + '.fits', interp=True)
+        imgU = aipy.map.Map(fromfits = opts.mappath + 'healpix_maps-U-f' + str(int(f*10**3)) + '_j' + ('%.5f' % t) + '.fits', interp=True)
+        imgV = aipy.map.Map(fromfits = opts.mappath + 'healpix_maps-V-f' + str(int(f*10**3)) + '_j' + ('%.5f' % t) + '.fits', interp=True)
 
-        pxrot, wgts = img.crd2px(txrot,tyrot,tzrot, interpolate=1) #converts coordinates to pixels for first PSPEC file (pixel numbers don't change with frequency)
-        #NOTE: img and fluxes are still in equatorial coordinates... just getting pixels here
-
-        efngxx = numpy.sum(fngxx[pxrot]*wgts, axis=1)
-        efngyy = numpy.sum(fngyy[pxrot]*wgts, axis=1)
+        visI = numpy.sum(imgI[px]*fng)
+        visQ = numpy.sum(imgQ[px]*fng)
+        visU = numpy.sum(imgU[px]*fng)
+        visV = numpy.sum(imgV[px]*fng)
         
-        visxx = numpy.sum(fluxes*efngxx)
-        visyy = numpy.sum(fluxes*efngyy)
-
-        uvgridxx[ii,jj] = visxx
-        uvgridyy[ii,jj] = visyy
+        uvgridI[ii,jj] = visI
+        uvgridQ[ii,jj] = visQ
+        uvgridU[ii,jj] = visU
+        uvgridV[ii,jj] = visV
 
     print ("%.8f" % f) + ' GHz done'
 
@@ -149,14 +122,14 @@ uv.add_var('operator' ,'a'); uv['operator'] = 'AIPY'
 uv.add_var('version' ,'a'); uv['version'] = '0.0.1'
 uv.add_var('epoch' ,'r'); uv['epoch'] = 2000.
 uv.add_var('source'  ,'a'); uv['source'] = 'zenith'
-uv.add_var('nchan' ,'i'); uv['nchan'] = opts.nchan
-uv.add_var('sdf' ,'d'); uv['sdf'] = opts.sdf
-uv.add_var('sfreq' ,'d'); uv['sfreq'] = opts.sfreq
-uv.add_var('freq' ,'d'); uv['freq'] = opts.sfreq
-uv.add_var('restfreq' ,'d'); uv['restfreq'] = opts.sfreq
+uv.add_var('nchan' ,'i'); uv['nchan'] = nchan
+uv.add_var('sdf' ,'d'); uv['sdf'] = sdf
+uv.add_var('sfreq' ,'d'); uv['sfreq'] = sfreq
+uv.add_var('freq' ,'d'); uv['freq'] = sfreq
+uv.add_var('restfreq' ,'d'); uv['restfreq'] = sfreq
 uv.add_var('nschan' ,'i'); uv['nschan'] = uv['nchan']
-uv.add_var('inttime' ,'r'); uv['inttime'] = opts.inttime
-uv.add_var('npol' ,'i'); uv['npol'] = 1
+uv.add_var('inttime' ,'r'); uv['inttime'] = inttime
+uv.add_var('npol' ,'i'); uv['npol'] = 4
 uv.add_var('nspect' ,'i'); uv['nspect'] = 1
 uv.add_var('nants' ,'i'); uv['nants'] = 32
 
@@ -197,10 +170,14 @@ for ii, t in enumerate(times):
     uv['obsra'] = aa.sidereal_time()    
 
     preamble = (bl, t, (i,j))
-    uv['pol'] = aipy.miriad.str2pol['xx']
-    uv.write(preamble, uvgridxx[ii], flags[ii])
-    uv['pol'] = aipy.miriad.str2pol['yy']
-    uv.write(preamble, uvgridyy[ii], flags[ii])
+    uv['pol'] = aipy.miriad.str2pol['I']
+    uv.write(preamble, uvgridI[ii], flags[ii])
+    uv['pol'] = aipy.miriad.str2pol['Q']
+    uv.write(preamble, uvgridQ[ii], flags[ii])
+    uv['pol'] = aipy.miriad.str2pol['U']
+    uv.write(preamble, uvgridU[ii], flags[ii])
+    uv['pol'] = aipy.miriad.str2pol['V']
+    uv.write(preamble, uvgridV[ii], flags[ii])
 
 del(uv)
-"""
+
