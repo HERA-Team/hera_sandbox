@@ -267,12 +267,15 @@ plt.show()
 
 num_maps = opts.nchan
 
-deltax = 63 #103 #step size in real space [Mpc]    #when choosing these, delta*N < Dc_range_in_box
-deltay = 63 #103
+###VARIABLES TO EDIT
+deltax = 103 #63 #103 #step size in real space [Mpc]    #when choosing these, delta*N < Dc_range_in_box
+deltay = 103 #63 #103
 deltaz = 6
 Nx = 1 #15 #box size [pixels] #MUST BE ODD
 Ny = 1 #15
-Nz = 19 #191
+Nz = 191 #19
+###
+
 Lx = Nx*deltax #size range in real space [Mpc]
 Ly = Ny*deltay
 Lz = Nz*deltaz
@@ -300,8 +303,12 @@ for i in range(len(freqs_range)):
     Dcs.append(D_c(freqs_range[i]))
 
 freq_interp = interp1d(Dcs[::-1],freqs_range[::-1],kind='linear')
-min_freq = 0.14679803 #0.1
-max_freq = 0.1555 #0.199
+
+###VARIABLES TO EDIT
+min_freq = 0.1 #0.14679803 
+max_freq = 0.199 #0.1555 
+###
+
 max_Dc = D_c(min_freq)
 min_Dc = D_c(max_freq)
 #print min_Dc, max_Dc
@@ -452,13 +459,19 @@ Pk = (temp_squared/num_in_bins)/(deltax*Nx*deltay*Ny*deltaz*Nz)
 print num_in_bins
 #print Lx,Ly,Lz
 plt.clf()
+
+final_ks = []
 print 'Sky Map P(k):'
 for i in range(len(k_bins)-1):
     print k_bins[i],'<k<',k_bins[i+1],'   P(k)=',Pk[i]
     k = (k_bins[i+1]+k_bins[i])/2
+    final_ks.append(k)
     y_err = numpy.sqrt(2/num_in_bins[i])*Pk_interp(k)
     #plt.errorbar((k_bins[i+1]+k_bins[i])/2,Pk[i],xerr=1/Lz,yerr=y_err,fmt='.')
     plt.errorbar((k_bins[i+1]+k_bins[i])/2,numpy.log10(Pk[i]),xerr=1/Lz,yerr=0.434*(y_err/Pk[i]),fmt='.')    #log plot on y-axis
+
+print '['+','.join(map(str,final_ks))+']'
+print '['+','.join(map(str,Pk*(1000**2)))+']'
 
 #print 'Original P(k):'
 #for i in range(len(k_data)):
