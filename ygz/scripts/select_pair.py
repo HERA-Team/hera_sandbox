@@ -11,7 +11,7 @@ def rnd(val, cell, decimals=0):
 
 #coarsely determine crossings by griding the uv plane
 #Format: d[ur_rounded] = [(bl,t,(u,v)),...]
-def pair_coarse(aa, src, times, dist,redundant=False, add_tol=0.5):
+def pair_coarse(aa, src, times, dist,redundant=False, add_tol=0.5, northsouth=True):
     f2 = open('./redundant_bl.out', 'w')
     f2.close()
     f2 = open('./redundant_bl.out', 'a')
@@ -54,7 +54,9 @@ def pair_coarse(aa, src, times, dist,redundant=False, add_tol=0.5):
                     break
             else:
                 if dkey[1]<0 or (dkey[1]==0 and dkey[2]<0): dkey = (dkey[0],-dkey[1],-dkey[2])
-            repbl[dkey] = repbl.get(dkey,[]) + [(i,j)]
+            if northsouth: repbl[dkey] = repbl.get(dkey,[]) + [(i,j)]
+            else:
+                if dkey[1]!=0: repbl[dkey] = repbl.get(dkey,[]) + [(i,j)] # this version excludes n-s baselines
     print "pair_coarse:", len(repbl), "representative baselines, 4432 expected"
     #print repbl
   #  d = {}

@@ -12,7 +12,7 @@ shape0 = X.shape
 X,Y,Z = X.flatten(),Y.flatten(),Z.flatten()
 ntop = n.array([X,Y,Z])
 #aa = a.cal.get_aa('psa6622_v001',n.array([.15]))
-list_freq = [.15,.18]
+list_freq = [.15]
 dt = 0.001
 #dt_fine = 43./3600/24
 dt_fine = 0.0004971027374267578
@@ -32,7 +32,7 @@ for ni in range(len(list_freq)):
     bm_intpl = export_beam.beam_interpol(freq,fbmamp,'cubic')
     print 'Time to initialize:', sys_time.clock(), 'seconds'
 
-    d = select_pair.pair_coarse(aa, src,times_coarse,dist)  #coarsely determine crossings
+    d = select_pair.pair_coarse(aa, src,times_coarse,dist,False, 0.5, False)  #coarsely determine crossings
     print 'Time after coarse selection:', sys_time.clock(), 'seconds'
     #pairs_sorted = select_pair.pair_sort(d,freq,fbmamp)        #sort crossings
     #clos_app = select_pair.get_closest(pairs_sorted)           #determine closest approach points
