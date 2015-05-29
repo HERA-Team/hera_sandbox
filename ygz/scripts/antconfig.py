@@ -1,14 +1,14 @@
 #plots configuration of antenna array
 import aipy as a, numpy as n, pylab as p, ephem as e
 
-aa = a.cal.get_aa('psa6622_v001',n.array([.15]))
+aa = a.cal.get_aa('psa6240_v003',n.array([.15]))
 #aa=a.cal.get_aa('paper128',n.array([.15]))
-nants = 128
+nants = 64
 rad2deg = 180/n.pi
 ltsec = 299792458.  #meters
 U,V,I,J,X,Y = [],[],[],[],[],[]
 
-aa.set_jultime(2456240.35)
+aa.set_jultime(2456240.365)
 src = a.fit.RadioFixedBody(aa.long, aa.lat, janskies=0., mfreq=.15, name='test')
 src.compute(aa)
 for i in range(nants):
