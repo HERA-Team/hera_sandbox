@@ -19,6 +19,8 @@ o.add_option('-a',dest='ants',default='all',
             help='List of baselines (ex: 64_49,3_25). Default is "all".')
 o.add_option('--plot',dest='plot',default=False,action="store_true",
             help='Plot LST model for each baseline.')
+o.add_option('--good',dest='good',default='64_49',
+            help='Good baseline to use as comparison. Default is 64_49.')
 opts,args = o.parse_args(sys.argv[1:])
 
 
@@ -42,18 +44,26 @@ else:
 
 lendata = len(firstfile[bls[0]])
 
+gooda1,gooda2 = opts.good.split('_')[0],opts.good.split('_')[1]
+bl_good = str(aipy.miriad.ij2bl(int(gooda1),int(gooda2)))
+bl_ant_good = '('+str(gooda1)+','+str(gooda2)+')'
+
+good_ind = numpy.where(numpy.array(bls) == bl_good)[0][0]
+bls_ants.insert(0,bls_ants.pop(good_ind)) #brings good baseline to front of baseline array
+bls.insert(0,bls.pop(good_ind))
+
 ### All baselines in the npz slices are 30-m E/W baselines ###
 ### There are 98 of them ###
 
-for bl in range(len(bls)):
+for bl in range(len(bls)): #loop over baselines
 
     mybl = bls[bl]
-    print str(bl+1)+'/'+str(len(bls))+': reading baseline '+bls_ants[bl]
+    print str(bl+1)+'/'+str(len(bls))+': reading baseline '+str(bls_ants[bl])
 
     all_data = []
     all_lsts = []
 
-    for filename in args:
+    for filename in args: #loop over files to get data and LSTs
         jd_int = int(filename.split('.')[1])
         jd_dec = float(filename.split('.')[1]+'.'+filename.split('.')[2])
         npz = numpy.load(filename)
@@ -84,16 +94,27 @@ for bl in range(len(bls)):
                 bin.append(all_data[j])
         med_val = numpy.median(bin)
         model[i] = med_val.real
-        avg_lsts[i] = (lst_grid[i+1]-lst_grid[i])/2
+        avg_lsts[i] = (lst_grid[i+1]+lst_grid[i])/2
+    if bl == 0:
+        compare_model = model
+
+    #If model deviates from compare_model significantly, print out the name of the baseline here
+
     #plotting LST model
-    plt.plot(lst_grid[:-1],model,label=bls_ants[bl])
+    if opts.plot == True:
+        plt.subplot(121)
+        plt.plot(avg_lsts,model,label=bls_ants[bl])
+        plt.xlabel('LST')
+        plt.ylabel('Jy')
+        plt.subplot(122)
+        plt.plot(avg_lsts,model/compare_model,label=bls_ants[bl])    
+        plt.xlabel('LST')
+        plt.ylabel('Normalized to '+str(bl_ant_good))
 
 if opts.plot == True:   
-    plt.legend()
+    plt.legend(loc=1,prop={'size':8})
+    plt.suptitle('LST Models for Different Baselines')
     plt.show()
 
-#TO DO:
-   # have command-line option to designate 'good' baseline
-   # quantitative way to figure out which baselines deviate from the 'good' baseline?
 
 
