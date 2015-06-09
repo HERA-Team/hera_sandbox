@@ -67,4 +67,7 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     if use_offset: return gain, (tau,off), info
     else: return gain, tau, info
 
-
+def noise(size):
+    #generates a complex random gaussian noise with std=1 and mean=0.
+    sig = 1./n.sqrt(2)
+    return n.random.normal(scale=sig, size=size) + 1j*n.random.normal(scale=sig, size=size)
