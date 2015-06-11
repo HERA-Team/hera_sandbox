@@ -11,27 +11,38 @@ o.add_option('-t', '--lst', dest='lst', default=-1, help='Choose the time points
 opts,args = o.parse_args(sys.argv[1:])
 print opts, args
 
-#c = 299792458.
-#lamb = c/nu
-#kB = 1.3806488E-23
-#pref = (2*kB/lamb)*(2*kB/lamb)
+c = 299792458.
+nu0 = 150.E6  #the mean frequency 150 MHz
+lamb = c/nu0
+kB = 1.3806488E-23
+pref = (2*kB/lamb*lamb)*(2*kB/lamb*lamb)
+z, Omm, hub = 8.5, 0.27, 0.75
+#Y = 17 (((1+z)/10)/(Omm*hub*hub/0.15))^0.5 #Mpc/MHz
+#X = 1.9 ((1+z)/10)^0.2/hub                 # Mpc/arcmin
+Y = 17*(((1+z)/10)/(Omm/0.15))**0.5 #h Mpc/MHz
+X = 1.9*((1+z)/10)**0.2                # h Mpc/arcmin
+B = 100   #MHz
+W = 0.31
+
+
 pol,lst,ant,tauchan = opts.pol,opts.lst.split('_'),opts.ant.split('_'),int(opts.chan)
 #dataDIR = '/Users/yunfanzhang/local/DATA64/'
 dataDIR = ''
 uv1 = a.miriad.UV(dataDIR+args[0])
 uv2 = a.miriad.UV(dataDIR+args[1])
 
-freqlist = n.array(uv1['sfreq'] + uv1['sdf']*n.arange(uv1['nchan']))
+freqlist = n.array((uv1['sfreq'] + uv1['sdf']*n.arange(uv1['nchan']))*1000)  #MHz
 aa = a.cal.get_aa('psa6240_v003',freqlist)
 src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
 pol = a.miriad.str2pol[pol]
 t1,t2 = float(lst[0]),float(lst[1])
-ant_dict, bl_dict = get_bls.get_bldict(aa)
-bl_list1 = get_bls.get_equivalent(ant_dict,bl_dict,int(ant[0]),int(ant[1]))
-bl_list2 = get_bls.get_equivalent(ant_dict,bl_dict,int(ant[2]),int(ant[3]))
+bl_list1 = [(0,26)]
+bl_list2 = [(0,26)]
+taulist = n.fft.fftfreq(int(uv1['nchan']),uv1['sdf']*1000)
+taulist = n.fft.fftshift(taulist)
 
 #dt = uv1['inttime']
-uv1.select('antennae',0,1,include=True)
+uv1.select('antennae',0,26,include=True)
 preamble, junk = uv1.read()
 t01 = preamble[1]
 uv1.read()
@@ -42,6 +53,7 @@ dt = t02-t01
 cnt = 0
 sum = []
 data1,data2 = [],[]
+
 for bl1 in bl_list1:
     data1 = []
     uv1.rewind()
@@ -49,7 +61,6 @@ for bl1 in bl_list1:
     uv1.select('antennae',bl1[0],bl1[1],include=True)
     uv1.select('polarization',pol,0,include=True)
     uv1.select('time',t1-dt/2.001,t1+dt/2.001,include=True)
-    taulist = n.fft.fftfreq(int(uv1['nchan']),uv1['sdf'])
     try: preamble, datnu = uv1.read()
     except(IOError): continue
     print 'bl1: ', preamble
@@ -70,6 +81,7 @@ for bl1 in bl_list1:
             print "Error reading ant (%d, %d), time (%f,%f)" % (bl2[0],bl2[1],t2-dt/2.001,t2+dt/2.001)
             continue
         #print 'bl2:', preamble
+        print "data lenth", len(datnu)
         datatau = dl_tr.nu2tau(datnu)
         data2.append(datatau)
         #print tauchan, datatau[tauchan]
@@ -83,9 +95,10 @@ for bl1 in bl_list1:
 
 result = {}
 P=[]
-for item in sum:
-    result[tau] = sum[tau]/cnt
-    P.append(abs(sum[tau])/cnt)
+for ind in n.arange(len(sum)):
+    result[taulist[ind]] = sum[ind]/cnt
+    P.append(abs(sum[ind])/cnt/pref*X*X*Y/B/W)
 print cnt,result[taulist[tauchan]]
-
-plotp.P_v_Eta(taulist,P)
+print len(taulist), len(P)
+kz = taulist*2*n.pi/Y
+plotp.P_v_Eta(kz,P)
