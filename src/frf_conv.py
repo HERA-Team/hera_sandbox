@@ -5,7 +5,7 @@ Implements a Fringe Rate Filter useing and FIR filter.
 import aipy as a
 import capo
 import numpy as n, pylab as p
-from numpy.fft import ifft, fftshift, ifftshift, fftfreq
+from numpy.fft import ifft, fftshift, ifftshift, fftfreq, fft
 import scipy.interpolate
 import optparse,sys
 
@@ -55,8 +55,8 @@ def aa_to_fr_profile(aa, (i,j), ch, pol='I', bins=DEFAULT_FRBINS, wgt=DEFAULT_WG
     top = n.dot(aa._eq2zen, eq)
     fng = mk_fng(aa.get_baseline(i,j,'r')*fq, eq)
     # XXX computing bm at all freqs, but only taking one
-    _bmx = aa[0].bm_response(top), pol='x')[ch]; _bmx = n.where(top[2] > 0, _bmx, 0)
-    _bmy = aa[0].bm_response(top), pol='y')[ch]; _bmy = n.where(top[2] > 0, _bmy, 0)
+    _bmx = aa[0].bm_response((top), pol='x')[ch]; _bmx = n.where(top[2] > 0, _bmx, 0)
+    _bmy = aa[0].bm_response((top), pol='y')[ch]; _bmy = n.where(top[2] > 0, _bmy, 0)
     if   pol == 'XX': bm = _bmx * _bmx.conj()
     elif pol == 'YY': bm = _bmy * _bmy.conj()
     elif pol == 'XY': bm = _bmx * _bmy.conj()
@@ -78,7 +78,7 @@ def fir_to_frp(fir,tbins=None):
     '''XXX DOCSTRING'''
     fir = ifftshift(fir, axes=-1)
     frp = fft(fir, axis=-1)
-    frp = fftshift(fir, axes=-1)
+    frp = fftshift(frp, axes=-1)
     if tbins is not None: return frp, fftshift(fftfreq(tbins.size, tbins[1]-tbins[0]))
     else: return frp
 
