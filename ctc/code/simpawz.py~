@@ -1,0 +1,27 @@
+#! /usr/bin/env python
+
+"""
+NAME: 
+        simpawz.py
+AUTHOR: 
+        Carina Cheng
+PURPOSE: 
+EXAMPLE CALL:
+"""
+
+
+import os, sys
+import aipy
+import numpy
+import scipy
+import optparse
+
+#GLOBAL VARIABLES
+
+
+#OPTIONS
+
+o = optparse.OptionParser()
+o.set_usage('simpawz.py [options]')
+o.set_description(__doc__)
+o.add_option('
