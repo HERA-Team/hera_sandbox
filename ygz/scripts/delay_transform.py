@@ -4,7 +4,7 @@ import numpy as n
 
 def nu2tau(datnu):
     datanu = datnu
-    datanu = datanu.filled(datanu.mean())
+    #datanu = datanu.filled(datanu.mean())
         #nu = uv1['sfreq']+S*uv1['sdf']*1.E9
     #print datanu
     datatau = n.fft.ifft(datanu)
