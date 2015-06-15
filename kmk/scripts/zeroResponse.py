@@ -33,8 +33,6 @@ wvlen = c / freq # observed wavelength
 # A = theoretical visibility
 # X = constant temperature value for global signal
 # N = noise
-Y = np.zeros((128, 128, len(freq)), dtype=np.complex)
-A = np.zeros(shape = Y.shape, dtype=np.complex) 
 
 time = []
 f = {} # dictionary of flags
@@ -47,45 +45,34 @@ for (uvw, t, (i,j)), data, flag in uv.all(raw='True'):
     d[bl].append(data)
     time.append(t)
 
-for bl in d.keys():
-    i,j = a.miriad.bl2ij(bl)
-    # use only first time step for simplicity
-    Y[i,j,0] = d[bl][-1][N/2-1]
-
 # import array parameters
 aa = a.cal.get_aa('psa6622_v001', uv['sdf'], uv['sfreq'], uv['nchan'])
 beam = aa[0].bm_response(xyz, pol='x')**2
 beam = beam[0]
 
 # simulate visibilities for each baseline
+response = {}
 for bl in d.keys():
-    k,j = a.miriad.bl2ij(bl)
+    k, j = a.miriad.bl2ij(bl)
     bx, by, bz = aa.get_baseline(k, j)
     for i in range(len(temps)):
         # attenuate sky signal by primary beam
         obs = temps[i] * beam * h.map
         phs = np.exp(-2j*np.pi*freq[i]*(bx*x + by*y + bz*z))
-        A[k,j,i] = np.sum(np.where(z>0,obs*phs,0))
-        if j != k: A[j,k,i] = np.sum(np.where(z>0,obs*phs,0))
+        if not bl in response.keys(): response[bl] = []
+        response[bl].append(np.sum(np.where(z>0, obs*phs, 0)))
         i += 1
 
-# find value of X from cleverly factoring out A
+A = np.array([response[bl][0] for bl in response.keys()])
+Y = np.array([d[bl][0][N/2-1] for bl in d.keys()])
+
+# find value of X from cleverly factoring out A in a way which properly weights 
+# the measurements
 transjugateA = np.conjugate(np.transpose(A))
-invA = np.linalg.inv(transjugateA*A)*transjugateA
+normalization = (np.dot(transjugateA, A))**(-1)
+invA = normalization*transjugateA
 
-X = invA*Y
+X = np.dot(invA,Y)
 
-# under the assumption that noise is Gaussian distributed around zero
-# sum together all the estimates of X in order to average out the noise
-print np.sum(X)
-
-counts = 0
-mean = 0
-
-for i in np.arange(128):
-    for j in np.arange(128):
-        if X[i,j,0] != 0:
-            counts += 1
-            mean += X[i,j,0]
-
-print mean/counts
+# print the estimate of the global signal
+print X
