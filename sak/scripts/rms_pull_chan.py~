@@ -16,7 +16,7 @@ for arg in sys.argv[1:]:
     except(KeyError):
         continue
     times.append(file2jd(arg))
-    print arg,rmss[-1]
+    if rmss[-1]>0.03: print arg,rmss[-1]
 times = n.array(times)
 plot(times-times.min(),rmss)
 #plot(times-times.min(),maxes)
