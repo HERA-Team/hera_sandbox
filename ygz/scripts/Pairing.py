@@ -67,7 +67,7 @@ for ni in range(len(list_freq)):
         #print pairs_final[j]
         T1, T2 = float(pairs_final[j][2][1]), float(pairs_final[j][3][1])
         fdict = get_files.get_fdict(opts.dir)
-        fn1, fn2 = get_files.get_file(T1,fdict), get_files.get_file(T2,fdict)
+        fn1, fn2 = get_files.get_file(T1,dt_fine, fdict), get_files.get_file(T2,dt_fine, fdict)
 
         str1 = str(pairs_final[j][2][0][0])+'_'+str(pairs_final[j][2][0][1])+'_'+str(pairs_final[j][3][0][0])+'_'+str(pairs_final[j][3][0][1])
         str2 = str(pairs_final[j][2][1])+'_'+str(pairs_final[j][3][1])

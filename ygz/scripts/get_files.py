@@ -1,5 +1,4 @@
 __author__ = 'yunfanzhang'
-import aipy as a, numpy as n, capo
 import optparse, os, sys
 
 #o = optparse.OptionParser()
@@ -18,6 +17,6 @@ def get_fdict(DIR):
         filedict[t] = s
     return filedict
 
-def get_file(T, filedict):
+def get_file(T, dt, filedict):
     for t in filedict.keys():
-        if T-t>0 and T-t < opts.dft: return filedict[t]
+        if T-t>0 and T-t < dt: return filedict[t]
