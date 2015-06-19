@@ -1,8 +1,15 @@
 __author__ = 'yunfanzhang'
 import aipy as a, numpy as n
-import select_pair, export_beam, plot_pair
+import select_pair, export_beam, plot_pair, get_files
 import time as sys_time
+import optparse, sys
 
+o = optparse.OptionParser()
+#o.add_option('-t', '--lst', dest='lst', default=-1, help='Choose the time point of data')
+#o.add_option('-d', '--dft', dest='dst', default=43./3600/24)
+o.add_option('-d','--dir',dest='dir',default='/Users/yunfanzhang/local/simuDATA/64_UV')
+opts,args = o.parse_args(sys.argv[1:])
+print opts, args
 
 sz = 200
 sp = 1./sz
@@ -18,7 +25,7 @@ dt = 0.001
 dt_fine = 0.0004971027374267578
 times_coarse = n.arange(2456249.20169,2456249.50791, dt)
 times_fine = n.arange(2456249.20169,2456249.50791, dt_fine)
-dist = 1.2                           #size of cells to store in dictionary.
+dist = 1.5                           #size of cells to store in dictionary.
 corr_tol = 5000.                    #cutoff of minimum correlation
 aa = a.cal.get_aa('psa6240_v003',n.array(list_freq))
 src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.18, name='test')
@@ -32,7 +39,7 @@ for ni in range(len(list_freq)):
     bm_intpl = export_beam.beam_interpol(freq,fbmamp,'cubic')
     print 'Time to initialize:', sys_time.clock(), 'seconds'
 
-    d = select_pair.pair_coarse(aa, src,times_coarse,dist,False, 0.5, False)  #coarsely determine crossings
+    d = select_pair.pair_coarse(aa, src,times_coarse,dist,False, 0.5, True)  #coarsely determine crossings
     print 'Time after coarse selection:', sys_time.clock(), 'seconds'
     #pairs_sorted = select_pair.pair_sort(d,freq,fbmamp)        #sort crossings
     #clos_app = select_pair.get_closest(pairs_sorted)           #determine closest approach points
@@ -43,16 +50,33 @@ for ni in range(len(list_freq)):
 
     #write result to file and screen
     Oname = './P'+str(n.around(list_freq[ni],decimals=3))+'.out'
+    Cname = './P'+str(n.around(list_freq[ni],decimals=3))+'.cue'
     f1 = open(Oname, 'w')
     f1.close()
+    f1 = open(Cname, 'w')
+    f1.close()
+    print "Writting ourput files", Oname, Cname
     f1 = open(Oname, 'a')
     for j in n.arange(len(pairs_final)):
         #print pairs_final[j]
         f1.write(str(pairs_final[j])+'\n')
     f1.close()
 
+    f1 = open(Cname, 'a')
+    for j in n.arange(len(pairs_final)):
+        #print pairs_final[j]
+        T1, T2 = float(pairs_final[j][2][1]), float(pairs_final[j][3][1])
+        fdict = get_files.get_fdict(opts.dir)
+        fn1, fn2 = get_files.get_file(T1,fdict), get_files.get_file(T2,fdict)
+
+        str1 = str(pairs_final[j][2][0][0])+'_'+str(pairs_final[j][2][0][1])+'_'+str(pairs_final[j][3][0][0])+'_'+str(pairs_final[j][3][0][1])
+        str2 = str(pairs_final[j][2][1])+'_'+str(pairs_final[j][3][1])
+        f1.write(str1+','+str2+' '+str(fn1)+' '+str(fn2)+'\n')
+    f1.close()
+
     #call plotting routines
     figname = './corr'+str(int(corr_tol))+str(n.around(list_freq[ni],decimals=3))+'.png'
+    print "Saving scatterplot", figname
     plot_pair.plot_closapp(clos_app,corr_tol,figname)
 
     #plot sample approach points, puv in pair_fin must be True

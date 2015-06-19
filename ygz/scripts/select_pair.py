@@ -51,12 +51,13 @@ def pair_coarse(aa, src, times, dist,redundant=False, add_tol=0.5, northsouth=Tr
                         if dkey[1]<0 or (dkey[1]==0 and dkey[2]<0): dkey = (dkey[0],-dkey[1],-dkey[2])
                 else:
                     #pdb.set_trace()  #all 64 antennas should be in ant_layout
+                    print "Bug in rep baseline, all 64 antennas should be in ant_layout"
                     break
             else:
-                if dkey[1]<0 or (dkey[1]==0 and dkey[2]<0): dkey = (dkey[0],-dkey[1],-dkey[2])
+                if dkey[1] < 0 or (dkey[1] == 0 and dkey[2] < 0): dkey = (dkey[0],-dkey[1],-dkey[2])
             if northsouth: repbl[dkey] = repbl.get(dkey,[]) + [(i,j)]
             else:
-                if dkey[1]!=0: repbl[dkey] = repbl.get(dkey,[]) + [(i,j)] # this version excludes n-s baselines
+                if dkey[1] != 0: repbl[dkey] = repbl.get(dkey,[]) + [(i,j)] # this version excludes n-s baselines
     print "pair_coarse:", len(repbl), "representative baselines, 4432 expected"
     #print repbl
   #  d = {}
@@ -137,8 +138,8 @@ def alter_clos(pairings, bm_intpl, cutoff=0.):
     #print "alter_clos: len(pairings)=", len(pairings)
     for key in pairings:
         cnt = cnt+1
-        if (cnt/20)*20 == cnt:
-            print 'alter_clos: Processing key %d out of %d:' % (cnt,len(pairings))
+        #if (cnt/20)*20 == cnt:
+        #    print 'alter_clos: Processing key %d out of %d:' % (cnt,len(pairings))
         L = len(pairings[key])
         for i in range(L):  # get the points pairwise
             for j in range(i+1,L):
