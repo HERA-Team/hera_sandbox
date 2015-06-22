@@ -20,7 +20,7 @@ wkst = gc.open(opts.wkst).sheet1
 ### HARD-CODED FOR 2014 PSA128 DATA ###
 good_days_epoch1 = wkst.range('C2:C55')
 good_days_epoch2 = wkst.range('D56:D116')
-good_days_epoch3 = wkst.range('E117:E318')
+good_days_epoch3 = wkst.range('E117:E246')
 
 file1 = open('good_days_epoch1.txt','w')
 file2 = open('good_days_epoch2.txt','w')
