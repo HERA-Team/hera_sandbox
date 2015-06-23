@@ -3,12 +3,13 @@
 """
 
 NAME: 
-      vis_simulation_v3.py 
+      vis_simulation_v4.py 
 PURPOSE:
+      Set-up for grid engine on folio
       Models visibilities using power spectra (pspecs) from pspec_sim_v2.py and creates a new Miriad UV file
       Differs from vis_simulation.py in that the sky image uses eq. coordinates and the fringe/beam is rotated with time (interpolation happens for fringe)
-EXAMPLE CALL:
-      ./vis_simulation_v3.py --nchan 2 --inttime 30000 
+EXAMPLE CALL: 
+      ./vis_simulation_v4.py --sdf 0.001 --sfreq 0.1 --nchan 10 --inttime 20000 --map pspec --mappath /Users/carinacheng/capo/ctc/images/pspecs/pspec100lmax100/ --filename test.uv -a 0_16 `python -c "import numpy; import aipy; print ' '.join(map(str,numpy.arange(2454500,2454501,20000/aipy.const.s_per_day)))"` -C psa898_v003
 IMPORTANT NOTE: 
       Be careful when changing sdf and sfreq because they need to match the pspec files!
 AUTHOR:
@@ -21,11 +22,12 @@ import numpy
 #import pylab
 #import pyfits
 #import matplotlib.pyplot as plt
+import ephem as e
 import optparse
 import os, sys
 
 o = optparse.OptionParser()
-o.set_usage('vis_simulation_v2.py [options] *.uv')
+o.set_usage('vis_simulation_v4.py [options] *.uv')
 o.set_description(__doc__)
 aipy.scripting.add_standard_options(o,cal=True,ant=True)
 o.add_option('--mappath', dest='mappath', default='/Users/carinacheng/capo/ctc/images/pspecs/pspec40lmax110/',
@@ -78,10 +80,10 @@ tx,ty,tz = t3[0], t3[1], t3[2] #1D arrays of top coordinates of img1 (can define
 #sum_bmxx = numpy.sum(bmxx,axis=1)
 #sum_bmyy = numpy.sum(bmyy,axis=1)
 
-#get equatorial coordinates
+#get galactic coordinates from map
 
-e3 = numpy.asarray(crd)
-ex,ey,ez = e3[0], e3[1], e3[2] #1D arrays of eq coordinates of img
+g3 = numpy.asarray(crd)
+#ex,ey,ez = e3[0], e3[1], e3[2] #1D arrays of eq coordinates of img
 
 #loop through frequency to get PSPECS and calculate fringe
 
@@ -97,6 +99,7 @@ uvgridyy = numpy.zeros(shape, dtype=numpy.complex64)
 
 for jj, f in enumerate(freqs):
     img = aipy.map.Map(fromfits = opts.mappath+opts.map + '1' + str(jj+1).zfill(3) + '.fits', interp=True)
+    #img = aipy.map.Map(fromfits = opts.mappath+opts.map + '1001.fits', interp=True) #reading same map over and over again
     fng = numpy.exp(-2j*numpy.pi*(blx*tx+bly*ty+blz*tz)*f) #fringe pattern
     aa.select_chans([jj]) #selects specific frequency
     bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')**2
@@ -114,6 +117,8 @@ for jj, f in enumerate(freqs):
         print '   Timestep %d/%d' % (ii+1, len(times))
         aa.set_jultime(t)
 
+        ga2eq = aipy.coord.convert_m('eq','ga',iepoch=e.J2000,oepoch=aa.epoch) #conversion matrix
+        e3 = numpy.dot(ga2eq,g3) #equatorial coordinates
         eq2top = aipy.coord.eq2top_m(aa.sidereal_time(),aa.lat) #conversion matrix
         t3rot = numpy.dot(eq2top,e3) #topocentric coordinates
         #t3 = t3.compress(t3[2]>=0,axis=1) #gets rid of coordinates below horizon

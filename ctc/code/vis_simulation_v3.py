@@ -25,7 +25,7 @@ import optparse
 import os, sys
 
 o = optparse.OptionParser()
-o.set_usage('vis_simulation_v2.py [options] *.uv')
+o.set_usage('vis_simulation_v3.py [options] *.uv')
 o.set_description(__doc__)
 o.add_option('--map', dest='map', default='/Users/carinacheng/capo/ctc/images/pspecs/pspec40lmax110/',
              help='Directory where PSPEC files are (labeled pspec1001.fits, pspec1002.fits, etc.). Include final / when typing path.')
