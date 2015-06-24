@@ -257,7 +257,7 @@ else:
         for bl in data[k]:
             data[k][bl], flgs[k][bl] = n.array(data[k][bl][:]), n.array(flgs[k][bl][:])
 lsts = lsts.values()[0]
-
+index = map(lambda x: n.where( x == band_chans)[0][0], chans)
 x = {}
 x1 = {}
 print len(data[k][bl])
@@ -267,7 +267,6 @@ for k in days:
     x1[k] = {}
     for bl in data[k]:
         print k, bl
-        d = data[k][bl][:,chans] * jy2T
         d = data[k][bl][:,band_chans] *jy2T
         d1 = n.copy(d)
         d[:,index] = 0. + 0j
@@ -276,7 +275,6 @@ for k in days:
              d1 = n.conj(d)
         x[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
         x1[k][bl] = n.transpose(d1, [1,0]) # swap time and freq axes
-        
 bls_master = x.values()[0].keys()
 nbls = len(bls_master)
 print 'Baselines:', nbls
@@ -378,6 +376,7 @@ for k in days:
             #Need full covariance for auto-covariance
             #points=C[k][bl].nonzero()
             new_c = cov(x1[k][bl])
+            U2,S2,V2=n.linalg.svd(new_c.conj())
             #scale rows and columns by sqrt of auto-covariance
             for count in xrange(nchan_band):
                 tmp=n.copy(Cav[k][bl])
@@ -387,13 +386,18 @@ for k in days:
             #have artefacts
             #Cav[k][bl] /= n.mean(Cav[k][bl].diagonal())
             #Cav[k][bl] = n.array(Cav[k][bl]+Cav[k][bl].T)/2.
-
         U1,S1,V1 = n.linalg.svd(Cav[k][bl].conj())
         _Cav[k][bl] = n.einsum('ij,j,jk', V1.T, 1./S1, U1.T)
         norm  = _Cav[k][bl].sum(axis=-1); norm.shape += (1,)
         _Cav[k][bl] /= norm
+        
+        if not n.allclose( Cav[k][bl], Cav[k][bl].T.conj()):
+            good_values=n.isclose(Cav[k][bl].Cav[k][bl].T.conj())
+            bad_values=~good_values
+            print('There are {0:d} elements which do not match'.format(n.sum(bad_values)))
+            sys.exit(0)
+
         _Cavx[k][bl] = n.dot(_Cav[k][bl], x1[k][bl]) 
-        embed()
 #/ n.dot(_Cav[k][bl], n.ones(n.shape(x1[k][bl])))
         #_Cavx[k][bl] = n.zeros_like(_Cx[k][bl])
         #_Cavx[k][bl][index] += temp[index]
@@ -414,7 +418,7 @@ for k in days:
                 #f1.savefig('Cov_Baseline_%d_%d'%a.miriad.bl2ij(bl))
                 #f1.clf()
                 f2=p.figure(2);
-                p.plot(S,label='C')
+                p.plot(S2,label='C')
                 p.plot(S1,label='Cav')
                 p.legend(loc='best')
                 #f2.savefig('Cov_Eigenvalues_%d_%d'%a.miriad.bl2ij(bl))
@@ -425,19 +429,17 @@ for k in days:
                 p.subplot(133); capo.arp.waterfall(new_c-Cav[k][bl],mode='real',mx=2,drng=4); p.colorbar()
                 #f3.savefig('Cov_Residual_%d_%d'%a.miriad.bl2ij(bl))
                 #f3.clf()
-                p.show()
-                p.close()
-                if False: 
-                    fig=p.figure(3); 
-                    S_=n.zeros_like(S)
-                    S_[-1:]+=S[-1:]
-                    C1 = n.einsum('ij,j,jk', U, S_, V)
+                if True: 
+                    fig=p.figure(4); 
+                    S2_=n.zeros_like(S2)
+                    S2_[-1:]+=S2[-1:]
+                    C1 = n.einsum('ij,j,jk', U2, S2_, V2)
                     S1_=n.zeros_like(S1)
                     S1_[-1:]+=S1[-1:]
                     Cav1= n.einsum('ij,j,jk', U1, S1_, V1)
 
-                    p.subplot(231); capo.arp.waterfall(C[k][bl], mode='real',mx=7,drng=14); p.ylabel('C')
-                    p.subplot(232);l= p.plot(n.einsum('ij,jk',n.diag(S_),V).T.real) 
+                    p.subplot(231); capo.arp.waterfall(new_c, mode='real',mx=7,drng=14); p.ylabel('C')
+                    p.subplot(232);l= p.plot(n.einsum('ij,jk',n.diag(S2_),V2).T.real) 
                     p.subplot(233); capo.arp.waterfall(C1,mode='real',mx=7,drng=14) 
                     p.subplot(234); capo.arp.waterfall(Cav[k][bl], mode='real',mx=7,drng=14);  p.ylabel('Cav')
                     
@@ -447,14 +449,14 @@ for k in days:
                     seig = Slider(axeig, 'Eig val',1,71,valinit=1, valfmt='%0.0f')
                     #embed()
                     def update(val):
-                        S_=n.zeros_like(S)
+                        S2_=n.zeros_like(S2)
                         S1_=n.zeros_like(S1)
                         s= int(seig.val)
-                        S_[-s:]+=S[-s:]
+                        S2_[-s:]+=S2[-s:]
                         S1_[-s:]+=S1[-s:]
-                        C1 = n.einsum('ij,j,jk', U, S_, V)
+                        C1 = n.einsum('ij,j,jk', U2, S2_, V2)
                         Cav1= n.einsum('ij,j,jk', U1, S1_, V1)
-                        vals1 = n.einsum('ij,jk',n.diag(S_),V).T.real
+                        vals1 = n.einsum('ij,jk',n.diag(S2_),V2).T.real
                         valsav1=n.einsum('ij,jk', n.diag(S1_),V1).T.real
                         for j in xrange(len(l)):
                             l[j].set_ydata(vals1[:,j])
@@ -467,6 +469,7 @@ for k in days:
                         p.subplot(236); capo.arp.waterfall(Cav1, mode='real',mx=7,drng=14); 
                         fig.canvas.draw_idle()
                     seig.on_changed(update)
+                p.show()
                 p.close
 
 
@@ -701,7 +704,7 @@ for boot in xrange(opts.nboot):
         outfile =opts.output+'/'+outfile
     print "Writing", outfile
     n.savez(outfile, kpl=kpl, scalar=scalar, times=n.array(lsts),
-        pk_vs_t=pi, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pi, 
+        pk_vs_t=pI, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI, 
         afreqs=afreqs, chans=chans,
         cmd=' '.join(sys.argv))
 
