@@ -4,6 +4,7 @@ import matplotlib
 import aipy as a, numpy as n, pylab as p
 import capo as C
 import sys, optparse, re, os
+from IPython import embed
 
 o=optparse.OptionParser()
 o.add_option('--flux', action='store_true', 
@@ -513,10 +514,11 @@ theo_noise = noise_level(freq=freq)
 #print k0
 #print kpl_pos[0], theo_noise[0]
 #2 for the 2 sigma
-k3 = abs(n.array(kpl_pos)***3/(2*n.pi**2))
+k3 = abs(n.array(kpl)**3/(2*n.pi**2))
 noise_est = k3[k0:]*dn_fold
+#embed()
 p.plot(n.array(kpl_pos), 2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2), 'c--')
-p.plot(n.array(kpl_pos), 2*noise_est, 'r--')
+p.plot(n.array(kpl_pos), 2*abs(noise_est[1:]), 'r--')
 p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')

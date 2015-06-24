@@ -31,7 +31,7 @@ for chan in $chans; do
                ODD_FILES=${ODD_DATAPATH}${sep}/*243.[3456]*uvGL
                test -e ${sepdir} || mkdir ${sepdir}
                LOGFILE=`pwd`/${PREFIX}/${chan}_${pol}_${sep}.log
-               echo this is make_psa64_pspec_cav.sh with  |tee  ${LOGFILE}
+               echo this is make_psa64_pspec_cav_noise.sh with  |tee  ${LOGFILE}
                echo experiment: ${PREFIX}|tee -a ${LOGFILE}
                echo channels: ${chan}|tee -a ${LOGFILE}
                echo polarization: ${pol}|tee -a ${LOGFILE}
@@ -39,13 +39,13 @@ for chan in $chans; do
                echo `date` | tee -a ${LOGFILE} 
                ANTS='cross'
                    
-               echo python ${SCRIPTSDIR}/pspec_cov_full_band.py \
+               echo python ${SCRIPTSDIR}/pspec_full_band_noise.py \
                     --window=${WINDOW} -p ${pol} -c ${chan} --band=${band}\
                      -b ${NBOOT} -C ${cal} \
                      -a ${ANTS} --output=${sepdir} --auto \
                      ${EVEN_FILES} ${ODD_FILES}
 
-               python ${SCRIPTSDIR}/pspec_cov_full_band.py \
+               python ${SCRIPTSDIR}/pspec_full_band_noise.py \
                     --window=${WINDOW} -p ${pol} -c ${chan} --band=${band}\
                      -b ${NBOOT} -C ${cal} \
                      -a ${ANTS} --output=${sepdir} --auto \
@@ -54,7 +54,7 @@ for chan in $chans; do
                 
                 
                 echo beginning bootstrap: `date` | tee -a ${LOGFILE} 
-                ${SCRIPTSDIR}/pspec_cov_boot.py ${sepdir}/pspec_boot*npz | tee -a ${LOGFILE} 
+                ${SCRIPTSDIR}/pspec_cov_boot_noise.py ${sepdir}/pspec_boot*npz | tee -a ${LOGFILE} 
                 echo complete! `date`| tee -a ${LOGFILE} 
                 mv pspec.npz ${sepdir}/
                 PIDS="${PIDS} "$!
@@ -74,7 +74,7 @@ for chan in $chans; do
         echo "Generating plots for ${chan}: ${pol}"
         poldir=${chandir}/${pol}
         #PLOT
-        ${SCRIPTSDIR}/plot_pk_k3pk_zsa_2.py ${poldir}/*/pspec.npz 
+        ${SCRIPTSDIR}/plot_pk_k3pk_zsa_noise.py ${poldir}/*/pspec.npz 
         mv pspec_pk_k3pk.npz pspec_${PREFIX}_${chan}_${pol}.npz
         mv pspec.png pspec_${PREFIX}_${chan}_${pol}.png
         mv posterior.png posterior_${PREFIX}_${chan}_${pol}.png

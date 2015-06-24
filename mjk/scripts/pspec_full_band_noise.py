@@ -277,11 +277,11 @@ for k in days:
         x1[k][bl] = n.transpose(d1, [1,0]) # swap time and freq axes
 
 nx={}
-for k1,k2 in zip(x1.keys()):
-    nx[k1], nx[k2] = {},{}
-        for bl1,bl2 in zip(x1[k1].keys(),x1[k2].keys())
-            nx[k1][bl1] = n.copy(x1[k1][bl1] - x1[k2][bl2])
-            nx[k2][bl2] = n.copy(x1[k1][bl1] - x1[k2][bl2])
+k1,k2 = x.keys()
+nx[k1], nx[k2] = {},{}
+for bl1,bl2 in zip(x1[k1].keys(),x1[k2].keys()):
+    nx[k1][bl1] = n.copy(x1[k1][bl1] - x1[k2][bl2])
+    nx[k2][bl2] = n.copy(x1[k1][bl1] - x1[k2][bl2])
 
 
 bls_master = x.values()[0].keys()
@@ -495,7 +495,7 @@ if False:
         for bl in data[k]:
             print k, bl
             x[k][bl] = x1[k][bl][index,:]
-    
+            nx[k][bl] = nx[k][bl][index]   
     for k in days:
         I[k],_I[k],_Ix[k] = {},{},{}
         _Inx[k] = {}
@@ -515,6 +515,7 @@ else:
         for bl in data[k]:
             print k, bl
             x[k][bl] = _Cavx[k][bl][index,:]
+            nx[k][bl] = nx[k][bl][index]   
     for k in days:
         I[k],_I[k],_Ix[k] = {},{},{}
         _Inx[k] = {}
