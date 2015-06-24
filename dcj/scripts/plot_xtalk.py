@@ -3,7 +3,22 @@
 from pylab import *
 import sys
 import numpy as n 
-if sys.argv[1].endswith('npz'):
+import optparse
+
+o = optparse.OptionParser()
+o.set_usage('plot_xtalk.py *.uv')
+o.set_description(__doc__)
+o.add_option('--plotbl',default='0_16;',help='The baselines to plot, split by ";" [default=0_16;]')
+o.add_option('--verbose', action='store_true',
+    help="Print a lot of stuff.")
+#o.add_option('--legend',action='store_true',
+#    help="""enable the plot legend. Its usually in the way, so its disabled by
+#default""")
+o.add_option('--yscale',type='float',
+    help='set the amount to offset each file')
+opts, args = o.parse_args(sys.argv[1:])
+bls = opts.plotbl.split(';')
+if args[0].endswith('npz'):
     SIGMAS = []
     AVGS = []
     for F in sys.argv[1:]:
@@ -35,15 +50,18 @@ if sys.argv[1].endswith('npz'):
     show()
 else:
     import pickle
-    for F in sys.argv[1:]:
-        P = pickle.load(open(F))
-        for i,key in enumerate(P):
-            #if not key.startswith('64'):continue
-            #if key=='64_64':continue
-            plot(P['freqs']*1e3,n.real(P[key]),label=key)
+    for i,filename in enumerate(args):
+	print filename
+        P = pickle.load(open(filename))
+        for bl in bls:
+            try:
+                plot(P['freqs']*1e3,i*opts.yscale+n.real(P[bl]),label=bl+'-'+filename)
+            except(KeyError):
+               print opts.plotbl,"not found in ",filename
             #if i>10:break
-        legend()
+            text(100,i*opts.yscale,filename,fontsize=10)
         xlabel('MHz')
         ylabel('real(<vis>)')
-        show()
-
+    grid()
+    show()
+    

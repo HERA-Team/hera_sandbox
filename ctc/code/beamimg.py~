@@ -1,0 +1,18 @@
+import numpy
+import capo
+import aipy
+import pyfits
+
+calfile = 'psa898_v003'
+aa = aipy.cal.get_aa(calfile, numpy.array([0.15]))
+
+gsm = '~/capo/ctc/images/gsm/gsm40/gsm1001.fits'
+img = aipy.map.Map(fromfits = gsm, interp=True)
+pylab.show(img)
+
+px = numpy.arange(img.npix()) #number of pixels
+crd = numpy.array(img.px2crd(px,ncrd=3)) #coordinates for pixels
+crds = numpy.asarray(crd)
+xcrd,ycrd,zcrd = crds[0],crds[1],crds[2]
+
+bmxx = aa[0].bm_response((xcrd,ycrd,zcrd),pol='x')**2
