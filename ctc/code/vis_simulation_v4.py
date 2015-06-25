@@ -82,8 +82,8 @@ for jj, f in enumerate(freqs):
     aa.select_chans([jj]) #selects specific frequency
     bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')[0]**2
     bmyy = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='y')[0]**2
-    sum_bmxx = numpy.sum(bmxx,axis=1)
-    sum_bmyy = numpy.sum(bmyy,axis=1)
+    sum_bmxx = numpy.sum(bmxx)
+    sum_bmyy = numpy.sum(bmyy)
     fngxx = fng*bmxx/sum_bmxx #factor used later in visibility calculation
     fngyy = fng*bmyy/sum_bmyy
     fluxes = img[px] #fluxes preserved in galactic grid
