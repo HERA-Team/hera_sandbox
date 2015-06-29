@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random
 
@@ -26,7 +26,7 @@ o.add_option('--output', type='string', default='',
 opts,args = o.parse_args(sys.argv[1:])
 
 random.seed(0)
-POL = 'I'
+POL = opts.pol#'I'
 LST_STATS = False
 DELAY = False
 NGPS = 5
@@ -154,14 +154,15 @@ if opts.loss:
     'even': glob.glob('/home/mkolopanis/psa64/lstbin_even_noxtalk/sep0,1/*242.[3456]*uvGL'),
     'odd' : glob.glob('/home/mkolopanis/psa64/lstbin_odd_noxtalk/sep0,1/*243.[3456]*uvGL'),
 }
-
+print "getting spectral info from ",dsets.values()[0][0],"...",
+sys.stdout.flush()
 WINDOW = opts.window
 uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 del(uv)
-
+print "[Done]"
 afreqs = freqs.take(chans)
 nchan = chans.size
 fq = n.average(afreqs)
@@ -203,10 +204,18 @@ sys.stdout.flush()
 #antstr = '41_49,3_10,9_58,22_61,20_63,2_43,21_53,31_45,41_47,3_25,1_58,35_61,42_63,2_33'
 antstr = 'cross'
 lsts,data,flgs = {},{},{}
-days = dsets.keys()
+days = dsets.keys() #days might be even/odd or more than two jacknifes.
+print "loading data"
 for k in days:
     lsts[k],data[k],flgs[k] = get_data(dsets[k], antstr=antstr, polstr=POL, rmbls=rmbls, verbose=True)
-    print data[k].keys()
+    bls = data[k].keys()
+    for bl in bls:
+        print k,bl,n.sum(n.isnan(data[k][bl]))/float(n.array(data[k][bl]).size),n.sum(flgs[k][bl])/float(n.array(data[k][bl]).size)
+        if n.sum(flgs[k][bl])>(0.9*n.array(flgs[k][bl]).size):
+            del(data[k][bl])
+            del(flgs[k][bl])
+            print "removing baseline ",bl,"because it is 90% or more flagged"
+    print k,"nbls = ",len(data[k])
 
 if LST_STATS:
     # collect some metadata from the lst binning process
@@ -226,17 +235,14 @@ else: cnt,var = n.ones_like(lsts.values()[0]), n.ones_like(lsts.values()[0])
 if True:
 #if False:
     # Align data sets in LST
-    print [lsts[k][0] for k in days]
     lstmax = max([lsts[k][0] for k in days])
     for k in days:
-        print k
         for i in xrange(len(lsts[k])):
             # allow for small numerical differences (which shouldn't exist!)
             if lsts[k][i] >= lstmax - .001: break
         lsts[k] = lsts[k][i:]
         for bl in data[k]:
             data[k][bl],flgs[k][bl] = data[k][bl][i:],flgs[k][bl][i:]
-    print [len(lsts[k]) for k in days]
     j = min([len(lsts[k]) for k in days])
     for k in days:
         lsts[k] = lsts[k][:j]
@@ -249,8 +255,6 @@ else:
 lsts = lsts.values()[0]
 
 x = {}
-print len(data[k][bl])
-print type(chans)
 for k in days:
     x[k] = {}
     for bl in data[k]:
@@ -336,7 +340,7 @@ for k in days:
         _I[k][bl] = n.identity(_C[k][bl].shape[0])
         _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
         _Ix[k][bl] = x[k][bl].copy()
-        if PLOT and True:
+        if PLOT and False:
             #p.plot(S); p.show()
             p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
             p.subplot(323); capo.arp.waterfall(C[k][bl])
@@ -470,6 +474,10 @@ for boot in xrange(opts.nboot):
     order = n.array([10,11,9,12,8,20,0,13,7,14,6,15,5,16,4,17,3,18,2,19,1])
     iorder = n.argsort(order)
     FC_o = n.take(n.take(FC,order, axis=0), order, axis=1)
+    if True:
+        print FC.min(),FC.max()
+        p.imshow(FC.real)
+        p.show()
     L_o = n.linalg.cholesky(FC_o)
     U,S,V = n.linalg.svd(L_o.conj())
     MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
