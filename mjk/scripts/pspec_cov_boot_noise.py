@@ -180,8 +180,8 @@ for boot in xrange(NBOOT):
             dwgt_fold += [wgts[k0-1::-1,t]]
     if MEDIAN:
         dsum,dwgt = n.median(dsum, axis=0), n.median(dwgt, axis=0)
-        dsum_fold,dwgt_fold = n.median(dsum_fold, axis=0), n.median(dwgt_fold, axis=0)
-        nsum,nsum_fold = n.median(nsum,axis=0), n.median(nsum_fold,axis=0)
+        dsum_fold, dwgt_fold = n.median(dsum_fold, axis=0), n.median(dwgt_fold, axis=0)
+        nsum, nsum_fold = n.median(nsum,axis=0), n.median(nsum_fold,axis=0)
     else:
         dsum,dwgt = n.average(dsum,axis=0), n.average(dwgt,axis=0)
         nsum = n.average(nsum,axis=0)
@@ -239,7 +239,7 @@ if True:
     print 'Deriving NOISE errors from histogram'
     nup_thresh = int(n.around(0.975 * nk_boot.shape[1])) # 2 sigma, single tail
     # important to only include real component in estimation of error
-    nerr = (pk_boot[:,nup_thresh] - nk.real) / 2 # effective "1 sigma" derived from actual 2 sigma
+    nerr = (nk_boot[:,nup_thresh] - nk.real) / 2 # effective "1 sigma" derived from actual 2 sigma
     nup_thresh_fold = int(n.around(0.975 * nk_fold_boot.shape[1])) # 2 sigma, single tail
     nerr_fold = (nk_fold_boot[:,nup_thresh_fold] - nk_fold.real) / 2 # effective "1 sigma" derived from actual 2 sigma
     for k_,pk_,err_ in zip(kpl, nk/1e6, 2*nerr/1e6):
