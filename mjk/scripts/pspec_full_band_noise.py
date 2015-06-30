@@ -272,7 +272,7 @@ for k in days:
         d[:,index] = 0. + 0j
         if conj[bl]:
              d = n.conj(d)
-             d1 = n.conj(d)
+             d1 = n.conj(d1)
         x[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
         x1[k][bl] = n.transpose(d1, [1,0]) # swap time and freq axes
 
@@ -530,7 +530,6 @@ else:
             _Ix[k][bl] = x[k][bl].copy()
             _Inx[k][bl] = nx[k][bl].copy()
 
-
 for boot in xrange(opts.nboot):
     print '%d / %d' % (boot+1,opts.nboot)
     bls = bls_master[:]
@@ -591,7 +590,7 @@ for boot in xrange(opts.nboot):
             #_Csum[k] = _Csumk
             _Czk = n.array([_Cz[k][i] for i in _Cz[k]])
             _Izk = n.array([_Iz[k][i] for i in _Iz[k]])
-            _Inzk = n.array([_Inz[k][i] for i in _Iz[k]])
+            _Inzk = n.array([_Inz[k][i] for i in _Inz[k]])
             _Czk = n.reshape(_Czk, (_Czk.shape[0]*_Czk.shape[1], _Czk.shape[2]))
             _Izk = n.reshape(_Izk, (_Izk.shape[0]*_Izk.shape[1], _Izk.shape[2]))
             _Inzk = n.reshape(_Inzk, (_Inzk.shape[0]*_Inzk.shape[1], _Inzk.shape[2]))
@@ -614,7 +613,7 @@ for boot in xrange(opts.nboot):
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex)
     qI = n.zeros((nchan,_Iz.values()[0].values()[0].shape[1]), dtype=n.complex)
-    qN = n.zeros((nchan,_Iz.values()[0].values()[0].shape[1]), dtype=n.complex)
+    qN = n.zeros((nchan,_Inz.values()[0].values()[0].shape[1]), dtype=n.complex)
     qC = n.zeros((nchan,_Cz.values()[0].values()[0].shape[1]), dtype=n.complex)
     Q_Iz = {}
     Q_Inz = {}
@@ -666,6 +665,9 @@ for boot in xrange(opts.nboot):
                             for j in xrange(nchan):
                                 FI[i,j] += n.einsum('ij,ji', _IsumQ[k1][bl1][i], _IsumQ[k2][bl2][j])
                                 FC[i,j] += n.einsum('ij,ji', _CsumQ[k1][bl1][i], _CsumQ[k2][bl2][j])
+    if n.allclose(qN, qI):
+        print('Noise equals data \n exiting')
+        sys.exit(0)
 
     if PLOT:
         p.subplot(141); capo.arp.waterfall(FC, drng=4)
@@ -734,7 +736,7 @@ for boot in xrange(opts.nboot):
     print "Writing", outfile
     n.savez(outfile, kpl=kpl, scalar=scalar, times=n.array(lsts),
         pk_vs_t=pI, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI, 
-        afreqs=afreqs, chans=chans, pn_vs_t=pN,
+        afreqs=afreqs, chans=chans, nk_vs_t=pN,
         cmd=' '.join(sys.argv))
 
 

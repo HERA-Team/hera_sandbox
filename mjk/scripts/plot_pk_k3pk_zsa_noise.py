@@ -480,10 +480,14 @@ for filename in glob.glob('lidz_mcquinn_k3pk/*7.3*dat'):
     k3pk = ks**3 / (2*n.pi**2) * pk
     p.subplot(122)
     p.plot(ks, k3pk * mean_temp(z)**2, 'm-')
-    
+
+
 tau_h = 100 + 15. #in ns
 k_h = C.pspec.dk_deta(C.pspec.f2z(freq)) * tau_h
+
 p.subplot(121)
+p.plot(kpl,2*dn.real*n.sqrt(2),'.r') ##Add noise curve to PK plot
+
 p.vlines(k_h, -1e7, 1e8, linestyles='--', linewidth=1.5)
 p.vlines(-k_h, -1e7, 1e8, linestyles='--', linewidth=1.5)
 #p.gca().set_yscale('log', nonposy='clip')
@@ -514,11 +518,10 @@ theo_noise = noise_level(freq=freq)
 #print k0
 #print kpl_pos[0], theo_noise[0]
 #2 for the 2 sigma
-k3 = abs(n.array(kpl)**3/(2*n.pi**2))
-noise_est = k3[k0:]*dn_fold
-#embed()
+k3 = abs(n.array(kpl[k0:])**3/(2*n.pi**2))
+noise_est = k3*dn_fold
 p.plot(n.array(kpl_pos), 2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2), 'c--')
-p.plot(n.array(kpl_pos), 2*abs(noise_est[1:]), 'r--')
+p.plot(n.array(kpl[k0:]), 2*noise_est*n.sqrt(2), 'r--')
 p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')

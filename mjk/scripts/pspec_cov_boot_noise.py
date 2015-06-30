@@ -33,7 +33,7 @@ for filename in args:
         temp_noise_var[path] = []
         nocov_vs_t[path] = []
     pk_vs_t[path].append(f['pk_vs_t'])
-    nk_vs_t[path].append(f['pk_vs_t'])
+    nk_vs_t[path].append(f['nk_vs_t'])
     scalar = f['scalar']
     afreqs=f['afreqs']
     chans=f['chans']

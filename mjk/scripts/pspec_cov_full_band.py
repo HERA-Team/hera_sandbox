@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 from IPython import embed
 from scipy import interpolate
 from matplotlib.widgets import Slider
@@ -272,9 +272,13 @@ for k in days:
         d[:,index] = 0. + 0j
         if conj[bl]:
              d = n.conj(d)
-             d1 = n.conj(d)
+             d1 = n.conj(d1)
         x[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
         x1[k][bl] = n.transpose(d1, [1,0]) # swap time and freq axes
+        if n.allclose(x1[k][bl][index], n.zeros_like(x1[k][bl][index])):
+            print('New X is set to zero')
+            print( k,bl)
+            embed()
 bls_master = x.values()[0].keys()
 nbls = len(bls_master)
 print 'Baselines:', nbls
@@ -355,13 +359,13 @@ for k in days:
         _Ix[k][bl] = x[k][bl].copy()
 
 
-        diags =[C[k][bl].diagonal(count) for count in xrange(nchan_band-1, -nchan_band,-1)]
-        Cav[k][bl]=n.zeros_like(C[k][bl])
-        Cst[k][bl]=n.zeros_like(C[k][bl])
+        #diags =[C[k][bl].diagonal(count) for count in xrange(nchan_band-1, -nchan_band,-1)]
+        #Cav[k][bl]=n.zeros_like(C[k][bl])
+        #Cst[k][bl]=n.zeros_like(C[k][bl])
 
-        for count,count_chan in enumerate(range(nchan_band-1,-nchan_band,-1)):
-                Cav[k][bl] += n.diagflat( n.mean(diags[count]).repeat(len(diags[count])), count_chan)
-                Cst[k][bl] += n.diagflat( n.sqrt( n.mean( (diags[count]-n.mean(diags[count]) ) *n.conj(diags[count] - n.mean(diags[count]) )  )).repeat(len(diags[count])), count_chan)
+        #for count,count_chan in enumerate(range(nchan_band-1,-nchan_band,-1)):
+        #        Cav[k][bl] += n.diagflat( n.mean(diags[count]).repeat(len(diags[count])), count_chan)
+        #        Cst[k][bl] += n.diagflat( n.sqrt( n.mean( (diags[count]-n.mean(diags[count]) ) *n.conj(diags[count] - n.mean(diags[count]) )  )).repeat(len(diags[count])), count_chan)
         
         
         #Compute Cav by taking diags, averaging and reforming the matrix
@@ -412,24 +416,31 @@ for k in days:
                 #p.subplot(537); capo.arp.waterfall(C[k][bl] - Cav[k][bl],mx=1.2,drng=2.4); p.ylabel('Cav')
                 p.subplot(538); p.plot(n.einsum('ij,jk',n.diag(S1),V1).T.real)
                 p.subplot(539); capo.arp.waterfall(_Cav[k][bl])
-                p.subplot(514); capo.arp.waterfall(_Cx[k][bl], mode='real',mx=6,drng=12); p.ylabel('_Cx')
+                p.subplot(514); capo.arp.waterfall(_Cx[k][bl], mode='real'); p.ylabel('_Cx')
                 p.subplot(515); capo.arp.waterfall(_Cavx[k][bl], mode='real',mx=6,drng=12); p.ylabel('_Cavx')
                 p.suptitle('%d_%d'%a.miriad.bl2ij(bl))
-                #f1.savefig('Cov_Baseline_%d_%d'%a.miriad.bl2ij(bl))
-                #f1.clf()
+                f1.savefig('Cov_'+k+'_Baseline_%d_%d'%a.miriad.bl2ij(bl))
+                f1.clf()
                 f2=p.figure(2);
+                p.subplot(121)
                 p.plot(S2,label='C')
                 p.plot(S1,label='Cav')
                 p.legend(loc='best')
-                #f2.savefig('Cov_Eigenvalues_%d_%d'%a.miriad.bl2ij(bl))
-                #f2.clf()
+                p.subplot(222)
+                p.plot(n.einsum('ij,jk',n.diag(S2),V2).T.real)
+                p.title('C')
+                p.subplot(224)
+                p.plot(n.einsum('ij,jk',n.diag(S1),V1).T.real)
+                p.title('Cav')
+                f2.savefig('Cov_'+k+'_Eigenvalues_%d_%d'%a.miriad.bl2ij(bl))
+                f2.clf()
                 f3=p.figure(3)
                 p.subplot(131); capo.arp.waterfall(new_c,mode='real', mx=2,drng=4)
                 p.subplot(132); capo.arp.waterfall(Cav[k][bl],mode='real',mx=2,drng=4)
                 p.subplot(133); capo.arp.waterfall(new_c-Cav[k][bl],mode='real',mx=2,drng=4); p.colorbar()
-                #f3.savefig('Cov_Residual_%d_%d'%a.miriad.bl2ij(bl))
-                #f3.clf()
-                if True: 
+                f3.savefig('Cov_'+k+'_Residual_%d_%d'%a.miriad.bl2ij(bl))
+                f3.clf()
+                if False: 
                     fig=p.figure(4); 
                     S2_=n.zeros_like(S2)
                     S2_[-1:]+=S2[-1:]
