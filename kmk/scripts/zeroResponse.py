@@ -15,11 +15,9 @@ h = a.healpix.HealpixMap(nside=64)
 h.map = np.ones(shape = h.map.shape)
 h.map = h.map*4*np.pi/h.npix()
 temps = np.ones(1)
-#temps = np.array([0.5, 0.6, 0.8]) # sky temperature
 x, y, z = xyz = h.px2crd(np.arange(h.npix())) #topocentric
 
 freq = uv.__getitem__('restfreq')*np.ones(1)
-#freq = np.array([.120, .150, .180]) # in GHz
 c = 3e10 # in cm/s
 wvlen = c / freq # observed wavelength
 
@@ -34,9 +32,12 @@ wvlen = c / freq # observed wavelength
 # X = constant temperature value for global signal
 # N = noise
 
+ants = '64_10,65_9,72_22,80_20,88_43,96_53,104_31'
+
 time = []
 f = {} # dictionary of flags
 d = {} # dictionary of spectra information
+a.scripting.uv_selector(uv, ants, 'xx')
 for (uvw, t, (i,j)), data, flag in uv.all(raw='True'):
     # get visibility information for rest frequency
     bl = a.miriad.ij2bl(i,j)
@@ -64,7 +65,8 @@ for bl in d.keys():
         i += 1
 
 A = np.array([response[bl][0] for bl in response.keys()])
-Y = np.array([d[bl][0][N/2-1] for bl in d.keys()])
+Y = A + np.random.normal(size=len(A)) + 0.1*1j*np.random.normal(size=len(A))
+#Y = np.array([d[bl][0][N/2-1] for bl in d.keys()])
 
 # find value of X from cleverly factoring out A in a way which properly weights 
 # the measurements
