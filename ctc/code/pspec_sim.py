@@ -37,7 +37,7 @@ opts, args = o.parse_args(sys.argv[1:])
 
 #P(k) function
 
-def P_k(kmag, sigma=0.0003, k0=0.002):
+def P_k(kmag, sigma=0.01, k0=0.02):
 
     return numpy.exp(-(kmag-k0)**2/(2*sigma**2)) #variance
 
@@ -46,7 +46,7 @@ def P_k(kmag, sigma=0.0003, k0=0.002):
 nu21 = 1420.*10**6 #21cm frequency [Hz]
 nuobs = opts.freq*10**6 #observed frequency [Hz]
 c = 3.*10**5 #[km/s]
-H0 = 69.7 #Hubble's constant [km/s/Mpc]
+H0 = 100 #Hubble's constant [km/s/Mpc]
 omg_m = 0.28 
 omg_lambda = 0.72 
 
@@ -64,7 +64,8 @@ wavelength = (3.*10**8)/nuobs #[m]
 baseline = 30. #[m]
 theta = wavelength/baseline
 
-delta = theta*Dc #step size in real space [Mpc]
+#delta = theta*Dc #step size in real space [Mpc]
+delta = 45 #test case
 L = opts.N*delta #size range in real space [Mpc]
 
 print 'real space volume [Mpc] =', L,'x',L,'x',L
@@ -84,7 +85,7 @@ kz = kx.copy(); kz.shape = (1,1,kz.size)
 k_mag = numpy.sqrt(kx**2+ky**2+kz**2) #3D cube
 #print numpy.min(k_mag), numpy.max(k_mag)
 
-stdev = numpy.sqrt(P_k(k_mag)/2)
+stdev = numpy.sqrt(L**3*P_k(k_mag)/2)
 a_tilde = numpy.random.normal(scale=stdev) 
 b_tilde = numpy.random.normal(scale=stdev) #random num with variance P_k/2
 #sampled from Gaussian distribution of variance 'stdev**2'
@@ -115,11 +116,30 @@ T_tilde[:1,:1,:(kz.size-1)/2:-1] = numpy.conj(thing7)
 
 T_tilde[0,0,0] = numpy.real(T_tilde[0,0,0])
 
-#print T_tilde
+T_r = numpy.fft.ifftn(T_tilde)/(delta**3)
 
-T_r = numpy.fft.ifftn(T_tilde)/((2*numpy.pi)**3) #the 2pi corrects for fourier conventions
+#plot slice of cube
 
+slice = T_r[opts.N/2]
+plt.imshow(numpy.real(slice))
+plt.show()
+otherslice = []
+for i in T_r:
+    otherslice.append(i[opts.N/2])
+plt.imshow(numpy.real(otherslice))
+plt.show()
+otherslice2 = numpy.zeros_like(otherslice)
+for i in range(len(T_r)):
+    slice = T_r[i]
+    for j in range(len(slice)):
+        otherslice2[i][j] = slice[j][opts.N/2]
+plt.imshow(numpy.real(otherslice2))
+plt.show()
+
+
+"""
 #print T_r
+#numpy.save('Tr_test.npy',T_r)
 
 #make Healpix Map
 
@@ -139,12 +159,13 @@ for i in range(len(thetas)):
     px_y = delta_y/delta
     px_z = delta_z/delta
 
-    if (px_x < opts.N/2) and (px_y < opts.N/2) and (px_z < opts.N/2):
+    if (px_x < opts.N/2) and (px_y < opts.N/2) and (px_z < opts.N/2) and (px_x > -opts.N/2) and (px_y > -opts.N/2) and (px_z > -opts.N/2):
 
         value = T_r[center_index+round(px_x),center_index+round(px_y),center_index+round(px_z)]
         img.put((thetas[i],phis[i]),1.0,value.real)
 
-img.to_fits('/Users/carinacheng/capo/ctc/images/test.fits', clobber=True)
+img.to_fits('/Users/carinacheng/capo/ctc/code/testcube1.fits', clobber=True)
+"""
 
 
 
