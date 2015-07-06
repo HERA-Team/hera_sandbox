@@ -67,4 +67,45 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     if use_offset: return gain, (tau,off), info
     else: return gain, tau, info
 
+def noise(size):
+    #generates a complex random gaussian noise with std=1 and mean=0.
+    sig = 1./n.sqrt(2)
+    return n.random.normal(scale=sig, size=size) + 1j*n.random.normal(scale=sig, size=size)
+
+
+def grid2ij(GRID):
+    '''
+        bl_str = given sep, returns bls in string format.
+        bl_conj = given a baseline (miriad bl) gives separation.
+        bl2sep_str = given baseline (miriad) return its separation.    
+    '''
+    bls, conj = {}, {}
+    for ri in range(GRID.shape[0]):
+        for ci in range(GRID.shape[1]):
+            for rj in range(GRID.shape[0]):
+                for cj in range(GRID.shape[1]):
+                    if ci > cj: continue
+#                    if ri > rj and ci == cj: continue
+#                    if ci > cj and ri == rj: continue
+                    sep = (rj-ri, cj-ci)
+                    sep = '%d,%d'%sep
+                    i,j = GRID[ri, ci], GRID[rj,cj]
+                    bls[sep] = bls.get(sep,[]) + [(i,j)]
+    for sep in bls.keys():
+        if sep == '0,0' or len(bls[sep]) < 2 or (sep[-1] == '0' and sep[0] == '-'): del(bls[sep])
+    for sep in bls:
+        conj[sep] = [i>j for i,j in bls[sep]]
+
+    bl_str,bl_conj,bl2sep_str = {}, {}, {}
+    for sep in bls:
+        bl_str[sep],bl_list = [], []
+        for (i,j),c in zip(bls[sep],conj[sep]):
+            if c: i,j = j,i
+            bl_list.append(a.miriad.ij2bl(i,j))
+            bl_str[sep].append('%d_%d'%(i,j))
+            bl2sep_str[a.miriad.ij2bl(i,j)] = bl2sep_str.get(a.miriad.ij2bl(i,j),'') + sep
+            bl_conj[a.miriad.ij2bl(i,j)] = c
+        bls[sep] = bl_list
+        bl_str[sep] = ','.join(bl_str[sep])
+    return bl_str,bl_conj,bl2sep_str
 

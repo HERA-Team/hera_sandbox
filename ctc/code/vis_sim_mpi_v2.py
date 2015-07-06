@@ -206,6 +206,8 @@ else: #other processors do this
         #sum_bmyy = numpy.sum(bmyy,axis=1)
         e3 = numpy.asarray(crd)
 
+        """
+
         fngxx = {}
         #fngyy = {}
         fluxes = {}
@@ -216,6 +218,8 @@ else: #other processors do this
             fngxx[f] = fng*bmxx[jj]/sum_bmxx[jj]
             #fngyy[f] = fng*bmyy[jj]/sum_bmyy[jj]
             fluxes[f] = img[px] #fluxes preserved in equatorial grid
+
+        """
 
     while True:
         comm.send(None,dest=0,tag=0) #ready tag
@@ -228,20 +232,35 @@ else: #other processors do this
             freqs = task[3]
 
             eq2top = aipy.coord.eq2top_m(sid_time,lat) #conversion matrix
-            t3 = numpy.dot(eq2top,e3) #topocentric coordinates
-            tx,ty,tz = t3[0],t3[1],t3[2]
+            t3rot = numpy.dot(eq2top,e3) #topocentric coordinates
+            txrot,tyrot,tzrot = t3rot[0],t3rot[1],t3rot[2]
 
             dataxx = []
             #datayy = []
 
-            img = aipy.map.Map(fromfits = opts.mappath+opts.map+'1001.fits',interp=True)
-            px,wgts = img.crd2px(tx,ty,tz,interpolate=1)
+            img1 = aipy.map.Map(fromfits = opts.mappath+opts.map+'1001.fits',interp=True)
+            pxrot,wgts = img1.crd2px(txrot,tyrot,tzrot,interpolate=1)
 
             for jj, f in enumerate(freqs):
-                efngxx = numpy.sum(fngxx[f][px]*wgts, axis=1)
-                #efngyy = numpy.sum(fngyy[f][px]*wgts, axis=1)
+                #"""
+                img = aipy.map.Map(fromfits = opts.mappath+opts.map+'1'+str(jj+1).zfill(3)+'.fits', interp=True)
+                fng = numpy.exp(-2j*numpy.pi*(blx*tx+bly*ty+blz*tz)*f)
+                fngxx = fng*bmxx[jj]/sum_bmxx[jj]
+                #fngyy = fng*bmyy[jj]/sum_bmyy[jj]
+                fluxes = img[px]
+
+                efngxx = numpy.sum(fngxx[pxrot]*wgts, axis=1)
+                #efngyy = numpy.sum(fngyy[pxrot]*wgts, axis=1)
+                visxx = numpy.sum(fluxes*efngxx)
+                #visyy = numpy.sum(fluxes*efngyy)
+                #"""
+                """
+                efngxx = numpy.sum(fngxx[f][pxrot]*wgts, axis=1)
+                #print fngxx[f].shape,fluxes[f].shape,efngxx.shape
+                #efngyy = numpy.sum(fngyy[f][pxrot]*wgts, axis=1)
                 visxx = numpy.sum(fluxes[f]*efngxx)
                 #visyy = numpy.sum(fluxes[f]*efngyy)
+                """
                 dataxx.append(visxx)
                 #datayy.append(visyy)
 
