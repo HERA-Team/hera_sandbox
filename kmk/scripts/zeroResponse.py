@@ -32,12 +32,14 @@ wvlen = c / freq # observed wavelength
 # X = constant temperature value for global signal
 # N = noise
 
-ants = '64_10,65_9,72_22,80_20,88_43,96_53,104_31'
+#ants = '64_10,65_9,72_22,80_20,88_43,96_53,104_31'
+ants = '(64,10,65,9,72,22,80,20,88,43,96,53,104,31)_(64,10,65,9,72,22,80,20,88,43,96,53,104,31)'
 
 time = []
 f = {} # dictionary of flags
 d = {} # dictionary of spectra information
 a.scripting.uv_selector(uv, ants, 'xx')
+print "antennae selected"
 for (uvw, t, (i,j)), data, flag in uv.all(raw='True'):
     # get visibility information for rest frequency
     bl = a.miriad.ij2bl(i,j)
@@ -45,11 +47,13 @@ for (uvw, t, (i,j)), data, flag in uv.all(raw='True'):
     f[bl].append(flag)
     d[bl].append(data)
     time.append(t)
+print "data collected"
 
 # import array parameters
 aa = a.cal.get_aa('psa6622_v001', uv['sdf'], uv['sfreq'], uv['nchan'])
 beam = aa[0].bm_response(xyz, pol='x')**2
 beam = beam[0]
+print "array parameters imported"
 
 # simulate visibilities for each baseline
 response = {}
@@ -63,6 +67,7 @@ for bl in d.keys():
         if not bl in response.keys(): response[bl] = []
         response[bl].append(np.sum(np.where(z>0, obs*phs, 0)))
         i += 1
+print "visibilities simulated"
 
 A = np.array([response[bl][0] for bl in response.keys()])
 A.shape = (A.size,1)
