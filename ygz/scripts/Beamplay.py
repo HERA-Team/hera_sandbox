@@ -44,7 +44,8 @@ cbar2 = p.colorbar(im2,fraction=0.046, pad=0.04)
 
 fig2 = p.figure()
 u_range = n.linspace(-3,3,100)
-z = export_beam.get_overlap(freq, fbmamp,u_range,u_range)
+f = export_beam.beam_interpol(freq,fbmamp)
+z = export_beam.get_overlap(f, u_range,u_range)
 z = z/n.amax(n.abs(z))
 U,V = n.meshgrid(u_range,u_range)
 #z = abs(z)
@@ -59,7 +60,19 @@ ax4 = fig2.add_subplot(122)
 ax4.set_xlabel('u')
 ax4.set_ylabel('FT')
 for v in [0.,1.]:
-    z = export_beam.get_overlap(freq, fbmamp,u_range,v)
+    z = export_beam.get_overlap(f,u_range,v)
     curv, = p.plot(u_range,z,label='v= %f' % v)
 p.legend()
 p.show()
+
+
+
+#calculate Omp, Ompp
+bm_list = export_beam.beam_real(aa[sample_ant], ntop, shape0, 'x',sq=False)
+bm = bm_list[1]
+dl,dm=2./400,2./400
+Ompp = n.sum(bmp)*dl*dm
+Omp = n.sum(bm)*dl*dm
+Om = Omp*Omp/Ompp
+
+print "Omp, Ompp, OmPrime=", Omp,Ompp, Om
