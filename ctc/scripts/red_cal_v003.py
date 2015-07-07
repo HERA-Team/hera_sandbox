@@ -90,20 +90,22 @@ for filename in args:
         bl_list = []
         for (i,j),c in zip(bls[sep],conj[sep]):
             if c: i,j = j,i
-	        ###cols 0-5:
+            ###cols 0-5: (with and without bad antennas)
             #valid = [25,19,1,64,65,72,80,88,96,104,10,9,22,20,43,53,31,49,66,73,81,89,97,105,3,58,61,63,2,21,45,41,67,74,82,90,98,106,35,42,33,15,8]
-	    ###cols 6-10:
-	    #valid = [25,19,1,47,75,83,91,99,107,48,4,18,37,6,16,11,29,68,76,84,92,100,108,24,17,5,40,52,62,36,28,69,77,85,93,101,109]
-	        ###cols 11-15:
+            #valid = [25,19,1,65,80,88,96,104,9,20,53,49,66,73,81,89,3,61,63,21,45,41,67,74,82,90,98,106,35,8]
+            ###cols 0-4: (without bad antennas):
+            #valid = [25,19,1,65,80,88,96,104,9,20,53,49,66,73,81,89,3,61,63,21,45,41,67,74,82,90,98,106]
+            ###cols 6-10: (with and without bad antennas)
+            #valid = [25,19,1,47,75,83,91,99,107,48,4,18,37,6,16,11,29,68,76,84,92,100,108,24,17,5,40,52,62,36,28,69,77,85,93,101,109]
+            #valid = [25,19,1,75,83,99,48,4,18,37,6,16,11,29,68,76,84,92,100,108,24,17,5,40,52,62,36,28,69,77,85,93,101,109]
+            ###cols 5-9: (without bad antennas):
+            #valid = [25,19,1,35,8,75,83,99,48,4,18,37,6,16,11,29,68,76,84,92,100,108,24,17,5,40,52,62,36]
+            ###cols 10-15: 
+            #valid = [25,19,1,28,69,77,85,93,101,109,51,57,71,59,79,23,87,50,95,38,103,26,111,46,27,56,30,54,12,0,39,34,70,78,86,94,102,110,55,13,32,14,7,44,60]
+            ###cols 11-15:
             #valid = [25,19,1,51,57,71,59,79,23,87,50,95,38,103,26,111,46,27,56,30,54,12,0,39,34,70,78,86,94,102,110,55,13,32,14,7,44,60]
-	    ###whole array:
-	    #valid = ANTPOS.flatten()
-        ###get rid of bad antennas:
-	    #bad_ant = [64,72,10,22,31,43,97,105,2,58,15,33,42,47,91,107]
-	    #for i in bad_ant:
-		    #whr = n.where(n.array(valid)== i)[0]
-            #valid = n.delete(valid,whr)
-	    #valid = list(valid)
+            ###whole array:
+            #valid = ANTPOS.flatten()
             if not i in valid or not j in valid: continue
             #Add valid antennas to the bl_list. Default is all ants.
             bl_list.append(ij2bl(i,j))
@@ -120,7 +122,7 @@ for filename in args:
     
     #seps = ['0,1','1,1','-1,1'] #+ ['2,1', '-2,1'] + ['0,2','1,2','-1,2']
     #seps = bls.keys()
-    seps = [sep for sep in bls if len(bls[sep]) > 0]
+    seps = [sep for sep in bls if len(bls[sep]) > 0] #XXX should be 1?
     #Get the baselines that have separation in seps.
     strbls = ','.join([strbls[sep] for sep in seps if len(strbls[sep])>0])
     pols = ['xx','yy']
@@ -163,7 +165,7 @@ for filename in args:
             cal_bl[sep] = bls[sep][:]
         cal_bl[sep].sort(cmp_bls)
         cal_bl[sep] = cal_bl[sep][0] # XXX picks lower number baseline that involves calant, but sometimes there are 2 and this arbitrarily picks one over another without a good reason
-    
+        #print cal_bl[sep]; import sys; sys.exit(0) 
     P = { # Keeps track of antennas that are being paired together in a measurement
         'phs': n.zeros((4,NPOL,NANT), dtype=n.double),
         'amp': n.zeros((2,NPOL,NANT), dtype=n.double),
@@ -180,6 +182,11 @@ for filename in args:
     P['phs'][1,p0,ANTIND[ANTPOS[calrow,calcol+1]]] = 1e6; M['phs'][1] = 0
     P['phs'][2,p0,ANTIND[ANTPOS[calrow+1,calcol]]] = 1e6; M['phs'][2] = 0
     P['amp'][0,p0,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M['amp'][0] = 0
+    badants = [64,72,10,22,31,43,97,105,2,58,15,33,42,47,91,107]
+    #for i in badants:
+        #P['phs'][0,p0,ANTIND[i]] = 1e6; M['phs'][0] = 0
+    #print P['phs'] ;import sys; sys.exit(0)
+    #print ANTIND[25],ANTIND[1],ANTIND[19] ; import sys; sys.exit(0)
     # Without cross-pol data, both pols of reference ant must be manually set to fixed values.
     P['phs'][3,p1,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M['phs'][3] = 0
     P['amp'][1,p1,ANTIND[ANTPOS[calrow , calcol]]] = 1e6; M['amp'][1] = 0
@@ -260,7 +267,7 @@ for filename in args:
         P[m].shape = (x0, P[m].size/x0)
         #print P[m].shape, M[m].shape
         pinv = n.linalg.pinv(P[m]) # this succeeds where lstsq fails for some reason
-        print pinv
+        #print pinv
         C[m] = n.dot(pinv,M[m])
         #C[m] = n.linalg.lstsq(P[m],M[m])[0]
         C[m].shape = (NPOL,) + ANTPOS.shape
