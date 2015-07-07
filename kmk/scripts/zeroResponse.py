@@ -14,7 +14,7 @@ N = uv.__getitem__('nchan')
 h = a.healpix.HealpixMap(nside=64)
 h.map = np.ones(shape = h.map.shape)
 h.map = h.map*4*np.pi/h.npix()
-temps = np.ones(1)
+temps = 0.5*np.ones(1)
 x, y, z = xyz = h.px2crd(np.arange(h.npix())) #topocentric
 
 freq = uv.__getitem__('restfreq')*np.ones(1)
@@ -56,22 +56,23 @@ response = {}
 for bl in d.keys():
     k, j = a.miriad.bl2ij(bl)
     bx, by, bz = aa.get_baseline(k, j)
-    for i in range(len(temps)):
+    for i in range(len(freq)):
         # attenuate sky signal by primary beam
-        obs = temps[i] * beam * h.map
+        obs = beam * h.map
         phs = np.exp(-2j*np.pi*freq[i]*(bx*x + by*y + bz*z))
         if not bl in response.keys(): response[bl] = []
         response[bl].append(np.sum(np.where(z>0, obs*phs, 0)))
         i += 1
 
 A = np.array([response[bl][0] for bl in response.keys()])
-Y = A + np.random.normal(size=len(A)) + 0.1*1j*np.random.normal(size=len(A))
+A.shape = (A.size,1)
+Y = A*temps[0] + np.random.normal(size=A.shape) + 1j*np.random.normal(size=A.shape)
 #Y = np.array([d[bl][0][N/2-1] for bl in d.keys()])
 
 # find value of X from cleverly factoring out A in a way which properly weights 
 # the measurements
 transjugateA = np.conjugate(np.transpose(A))
-normalization = (np.dot(transjugateA, A))**(-1)
+normalization = np.linalg.inv(np.dot(transjugateA, A))
 invA = normalization*transjugateA
 
 X = np.dot(invA,Y)
