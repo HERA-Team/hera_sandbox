@@ -1,0 +1,2 @@
+python -m cProfile -o bench_lin_time Pairing.py 
+python -c "import pstats; p=pstats.Stats('bench_lin_time'); p.sort_stats('cumulative').print_stats(20)"

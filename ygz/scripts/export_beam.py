@@ -29,9 +29,11 @@ def beam_fourier(bmp, dreal, nreal):
         freq = n.fft.fftshift(freq)
         return freq, fbmamp
 
+def beam_interpol(freq, fbmamp,kind='cubic'):
+    return interpolate.interp2d(freq, freq, fbmamp, kind=kind)
+
 #Interpolates for the overlap of two baselines given a (u,v) coordinate
-def get_overlap(freq,fbmamp, u, v, Diag=False):
-        f  =  interpolate.interp2d(freq, freq, fbmamp, kind='cubic')
+def get_overlap(f, u, v, Diag=False):
         if len(f(u,v)) > 1:
             if Diag: return n.diagonal(f(u,v))
             else: return f(u,v)
