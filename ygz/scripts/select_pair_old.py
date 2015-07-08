@@ -2,7 +2,6 @@ __author__ = 'yunfanzhang'
 
 import numpy as n
 import export_beam, quick_sort
-from scipy import interpolate
 import pdb
 
 #round values to cell size
@@ -11,7 +10,7 @@ def rnd(val, cell, decimals=0):
 
 #coarsely determine crossings by griding the uv plane
 #Format: d[ur_rounded] = [(bl,t,(u,v)),...]
-def pair_coarse(aa, src, times, dist,redundant=False, add_tol=0.5, northsouth=True):
+def pair_coarse(aa, src, times, dist,redundant=False, add_tol=0.5):
     f2 = open('./redundant_bl.out', 'w')
     f2.close()
     f2 = open('./redundant_bl.out', 'a')
@@ -51,13 +50,10 @@ def pair_coarse(aa, src, times, dist,redundant=False, add_tol=0.5, northsouth=Tr
                         if dkey[1]<0 or (dkey[1]==0 and dkey[2]<0): dkey = (dkey[0],-dkey[1],-dkey[2])
                 else:
                     #pdb.set_trace()  #all 64 antennas should be in ant_layout
-                    print "Bug in rep baseline, all 64 antennas should be in ant_layout"
                     break
             else:
-                if dkey[1] < 0 or (dkey[1] == 0 and dkey[2] < 0): dkey = (dkey[0],-dkey[1],-dkey[2])
-            if northsouth: repbl[dkey] = repbl.get(dkey,[]) + [(i,j)]
-            else:
-                if dkey[1] != 0: repbl[dkey] = repbl.get(dkey,[]) + [(i,j)] # this version excludes n-s baselines
+                if dkey[1]<0 or (dkey[1]==0 and dkey[2]<0): dkey = (dkey[0],-dkey[1],-dkey[2])
+            repbl[dkey] = repbl.get(dkey,[]) + [(i,j)]
     print "pair_coarse:", len(repbl), "representative baselines, 4432 expected"
     #print repbl
   #  d = {}
@@ -105,7 +101,7 @@ def pair_coarse(aa, src, times, dist,redundant=False, add_tol=0.5, northsouth=Tr
 
 #sorts the given dictionary of crossings in order of decreasing correlations
 #Format: sorted = [(val,(bl1,t1),(bl2,t2),(u1,v1)),...] (u1v1 used for test plots only)
-def pair_sort(pairings, bm_intpl, cutoff=0.):
+def pair_sort(pairings, freq, fbmamp, cutoff=0.):
     sorted = []
     for key in pairings:
         L = len(pairings[key])
@@ -113,7 +109,7 @@ def pair_sort(pairings, bm_intpl, cutoff=0.):
             for j in range(i+1,L):
                 pt1,pt2 = pairings[key][i],pairings[key][j]
                 duv = tuple(x - y for x,y in zip(pt1[2], pt2[2]))
-                val = export_beam.get_overlap(bm_intpl,*duv)
+                val = export_beam.get_overlap(freq,fbmamp,*duv)
                 if abs(val) > cutoff:
                     sorted.append((val,(pt1[0],pt1[1]),(pt2[0],pt2[1]),pt1[2]))
     quick_sort.quick_sort(sorted,0,len(sorted)-1)
@@ -132,14 +128,10 @@ def get_closest(pairs_sorted):
 
 #Alternative way to pair_sort + get_closest, usually faster (~n vs ~nlog(n))
 #format: clos_app[bl1,bl2] = (val, t1, t2, (u1,v1))
-def alter_clos(pairings, bm_intpl, cutoff=0.):
+def alter_clos(pairings, freq, fbmamp, cutoff=0.):
     clos_app = {}
-    cnt = 0
-    #print "alter_clos: len(pairings)=", len(pairings)
+    print "alter_clos: len(pairings)=", len(pairings)
     for key in pairings:
-        cnt = cnt+1
-        #if (cnt/20)*20 == cnt:
-        #    print 'alter_clos: Processing key %d out of %d:' % (cnt,len(pairings))
         L = len(pairings[key])
         for i in range(L):  # get the points pairwise
             for j in range(i+1,L):
@@ -148,7 +140,7 @@ def alter_clos(pairings, bm_intpl, cutoff=0.):
                     #print "alter_clos: ignore self-correlating baseline: ", pt1[0]
                     continue
                 duv = tuple(x - y for x,y in zip(pt1[2], pt2[2]))
-                val = export_beam.get_overlap(bm_intpl,*duv)
+                val = export_beam.get_overlap(freq,fbmamp,*duv)
                 blkey = (pt1[0],pt2[0])
                 #if blkey==((92,112),(0,91)) or blkey==((0,91),(92,112)): print blkey,val, duv
                 clos_app[blkey] = clos_app.get(blkey,[])+[(val,pt1[1],pt2[1],pt1[2])]
@@ -166,7 +158,7 @@ def alter_clos(pairings, bm_intpl, cutoff=0.):
     return clos_app
 
 #computes correlations of baselines bl1, bl2 at times t1, t2
-def get_corr(aa, src, bm_intpl, t1,t2, bl1, bl2):
+def get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2):
     aa.set_jultime(t1)
     src.compute(aa)
     if src.alt>0:
@@ -181,33 +173,17 @@ def get_corr(aa, src, bm_intpl, t1,t2, bl1, bl2):
         duv = (uvw1[0]-uvw2[0],uvw1[1]-uvw2[1])
     else: return 0
     #print n.sqrt(duv[0]*duv[0]+duv[1]*duv[1])
-    return export_beam.get_overlap(bm_intpl,*duv), (uvw1,uvw2)
+    return export_beam.get_overlap(freq,fbmamp,*duv), (uvw1,uvw2)
 
-def get_ovlp(aa,t1,t2,rbm2interp):
-    aa.set_jultime(t1)
-    ra1 = aa.radec_of(0,n.pi/2)[0]
-    aa.set_jultime(t2)
-    dra = aa.radec_of(0,n.pi/2)[0]-ra1
-    dl = n.sin(dra)
-    return rbm2interp(dl,0)
-
-def get_weight(aa,bl1,bl2,uvw,multweight,noiseweight, ovlp=1.):
-    weight = ovlp
+def get_weight(aa,bl1,bl2,uvw,multweight,noiseweight):
+    weight = 1.
     ant_dict = {}
-    num_ant = len(aa)
     NU,NV = len(aa.ant_layout),len(aa.ant_layout[0])
     for i in range(NU):
         for j in range(NV):
             ant_dict[aa.ant_layout[i][j]] = (i,j)  #ant_dict[random ant#]=antlayoutindex
-    try:
-        m1 = (NU-abs(ant_dict[bl1[0]][0]-ant_dict[bl1[1]][0]))*(NV-abs(ant_dict[bl1[0]][1]-ant_dict[bl1[1]][1]))
-        m2 = (NU-abs(ant_dict[bl2[0]][0]-ant_dict[bl2[1]][0]))*(NV-abs(ant_dict[bl2[0]][1]-ant_dict[bl2[1]][1]))
-        multfactor = m1*m2
-    except(KeyError):
-        if num_ant<=64:
-            print "get_weight: KeyError", bl1, bl2
-            return
-        else: multfactor = 1
+    try: multfactor = (NU-abs(ant_dict[bl1][0]-ant_dict[bl2][0]))*(NV-abs(ant_dict[bl1][1]-ant_dict[bl2][1]))
+    except(KeyError): multfactor = 1
     if multweight: weight = weight*multfactor
     noisefactor = (uvw[0]*uvw[0]+uvw[1]*uvw[1]+uvw[2]*uvw[2])**(-1.5)
     if noiseweight: weight = weight*noisefactor
@@ -216,51 +192,33 @@ def get_weight(aa,bl1,bl2,uvw,multweight,noiseweight, ovlp=1.):
 # Outputs the final array of sorted pairs of points in uv space,
 # spaced in time to avoid over computing information already extracted from fringe rate filtering
 # format pair_fin = [(val,(bl1,t1),(bl2,t2))...]
-def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=True,noiseweight=True,ovlpweight=True,cutoff=6000.,puv=False):
+def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=False,noiseweight=False,cutoff=6000.):
     final = []
     cnt, N = 0,len(clos_app)
-    bm_intpl = export_beam.beam_interpol(freq,fbmamp,'cubic')
-    if ovlpweight:
-        fbm2 = n.multiply(fbmamp,fbmamp)   #element wise square for power beam
-        rbm2 = n.fft.fft2(fbm2)
-        freqlm = n.fft.fftfreq(len(freq),d=(freq[1]-freq[0]))
-        rbm2 = n.fft.fftshift(rbm2)
-        freqlm = n.fft.fftshift(freqlm)
-        rbm2interp = interpolate.interp2d(freqlm, freqlm, rbm2, kind='cubic')
     for key in clos_app:
         cnt = cnt+1
-        if (cnt/1000)*1000 == cnt:
+        if (cnt/200)*200 == cnt:
             print 'Calculating baseline pair %d out of %d:' % (cnt,N)
         bl1,bl2 = key[0],key[1]
         t1,t2 = clos_app[key][1],clos_app[key][2]
-        correlation,(uvw1,uvw2) = get_corr(aa, src, bm_intpl, t1,t2, bl1, bl2)
+        correlation,(uvw1,uvw2) = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
         if correlation == 0: continue
-        if ovlpweight: ovlp = get_ovlp(aa,t1,t2,rbm2interp)
-        else: ovlp = 1.
-        weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight,ovlp)
+        weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight)
         while correlation > cutoff:
-            if puv: final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
-            else: final.append((weight*correlation,correlation,(bl1,t1),(bl2,t2)))
+            final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
             t1,t2 = t1+dt,t2+dt
-            try: correlation,(uvw1,uvw2)  = get_corr(aa, src,bm_intpl, t1,t2, bl1, bl2)
+            try: correlation,(uvw1,uvw2)  = get_corr(aa, src,freq,fbmamp, t1,t2, bl1, bl2)
             except(TypeError): correlation  = 0.
-            else:
-                if ovlpweight: ovlp = get_ovlp(aa,t1,t2,rbm2interp)
-                else: ovlp = 1.
-                weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight,ovlp)
-        if ovlpweight: ovlp = get_ovlp(aa,t1,t2,rbm2interp)
-        else: ovlp = 1.
-        weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight,ovlp)
+            else: weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight)
+        t1,t2 = clos_app[key][1]-dt,clos_app[key][2]-dt
+        correlation,(uvw1,uvw2)  = get_corr(aa, src, freq,fbmamp, t1,t2, bl1, bl2)
+        weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight)
         while correlation > cutoff:
-            if puv: final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
-            else: final.append((weight*correlation,correlation,(bl1,t1),(bl2,t2)))
+            final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
             t1,t2 = t1-dt,t2-dt
-            try: correlation,(uvw1,uvw2)  = get_corr(aa, src,bm_intpl, t1,t2, bl1, bl2)
+            try: correlation,(uvw1,uvw2)  = get_corr(aa, src,freq,fbmamp, t1,t2, bl1, bl2)
             except(TypeError): correlation  = 0.
-            else:
-                if ovlpweight: ovlp = get_ovlp(aa,t1,t2,rbm2interp)
-                else: ovlp = 1.
-                weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight,ovlp)
+            else: weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight)
     quick_sort.quick_sort(final,0,len(final)-1)
     return final
 
