@@ -83,15 +83,17 @@ for f in range(len(args)):
     print '   saving '+out
     d_npz = {}
     d_npz[pol] = {}
-    d_npz[pol]['m_log'] = m
-    d_npz[pol]['m_lin'] = m2
-    for a,ant in enumerate(g.keys()):
-        g_pre = gains[pol][ant]
+    for mm in m.keys():
+        d_npz['%s,%s,%s' % (pol,'m_log',mm)] = m[mm]
+        d_npz['%s,%s,%s' % (pol,'m_lin',mm)] = m2[mm]
+    for vv in v.keys():
+        d_npz['%s,%s,%s' % (pol,'v_log',vv)] = v[vv]
+        d_npz['%s,%s,%s' % (pol,'v_lin',vv)] = v2[vv]
+    for aa in g.keys():
+        g_pre = gains[pol][aa]
         g_pre.shape = (1,g_pre.size)
-        d_npz[pol]['g_log'] = g_pre*g[ant]
-        d_npz[pol]['g_lin'] = g_pre*g2[ant]
-    d_npz[pol]['v_log'] = v
-    d_npz[pol]['v_lin'] = v2
+        d_npz['%s,%s,%d' % (pol,'g_log',aa)] = g_pre*g[aa]
+        d_npz['%s,%s,%d' % (pol,'g_lin',aa)] = g_pre*g2[aa]
     numpy.savez(out,**d_npz) 
     #import IPython; IPython.embed()
     
