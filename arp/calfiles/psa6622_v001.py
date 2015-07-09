@@ -557,10 +557,10 @@ def get_aa(freqs):
     aa = AntennaArray(prms['loc'], antennas, tau_ew=prms['tau_ew'], tau_ns=prms['tau_ns'],
         gain=prms['gain'], amp_coeffs=prms['amp_coeffs'],
         dly_coeffs=prms['dly_coeffs'], dly_xx_to_yy=prms['dly_xx_to_yy'], ant_layout=prms['ant_layout'])
+    pos_prms = {}
     for i in range(nants):
-        pos = prms['antpos'][i]
-        i = str(i)
-        aa.set_params({i:pos})
+        pos_prms[str(i)] = prms['antpos'][i]
+    aa.set_params(pos_prms)
     return aa
 
 src_prms = {

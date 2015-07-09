@@ -22,6 +22,7 @@ import numpy
 #import pylab
 #import pyfits
 #import matplotlib.pyplot as plt
+import ephem as e
 import optparse
 import os, sys
 
@@ -79,10 +80,10 @@ tx,ty,tz = t3[0], t3[1], t3[2] #1D arrays of top coordinates of img1 (can define
 #sum_bmxx = numpy.sum(bmxx,axis=1)
 #sum_bmyy = numpy.sum(bmyy,axis=1)
 
-#get equatorial coordinates
+#get galactic coordinates from map
 
-e3 = numpy.asarray(crd)
-ex,ey,ez = e3[0], e3[1], e3[2] #1D arrays of eq coordinates of img
+g3 = numpy.asarray(crd)
+#ex,ey,ez = e3[0], e3[1], e3[2] #1D arrays of eq coordinates of img
 
 #loop through frequency to get PSPECS and calculate fringe
 
@@ -116,6 +117,8 @@ for jj, f in enumerate(freqs):
         print '   Timestep %d/%d' % (ii+1, len(times))
         aa.set_jultime(t)
 
+        ga2eq = aipy.coord.convert_m('eq','ga',iepoch=e.J2000,oepoch=aa.epoch) #conversion matrix
+        e3 = numpy.dot(ga2eq,g3) #equatorial coordinates
         eq2top = aipy.coord.eq2top_m(aa.sidereal_time(),aa.lat) #conversion matrix
         t3rot = numpy.dot(eq2top,e3) #topocentric coordinates
         #t3 = t3.compress(t3[2]>=0,axis=1) #gets rid of coordinates below horizon
