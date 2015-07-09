@@ -43,7 +43,7 @@ INJECT_SIG = 0.
 SAMPLE_WITH_REPLACEMENT = True
 NOISE = .0
 PLOT = opts.plot
-FRF_WITHD=401
+FRF_WIDTH=401
 try:
     rmbls = map(int, opts.rmbls.split(','))
 except:
@@ -171,6 +171,7 @@ freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 band_chans = a.scripting.parse_chans(opts.band, uv['nchan'])
+inttime = uv['inttime'] * 4 # XXX hack for *E files that have inttime set incorrectly
 del(uv)
 
 afreqs = freqs.take(chans)
@@ -180,7 +181,7 @@ nchan = chans.size
 fq = n.average(afreqs)
 z = capo.pspec.f2z(fq)
 
-aa = a.cal.get_aa(opts.cal, n.array([.150]))
+aa = a.cal.get_aa(opts.cal, allfreqs)
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
 jy2T = capo.pspec.jy2T(allfreqs)
 window = a.dsp.gen_window(nchan, WINDOW)
@@ -279,6 +280,9 @@ for k in days:
         x[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
         x1[k][bl] = n.transpose(d1, [1,0]) # swap time and freq axes
 
+bls_master = x.values()[0].keys()
+nbls = len(bls_master)
+print 'Baselines:', nbls
 
 if opts.noise:
         tmp_nx = {}
@@ -288,7 +292,7 @@ if opts.noise:
         for k in days:
             tmp_nx[k] = {}
             for bl in x[k]:
-                noise1 = noise(x[days[0]][bls_master[0]].shape) *2.2* n.sqrt(FRF_WIDTH/inttime)
+                noise1 = noise(x[days[0]][bls_master[0]].shape)*6.6408 * 1.7 ### mk 
                 for cnt, ch in enumerate(band_chans):
                     noise1[cnt] = n.convolve(noise1[cnt], firs[cnt], mode='same')
 
@@ -299,27 +303,32 @@ if set(['even', 'odd']) == set(days):
     k1,k2 = x.keys()
     nx[k1], nx[k2] = {},{}
     for bl in bls_master:
-        nx[k1][bl] = n.copy(tmp_nx[k1][bl] - tmp_nx[k2][bl])
-        nx[k2][bl] = n.copy(tmp_nx[k1][bl] - tmp_nx[k2][bl])
+        nx[k1][bl] = n.copy(x1[k1][bl] - x1[k2][bl])
+        nx[k2][bl] = n.copy(x1[k1][bl] - x1[k2][bl])
 
 
-bls_master = x.values()[0].keys()
-nbls = len(bls_master)
-print 'Baselines:', nbls
 Nt=13
 nlst=n.shape(lsts)[0]
-mean_array=[]
-std_array=[]
+pk_array=[]
+rms_array=[]
 
 bls_master.sort()
 for bl in bls_master:
-    dist= n.ceil(nx['even'][bl][index].shape[1]/13)
-    dist= n.ceil(nlst/13.)
-    mean_array.append( n.mean(nx['even'][bl][index,::dist].real))
-    std_array.append( n.std(nx['even'][bl][index,::dist].real)/n.sqrt(Nt*21))
-    print '', bl, ' Pk [10^9 mk^2] ', n.sqrt(n.mean(nx['even'][bl][index[0]].conj()*nx['even'][bl][index[0]])) * scalar /nbls**2, 'rms [mk]  ', n.sqrt(n.mean(nx['even'][bl][index[0]].conj()*nx['even'][bl][index[0]]))
+    dlst= n.ceil(nx['even'][bl][index].shape[1]/13)
+    dlst= n.ceil(nlst/13.)
+    pk_array.append( n.mean(nx['even'][bl][index,::dlst]*nx['even'][bl][index,::dlst].conj())*scalar )
+    rms_array.append( n.sqrt(n.mean(nx['even'][bl][index[0]]*nx['even'][bl][index[0]].conj()))  ) 
+    print '', bl, ' Pk [mk^2/Mpc^3] ', n.sqrt(n.mean(nx['even'][bl][index[0]].conj()*nx['even'][bl][index[0]])) * scalar, 'rms [mk]  ', n.sqrt(n.mean(nx['even'][bl][index[0]].conj()*nx['even'][bl][index[0]]))
 
-
+if PLOT:
+    print('dlst: {0}'.format(dlst))
+    diff_blavg= n.mean( [nx['even'][bl] for bl in bls_master],axis=0)
+    Trms_blavg= n.sqrt( n.mean(diff_blavg*diff_blavg.conj()))
+    print( 'BL Average Pk [mk^2/Mpc^3]: {0:3e}'.format(Trms_blavg.real**2*scalar/n.sqrt(nbls*13.)))
+    print('Average rms [mk]: {0:f}'.format(n.mean(rms_array).real))
+    print('BL Average rms [mk]: {0:f}'.format(Trms_blavg.real))
+    capo.arp.waterfall(nx['even'][1555][index], mode='real')
+    p.show()
 
 if INJECT_SIG > 0.: # Create a fake EoR signal to inject
     print 'INJECTING SIMULATED SIGNAL'
@@ -443,7 +452,7 @@ for k in days:
 #/ n.dot(_Cav[k][bl], n.ones(n.shape(x1[k][bl])))
         #_Cavx[k][bl] = n.zeros_like(_Cx[k][bl])
         #_Cavx[k][bl][index] += temp[index]
-        if PLOT and True:
+        if PLOT and False:
             #p.plot(S); p.show()
                 f1=p.figure(1)
                 p.subplot(511); capo.arp.waterfall(x1[k][bl], mode='real',mx=6,drng=12);
@@ -607,7 +616,7 @@ for boot in xrange(opts.nboot):
             for ch in xrange(nchan): # XXX this loop makes computation go as nchan^3
                 _IsumQ[k][i][ch] = n.dot(_Isum[k][i], Q[ch])
                 _CsumQ[k][i][ch] = n.dot(_Csum[k][i], Q[ch])
-        if PLOT:
+        if PLOT and  False:
             NGPS = len(gps)
             _Csumk = n.zeros((NGPS,nchan,NGPS,nchan), dtype=n.complex)
             Csumk = n.zeros((NGPS,nchan,NGPS,nchan), dtype=n.complex)
@@ -702,7 +711,7 @@ for boot in xrange(opts.nboot):
         print('Noise equals data \n exiting')
         sys.exit(0)
 
-    if PLOT:
+    if PLOT and False:
         p.subplot(141); capo.arp.waterfall(FC, drng=4)
         p.subplot(142); capo.arp.waterfall(FI, drng=4)
         p.subplot(143); capo.arp.waterfall(qC, mode='real')
@@ -751,7 +760,7 @@ for boot in xrange(opts.nboot):
     pI = n.dot(MI, qI) * scalar
     pN = n.dot(MI, qN) * scalar
 
-    if PLOT:
+    if PLOT and False:
         p.subplot(411); capo.arp.waterfall(qC, mode='real'); p.colorbar(shrink=.5)
         p.subplot(412); capo.arp.waterfall(pC, mode='real'); p.colorbar(shrink=.5)
         p.subplot(413); capo.arp.waterfall(qI, mode='real'); p.colorbar(shrink=.5)
