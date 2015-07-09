@@ -57,8 +57,7 @@ for k in d_calpar.keys():
 for f in range(len(args)):
     
     file = args[f]
-    path = '/'.join(file.split('/')[:-1])
-    tag = '.'.join((file.split('/')[-1]).split('.')[:-1])
+    tag = '.'.join(file.split('.')[:-1])
     print str(f+1)+'/'+str(len(args))+': '+'Reading '+str(file)
 
     t,d,f = capo.arp.get_dict_of_uv_data([file],antstr='cross',polstr=pol)
@@ -80,11 +79,7 @@ for f in range(len(args)):
     m2,g2,v2 = omnical.calib.redcal(data,info,xtalk=m['res'],gains=g,vis=v,uselogcal=False,removedegen=True) #lincal
    
     ### Save Outputs ###
-
-    if len(path) == 0: #outputs
-        out = tag+'.omni_output'
-    else:
-        out = path+'/'+tag+'.omni_output'
+    out = tag + '.omni_output'
     print '   saving '+out
     d_npz = {}
     d_npz[pol] = {}
@@ -97,6 +92,6 @@ for f in range(len(args)):
         d_npz[pol]['g_lin'] = g_pre*g2[ant]
     d_npz[pol]['v_log'] = v
     d_npz[pol]['v_lin'] = v2
-    numpy.savez(out,d_npz) 
+    numpy.savez(out,**d_npz) 
     #import IPython; IPython.embed()
     
