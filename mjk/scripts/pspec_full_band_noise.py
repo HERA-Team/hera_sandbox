@@ -29,6 +29,8 @@ o.add_option('--band', default='80_150', action='store',
     help='Channels from which to Calculate full band Covariance')
 o.add_option('--auto',  action='store_true',
     help='Auto-scale covariance matrix')
+o.add_option('--noise',  action='store_true',
+    help='Creates White Noise')
 
 opts,args = o.parse_args(sys.argv[1:])
 
@@ -41,6 +43,7 @@ INJECT_SIG = 0.
 SAMPLE_WITH_REPLACEMENT = True
 NOISE = .0
 PLOT = opts.plot
+FRF_WITHD=401
 try:
     rmbls = map(int, opts.rmbls.split(','))
 except:
@@ -276,17 +279,47 @@ for k in days:
         x[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
         x1[k][bl] = n.transpose(d1, [1,0]) # swap time and freq axes
 
+
+if opts.noise:
+        tmp_nx = {}
+        bl1 = a.miriad.bl2ij(bls_master[0])
+        beam_w_fr = capo.frf_conv.get_beam_w_fr(aa,bl1,ref_chan=0)
+        t, firs, frbins, frspace = capo.frf_conv.get_fringe_rate_kernels(beam_w_fr, inttime, FRF_WIDTH)
+        for k in days:
+            tmp_nx[k] = {}
+            for bl in x[k]:
+                noise1 = noise(x[days[0]][bls_master[0]].shape) *2.2* n.sqrt(FRF_WIDTH/inttime)
+                for cnt, ch in enumerate(band_chans):
+                    noise1[cnt] = n.convolve(noise1[cnt], firs[cnt], mode='same')
+
+                tmp_nx[k][bl] = noise1 
+
 nx={}
-k1,k2 = x.keys()
-nx[k1], nx[k2] = {},{}
-for bl1,bl2 in zip(x1[k1].keys(),x1[k2].keys()):
-    nx[k1][bl1] = n.copy(x1[k1][bl1] - x1[k2][bl2])
-    nx[k2][bl2] = n.copy(x1[k1][bl1] - x1[k2][bl2])
+if set(['even', 'odd']) == set(days):
+    k1,k2 = x.keys()
+    nx[k1], nx[k2] = {},{}
+    for bl in bls_master:
+        nx[k1][bl] = n.copy(tmp_nx[k1][bl] - tmp_nx[k2][bl])
+        nx[k2][bl] = n.copy(tmp_nx[k1][bl] - tmp_nx[k2][bl])
 
 
 bls_master = x.values()[0].keys()
 nbls = len(bls_master)
 print 'Baselines:', nbls
+Nt=13
+nlst=n.shape(lsts)[0]
+mean_array=[]
+std_array=[]
+
+bls_master.sort()
+for bl in bls_master:
+    dist= n.ceil(nx['even'][bl][index].shape[1]/13)
+    dist= n.ceil(nlst/13.)
+    mean_array.append( n.mean(nx['even'][bl][index,::dist].real))
+    std_array.append( n.std(nx['even'][bl][index,::dist].real)/n.sqrt(Nt*21))
+    print '', bl, ' Pk [10^9 mk^2] ', n.sqrt(n.mean(nx['even'][bl][index[0]].conj()*nx['even'][bl][index[0]])) * scalar /nbls**2, 'rms [mk]  ', n.sqrt(n.mean(nx['even'][bl][index[0]].conj()*nx['even'][bl][index[0]]))
+
+
 
 if INJECT_SIG > 0.: # Create a fake EoR signal to inject
     print 'INJECTING SIMULATED SIGNAL'
