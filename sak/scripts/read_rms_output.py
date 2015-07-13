@@ -7,14 +7,12 @@ F = open(filestr,'r')
 T,RMS = [],[]
 label,badlist,goodlist = [],[],[]
 
-rmsbound = 0.2
+rmsbound = float(sys.argv[1:][1])
 
 c = 0
 print 'BAD:'
 for line in F: 
 	L = line.split()
-	#if L[0] in badlist_02: continue
-	#if L[0] in badlist_0075: continue
 	T.append(float(L[0][4:17]))
 	RMS.append(float(L[1]))
 	label.append(L[0][0:17])
