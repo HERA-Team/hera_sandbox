@@ -52,7 +52,7 @@ for file in args:
     if os.path.exists(aboutfile):
         about = pickle.load(open(aboutfile))
     else:
-        a.scripting.uv_selector(uv,ants='auto',pol_str="yy,xx,yx,xy")
+        a.scripting.uv_selector(uv,ants='all',pol_str="yy,xx,yx,xy,I,Q,U,V")
         about['tmin'] = 0
         about['tmax'] = 0
         about['n_times'] = 0
@@ -80,7 +80,8 @@ for file in args:
             if opts.corr_plot and t==about['tmin']: 
                 dspec = d[nchan/3:nchan*2/3]
                 cmat[i,j] = n.ma.average(dspec*n.ma.conjugate(dspec))
-        pickle.dump(about,open(aboutfile,'w'))
+        try:pickle.dump(about,open(aboutfile,'w'))
+        except(IOError): print "Error: unable to cache metadata in uv file" 
     print "-----------------------------------------"
     print file
     for k,v in about.iteritems():    

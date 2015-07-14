@@ -3,12 +3,13 @@
 """
 
 NAME: 
-      vis_simulation_v3.py 
+      vis_simulation_v4.py 
 PURPOSE:
+      Set-up for grid engine on folio
       Models visibilities using power spectra (pspecs) from pspec_sim_v2.py and creates a new Miriad UV file
       Differs from vis_simulation.py in that the sky image uses eq. coordinates and the fringe/beam is rotated with time (interpolation happens for fringe)
-EXAMPLE CALL:
-      ./vis_simulation_v3.py --nchan 2 --inttime 30000 
+EXAMPLE CALL: 
+      ./vis_simulation_v4.py --sdf 0.001 --sfreq 0.1 --nchan 10 --inttime 20000 --map pspec --mappath /Users/carinacheng/capo/ctc/images/pspecs/pspec100lmax100/ --filename test.uv -a 0_16 `python -c "import numpy; import aipy; print ' '.join(map(str,numpy.arange(2454500,2454501,20000/aipy.const.s_per_day)))"` -C psa898_v003
 IMPORTANT NOTE: 
       Be careful when changing sdf and sfreq because they need to match the pspec files!
 AUTHOR:
@@ -18,14 +19,12 @@ AUTHOR:
 
 import aipy
 import numpy
-#import pylab
-#import pyfits
-#import matplotlib.pyplot as plt
+import ephem as e
 import optparse
 import os, sys
 
 o = optparse.OptionParser()
-o.set_usage('vis_simulation_v2.py [options] *.uv')
+o.set_usage('vis_simulation_v4.py [options] *.uv')
 o.set_description(__doc__)
 aipy.scripting.add_standard_options(o,cal=True,ant=True)
 o.add_option('--mappath', dest='mappath', default='/Users/carinacheng/capo/ctc/images/pspecs/pspec40lmax110/',
@@ -42,12 +41,6 @@ o.add_option('--sfreq', dest='sfreq', default=0.1, type='float',
              help='Start frequency (GHz). Default is 0.1.')
 o.add_option('--sdf', dest='sdf', default=0.1/203, type='float',
              help='Channel spacing (GHz).  Default is .1/203')
-#o.add_option('--startjd', dest='startjd', default=2454500., type='float',
-#             help='Julian Date to start observation.  Default is 2454500')
-#o.add_option('--endjd', dest='endjd', default=2454501., type='float',
-#             help='Julian Date to end observation.  Default is 2454501')
-#o.add_option('--psa', dest='psa', default='psa898_v003', 
-#             help='Name of PSA file.')
 opts, args = o.parse_args(sys.argv[1:])
 
 i,j = map(int,opts.ant.split('_'))
@@ -59,7 +52,7 @@ print 'getting antenna array...'
 
 aa = aipy.cal.get_aa(opts.cal, opts.sdf, opts.sfreq, opts.nchan)
 freqs = aa.get_afreqs()
-bl = aa.get_baseline(i,j) #for antennas 0 and 16; array of length 3 in ns
+bl = aa.get_baseline(i,j) #[ns]
 blx,bly,blz = bl[0],bl[1],bl[2]
 
 #get topocentric coordinates and calculate beam response
@@ -71,24 +64,11 @@ img1 = aipy.map.Map(fromfits = opts.mappath+opts.map + '1001.fits', interp=True)
 px = numpy.arange(img1.npix()) #number of pixels in map
 crd = numpy.array(img1.px2crd(px,ncrd=3)) #aipy.healpix.HealpixMap.px2crd?
 t3 = numpy.asarray(crd)
-#t3 = t3.compress(t3[2]>=0,axis=1) #gets rid of coordinates below horizon
 tx,ty,tz = t3[0], t3[1], t3[2] #1D arrays of top coordinates of img1 (can define to be whatever coordinate system)
-#bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')**2 #beam response (makes code slow)
-#bmyy = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='y')**2
-#sum_bmxx = numpy.sum(bmxx,axis=1)
-#sum_bmyy = numpy.sum(bmyy,axis=1)
 
-#get equatorial coordinates
-
-e3 = numpy.asarray(crd)
-ex,ey,ez = e3[0], e3[1], e3[2] #1D arrays of eq coordinates of img
-
-#loop through frequency to get PSPECS and calculate fringe
+g3 = numpy.asarray(crd) #map is in galactic coordinates
 
 print 'getting maps and calculating fringes...'
-
-#loop through time to pull out fluxes and fringe pattern
-#loop through frequency to calculate visibility
 
 shape = (len(times),len(freqs))
 flags = numpy.zeros(shape, dtype=numpy.int32)
@@ -97,15 +77,16 @@ uvgridyy = numpy.zeros(shape, dtype=numpy.complex64)
 
 for jj, f in enumerate(freqs):
     img = aipy.map.Map(fromfits = opts.mappath+opts.map + '1' + str(jj+1).zfill(3) + '.fits', interp=True)
+    #img = aipy.map.Map(fromfits = opts.mappath+opts.map + '1001.fits', interp=True) #reading same map over and over again
     fng = numpy.exp(-2j*numpy.pi*(blx*tx+bly*ty+blz*tz)*f) #fringe pattern
     aa.select_chans([jj]) #selects specific frequency
-    bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')**2
-    bmyy = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='y')**2
-    sum_bmxx = numpy.sum(bmxx,axis=1)
-    sum_bmyy = numpy.sum(bmyy,axis=1)
-    fngxx = fng*bmxx[0]/sum_bmxx[0] #factor used later in visibility calculation
-    fngyy = fng*bmyy[0]/sum_bmyy[0]
-    fluxes = img[px] #fluxes preserved in equatorial grid
+    bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')[0]**2
+    bmyy = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='y')[0]**2
+    sum_bmxx = numpy.sum(bmxx)
+    sum_bmyy = numpy.sum(bmyy)
+    fngxx = fng*bmxx/sum_bmxx #factor used later in visibility calculation
+    fngyy = fng*bmyy/sum_bmyy
+    fluxes = img[px] #fluxes preserved in galactic grid
 
     print 'Frequency %d/%d' % (jj+1, len(freqs)) 
 
@@ -114,19 +95,22 @@ for jj, f in enumerate(freqs):
         print '   Timestep %d/%d' % (ii+1, len(times))
         aa.set_jultime(t)
 
+        ga2eq = aipy.coord.convert_m('eq','ga',iepoch=e.J2000,oepoch=aa.epoch) #conversion matrix
         eq2top = aipy.coord.eq2top_m(aa.sidereal_time(),aa.lat) #conversion matrix
-        t3rot = numpy.dot(eq2top,e3) #topocentric coordinates
-        #t3 = t3.compress(t3[2]>=0,axis=1) #gets rid of coordinates below horizon
-        txrot,tyrot,tzrot = t3rot[0], t3rot[1], t3rot[2] 
+        ga2eq2top = numpy.dot(eq2top,ga2eq)
+        t3rot = numpy.dot(ga2eq2top,g3) #topocentric coordinates
+        txrot = numpy.ma.compressed(numpy.ma.masked_where(t3rot[2]<0,t3rot[0]))
+        tyrot = numpy.ma.compressed(numpy.ma.masked_where(t3rot[2]<0,t3rot[1]))
+        tzrot = numpy.ma.compressed(numpy.ma.masked_where(t3rot[2]<0,t3rot[2])) #mask coordinates below horizon
+        fluxes2 = numpy.ma.compressed(numpy.ma.masked_where(t3rot[2]<0,fluxes)) #mask data below horizon
 
-        pxrot, wgts = img.crd2px(txrot,tyrot,tzrot, interpolate=1) #converts coordinates to pixels for first PSPEC file (pixel numbers don't change with frequency)
-        #NOTE: img and fluxes are still in equatorial coordinates... just getting pixels here
+        pxrot, wgts = img.crd2px(txrot,tyrot,tzrot, interpolate=1) 
 
         efngxx = numpy.sum(fngxx[pxrot]*wgts, axis=1)
         efngyy = numpy.sum(fngyy[pxrot]*wgts, axis=1)
         
-        visxx = numpy.sum(fluxes*efngxx)
-        visyy = numpy.sum(fluxes*efngyy)
+        visxx = numpy.sum(fluxes2*efngxx)
+        visyy = numpy.sum(fluxes2*efngyy)
 
         uvgridxx[ii,jj] = visxx
         uvgridyy[ii,jj] = visyy

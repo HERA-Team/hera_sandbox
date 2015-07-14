@@ -2,6 +2,7 @@ import aipy as a, numpy as n, sys
 try: import atpy
 except(ImportError): pass
 import numpy as np
+import re
 """
 Codes from danny
 """
@@ -116,7 +117,8 @@ def load_table(tablefile):
     return table
 def a2l(array):
     return ','.join(map(str,array))
-
+def file2jd(file):
+    return float(re.findall('\D+(\d+.\d+)\D+',file)[0])
 
 
     

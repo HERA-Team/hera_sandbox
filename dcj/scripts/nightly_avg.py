@@ -9,6 +9,8 @@ from smooth import smooth
 
 o = optparse.OptionParser()
 o.set_usage('nightly_avg.py [options] *.uv')
+o.add_option('--average_all',action='store_true',
+     help='Average everything into a single file instead of nightly')
 o.set_description(__doc__)
 opts,args = o.parse_args(sys.argv[1:])
 
@@ -23,7 +25,10 @@ nights_c  = {}
 for file in args:
     print file
     jd = file2jd(file)
-    night = int(jd)
+    if opts.average_all: 
+        night = n.int(n.floor(file2jd(args[0])))
+    else:
+        night = n.int(n.floor(jd))
     F = open(file)
     AVG = pickle.load(F)
     if not nights.has_key(night): 
