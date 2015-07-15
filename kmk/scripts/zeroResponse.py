@@ -11,7 +11,7 @@ N = uv.__getitem__('nchan')
 
 # NOTE: optimal baseline length formula given in Presley et al 2015 eq. 9
 # fill sky map with flat temperature across whole sky (DC signal)
-h = a.healpix.HealpixMap(nside=512)
+h = a.healpix.HealpixMap(nside=64)
 h.map = np.ones(shape = h.map.shape)
 print "h size = " + str(h.map.shape)
 h.map = h.map*4*np.pi/h.npix() # convert to Jy to make summable
@@ -34,18 +34,19 @@ print "array parameters imported"
 # create array of GSM files for simulation of multiple frequencies
 gsm_dir = '/home/kara/capo/kmk/gsm/gsm_raw/gsm'
 gsm_files = [1001, 1002, 1003, 1004, 1005]
-gsm = a.healpix.HealpixMap(nside=512)
+g = a.healpix.HealpixMap(nside=512)
+gsm = a.healpix.HealpixMap(nside=64)
 print "gsm size = " + str(gsm.map.shape)
 d = np.loadtxt(gsm_dir + str(gsm_files[0]) + '.dat')
 print "d size = " + str(d.shape)
-gsm.map = d
-gsm.map = gsm.map*4*np.pi/gsm.npix() # convert to Jy to make summable
+g.map = d
+gsm.from_hpm(g) # hack to lower resolution to prevent memory overload
+g.map = g.map*4*np.pi/g.npix() # convert to Jy to make summable
 # convert to topocentric coordinates
 ga2eq = a.coord.convert_m('eq', 'ga', oepoch=aa.epoch) #conversion matrix
 eq2top = a.coord.eq2top_m(aa.sidereal_time(),aa.lat) #conversion matrix
 ga2eq2top = np.dot(eq2top, ga2eq)
 i, j, k = ijk = np.dot(ga2eq2top,gsm.px2crd(np.arange(gsm.npix()))) #topocentric
-
 
 # create arrays for visibilities for each baseline
 # single timestep, single polarization
