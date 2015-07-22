@@ -26,7 +26,8 @@ wvlen = c / freq # observed wavelength
 
 # import array parameters
 aa = a.cal.get_aa('psa6622_v001', uv['sdf'], uv['sfreq'], uv['nchan'])
-beam = aa[0].bm_response(xyz, pol='x')**2
+# pick middle bin to get freq = 150 MHz
+beam = aa[N/2].bm_response(xyz, pol='x')**2
 beam = beam[0]
 print "array parameters imported"
 
