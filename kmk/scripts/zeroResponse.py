@@ -8,6 +8,7 @@ data_dir = '/home/kara/capo/kmk/data/'
 data_file = 'zen.2456895.51490.xx.uvcRRE'
 uv = a.miriad.UV(data_dir + data_file)
 N = uv.__getitem__('nchan')
+print uv.__getitem__('nchan')
 
 # NOTE: optimal baseline length formula given in Presley et al 2015 eq. 9
 # fill sky map with flat temperature across whole sky (DC signal)
@@ -26,7 +27,8 @@ wvlen = c / freq # observed wavelength
 
 # import array parameters
 aa = a.cal.get_aa('psa6622_v001', uv['sdf'], uv['sfreq'], uv['nchan'])
-beam = aa[0].bm_response(xyz, pol='x')**2
+# pick middle bin to get freq = 150 MHz
+beam = aa[N/2].bm_response(xyz, pol='x')**2
 beam = beam[0]
 print "array parameters imported"
 
@@ -38,10 +40,9 @@ g = a.healpix.HealpixMap(nside=512)
 gsm = a.healpix.HealpixMap(nside=64)
 print "gsm size = " + str(gsm.map.shape)
 d = np.loadtxt(gsm_dir + str(gsm_files[0]) + '.dat')
-print "d size = " + str(d.shape)
 g.map = d
 gsm.from_hpm(g) # hack to lower resolution to prevent memory overload
-g.map = g.map*4*np.pi/g.npix() # convert to Jy to make summable
+gsm.map = gsm.map*4*np.pi/gsm.npix() # convert to Jy to make summable
 # convert to topocentric coordinates
 ga2eq = a.coord.convert_m('eq', 'ga', oepoch=aa.epoch) #conversion matrix
 eq2top = a.coord.eq2top_m(aa.sidereal_time(),aa.lat) #conversion matrix
@@ -77,15 +78,18 @@ print "data collected"
 
 # simulate visibilities for each baseline
 response = {}
+vis = {}
 for bl in d.keys():
     n, m = a.miriad.bl2ij(bl)
     bx, by, bz = aa.get_baseline(n, m)
     for l in range(len(freq)):
-        # attenuate sky signal by primary beam
-        obs = beam * h.map
+        # attenuate sky signal and visibility by primary beam
+        obs_res = beam * h.map
+        obs_sky = beam * gsm.map
         phs = np.exp(-2j*np.pi*freq[l]*(bx*x + by*y + bz*z))
-        if not bl in response.keys(): response[bl] = []
-        response[bl].append(np.sum(np.where(z>0, obs*phs, 0)))
+        if not bl in response.keys(): response[bl] = []; vis[bl] = []
+        response[bl].append(np.sum(np.where(z>0, obs_res*phs, 0)))
+        vis[bl].append(np.sum(np.where(z>0, obs_sky*phs, 0)))
         i += 1
 print "visibilities simulated"
 
@@ -93,7 +97,8 @@ A = np.array([response[bl][0] for bl in response.keys()])
 A.shape = (A.size,1)
 # create Y using GSM, create loop for attenuate GSM by PAPER observing 
 # parameters
-obs_sky = beam*gsm.map # attenuate by primary beam
+Y = np.array([response[bl][0] for bl in response.keys()])
+Y.shape = (Y.size,1)
 #Y = A*temps[0] + np.random.normal(size=A.shape) + 1j*np.random.normal(size=A.shape) # simulated data + complex noise
 #Y = np.array([d[bl][0][N/2-1] for bl in d.keys()]) # PAPER data
 
