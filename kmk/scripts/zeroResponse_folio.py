@@ -76,15 +76,18 @@ print "data collected"
 
 # simulate visibilities for each baseline
 response = {}
+vis = {}
 for bl in d.keys():
     n, m = a.miriad.bl2ij(bl)
     bx, by, bz = aa.get_baseline(n, m)
     for l in range(len(freq)):
-        # attenuate sky signal by primary beam
-        obs = beam * h.map
+        # attenuate sky signal and visibility by primary beam
+        ant_res = beam * h.map
+        obs_sky = beam * gsm.map
         phs = np.exp(-2j*np.pi*freq[l]*(bx*x + by*y + bz*z))
-        if not bl in response.keys(): response[bl] = []
-        response[bl].append(np.sum(np.where(z>0, obs*phs, 0)))
+        if not bl in response.keys(): response[bl] = []; vis[bl] = []
+        response[bl].append(np.sum(np.where(z>0, ant_res*phs, 0)))
+        vis[bl].append(np.sum(np.where(z>0, obs_sky*phs, 0)))
         i += 1
 print "visibilities simulated"
 
@@ -92,7 +95,8 @@ A = np.array([response[bl][0] for bl in response.keys()])
 A.shape = (A.size,1)
 # create Y using GSM, create loop for attenuate GSM by PAPER observing 
 # parameters
-obs_sky = beam*gsm.map # attenuate by primary beam
+Y = np.array([response[bl][0] for bl in response.keys()])
+Y.shape = (Y.size,1)
 #Y = A*temps[0] + np.random.normal(size=A.shape) + 1j*np.random.normal(size=A.shape) # simulated data + complex noise
 #Y = np.array([d[bl][0][N/2-1] for bl in d.keys()]) # PAPER data
 

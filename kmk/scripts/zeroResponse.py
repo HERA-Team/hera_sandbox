@@ -84,11 +84,11 @@ for bl in d.keys():
     bx, by, bz = aa.get_baseline(n, m)
     for l in range(len(freq)):
         # attenuate sky signal and visibility by primary beam
-        obs_res = beam * h.map
+        ant_res = beam * h.map
         obs_sky = beam * gsm.map
         phs = np.exp(-2j*np.pi*freq[l]*(bx*x + by*y + bz*z))
         if not bl in response.keys(): response[bl] = []; vis[bl] = []
-        response[bl].append(np.sum(np.where(z>0, obs_res*phs, 0)))
+        response[bl].append(np.sum(np.where(z>0, ant_res*phs, 0)))
         vis[bl].append(np.sum(np.where(z>0, obs_sky*phs, 0)))
         i += 1
 print "visibilities simulated"
