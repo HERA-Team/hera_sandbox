@@ -662,11 +662,11 @@ bias_est= noise_est-wnoise_est
 bias_err= n.sqrt(noise_est_err**2+wnoise_est_err**2)
 
 p.plot(n.array(kpl_pos), 2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2), 'c--')
-p.errorbar(n.array(kpl[k0:]),2* noise_est, 2*noise_est_err,fmt='r--',capsize=0,alpha=.5)
+p.plot(n.array(kpl[k0:]), noise_est+ 2*noise_est_err,'r--',alpha=.5)
 p.plot(n.array(kpl[k0:]), wnoise_est + 2*wnoise_est_err,'b--',alpha=.5)
 
 #plot e-o minus e-o white noise
-p.errorbar(n.array(kpl[k0:]), 2*bias_est, 2*bias_err,fmt='g--',capsize=0,alpha=.5)
+#p.plot(n.array(kpl[k0:]), (bias_est + 2*bias_err)/2.,'g--',alpha=.5)
 p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')

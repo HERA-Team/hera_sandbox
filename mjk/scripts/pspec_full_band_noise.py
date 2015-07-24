@@ -29,8 +29,10 @@ o.add_option('--band', default='80_150', action='store',
     help='Channels from which to Calculate full band Covariance')
 o.add_option('--auto',  action='store_true',
     help='Auto-scale covariance matrix')
-o.add_option('--noise',  action='store_true',
-    help='Creates White Noise')
+o.add_option('--noise',  type="float", default=0,
+    help='Creates White Noise spectrum. Input is rms in mk')
+o.add_option('--diff',  action='store_true',
+    help='Differences Even and Odd data to create Noise Estimator')
 
 opts,args = o.parse_args(sys.argv[1:])
 
@@ -41,9 +43,10 @@ DELAY = False
 NGPS = 5
 INJECT_SIG = 0.
 SAMPLE_WITH_REPLACEMENT = True
-NOISE = .0
+#NOISE = .0
 PLOT = opts.plot
 FRF_WIDTH=401
+NOISE= opts.noise
 try:
     rmbls = map(int, opts.rmbls.split(','))
 except:
@@ -172,6 +175,7 @@ sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 band_chans = a.scripting.parse_chans(opts.band, uv['nchan'])
 inttime = uv['inttime'] * 4 # XXX hack for *E files that have inttime set incorrectly
+#inttime=8*60.
 del(uv)
 
 afreqs = freqs.take(chans)
@@ -284,28 +288,46 @@ bls_master = x.values()[0].keys()
 nbls = len(bls_master)
 print 'Baselines:', nbls
 
-if opts.noise:
+wnx={}
+if NOISE > 0:
+        print 'Creating white noise at {0} mk rms'.format(NOISE)
         tmp_nx = {}
         bl1 = a.miriad.bl2ij(bls_master[0])
         beam_w_fr = capo.frf_conv.get_beam_w_fr(aa,bl1,ref_chan=0)
         t, firs, frbins, frspace = capo.frf_conv.get_fringe_rate_kernels(beam_w_fr, inttime, FRF_WIDTH)
         for k in days:
+            wnx[k]={}
             tmp_nx[k] = {}
             for bl in x[k]:
-                noise1 = noise(x[days[0]][bls_master[0]].shape)*6.6408 * 1.7 ### mk 
+                noise1 = noise(x[days[0]][bls_master[0]].shape)*6.6408 * NOISE ### mk 
                 for cnt, ch in enumerate(band_chans):
                     noise1[cnt] = n.convolve(noise1[cnt], firs[cnt], mode='same')
 
-                tmp_nx[k][bl] = noise1 
+                tmp_nx[k][bl] = noise1.copy() 
+                wnx[k][bl]=noise1.copy()
 
+        #if set(['even', 'odd']) == set(days):
+        #    k1,k2 = x.keys()
+        #    wnx[k1], wnx[k2] = {},{}
+        #    for bl in bls_master:
+
+if opts.diff:
+    if set(['even','odd']) == set(days):
+        k1,k2=x.keys()
+        wnx[k1],wnx[k2] = {},{}
+        for bl in bls_master:
+            wnx[k1][bl] = n.copy(tmp_nx[k1][bl] - tmp_nx[k2][bl])/n.sqtr(2)
+            wnx[k2][bl] = n.copy(tmp_nx[k1][bl] - tmp_nx[k2][bl])/n.sqtr(2)
+
+print 'Differencing Even and Odd Days'
 nx={}
 if set(['even', 'odd']) == set(days):
     k1,k2 = x.keys()
     nx[k1], nx[k2] = {},{}
     for bl in bls_master:
-        nx[k1][bl] = n.copy(x1[k1][bl] - x1[k2][bl])
-        nx[k2][bl] = n.copy(x1[k1][bl] - x1[k2][bl])
-
+        #Divide by Sqrt(2) because differnce gives 2*noise^2 in power
+        nx[k1][bl] = n.copy(x1[k1][bl] - x1[k2][bl])/n.sqrt(2)
+        nx[k2][bl] = n.copy(x1[k1][bl] - x1[k2][bl])/n.sqrt(2)
 
 Nt=13
 nlst=n.shape(lsts)[0]
@@ -320,13 +342,31 @@ for bl in bls_master:
     rms_array.append( n.sqrt(n.mean(nx['even'][bl][index[0]]*nx['even'][bl][index[0]].conj()))  ) 
     print '', bl, ' Pk [mk^2/Mpc^3] ', n.sqrt(n.mean(nx['even'][bl][index[0]].conj()*nx['even'][bl][index[0]])) * scalar, 'rms [mk]  ', n.sqrt(n.mean(nx['even'][bl][index[0]].conj()*nx['even'][bl][index[0]]))
 
-if PLOT:
-    print('dlst: {0}'.format(dlst))
-    diff_blavg= n.mean( [nx['even'][bl] for bl in bls_master],axis=0)
-    Trms_blavg= n.sqrt( n.mean(diff_blavg*diff_blavg.conj()))
-    print( 'BL Average Pk [mk^2/Mpc^3]: {0:3e}'.format(Trms_blavg.real**2*scalar/n.sqrt(nbls*13.)))
-    print('Average rms [mk]: {0:f}'.format(n.mean(rms_array).real))
-    print('BL Average rms [mk]: {0:f}'.format(Trms_blavg.real))
+print('dlst: {0}'.format(dlst))
+diff_blavg= n.mean( [nx['even'][bl] for bl in bls_master],axis=0)
+Trms_blavg= n.sqrt( n.mean(diff_blavg[index,::dlst]*diff_blavg[index,::dlst].conj()))
+print( 'BL Average Pk [mk^2/Mpc^3]: {0:3e}'.format(Trms_blavg.real**2*scalar/n.sqrt(nbls*13.)))
+print('Average rms [mk]: {0:f}'.format(n.mean(rms_array).real))
+print('BL Average rms [mk]: {0:f}'.format(Trms_blavg.real))
+
+
+print('\n\n')
+print('White Noise RMS')
+for bl in bls_master:
+    dlst= n.ceil(wnx['even'][bl][index].shape[1]/13)
+    dlst= n.ceil(nlst/13.)
+    pk_array.append( n.mean(wnx['even'][bl][index,::dlst]*wnx['even'][bl][index,::dlst].conj())*scalar )
+    rms_array.append( n.sqrt(n.mean(wnx['even'][bl][index[0]]*wnx['even'][bl][index[0]].conj()))  ) 
+    print '', bl, ' Pk [mk^2/Mpc^3] ', n.sqrt(n.mean(wnx['even'][bl][index[0]].conj()*wnx['even'][bl][index[0]])) * scalar, 'rms [mk]  ', n.sqrt(n.mean(wnx['even'][bl][index[0]].conj()*wnx['even'][bl][index[0]]))
+
+print('dlst: {0}'.format(dlst))
+diff_blavg= n.mean( [wnx['even'][bl] for bl in bls_master],axis=0)
+Trms_blavg= n.sqrt( n.mean(diff_blavg[index,::dlst]*diff_blavg[index,::dlst].conj()))
+print( 'BL Average Pk [mk^2/Mpc^3]: {0:3e}'.format(Trms_blavg.real**2*scalar/n.sqrt(nbls*13.)))
+print('Average rms [mk]: {0:f}'.format(n.mean(rms_array).real))
+print('BL Average rms [mk]: {0:f}'.format(Trms_blavg.real))
+
+if PLOT and False:
     capo.arp.waterfall(nx['even'][1555][index], mode='real')
     p.show()
 
@@ -388,6 +428,33 @@ if INJECT_SIG > 0.: # Create a fake EoR signal to inject
 #for i in xrange(nchan):
 #    Q[i] = get_Q(i, nchan)
 Q = [get_Q(i,nchan) for i in xrange(nchan)]
+
+if True: ##Looking for signal below noise level
+    print 'Averaging over Baselines'
+    x_blavg, _Cx_blavg = {},{}
+    C_blavg ,_C_blavg = {},{}
+    for k in days:
+        x_blavg[k]=n.mean( [x1[k][bl] for bl in bls_master],axis=0)
+        C_blavg[k] = cov(x_blavg[k])
+        #U,S,V= n.linalg.svd(C_blavg[k].conj())
+        #_C_blavg[k] =  n.einsum('ij,j,jk', V.T, 1./S,U.T)
+        #norm  = _C_blavg[k].sum(axis=-1); norm.shape += (1,)
+        #_C_blavg[k] /= norm
+        #_Cx_blavg[k] = n.dot(_C_blavg[k],x_blavg[k])[index]
+    if PLOT and True:
+        for k in days:
+            p.subplot(211); capo.arp.waterfall(x_blavg[k], mode='real'); p.colorbar()
+            p.ylabel('X')
+            p.subplot(212); capo.arp.waterfall(C_blavg[k], mode='real'); p.colorbar()
+            p.ylabel('Cov')
+            #p.xticks([])
+            #p.subplot(324); capo.arp.waterfall(_C_blavg[k], mode='real',mx=1.2,drng=2.4);# p.colorbar()
+            #p.xticks([])
+            #p.subplot(313); capo.arp.waterfall(_Cx_blavg[k], mode='real')
+            p.subplots_adjust(right=.9,left=.1)
+            p.suptitle('Baseline Averaged '+k)
+            p.show()
+
 
 ##MAKE Average covariance
 I,_I,_Ix = {},{},{}
@@ -529,38 +596,42 @@ for k in days:
 x = {}
 grid = n.meshgrid(index,index)
 I,_I,_Ix = {},{},{}
-_Inx = {}
+_Inx, _Iwnx, _Icavx = {},{},{}
 C,_C,_Cx = {},{},{}
-if False:
+if True:
     for k in days:
         x[k] = {}
         for bl in data[k]:
             print k, bl
-            x[k][bl] = x1[k][bl][index,:]
-            nx[k][bl] = nx[k][bl][index]   
+            x[k][bl] = x1[k][bl][index].copy()
+            nx[k][bl] = nx[k][bl][index].copy()   
+            wnx[k][bl] = wnx[k][bl][index].copy()   
     for k in days:
         I[k],_I[k],_Ix[k] = {},{},{}
-        _Inx[k] = {}
+        _Inx[k], _Iwnx[k], _Icavx[k] = {},{},{}
         C[k],_C[k],_Cx[k] = {},{},{}
         for bl in x[k]:
-            C[k][bl] = Cav[k][bl][grid]
+            C[k][bl] = cov(x[k][bl])
             I[k][bl] = n.identity(C[k][bl].shape[0])
             U,S,V = n.linalg.svd(C[k][bl].conj())
-            _C[k][bl] =  _Cav[k][bl][grid]
+            _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
             _I[k][bl] = n.identity(_C[k][bl].shape[0])
-            _Cx[k][bl] = _Cavx[k][bl][index]
+            _Cx[k][bl] = n.dot(_C[k][bl],x[k][bl])
             _Ix[k][bl] = x[k][bl].copy()
+            _Icavx[k][bl] = _Cavx[k][bl][index].copy()
             _Inx[k][bl] = nx[k][bl].copy()
+            _Iwnx[k][bl] = wnx[k][bl].copy()
 else:
     for k in days:
         x[k] = {}
         for bl in data[k]:
             print k, bl
-            x[k][bl] = _Cavx[k][bl][index,:]
-            nx[k][bl] = nx[k][bl][index]   
+            x[k][bl] = _Cavx[k][bl][index].copy()
+            nx[k][bl] = nx[k][bl][index].copy()
+            wnx[k][bl] = wnx[k][bl][index].copy()   
     for k in days:
         I[k],_I[k],_Ix[k] = {},{},{}
-        _Inx[k] = {}
+        _Inx[k], _Iwnx[k], _Icavx[k] = {},{},{}
         C[k],_C[k],_Cx[k] = {},{},{}
         for bl in x[k]:
             C[k][bl] = cov(x[k][bl])
@@ -570,7 +641,9 @@ else:
             _I[k][bl] = n.identity(_C[k][bl].shape[0])
             _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
             _Ix[k][bl] = x[k][bl].copy()
+            _Icavx[k][bl] = x[k][bl].copy()
             _Inx[k][bl] = nx[k][bl].copy()
+            _Iwnx[k][bl] = wnx[k][bl].copy()
 
 for boot in xrange(opts.nboot):
     print '%d / %d' % (boot+1,opts.nboot)
@@ -578,7 +651,7 @@ for boot in xrange(opts.nboot):
     if True: # shuffle and group baselines for bootstrapping
         if not SAMPLE_WITH_REPLACEMENT:
             random.shuffle(bls)
-            bls = bls[:-5] # XXX
+            bls = bls[:-1] # XXX
         else: # sample with replacement
             bls = [random.choice(bls) for bl in bls]
         gps = [bls[i::NGPS] for i in range(NGPS)]
@@ -591,17 +664,19 @@ for boot in xrange(opts.nboot):
     bls = [bl for gp in gps for bl in gp]
     print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps])
     _Iz,_Isum,_IsumQ = {},{},{}
-    _Inz = {}
+    _Inz, _Iwnz, _Icavz = {},{},{}
     _Cz,_Csum,_CsumQ = {},{},{}
     Csum = {}
     for k in days:
         _Iz[k],_Isum[k],_IsumQ[k] = {},{},{}
-        _Inz[k] = {}
+        _Inz[k], _Iwnz[k], _Icavz[k] = {},{},{}
         _Cz[k],_Csum[k],_CsumQ[k] = {},{},{}
         Csum[k]={}
         for i,gp in enumerate(gps):
             _Iz[k][i] = sum([_Ix[k][bl] for bl in gp])
+            _Icavz[k][i] = sum([_Icavx[k][bl] for bl in gp])
             _Inz[k][i] = sum([_Inx[k][bl] for bl in gp])
+            _Iwnz[k][i] = sum([_Iwnx[k][bl] for bl in gp])
             _Cz[k][i] = sum([_Cx[k][bl] for bl in gp])
             _Isum[k][i] = sum([_I[k][bl] for bl in gp])
             _Csum[k][i] = sum([_C[k][bl] for bl in gp])
@@ -610,7 +685,9 @@ for boot in xrange(opts.nboot):
             _CsumQ[k][i] = {}
             if DELAY: # this is much faster
                 _Iz[k][i] = n.fft.fftshift(n.fft.ifft(window*_Iz[k][i], axis=0), axes=0)
+                _Icavz[k][i] = n.fft.fftshift(n.fft.ifft(window*_Iz[k][i], axis=0), axes=0)
                 _Inz[k][i] = n.fft.fftshift(n.fft.ifft(window*_Inz[k][i], axis=0), axes=0)
+                _Iwnz[k][i] = n.fft.fftshift(n.fft.ifft(window*_Iwnz[k][i], axis=0), axes=0)
                 _Cz[k][i] = n.fft.fftshift(n.fft.ifft(window*_Cz[k][i], axis=0), axes=0)
                 # XXX need to take fft of _Csum, _Isum here
             for ch in xrange(nchan): # XXX this loop makes computation go as nchan^3
@@ -632,10 +709,14 @@ for boot in xrange(opts.nboot):
             #_Csum[k] = _Csumk
             _Czk = n.array([_Cz[k][i] for i in _Cz[k]])
             _Izk = n.array([_Iz[k][i] for i in _Iz[k]])
+            _Icavzk = n.array([_Icavz[k][i] for i in _Icavz[k]])
             _Inzk = n.array([_Inz[k][i] for i in _Inz[k]])
+            _Iwnzk = n.array([_Iwnz[k][i] for i in _Iwnz[k]])
             _Czk = n.reshape(_Czk, (_Czk.shape[0]*_Czk.shape[1], _Czk.shape[2]))
             _Izk = n.reshape(_Izk, (_Izk.shape[0]*_Izk.shape[1], _Izk.shape[2]))
+            _Icavzk = n.reshape(_Icavzk, (_Icavzk.shape[0]*_Icavzk.shape[1], _Icavzk.shape[2]))
             _Inzk = n.reshape(_Inzk, (_Inzk.shape[0]*_Inzk.shape[1], _Inzk.shape[2]))
+            _Iwnzk = n.reshape(_Iwnzk, (_Iwnzk.shape[0]*_Iwnzk.shape[1], _Iwnzk.shape[2]))
             C_I=cov(_Izk)
             I_U,I_S,I_V=n.linalg.svd(C_I)
             _C_I=n.einsum('ij,j,jk',I_V.T,1./I_S,I_U.T)
@@ -655,15 +736,21 @@ for boot in xrange(opts.nboot):
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex)
     qI = n.zeros((nchan,_Iz.values()[0].values()[0].shape[1]), dtype=n.complex)
+    qCav = n.zeros((nchan,_Icavz.values()[0].values()[0].shape[1]), dtype=n.complex)
     qN = n.zeros((nchan,_Inz.values()[0].values()[0].shape[1]), dtype=n.complex)
+    qW = n.zeros((nchan,_Iwnz.values()[0].values()[0].shape[1]), dtype=n.complex)
     qC = n.zeros((nchan,_Cz.values()[0].values()[0].shape[1]), dtype=n.complex)
     Q_Iz = {}
+    Q_Icavz = {}
     Q_Inz = {}
+    Q_Iwnz = {}
     Q_Cz = {}
     for cnt1,k1 in enumerate(days):
         for k2 in days[cnt1:]:
             if not Q_Iz.has_key(k2): Q_Iz[k2] = {}
+            if not Q_Icavz.has_key(k2): Q_Icavz[k2] = {}
             if not Q_Inz.has_key(k2): Q_Inz[k2] = {}
+            if not Q_Iwnz.has_key(k2): Q_Iwnz[k2] = {}
             if not Q_Cz.has_key(k2): Q_Cz[k2] = {}
             for bl1 in _Cz[k1]:
                 for bl2 in _Cz[k2]:
@@ -685,18 +772,29 @@ for boot in xrange(opts.nboot):
                         p.show()
                     if False: # use ffts to do q estimation fast
                         qI += n.conj(_Iz[k1][bl1]) * _Iz[k2][bl2]
+                        qI += n.conj(_Icavz[k1][bl1]) * _Icavz[k2][bl2]
                         qN += n.conj(_Inz[k1][bl1]) * _Inz[k2][bl2]
+                        qW += n.conj(_Iwnz[k1][bl1]) * _Iwnz[k2][bl2]
                         qC += n.conj(_Cz[k1][bl1]) * _Cz[k2][bl2]
                     else: # brute force with Q to ensure normalization
                         #_qI = n.array([_Iz[k1][bl1].conj() * n.dot(Q[i], _Iz[k2][bl2]) for i in xrange(nchan)])
                         #_qC = n.array([_Cz[k1][bl1].conj() * n.dot(Q[i], _Cz[k2][bl2]) for i in xrange(nchan)])
                         if not Q_Iz[k2].has_key(bl2): Q_Iz[k2][bl2] = [n.dot(Q[i], _Iz[k2][bl2]) for i in xrange(nchan)]
+                        if not Q_Icavz[k2].has_key(bl2): Q_Icavz[k2][bl2] = [n.dot(Q[i], _Icavz[k2][bl2]) for i in xrange(nchan)]
                         if not Q_Inz[k2].has_key(bl2): Q_Inz[k2][bl2] = [n.dot(Q[i], _Inz[k2][bl2]) for i in xrange(nchan)]
+                        if not Q_Iwnz[k2].has_key(bl2): Q_Iwnz[k2][bl2] = [n.dot(Q[i], _Iwnz[k2][bl2]) for i in xrange(nchan)]
                         if not Q_Cz[k2].has_key(bl2): Q_Cz[k2][bl2] = [n.dot(Q[i], _Cz[k2][bl2]) for i in xrange(nchan)]
                         _qI = n.array([_Iz[k1][bl1].conj() * Q_Iz[k2][bl2][i] for i in xrange(nchan)])
                         qI += n.sum(_qI, axis=1)
+                        
+                        _qCav = n.array([_Icavz[k1][bl1].conj() * Q_Icavz[k2][bl2][i] for i in xrange(nchan)])
+                        qCav += n.sum(_qCav, axis=1)
+                        
                         _qN = n.array([_Inz[k1][bl1].conj() * Q_Inz[k2][bl2][i] for i in xrange(nchan)])
                         qN += n.sum(_qN, axis=1)
+                        
+                        _qW = n.array([_Iwnz[k1][bl1].conj() * Q_Iwnz[k2][bl2][i] for i in xrange(nchan)])
+                        qW += n.sum(_qW, axis=1)
                         _qC = n.array([_Cz[k1][bl1].conj() * Q_Cz[k2][bl2][i] for i in xrange(nchan)])
                         qC += n.sum(_qC, axis=1)
                     if DELAY: # by taking FFT of CsumQ above, each channel is already i,j separated
@@ -709,6 +807,10 @@ for boot in xrange(opts.nboot):
                                 FC[i,j] += n.einsum('ij,ji', _CsumQ[k1][bl1][i], _CsumQ[k2][bl2][j])
     if n.allclose(qN, qI):
         print('Noise equals data \n exiting')
+        sys.exit(0)
+    
+    if n.allclose(qN, qW):
+        print('Noise equals White Noise \n exiting')
         sys.exit(0)
 
     if PLOT and False:
@@ -758,7 +860,9 @@ for boot in xrange(opts.nboot):
     #pC[m] *= 1.81 # signal loss, high-SNR XXX
     #pC[m] *= 1.25 # signal loss, low-SNR XXX
     pI = n.dot(MI, qI) * scalar
+    pCav = n.dot(MI, qCav) * scalar
     pN = n.dot(MI, qN) * scalar
+    pW = n.dot(MI, qW) * scalar
 
     if PLOT and False:
         p.subplot(411); capo.arp.waterfall(qC, mode='real'); p.colorbar(shrink=.5)
@@ -777,8 +881,8 @@ for boot in xrange(opts.nboot):
         outfile =opts.output+'/'+outfile
     print "Writing", outfile
     n.savez(outfile, kpl=kpl, scalar=scalar, times=n.array(lsts),
-        pk_vs_t=pI, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI, 
-        afreqs=afreqs, chans=chans, nk_vs_t=pN,
+        pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI, 
+        afreqs=afreqs, chans=chans, nk_vs_t=pN, wnk_vs_t=pW, cav_vs_t=pCav,
         cmd=' '.join(sys.argv))
 
 
