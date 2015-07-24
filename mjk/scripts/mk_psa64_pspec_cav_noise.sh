@@ -42,13 +42,15 @@ for chan in $chans; do
                echo python ${SCRIPTSDIR}/pspec_full_band_noise.py \
                     --window=${WINDOW} -p ${pol} -c ${chan} --band=${band}\
                      -b ${NBOOT} -C ${cal} \
-                     -a ${ANTS} --output=${sepdir} --auto \
+                     -a ${ANTS} --output=${sepdir} ${auto} ${diff} \
+                     --noise=${noise} \
                      ${EVEN_FILES} ${ODD_FILES}
 
                python ${SCRIPTSDIR}/pspec_full_band_noise.py \
                     --window=${WINDOW} -p ${pol} -c ${chan} --band=${band}\
                      -b ${NBOOT} -C ${cal} \
-                     -a ${ANTS} --output=${sepdir} --auto \
+                     -a ${ANTS} --output=${sepdir} ${auto}  ${diff}  \
+                     --noise=${noise} \
                      ${EVEN_FILES} ${ODD_FILES} \
                      |tee -a ${LOGFILE}
                 
@@ -74,10 +76,10 @@ for chan in $chans; do
         echo "Generating plots for ${chan}: ${pol}"
         poldir=${chandir}/${pol}
         #PLOT
-        ${SCRIPTSDIR}/plot_pk_k3pk_zsa_noise.py ${poldir}/*/pspec.npz 
-        mv pspec_pk_k3pk.npz pspec_${PREFIX}_${chan}_${pol}.npz
-        mv pspec.png pspec_${PREFIX}_${chan}_${pol}.png
-        mv posterior.png posterior_${PREFIX}_${chan}_${pol}.png
+        ${SCRIPTSDIR}/plot_pk_k3pk_zsa_noise.py ${cav} ${poldir}/*/pspec.npz 
+        cp pspec_pk_k3pk.npz pspec_${PREFIX}_${chan}_${pol}.npz
+        cp pspec.png pspec_${PREFIX}_${chan}_${pol}.png
+        cp posterior.png posterior_${PREFIX}_${chan}_${pol}.png
         cp  pspec_${PREFIX}_${chan}_${pol}.png ${poldir}/
         cp  posterior_${PREFIX}_${chan}_${pol}.png ${poldir}/
         cp pspec_${PREFIX}_${chan}_${pol}.npz ${poldir}/

@@ -316,8 +316,8 @@ if opts.diff:
         k1,k2=x.keys()
         wnx[k1],wnx[k2] = {},{}
         for bl in bls_master:
-            wnx[k1][bl] = n.copy(tmp_nx[k1][bl] - tmp_nx[k2][bl])/n.sqtr(2)
-            wnx[k2][bl] = n.copy(tmp_nx[k1][bl] - tmp_nx[k2][bl])/n.sqtr(2)
+            wnx[k1][bl] = n.copy(tmp_nx[k1][bl] - tmp_nx[k2][bl])/n.sqrt(2)
+            wnx[k2][bl] = n.copy(tmp_nx[k1][bl] - tmp_nx[k2][bl])/n.sqrt(2)
 
 print 'Differencing Even and Odd Days'
 nx={}
