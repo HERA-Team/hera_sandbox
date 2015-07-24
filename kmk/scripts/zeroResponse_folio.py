@@ -3,6 +3,7 @@ import aipy as a
 import capo
 import numpy as np
 import matplotlib.pylab as pl
+import sys
 
 data_dir = '/data2/home/kkundert/capo/kmk/data/'
 data_file = 'zen.2456895.51490.xx.uvcRRE'
@@ -36,7 +37,7 @@ print "array parameters imported"
 # create array of GSM files for simulation of multiple frequencies
 gsm_dir = '/data2/home/kkundert/capo/kmk/gsm/gsm_raw/gsm'
 gsm_files = [1001, 1002, 1003, 1004, 1005]
-g = a.healpix.HealpixMap(nside=512)
+gsm = a.healpix.HealpixMap(nside=512)
 print "gsm size = " + str(gsm.map.shape)
 d = np.loadtxt(gsm_dir + str(gsm_files[0]) + '.dat')
 print "d size = " + str(d.shape)
