@@ -96,7 +96,7 @@ A = np.array([response[bl][0] for bl in response.keys()])
 A.shape = (A.size,1)
 # create Y using GSM, create loop for attenuate GSM by PAPER observing 
 # parameters
-Y = np.array([response[bl][0] for bl in response.keys()])
+Y = np.array([vis[bl][0] for bl in vis.keys()])
 Y.shape = (Y.size,1)
 #Y = A*temps[0] + np.random.normal(size=A.shape) + 1j*np.random.normal(size=A.shape) # simulated data + complex noise
 #Y = np.array([d[bl][0][N/2-1] for bl in d.keys()]) # PAPER data
