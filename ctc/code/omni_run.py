@@ -23,6 +23,8 @@ o.add_option('--xtalk',dest='xtalk',default=False,action="store_true",
             help='Option to use xtalk command when performing lincal. Default is False.')
 o.add_option('--omniruntag',dest='omniruntag',default='',type='string',
             help='Tag for omni run, if wanted. Default is empty.')
+o.add_option('--savepath',dest='savepath',default='',type='string',
+            help='Path to save .omni_output npz files. Include final / in path.')
 #o.add_option('--ubls',dest='ubls',default=None,
 #            help='Unique baselines to include. Ex: [(64,49),(64,10)]')
 #o.add_option('--ex_ubls',dest='ex_ubls',default=None,
@@ -75,7 +77,7 @@ for f in range(len(args)):
     file = args[f]
     pol = file.split('.')[-2]
     pol1,pol2 = pol[0],pol[1]
-    tag = '.'.join(file.split('.')[:-1])
+    tag = opts.savepath + 'zen.'+ '.'.join(file.split('.')[1:-1])
     print str(f+1)+'/'+str(len(args))+': '+'Reading '+str(file)
 
     t,d,f = capo.arp.get_dict_of_uv_data([file],antstr='cross',polstr=pol)
@@ -106,6 +108,7 @@ for f in range(len(args)):
         xtalk = None
     m2,g2,v2 = omnical.calib.redcal(data,info,xtalk=xtalk,gains=g,vis=v,uselogcal=False,removedegen=True) #lincal
         #XXX with this new xtalk dictionary, it's giving different chi-square results than before !!!
+    #import IPython;IPython.embed()
     m2['chisq'][data_with_flags==0] = 0 #flag chisq
     ### Save Outputs ###
     out = tag + '.omni_output'+opts.omniruntag
