@@ -77,7 +77,7 @@ for f in range(len(args)):
     file = args[f]
     pol = file.split('.')[-2]
     pol1,pol2 = pol[0],pol[1]
-    tag = opts.savepath + 'zen.'+ '.'.join(file.split('.')[1:-1])
+    tag = opts.omnipath + 'zen.'+ '.'.join(file.split('.')[1:-1])
     print str(f+1)+'/'+str(len(args))+': '+'Reading '+str(file)
 
     t,d,f = capo.arp.get_dict_of_uv_data([file],antstr='cross',polstr=pol)
