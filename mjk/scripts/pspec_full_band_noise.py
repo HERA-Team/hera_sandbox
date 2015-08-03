@@ -6,6 +6,7 @@ from scipy import interpolate
 from matplotlib.widgets import Slider
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random
+import ipdb
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
@@ -311,64 +312,7 @@ if NOISE > 0:
         #    wnx[k1], wnx[k2] = {},{}
         #    for bl in bls_master:
 
-if opts.diff:
-    if set(['even','odd']) == set(days):
-        k1,k2=x.keys()
-        wnx[k1],wnx[k2] = {},{}
-        for bl in bls_master:
-            wnx[k1][bl] = n.copy(tmp_nx[k1][bl] - tmp_nx[k2][bl])/n.sqrt(2)
-            wnx[k2][bl] = n.copy(tmp_nx[k1][bl] - tmp_nx[k2][bl])/n.sqrt(2)
 
-print 'Differencing Even and Odd Days'
-nx={}
-if set(['even', 'odd']) == set(days):
-    k1,k2 = x.keys()
-    nx[k1], nx[k2] = {},{}
-    for bl in bls_master:
-        #Divide by Sqrt(2) because differnce gives 2*noise^2 in power
-        nx[k1][bl] = n.copy(x1[k1][bl] - x1[k2][bl])/n.sqrt(2)
-        nx[k2][bl] = n.copy(x1[k1][bl] - x1[k2][bl])/n.sqrt(2)
-
-Nt=13
-nlst=n.shape(lsts)[0]
-pk_array=[]
-rms_array=[]
-
-bls_master.sort()
-for bl in bls_master:
-    dlst= n.ceil(nx['even'][bl][index].shape[1]/13)
-    dlst= n.ceil(nlst/13.)
-    pk_array.append( n.mean(nx['even'][bl][index,::dlst]*nx['even'][bl][index,::dlst].conj())*scalar )
-    rms_array.append( n.sqrt(n.mean(nx['even'][bl][index[0]]*nx['even'][bl][index[0]].conj()))  ) 
-    print '', bl, ' Pk [mk^2/Mpc^3] ', n.sqrt(n.mean(nx['even'][bl][index[0]].conj()*nx['even'][bl][index[0]])) * scalar, 'rms [mk]  ', n.sqrt(n.mean(nx['even'][bl][index[0]].conj()*nx['even'][bl][index[0]]))
-
-print('dlst: {0}'.format(dlst))
-diff_blavg= n.mean( [nx['even'][bl] for bl in bls_master],axis=0)
-Trms_blavg= n.sqrt( n.mean(diff_blavg[index,::dlst]*diff_blavg[index,::dlst].conj()))
-print( 'BL Average Pk [mk^2/Mpc^3]: {0:3e}'.format(Trms_blavg.real**2*scalar/n.sqrt(nbls*13.)))
-print('Average rms [mk]: {0:f}'.format(n.mean(rms_array).real))
-print('BL Average rms [mk]: {0:f}'.format(Trms_blavg.real))
-
-
-print('\n\n')
-print('White Noise RMS')
-for bl in bls_master:
-    dlst= n.ceil(wnx['even'][bl][index].shape[1]/13)
-    dlst= n.ceil(nlst/13.)
-    pk_array.append( n.mean(wnx['even'][bl][index,::dlst]*wnx['even'][bl][index,::dlst].conj())*scalar )
-    rms_array.append( n.sqrt(n.mean(wnx['even'][bl][index[0]]*wnx['even'][bl][index[0]].conj()))  ) 
-    print '', bl, ' Pk [mk^2/Mpc^3] ', n.sqrt(n.mean(wnx['even'][bl][index[0]].conj()*wnx['even'][bl][index[0]])) * scalar, 'rms [mk]  ', n.sqrt(n.mean(wnx['even'][bl][index[0]].conj()*wnx['even'][bl][index[0]]))
-
-print('dlst: {0}'.format(dlst))
-diff_blavg= n.mean( [wnx['even'][bl] for bl in bls_master],axis=0)
-Trms_blavg= n.sqrt( n.mean(diff_blavg[index,::dlst]*diff_blavg[index,::dlst].conj()))
-print( 'BL Average Pk [mk^2/Mpc^3]: {0:3e}'.format(Trms_blavg.real**2*scalar/n.sqrt(nbls*13.)))
-print('Average rms [mk]: {0:f}'.format(n.mean(rms_array).real))
-print('BL Average rms [mk]: {0:f}'.format(Trms_blavg.real))
-
-if PLOT and False:
-    capo.arp.waterfall(nx['even'][1555][index], mode='real')
-    p.show()
 
 if INJECT_SIG > 0.: # Create a fake EoR signal to inject
     print 'INJECTING SIMULATED SIGNAL'
@@ -429,7 +373,7 @@ if INJECT_SIG > 0.: # Create a fake EoR signal to inject
 #    Q[i] = get_Q(i, nchan)
 Q = [get_Q(i,nchan) for i in xrange(nchan)]
 
-if True: ##Looking for signal below noise level
+if False: ##Looking for signal below noise level
     print 'Averaging over Baselines'
     x_blavg, _Cx_blavg = {},{}
     C_blavg ,_C_blavg = {},{}
@@ -459,11 +403,16 @@ if True: ##Looking for signal below noise level
 ##MAKE Average covariance
 I,_I,_Ix = {},{},{}
 C,Cav,Cst,_C,_Cav,_Cavx,_Cx = {},{},{},{},{},{},{}
+x_blavg, x1_blavg= {},{}
+W = {}
 for k in days:
     I[k],_I[k],_Ix[k] = {},{},{}
     C[k],Cav[k],Cst[k],_Cav[k],_C[k],_Cavx[k],_Cx[k] = {},{},{},{},{},{},{}
+    x_blavg[k]=n.mean( [x[k][bl] for bl in bls_master],axis=0)
+    x1_blavg[k]=n.mean( [x1[k][bl] for bl in bls_master],axis=0)
+    W[k]= {}
     for bl in x[k]:
-        C[k][bl] = cov(x[k][bl])
+        C[k][bl] = cov(x_blavg[k])
         I[k][bl] = n.identity(C[k][bl].shape[0])
         U,S,V = n.linalg.svd(C[k][bl].conj())
         _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
@@ -472,7 +421,7 @@ for k in days:
 #/n.dot(_C[k][bl],n.ones_like(x1[k][bl]))
         _Ix[k][bl] = x[k][bl].copy()
 
-
+        #Compute Cav by taking diags, averaging and reforming the matrix
         diags =[C[k][bl].diagonal(count) for count in xrange(nchan_band-1, -nchan_band,-1)]
         Cav[k][bl]=n.zeros_like(C[k][bl])
         Cst[k][bl]=n.zeros_like(C[k][bl])
@@ -480,46 +429,62 @@ for k in days:
         for count,count_chan in enumerate(range(nchan_band-1,-nchan_band,-1)):
                 Cav[k][bl] += n.diagflat( n.mean(diags[count]).repeat(len(diags[count])), count_chan)
                 Cst[k][bl] += n.diagflat( n.sqrt( n.mean( (diags[count]-n.mean(diags[count]) ) *n.conj(diags[count] - n.mean(diags[count]) )  )).repeat(len(diags[count])), count_chan)
-        
-        
-        #Compute Cav by taking diags, averaging and reforming the matrix
-        diags =[C[k][bl].diagonal(count) for count in xrange(nchan_band-1, -nchan_band,-1)]
-        Cav[k][bl]=n.zeros_like(C[k][bl])
 
+        new_c = cov(x1_blavg[k])
+        U2,S2,V2=n.linalg.svd(new_c.conj())
+        _new_c=n.einsum('ij,j,jk',V2.T,1./S2,U2.T)
+        #max_diff=  abs( Cav[k][bl] - new_c)/new_c 
+        #print n.shape(max_diff),n.max(max_diff)
+        #if n.max(max_diff) >= .15:
+        #    print 'Setting Diagonal to Auto-Covariance'
+        #    opts.auto = True
+        #else:
+        #    print 'Not Normalizing by Auto-Covariance'
+        #    opts.auto = False
 
-        for count,count_chan in enumerate(range(nchan_band-1,-nchan_band,-1)):
-                Cav[k][bl] += n.diagflat( n.mean(diags[count]).repeat(len(diags[count])), count_chan)
-        
         if opts.auto:
             #Need full covariance for auto-covariance
             #points=C[k][bl].nonzero()
-            new_c = cov(x1[k][bl])
-            U2,S2,V2=n.linalg.svd(new_c.conj())
+
             #scale rows and columns by sqrt of auto-covariance
             for count in xrange(nchan_band):
                 tmp=n.copy(Cav[k][bl])
                 Cav[k][bl][count,:] *= n.sqrt(new_c[count,count]/tmp[count,count])
-                Cav[k][bl].T[count,:] *= n.sqrt(new_c[count,count]/tmp[count,count])
+                Cav[k][bl][:,count] *= n.sqrt(new_c[count,count]/tmp[count,count])
             #Ensure symmetric matrix, some interpolation alogrithms 
             #have artefacts
             #Cav[k][bl] /= n.mean(Cav[k][bl].diagonal())
             #Cav[k][bl] = n.array(Cav[k][bl]+Cav[k][bl].T)/2.
         U1,S1,V1 = n.linalg.svd(Cav[k][bl].conj())
+        S1[35:]=n.Inf
         _Cav[k][bl] = n.einsum('ij,j,jk', V1.T, 1./S1, U1.T)
-        norm  = _Cav[k][bl].sum(axis=-1); norm.shape += (1,)
-        _Cav[k][bl] /= norm
+
+        #norm  = n.sqrt(n.sum(_Cav[k][bl]**2,axis=-1)); norm.shape += (1,)
+        #_Cav[k][bl] /= norm
+        W[k][bl] = _Cav[k][bl].copy()
+        W[k][bl] /= n.sqrt(n.dot(W[k][bl].T,W[k][bl]).sum(axis=-1))
         
+        eig_freqs=n.fft.fftshift(n.fft.fft(n.einsum('ij,jk', n.diag(S1),V1).T.real,axis=0))
+
+
         if not n.allclose( Cav[k][bl], Cav[k][bl].T.conj()):
             good_values=n.isclose(Cav[k][bl].Cav[k][bl].T.conj())
             bad_values=~good_values
             print('There are {0:d} elements which do not match'.format(n.sum(bad_values)))
             sys.exit(0)
 
-        _Cavx[k][bl] = n.dot(_Cav[k][bl], x1[k][bl]) 
+        _Cavx[k][bl] = n.dot(W[k][bl], x1[k][bl]) 
+        #print('Cov:',n.max(_new_c),n.min(_new_c))
+        #print('Cav:', n.max(_Cav[k][bl]),n.min(_Cav[k][bl]))
 #/ n.dot(_Cav[k][bl], n.ones(n.shape(x1[k][bl])))
         #_Cavx[k][bl] = n.zeros_like(_Cx[k][bl])
         #_Cavx[k][bl][index] += temp[index]
-        if PLOT and False:
+
+        x_power= n.sum(x1[k][bl].conj() * x1[k][bl],axis=0)
+        c_power= n.sum(_Cavx[k][bl].conj() * _Cavx[k][bl],axis=0)
+
+
+        if PLOT and True:
             #p.plot(S); p.show()
                 f1=p.figure(1)
                 p.subplot(511); capo.arp.waterfall(x1[k][bl], mode='real',mx=6,drng=12);
@@ -538,16 +503,42 @@ for k in days:
                 f2=p.figure(2);
                 p.plot(S2,label='C')
                 p.plot(S1,label='Cav')
+                p.yscale('log')
                 p.legend(loc='best')
                 #f2.savefig('Cov_Eigenvalues_%d_%d'%a.miriad.bl2ij(bl))
                 #f2.clf()
                 f3=p.figure(3)
-                p.subplot(131); capo.arp.waterfall(new_c,mode='real', mx=2,drng=4)
-                p.subplot(132); capo.arp.waterfall(Cav[k][bl],mode='real',mx=2,drng=4)
-                p.subplot(133); capo.arp.waterfall(new_c-Cav[k][bl],mode='real',mx=2,drng=4); p.colorbar()
+                p.subplot(231); capo.arp.waterfall(new_c,mode='real', mx=2,drng=4)
+                p.title('C_xblavg')
+                p.subplot(232); capo.arp.waterfall(Cav[k][bl],mode='real',mx=2,drng=4)
+                p.title('Cav_xblavg')
+                p.subplot(233); capo.arp.waterfall(new_c-Cav[k][bl],mode='real',mx=2,drng=4); p.colorbar()
+                p.title('resid')
+
+                p.subplot(234); capo.arp.waterfall(_new_c,mode='real')#, mx=12,drng=24)
+                p.subplot(235); capo.arp.waterfall(_Cav[k][bl])#,mx=12,drng=24)
+                p.subplot(236); capo.arp.waterfall(_new_c-_Cav[k][bl])#,mode='real',mx=12,drng=24); p.colorbar()
                 #f3.savefig('Cov_Residual_%d_%d'%a.miriad.bl2ij(bl))
                 #f3.clf()
-                if True: 
+                f4=p.figure(4)
+                p.plot(eig_freqs)
+                f5=p.figure(5)
+                p.subplot(211)
+                p.xticks([])
+                p.plot(x_power)
+                p.plot(c_power)
+                p.subplot(212)
+                p.subplots_adjust(hspace=0)
+                p.plot(c_power/x_power)
+                f6=p.figure(6)
+                p.subplot(131)
+                capo.arp.waterfall(W[k][bl],mode='real',mx=2,drng=4)
+                p.subplot(132)
+                capo.arp.waterfall(n.dot(W[k][bl].T,W[k][bl]),mode='real',mx=2,drng=4)
+                p.subplot(133)
+                capo.arp.waterfall(n.dot(W[k][bl].T,W[k][bl]) - n.ones_like(W[k][bl]),mode='real',mx=2,drng=4)
+                p.colorbar()
+                if False: 
                     fig=p.figure(4); 
                     S2_=n.zeros_like(S2)
                     S2_[-1:]+=S2[-1:]
@@ -592,6 +583,23 @@ for k in days:
 
 
 
+print 'Differencing Even and Odd Days'
+nx={}
+if set(['even', 'odd']) == set(days):
+    k1,k2 = x.keys()
+    nx[k1], nx[k2] = {},{}
+    for bl in bls_master:
+        #Divide by Sqrt(2) because differnce gives 2*noise^2 in power
+        nx[k1][bl] = n.copy(_Cavx[k1][bl] - _Cavx[k2][bl])/n.sqrt(2)
+        nx[k2][bl] = n.copy(_Cavx[k1][bl] - _Cavx[k2][bl])/n.sqrt(2)
+
+if opts.diff:
+    if set(['even','odd']) == set(days):
+        k1,k2=x.keys()
+        wnx[k1],wnx[k2] = {},{}
+        for bl in bls_master:
+            wnx[k1][bl] = n.copy(tmp_nx[k1][bl] - tmp_nx[k2][bl])/n.sqrt(2)
+            wnx[k2][bl] = n.copy(tmp_nx[k1][bl] - tmp_nx[k2][bl])/n.sqrt(2)
 # Compute baseline auto-covariances and apply inverse to data
 x = {}
 grid = n.meshgrid(index,index)
@@ -644,6 +652,48 @@ else:
             _Icavx[k][bl] = x[k][bl].copy()
             _Inx[k][bl] = nx[k][bl].copy()
             _Iwnx[k][bl] = wnx[k][bl].copy()
+
+Nt=13
+nlst=n.shape(lsts)[0]
+pk_array=[]
+rms_array=[]
+
+bls_master.sort()
+#for bl in bls_master:
+#    dlst= n.ceil(nx['even'][bl][index].shape[1]/13)
+#    dlst= n.ceil(nlst/13.)
+#    pk_array.append( n.mean(nx['even'][bl][index,::dlst]*nx['even'][bl][index,::dlst].conj())*scalar )
+#    rms_array.append( n.sqrt(n.mean(nx['even'][bl][index[0]]*nx['even'][bl][index[0]].conj()))  ) 
+#    print '', bl, ' Pk [mk^2/Mpc^3] ', n.sqrt(n.mean(nx['even'][bl][index[0]].conj()*nx['even'][bl][index[0]])) * scalar, 'rms [mk]  ', n.sqrt(n.mean(nx['even'][bl][index[0]].conj()*nx['even'][bl][index[0]]))
+#
+#print('dlst: {0}'.format(dlst))
+#diff_blavg= n.mean( [nx['even'][bl] for bl in bls_master],axis=0)
+#Trms_blavg= n.sqrt( n.mean(diff_blavg[index,::dlst]*diff_blavg[index,::dlst].conj()))
+#print( 'BL Average Pk [mk^2/Mpc^3]: {0:3e}'.format(Trms_blavg.real**2*scalar/n.sqrt(nbls*13.)))
+#print('Average rms [mk]: {0:f}'.format(n.mean(rms_array).real))
+#print('BL Average rms [mk]: {0:f}'.format(Trms_blavg.real))
+#
+#
+#print('\n\n')
+#print('White Noise RMS')
+#for bl in bls_master:
+#    dlst= n.ceil(wnx['even'][bl][index].shape[1]/13)
+#    dlst= n.ceil(nlst/13.)
+#    pk_array.append( n.mean(wnx['even'][bl][index,::dlst]*wnx['even'][bl][index,::dlst].conj())*scalar )
+#    rms_array.append( n.sqrt(n.mean(wnx['even'][bl][index[0]]*wnx['even'][bl][index[0]].conj()))  ) 
+#    print '', bl, ' Pk [mk^2/Mpc^3] ', n.sqrt(n.mean(wnx['even'][bl][index[0]].conj()*wnx['even'][bl][index[0]])) * scalar, 'rms [mk]  ', n.sqrt(n.mean(wnx['even'][bl][index[0]].conj()*wnx['even'][bl][index[0]]))
+#
+#print('dlst: {0}'.format(dlst))
+#diff_blavg= n.mean( [wnx['even'][bl] for bl in bls_master],axis=0)
+#Trms_blavg= n.sqrt( n.mean(diff_blavg[index,::dlst]*diff_blavg[index,::dlst].conj()))
+#print( 'BL Average Pk [mk^2/Mpc^3]: {0:3e}'.format(Trms_blavg.real**2*scalar/n.sqrt(nbls*13.)))
+#print('Average rms [mk]: {0:f}'.format(n.mean(rms_array).real))
+#print('BL Average rms [mk]: {0:f}'.format(Trms_blavg.real))
+#
+#if PLOT and False:
+#    capo.arp.waterfall(nx['even'][1555][index], mode='real')
+#    p.show()
+
 
 for boot in xrange(opts.nboot):
     print '%d / %d' % (boot+1,opts.nboot)
