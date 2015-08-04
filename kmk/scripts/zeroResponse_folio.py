@@ -20,7 +20,7 @@ x, y, z = xyz = h.px2crd(np.arange(h.npix())) #topocentric
 temps = np.ones(1) # temperature of sky signal
 
 # rest frequency: 150 MHz
-freq = uv.__getitem__('restfreq')*np.ones(1)
+freq = np.array([.120, .150])
 c = 3e10 # in cm/s
 wvlen = c / freq # observed wavelength
 
