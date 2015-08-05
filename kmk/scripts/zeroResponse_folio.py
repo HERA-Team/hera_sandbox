@@ -93,22 +93,23 @@ for bl in d.keys():
         i += 1
 print "visibilities simulated"
 
-A = np.array([response[bl][0] for bl in response.keys()])
-A.shape = (A.size,1)
-# create Y using GSM, create loop for attenuate GSM by PAPER observing 
-# parameters
-Y = np.array([vis[bl][0] for bl in vis.keys()])
-Y.shape = (Y.size,1)
-#Y = A*temps[0] + np.random.normal(size=A.shape) + 1j*np.random.normal(size=A.shape) # simulated data + complex noise
-#Y = np.array([d[bl][0][N/2-1] for bl in d.keys()]) # PAPER data
+X = []
+for i in range(len(freq)):
+	A = np.array([response[bl][i] for bl in response.keys()])
+	A.shape = (A.size,1)
+	# create Y using GSM
+	Y = np.array([vis[bl][i] for bl in vis.keys()])
+	Y.shape = (Y.size,1)
+	# simulated data + complex noise
+	#Y = A*temps[0] + np.random.normal(size=A.shape) + 1j*np.random.normal(size=A.shape) 
+	#Y = np.array([d[bl][0][N/2-1] for bl in d.keys()]) # PAPER data
+	# find value of X from cleverly factoring out A in a way which properly weights 
+	# the measurements
+	transjugateA = np.conjugate(np.transpose(A))
+	normalization = np.linalg.inv(np.dot(transjugateA, A))
+	invA = normalization*transjugateA
 
-# find value of X from cleverly factoring out A in a way which properly weights 
-# the measurements
-transjugateA = np.conjugate(np.transpose(A))
-normalization = np.linalg.inv(np.dot(transjugateA, A))
-invA = normalization*transjugateA
+	X.append(np.dot(invA,Y))
 
-X = np.dot(invA,Y)
-
-# print the estimate of the global signal
+# print the estimate of the global signal for each frequency
 print X
