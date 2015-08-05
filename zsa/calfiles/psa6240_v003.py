@@ -272,10 +272,10 @@ def get_aa(freqs):
     aa = AntennaArray(prms['loc'], antennas, tau_ew=prms['tau_ew'], tau_ns=prms['tau_ns'],
         gain=prms['gain'], amp_coeffs=prms['amp_coeffs'],
         dly_coeffs=prms['dly_coeffs'], dly_xx_to_yy=prms['dly_xx_to_yy'], ant_layout=prms['ant_layout'])
+    pos_prms = {}
     for i in range(nants):
-        pos = prms['antpos'][i]
-        i = str(i)
-        aa.set_params({i:pos})
+        pos_prms[str(i)] = prms['antpos'][i]
+    aa.set_params(pos_prms)
     return aa
 
 src_prms = {
@@ -284,7 +284,7 @@ src_prms = {
 'hyd':{ 'jys':10**2.448816, 'index':  -0.866462 , },
 #'pic':{ 'jys':10**2.714456, 'index':  -0.436361 , },
 #pictor flux and index tken from danny's paper
-'pic':{ 'jys':10**2.582063, 'index':  -0.76 , },
+'pic':{ 'jys':10**2.582063, 'index':  -0.76 , 'mfreq': .150 , },
 'vir':{ 'jys':10**2.200725, 'index':  0.202425 , },
 'Sun': {'a1': 0.00644, 'index': 1.471, 'a2': 0.00586, 'jys': 55701.96, 'th': -0.000512},
 'for': {'a1': 0.00851, 'a2': 0.00413, 'jys': 907.09, 'th': 0.230},
