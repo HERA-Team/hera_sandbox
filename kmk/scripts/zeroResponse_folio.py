@@ -28,9 +28,9 @@ wvlen = c / freq # observed wavelength
 # import array parameters
 aa = a.cal.get_aa('psa6622_v001', uv['sdf'], uv['sfreq'], uv['nchan'])
 # select freq = 150 MHz
-aa.select_chans([N/2])
+aa.select_chans([0, N/2])
 beam = aa[0].bm_response(xyz, pol='x')**2
-beam = beam[0]
+print beam.shape
 print "array parameters imported"
 
 # fill sky map with GSM
@@ -84,8 +84,8 @@ for bl in d.keys():
     bx, by, bz = aa.get_baseline(n, m)
     for l in range(len(freq)):
         # attenuate sky signal and visibility by primary beam
-        ant_res = beam * h.map
-        obs_sky = beam * gsm.map
+        ant_res = beam[l] * h.map
+        obs_sky = beam[l] * gsm.map
         phs = np.exp(-2j*np.pi*freq[l]*(bx*x + by*y + bz*z))
         if not bl in response.keys(): response[bl] = []; vis[bl] = []
         response[bl].append(np.sum(np.where(z>0, ant_res*phs, 0)))
@@ -97,12 +97,20 @@ X = []
 for i in range(len(freq)):
 	A = np.array([response[bl][i] for bl in response.keys()])
 	A.shape = (A.size,1)
-	# create Y using GSM
-	Y = np.array([vis[bl][i] for bl in vis.keys()])
-	Y.shape = (Y.size,1)
+
+	# GSM
+	#Y = np.array([vis[bl][i] for bl in vis.keys()])
+	#Y.shape = (Y.size,1)
+
 	# simulated data + complex noise
 	#Y = A*temps[0] + np.random.normal(size=A.shape) + 1j*np.random.normal(size=A.shape) 
-	#Y = np.array([d[bl][0][N/2-1] for bl in d.keys()]) # PAPER data
+
+	# PAPER data
+	f = 41 
+	if i != 0:
+	    f = N/2-1 
+	Y = np.array([d[bl][0][f] for bl in d.keys()])
+	Y.shape = (Y.size,1)
 	# find value of X from cleverly factoring out A in a way which properly weights 
 	# the measurements
 	transjugateA = np.conjugate(np.transpose(A))
