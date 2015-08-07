@@ -115,7 +115,7 @@ plotp.P_v_Eta(kz,P)
 
 #Bootstrap resampling
 
-B = 100
+B = 1000
 data1 = n.array(data1)
 print data1.shape
 boot = []
@@ -125,21 +125,22 @@ for b in range(B):
         temps.append(0.)
         for j in range(len(data1)):      #for each sample
             poin = random.choice(data1)[i]    #for each  b, channel i, resample from data1
-            temps[i] = temps[i] + n.conjugate(poin)*poin/len(data1)
+            temps[i] = temps[i] + n.conjugate(poin)*poin/len(data1)    #temp is the b^th PS estimate
     boot.append(temps)
 boot = n.array(boot).transpose()
 print boot.shape
-bootmean,bootsig = [],[]
+bootmean,booterr = [],[]
 for ch in range(len(boot)):
     mean = n.sum(boot[ch])/B
-    sig = n.sqrt(n.sum((boot[ch]-mean)**2)/B)
+    sig = n.sqrt(n.sum((boot[ch]-mean)**2)/(B-1))
     bootmean.append(mean)
-    bootsig.append(sig)
+    booterr.append(2*sig)
 #p.hist(boot[5])
 #p.show()
 
 fig, ax = p.subplots()
-ax.errorbar(kz, bootmean, yerr=bootsig, fmt='ok', ecolor='gray', alpha=0.5)
+ax.errorbar(kz, bootmean, yerr=booterr, fmt='ok', ecolor='gray', alpha=0.5)
+ax.set_ylim([0,0.5])
 #ax.set_yscale('log')
 ax.set_xlabel('kz')
 ax.set_ylabel(r'$P(k) K^{2} (h^{-1} Mpc)^{3}$')

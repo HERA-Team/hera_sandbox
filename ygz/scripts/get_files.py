@@ -7,16 +7,19 @@ import optparse, os, sys
 #opts,args = o.parse_args(sys.argv[1:])
 #print opts, args
 
+#Put files in DIR into dictionary keyed by the fractional julian dates
 def get_fdict(DIR):
     filedict = {}
     args = os.listdir(DIR)
     for s in args:
         s = str(s)
-        temp = str(os.path.splittext(s)[0]).split('_')
+        temp = str(os.path.splitext(s)[0]).split('_')
         t = float(temp[len(temp) - 1])
         filedict[t] = s
     return filedict
 
+#Get the filename containing the interval [t,t+dt], containinig T
 def get_file(T, dt, filedict):
     for t in filedict.keys():
         if T-t>0 and T-t < dt: return filedict[t]
+    print "no file for T=",T, "dt=", dt

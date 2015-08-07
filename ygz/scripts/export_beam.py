@@ -17,12 +17,21 @@ def beam_real(ant, ntop, shape0, pol, sq=True):
             bmp_list.append(bmp)
         return bmp_list
 
+def OmP(ant, ntop, pol, sq=False):
+    bm = ant.bm_response(ntop,pol=pol)
+    bm = bm*n.conj(bm)
+    dl = abs(ntop[0][2]-ntop[0][1])
+    if sq: bm = bm*bm
+    #print bm.shape
+    #print dl
+    return n.sum(bm*dl*dl)
+
 #computes the fourier transform of give beam pattern bmp
-def beam_fourier(bmp, dreal, nreal):
+def beam_fourier(bmp, dreal, nreal, dl=0.005):
         fbm = n.fft.fft2(bmp)
         frequv = n.fft.fftfreq(nreal,d=dreal)
         freqk = frequv*2*n.pi
-        fbmamp = fbm.real
+        fbmamp = fbm.real*dl*dl
         #fbmamp = n.abs(fbm)
         freq = frequv
         fbmamp = n.fft.fftshift(fbmamp)
@@ -32,7 +41,7 @@ def beam_fourier(bmp, dreal, nreal):
 def beam_interpol(freq, fbmamp,kind='cubic'):
     return interpolate.interp2d(freq, freq, fbmamp, kind=kind)
 
-#Interpolates for the overlap of two baselines given a (u,v) coordinate
+#Interpolates for the overlap of two baselines given a (u,v) coordinate,i.e. the Fourier transform of the beam squared
 def get_overlap(f, u, v, Diag=False):
         if len(f(u,v)) > 1:
             if Diag: return n.diagonal(f(u,v))
