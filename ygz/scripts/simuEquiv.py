@@ -1,5 +1,5 @@
 __author__ = 'yunfanzhang'
-import aipy as a, numpy as n, capo, pylab as p
+import aipy as a, numpy as n, capo, pylab as p, capo
 import optparse, sys, random, os
 import get_bls
 import delay_transform as dl_tr, plot_pspec as plotp
@@ -13,19 +13,12 @@ print opts, args
 
 c = 299792458.
 Mpc2m = 3.086E22 #meters
-kB = 1.3806488E-23  #m2 kg s-2 K-1
 nu = n.arange(100, 200, 10)*1.E6
 nu0 = 150
-lamb = c/nu0*1.E6  #m
-pref = (2*kB/lamb*lamb)*(2*kB/lamb*lamb)   #(kg s-2 K-1)2
-z, Omm, hub = 8.5, 0.27, 0.75
-#Y = 17 (((1+z)/10)/(Omm*hub*hub/0.15))^0.5 #Mpc/MHz
-#X = 1.9 ((1+z)/10)^0.2/hub                 # Mpc/arcmin
-Y = 17*(((1+z)/10)/(Omm/0.15))**0.5 #h Mpc/MHz
-X = 1.9*((1+z)/10)**0.2                # h Mpc/arcmin
-XSY = 540*((1+z)/10)**0.9  #hub-3 Mpc3 sr-1 Hz-1
-B = 10E6   #Hz
-W = 0.31  #sr
+z, Omp, hub, Ompp = 8.5, 0.63, 0.75, 0.31
+X2Y = capo.pspec.X2Y(z)      #[h^-3 Mpc^3] / [str * GHz]
+bb = 0.1*(20./203)   # total window in GHz
+df = 0.1/203
 
 nchan = 20
 
@@ -60,6 +53,7 @@ dt = t02-t01
 sum = []
 data1,data2 = [],[]
 cnt = 0
+norm = 1.E6*X2Y*bb*Omp*Omp/Ompp    #1.E6 is K to mK
 for fn in os.listdir(DIR):
     uv1 = a.miriad.UV(DIR+fn)
     uv2 = a.miriad.UV(DIR+fn)
@@ -73,7 +67,7 @@ for fn in os.listdir(DIR):
     #preamble, datnu = uv1.read()
     for preamble, datnu in uv1.all():
         print 'bl1: ', preamble
-        datnu = datnu[90:110]
+        datnu = datnu[90:110]*norm
         datatau = dl_tr.nu2tau(datnu)
         data1.append(n.array(datatau).transpose())
     #data1 = n.array(data1).transpose()
@@ -107,9 +101,10 @@ P=[]
 for ind in n.arange(len(sum)):
     #result[taulist[ind]] = sum[ind]/cnt
     #P.append(abs(sum[ind])/cnt/pref*XSY/B/W*1.E-52*1.E12)   #1Jy=E-26W/m2/Hz
-    P.append(sum[ind]/cnt*1.E12)
+    P.append(sum[ind]/cnt)
 print len(taulist), len(P)
-kz = taulist*2*n.pi/Y
+#kz = taulist*2*n.pi/Y
+kz = capo.cosmo_units.eta2kparr(taulist,z)
 plotp.P_v_Eta(kz,P)
 
 

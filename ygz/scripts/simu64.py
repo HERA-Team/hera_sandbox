@@ -10,7 +10,8 @@ nu = n.arange(100, 200, 10)*1.E6
 nu0 = 150
 z, Omp, hub = 8.5, 0.63, 0.75
 X2Y = capo.pspec.X2Y(z)      #[h^-3 Mpc^3] / [str * GHz]
-B = 10E6   #Hz
+bb = 0.1*(20./203)   # total window in GHz
+df = 0.1/203
 
 nchan = 20
 
@@ -55,7 +56,7 @@ with open(Cname, 'r') as f1:
         for i in range(4): ant[i] = int(ant[i])
         T1,T2 = float(T1),float(T2)
         if ant[0] != 0 or ant[1] != 26 or ant[2] != 0 or ant[3] != 38: continue   #only simulated these baselines
-        norm = 1.E6*X2Y*Omp*Omp/Ompp
+        norm = 1.E6*X2Y*bb*Omp*Omp/Ompp    #1.E6 is K to mK
 
         uv1.rewind()
         uv1.select('clear',0,0,include=True)
