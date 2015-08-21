@@ -16,7 +16,7 @@ AUTHOR:
 import aipy
 import numpy
 import pylab
-#import pyfits
+import pyfits
 import healpy
 import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap
@@ -54,8 +54,6 @@ blx,bly,blz = bl[0],bl[1],bl[2]
 
 #get topocentric coordinates and calculate beam response
 
-print 'calculating beam response...'
-
 
 ### MAKE MAP WITH ONE PIXEL ###
 img = aipy.map.Map(nside=512)
@@ -73,15 +71,32 @@ tx,ty,tz = t3[0],t3[1],t3[2]
 g3 = numpy.asarray(crd)
 
 aa.set_jultime(times[0])
-txi,tyi,tzi = -1,0,0
-top2eq = aipy.coord.top2eq_m(aa.sidereal_time(), aa.lat)
+txi,tyi,tzi = 1,0,0
+top2eq = aipy.coord.top2eq_m(-aa.sidereal_time(), aa.lat) #note the minus sign
 exi,eyi,ezi = numpy.dot(top2eq,(txi,tyi,tzi)) #equatorial coordinates
 #exi,eyi,ezi = 0,0,-1 #south pole
 eq2ga = aipy.coord.convert_m('ga','eq') #input/output mixed up??
 gxi,gyi,gzi = numpy.dot(eq2ga,(exi,eyi,ezi)) #galactic coordinates
 img.put((gxi,gyi,gzi),wgts,value)  
+
+
 #####
 
+def herabeam(filename,top):
+    class HealpixMap(aipy.healpix.HealpixMap):
+    ### class update to get HERA fits beams working ###
+        def from_fits(self, filename, hdunum=1, colnum=0):
+            hdu = pyfits.open(filename)[hdunum]
+            data = hdu.data.field(colnum)
+            if not data.dtype.isnative:
+                data.dtype = data.dtype.newbyteorder()
+                data.byteswap(True)
+            data = data.flatten()
+            scheme = hdu.header['ORDERING'][:4]
+            self.set_map(data, scheme=scheme)
+    hmap = HealpixMap(nside=128)
+    hmap.from_fits(filename)
+    return hmap[(top[0],top[1],top[2])]
 
 print 'getting maps and calculating fringes...'
 
@@ -96,9 +111,10 @@ uvgridyy = numpy.zeros(shape, dtype=numpy.complex64)
 for jj, f in enumerate(freqs):
     fng = numpy.exp(-2j*numpy.pi*(blx*tx+bly*ty+blz*tz)*f) #fringe pattern
     aa.select_chans([jj]) #selects specific frequency
-    bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')[0]**2 
-    #bmxx = numpy.ma.compressed(numpy.ma.masked_where(t3[2]<0,bmxx))
-    """    
+    bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')[0]**2 ### PAPER beam
+    #bmxx = herabeam('/Users/carinacheng/capo/ctc/code/hera-cst/HERA_DISH_paper_feed_cyl36_150mhz_X_healpix.fits',t3) ### HERA beam
+    
+    """        
     #Plot Beam in Topocentric (looking down on observer)
     im = aipy.img.Img(800,.5)
     size=1600
@@ -112,7 +128,8 @@ for jj, f in enumerate(freqs):
     m = Basemap(projection='ortho',lat_0=aa.lat,lon_0=aa.long,rsphere=1.)
     m.imshow(d.real,interpolation='bicubic',origin='lower',cmap='jet')
     plt.show()
-    """
+    """ 
+    
     bmyy = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='y')[0]**2
     sum_bmxx = numpy.sum(bmxx)
     sum_bmyy = numpy.sum(bmyy)
@@ -124,7 +141,6 @@ for jj, f in enumerate(freqs):
 
     toplot1 = numpy.zeros(len(times))
     toplot2 = numpy.zeros(len(times))
-    #toplot3 = numpy.zeros(len(times))
     plt.figure(figsize=(10,8))
     plt.subplots_adjust(left=0.1, right=0.9, bottom=0.1, top=0.9, wspace=0.4, hspace=0.3)
     pylab.ion()
@@ -134,9 +150,9 @@ for jj, f in enumerate(freqs):
 
         print '   Timestep %d/%d' % (ii+1, len(times))
         aa.set_jultime(t)
-
+        
         ga2eq = aipy.coord.convert_m('eq','ga',iepoch=aa.epoch,oepoch=e.J2000) #conversion matrix
-        eq2top = aipy.coord.eq2top_m(aa.sidereal_time(),aa.lat) #conversion matrix
+        eq2top = aipy.coord.eq2top_m(-aa.sidereal_time(),aa.lat) #conversion matrix, note the minus sign
         ga2eq2top = numpy.dot(eq2top,ga2eq) #topocentric coordinates
         t3rot = numpy.dot(ga2eq2top,g3)
         txrot = numpy.ma.compressed(numpy.ma.masked_where(t3rot[2]<0,t3rot[0]))
@@ -145,14 +161,13 @@ for jj, f in enumerate(freqs):
         fluxes2 = numpy.ma.compressed(numpy.ma.masked_where(t3rot[2]<0,fluxes)) #mask data below horizon
 
         pxrot, wgts = img.crd2px(txrot,tyrot,tzrot, interpolate=1) 
-        
+
         efngxx = numpy.sum(fngxx[pxrot]*wgts, axis=1)
         efngyy = numpy.sum(fngyy[pxrot]*wgts, axis=1)
         visxx = numpy.sum(fluxes2*efngxx)
         visyy = numpy.sum(fluxes2*efngyy)
         toplot1[ii] = numpy.sum(fluxes2)
         toplot2[ii] = numpy.real(visxx)
-        #toplot3[ii] = numpy.imag(visxx)
 
         uvgridxx[ii,jj] = visxx
         uvgridyy[ii,jj] = visyy
@@ -168,7 +183,7 @@ for jj, f in enumerate(freqs):
             #plt3 = plt.plot(times,toplot3,'b-')
             plt.xlabel('Time')
             plt.ylabel('Real(Vis)')
-            plt.ylim(-3e-6,3e-6)
+            plt.ylim(-1e-6,1e-6)
             pylab.show()
         else:
             plt1[0].set_ydata(toplot1)
