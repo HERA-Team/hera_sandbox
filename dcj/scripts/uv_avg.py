@@ -15,8 +15,11 @@ o.add_option('--apply_masknpz',action='store_true',
 opts,args = o.parse_args(sys.argv[1:])
 
 for file in args:
-    outfile = file+'.avg.pkl'
+    outfile = os.path.basename(file)+'.avg.pkl'
     print file, ' > ',outfile
+    if os.path.exists(outfile):
+        print "...exists"
+        continue
     uv = a.miriad.UV(file)
     freqs = n.arange(uv['sfreq'], uv['sfreq']+uv['nchan']*uv['sdf'], uv['sdf'])
     SUM,COUNT = {},{}
@@ -37,6 +40,7 @@ for file in args:
         N = COUNT[k]
         SUM[k][N>0] /= N[N>0]
     SUM['freqs'] = freqs
+    SUM['counts'] = COUNT
     F = open(outfile,'w')
     pickle.dump(SUM,F)
     F.close()

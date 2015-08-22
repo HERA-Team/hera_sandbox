@@ -2,13 +2,28 @@
 #$ -V
 #$ -cwd
 #$ -l h_vmem=4G
+#$ -l scratch=9G
+#$ -l paper
 ARGS=`pull_args.py $*`
 echo data_redux.sh $ARGS
 STARTPATH=`pwd`
+#SCRATCH=/data4/paper/arp
 SCRATCH=/scratch/paper
+
+# Make sure SCRATCH exists.  If not, make it.
+if ! ls ${SCRATCH} &> /dev/null; then
+    echo Making ${SCRATCH}
+    mkdir ${SCRATCH}
+    chmod g+w ${SCRATCH}
+fi 
 
 for FILE in $ARGS; do
     echo --------------------
+    # Make sure FILE exists (so that it isn't, e.g. notadir/*.uv)
+    if ! ls ${FILE} &> /dev/null; then
+        echo Input file ${FILE} does not exist.  Bailing...
+        continue
+    fi
     echo --- Working on $FILE ---
     # Only process this file if the end product is missing
     if ls ${FILE}cRRE &> /dev/null; then
@@ -28,8 +43,8 @@ for FILE in $ARGS; do
         echo Generating ${SCRATCH}/${TFILEBASE}cR
         echo cp -r $TFILE ${SCRATCH}
         cp -r $TFILE ${SCRATCH}
-        correct_psa898.py ${SCRATCH}/$TFILEBASE
-        #correct_psa746_v002.py -t . ${SCRATCH}/$TFILEBASE
+        #correct_psa898.py ${SCRATCH}/$TFILEBASE
+        correct_psa746_v002.py -t . ${SCRATCH}/$TFILEBASE
         rm -rf ${SCRATCH}/${TFILEBASE}
         xrfi_simple.py -a 1 --combine -t 20 -c 0_130,755_777,1540,1704,1827,1868,1885_2047 --df=6  ${SCRATCH}/${TFILEBASE}c
         rm -rf ${SCRATCH}/${TFILEBASE}c
@@ -37,6 +52,7 @@ for FILE in $ARGS; do
     done
     echo cd ${SCRATCH}
     cd ${SCRATCH}
+    echo test $FILEBASE $FILEDIR
     echo data_redux.sh ${FILEBASE}cR
     data_redux.sh ${FILEBASE}cR
     echo cd $STARTPATH

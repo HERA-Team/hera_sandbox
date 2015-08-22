@@ -88,7 +88,7 @@ def waterfall(d, mode='log', mx=None, drng=None, recenter=False, **kwargs):
     if mx is None: mx = d.max()
     if drng is None: drng = mx - d.min()
     mn = mx - drng
-    P.imshow(d, vmax=mx, vmin=mn, aspect='auto', interpolation='nearest', **kwargs)
+    return P.imshow(d, vmax=mx, vmin=mn, aspect='auto', interpolation='nearest', **kwargs)
 
 def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='blackman-harris',
         clean=1e-4, verbose=False, tau=0., off=0.):

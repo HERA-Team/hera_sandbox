@@ -59,8 +59,10 @@ for file in args:
         raise
     maxpx = n.argwhere(image==image.max()).squeeze()
     F = image.max()
-    pos = proj.toworld(maxpx)
-    print proj.crval[0],proj.crval[1],maxpx,pos[0],pos[1],    
+    
+    srcpos = proj.toworld(maxpx)
+    RA,DEC = srcpos[:2]
+    print proj.crval[0],proj.crval[1],RA,DEC,
     #get the pixels inside the surrounding annulus        
     center = n.array(image.shape).astype(int)/2
     if maxpx[0]<image.shape[0]/3 or maxpx[0]>image.shape[0]*2/3\

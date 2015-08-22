@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n
-import pylab as p
 import capo
 import optparse, sys, os, random
 
@@ -8,15 +7,22 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True)
 o.add_option('-t', '--taps', type='int', default=1,
     help='Taps to use in the PFB.  Default 1, which instead uses windowed FFT')
+o.add_option('-b', '--boot', type='int', default=20,
+    help='Number of bootstraps.  Default is 20')
+o.add_option('--plot', action='store_true',
+    help='Generate plots')
+o.add_option('--window', dest='window', default='blackman-harris',
+    help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 opts,args = o.parse_args(sys.argv[1:])
 
-PLOT = False
+PLOT = opts.plot
+if PLOT: import pylab as p
 
+NBOOT = opts.boot
 NTAPS = opts.taps
 if NTAPS > 1: PFB = True
 else: PFB = False
-WINDOW = 'blackman-harris'
-#WINDOW = 'none'
+WINDOW = opts.window
 
 # XXX Currently hardcoded for PSA898
 A_ = [0,16,8,24,4,20,12,28]
@@ -116,7 +122,11 @@ if PFB:
     B = sdf * afreqs.size / NTAPS
     etas = n.fft.fftshift(capo.pspec.f2eta(afreqs[:afreqs.size/NTAPS]))
 else:
-    B = sdf * afreqs.size / capo.pfb.NOISE_EQUIV_BW[WINDOW]
+    #B = sdf * afreqs.size / capo.pfb.NOISE_EQUIV_BW[WINDOW] # this is wrong if we aren't inverting
+    # the window post delay transform (or at least dividing out by the gain of the window)
+    # For windowed data, the FFT divides out by the full bandwidth, B, which is
+    # then squared.  Proper normalization is to multiply by B**2 / (B / NoiseEqBand) = B * NoiseEqBand
+    B = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW]
     etas = n.fft.fftshift(capo.pspec.f2eta(afreqs))
 kpl = etas * capo.pspec.dk_deta(z)
 bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq)
@@ -136,6 +146,7 @@ T, N = {}, {}
 times = []
 eor_mdl = {}
 for filename in args:
+    print 'Reading', filename
     uvi = a.miriad.UV(filename)
     a.scripting.uv_selector(uvi, opts.ant, opts.pol)
     for (crd,t,(i,j)),d,f in uvi.all(raw=True):
@@ -173,12 +184,14 @@ for filename in args:
             _Wrms = capo.pfb.pfb(w   , window=WINDOW, taps=NTAPS, fft=n.fft.ifft)
         else:
             window = a.dsp.gen_window(Trms.size, WINDOW)
+            #window /= np.sum(window)
             _Trms = n.fft.ifft(window * Trms)
             _Nrms = n.fft.ifft(window * Nrms)
             _Wrms = n.fft.ifft(window * w)
         gain = n.abs(_Wrms[0])
         #print 'Gain:', gain
-        if gain > 0:
+        #if gain > 0: # XXX this inverts the blackmann harris out of the data completely
+        if False: 
             _Trms.shape = (_Trms.size,1)
             C = n.zeros((_Trms.size, _Trms.size), dtype=n.complex)
             for k1 in xrange(_Wrms.size):
@@ -188,6 +201,9 @@ for filename in args:
             _C = n.linalg.inv(C)
             _Trms = n.dot(_C, _Trms).squeeze()
             _Nrms = n.dot(_C, _Nrms).squeeze()
+        #elif gain > 0: # This is already being done by NOISE_EQ_BW
+        #    _Trms /= gain
+        #    _Nrms /= gain
         _Trms = n.fft.fftshift(_Trms)
         _Nrms = n.fft.fftshift(_Nrms)
         if False: # swap in a simulated signal post delay transform
@@ -197,9 +213,11 @@ for filename in args:
         T[bl] = T.get(bl, []) + [_Trms]
         N[bl] = N.get(bl, []) + [_Nrms]
 
-n_k = chans.size
+n_k = chans.size / NTAPS
 bls = T.keys()
-for bl in bls: T[bl],N[bl] = n.array(T[bl]),n.array(N[bl])
+for bl in bls:
+    T[bl],N[bl] = n.array(T[bl]),n.array(N[bl])
+    print T[bl].shape
 if False:
     print 'Fringe-rate filtering the noise to match the data'
     for bl in N:
@@ -220,20 +238,26 @@ if False:
         Ns[:,i] *= sign
 if False:
     print 'Switching sign of various baselines & modes to decorrelate sky'
+    print Ts.shape
     for i in xrange(Ts.shape[0]):
         if n.random.uniform() > .5:
             Ts[i] *= -1
             Ns[i] *= -1
 
 print Ts.shape
+print times[300], times[500]
 print ' '.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in bls])
-#capo.arp.waterfall(cov(Ts), mode='log', drng=2); p.show()
-p.subplot(131); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
-p.subplot(132); capo.arp.waterfall(Ns, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
-p.subplot(133); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
-p.show()
+if PLOT:
+    #capo.arp.waterfall(cov(Ts), mode='log', drng=2); p.show()
+    p.subplot(131); capo.arp.waterfall(Ts, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
+    p.subplot(132); capo.arp.waterfall(Ns, mode='log', mx=1, drng=2); p.colorbar(shrink=.5)
+    p.subplot(133); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
+    p.show()
+    p.subplot(121); capo.arp.waterfall(cov(Ts), mode='real', mx=.005, drng=.01); p.colorbar(shrink=.5)
+    p.subplot(122); capo.arp.waterfall(cov(Ts), mode='log', drng=3); p.colorbar(shrink=.5)
+    p.show()
 
-for boot in xrange(20):
+for boot in xrange(NBOOT):
     if True: # pick a sample of baselines with replacement
         #bls_ = [random.choice(bls) for bl in bls]
         bls_ = random.sample(bls, len(bls))
@@ -242,7 +266,11 @@ for boot in xrange(20):
         gp1 = random.sample(gp1, 2) + [random.choice(gp1) for bl in gp1[:len(gp1)-2]]
         gp2 = random.sample(gp2, 2) + [random.choice(gp2) for bl in gp2[:len(gp2)-2]]
     else:
-        gp1,gp2 = bls[:len(bls)/2],bls[len(bls)/2:]
+        bls_ = random.sample(bls, len(bls))
+        gp1,gp2 = bls_[:len(bls)/2],bls_[len(bls)/2:]
+    #gp2 = gp2[:len(gp1)] # XXX force gp1 and gp2 to be same size
+    #gp1,gp2 = gp1+gp2,[] # XXX
+    #print 'XXX', len(gp1), len(gp2)
     bls_ = gp1 + gp2
     print 'Bootstrap sample %d:' % boot,
     for gp in [gp1,gp2]: print '(%s)' % (','.join(['%d_%d' % a.miriad.bl2ij(bl) for bl in gp])),
@@ -250,13 +278,16 @@ for boot in xrange(20):
     Ts = n.concatenate([T[bl] for bl in bls_], axis=1).T
     Ns = n.concatenate([N[bl] for bl in bls_], axis=1).T # this noise copy processed as if it were the data
     L = len(bls_)
+    #temp_noise_var = n.var(n.array([T[bl] for bl in bls_]), axis=0).T
+    temp_noise_var = n.average(n.array([T[bl] for bl in bls_]), axis=0).T
+    print Ts.shape, temp_noise_var.shape
 
     _Cxtot,_Cntot = 1, 1
-    #PLT1,PLT2 = 3,3
+    PLT1,PLT2 = 3,3
     #PLT1,PLT2 = 2,2
-    PLT1,PLT2 = 2,3
+    #PLT1,PLT2 = 2,3
     for cnt in xrange(PLT1*PLT2-1):
-        #print cnt, '/', PLT1*PLT2-1
+        print cnt, '/', PLT1*PLT2-1
         if PLOT:
             p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ts), mode='log', mx=0, drng=3)
             ##p.subplot(PLT1,PLT2,cnt+1); capo.arp.waterfall(cov(Ns), mode='log', mx=0, drng=2)
@@ -265,7 +296,9 @@ for boot in xrange(20):
         for c in [Cx,Cn]: # Normalize covariance matrices
             d = n.diag(c); d.shape = (1,SZ)
             c /= n.sqrt(d) * 2
-        g = .3
+        #g = .3 # for 1*7 baselines
+        #g = .1 # for 2*7 baselines
+        g = .06 # for 4*7 baselines
         _Cx,_Cn = -g*Cx, -g*Cn
         if False: # restrict to certain modes in the covariance diagonalization
             mask = n.zeros_like(Cx)
@@ -304,9 +337,12 @@ for boot in xrange(20):
                             for blj_ in gp:
                                 j_ = bls_.index(blj_)
                                 if j_ == j: continue
-                                _Csum += _C[i_,j_]
+                                if i == j or i_ == j_: continue
+                                #_Csum += _C[i_,j_]
+                                _Csum += _C[i_,:,j_]
                                 _Cwgt += 1
-                        sub_C[i,j] = _Csum / _Cwgt # XXX careful if _Cwgt is 0
+                        #sub_C[i,j] = _Csum / _Cwgt # XXX careful if _Cwgt is 0
+                        sub_C[i,:,j] = _Csum / _Cwgt # XXX careful if _Cwgt is 0
                 _C.shape = sub_C.shape = (L*n_k,L*n_k)
                 #p.clf()
                 #p.subplot(131); capo.arp.waterfall(_C, mode='log', mx=0, drng=2)
@@ -348,7 +384,7 @@ for boot in xrange(20):
             if bli == blj: continue
             if True: # exclude intra-group pairings
                 if (bli in gp1 and blj in gp1) or (bli in gp2 and blj in gp2): continue
-            print a.miriad.bl2ij(bli), a.miriad.bl2ij(blj)
+            #print a.miriad.bl2ij(bli), a.miriad.bl2ij(blj)
             # XXX behavior here is poorly defined for repeat baselines in bootstrapping
             xi,xj = Cx.get_x(bli), Cx.get_x(blj)
             xi_,xj_ = Cx_.get_x(bli), Cx_.get_x(blj)
@@ -363,7 +399,11 @@ for boot in xrange(20):
                     g = .3
                     _cx = -g*cx
                     mask = n.zeros_like(cx)
-                    for k in xrange(17,24):
+                    if n_k == 20: prj_ch = xrange(8,12)
+                    elif n_k == 40: prj_ch = xrange(17,24)
+                    elif n_k == 80: prj_ch = xrange(34,48)
+                    else: raise ValueError('Only support # channels = (20,40,80) for now')
+                    for k in prj_ch:
                         mask[k] = mask[:,k] = 1
                         mask[k+n_k] = mask[:,k+n_k] = 1
                     ind = n.arange(n_k)
@@ -388,9 +428,9 @@ for boot in xrange(20):
             #f2 = n.sqrt(n.mean(n.abs(nij)**2)/n.mean(n.abs(n2ij_)**2))
             f1 = n.sqrt((n.abs(nij)**2)/(n.abs(n1ij_)**2))
             f2 = n.sqrt((n.abs(nij)**2)/(n.abs(n2ij_)**2))
-            print 'Rescale factor:', f1, f2
-            #fudge = max(f1,f2)
-            fudge = 1.
+            #print 'Rescale factor:', f1, f2
+            #rescale = max(f1,f2)
+            rescale = 1.
 
             if False:
                 p.subplot(221)
@@ -402,34 +442,57 @@ for boot in xrange(20):
                 p.subplot(223)
                 p.plot(n.average(xi_*xj_.conj(), axis=1).real, 'k')
                 p.plot(n.average(xi*xj.conj(), axis=1).real, 'r')
-                p.plot(fudge*n.average(xi_*xj_.conj(), axis=1).real, 'g')
+                p.plot(rescale*n.average(xi_*xj_.conj(), axis=1).real, 'g')
                 p.subplot(224)
                 p.plot(n.average(n1i_*n1i_.conj(), axis=1).real, 'k')
                 p.plot(n.average(n1j_*n1j_.conj(), axis=1).real, 'b')
                 p.plot(n.average(n1i_*n1j_.conj(), axis=1).real, 'g')
                 p.plot(n.average(ni*nj.conj(), axis=1).real, 'r')
-                p.plot(fudge*n.average(n1i_*n1j_.conj(), axis=1).real, 'c')
+                p.plot(rescale*n.average(n1i_*n1j_.conj(), axis=1).real, 'c')
                 p.show()
             elif False:
-                p.subplot(131); p.plot(n.average(xi*xj.conj(), axis=1).real)
-                p.subplot(132); p.plot(n.average(xi_*xj_.conj(), axis=1).real)
-            pk_avg = scalar * n.average(xi * xj.conj(), axis=1)
-            pk_avg_ = scalar * n.average(xi_ * xj_.conj(), axis=1) * fudge # XXX
+                import pylab as p
+                blistr,bljstr = str(a.miriad.bl2ij(bli)),str(a.miriad.bl2ij(blj))
+                print blistr, bljstr
+                #p.subplot(121); p.plot(n.average(xi*xj.conj(), axis=1).real, label='%s-%s'%(blistr,bljstr))
+                p.plot(n.average(xi_*xj_.conj(), axis=1).real, label='%s-%s'%(blistr,bljstr))
+            pk_avg = scalar * xi * xj.conj()
+            pk_avg_ = scalar * xi_ * xj_.conj() * rescale# XXX
             dspecs.append(pk_avg)
             pspecs.append(pk_avg_)
+    #p.subplot(121); p.legend(loc='best')
+    #p.legend(loc='best')
+    #p.show()
     pspecs,dspecs = n.array(pspecs), n.array(dspecs)
-    #avg_1d = n.average(pspecs, axis=0)
-    avg_1d = n.average(dspecs, axis=0)
+    avg_2d = n.average(pspecs, axis=0) # average over baseline cross-multiples
+    std_2d = n.std(pspecs, axis=0) # get distribution as a function of time
+    wgt_2d = 1. / std_2d**2 # inverse variance weighting
+    avg_1d = n.sum(avg_2d * wgt_2d, axis=1) / n.sum(wgt_2d, axis=1)
+
+    if PLOT:
+        import capo as C
+        p.subplot(131)
+        C.arp.waterfall(avg_2d, mode='log', drng=3)
+        p.subplot(132)
+        C.arp.waterfall(wgt_2d, mode='log', drng=3)
+        p.subplot(133)
+        C.arp.waterfall(avg_2d*wgt_2d, mode='log', drng=3)
+        p.show()
+    
+    #avg_1d = n.average(dspecs, axis=0)
     #p.subplot(133)
-    p.plot(avg_1d.real,'.')
+    if PLOT: p.plot(avg_1d.real,'.')
     #p.plot(n.average(dspecs, axis=0).real/scalar)
     #p.show()
-    std_1d = n.std(pspecs, axis=0) / n.sqrt(pspecs.shape[0])
+    #std_1d = n.std(pspecs, axis=0) / n.sqrt(pspecs.shape[0]) # coarse estimate of errors.  bootstrapping will do better
+    std_1d = n.std(avg_2d, axis=1) / n.sqrt(pspecs.shape[0]) # coarse estimate of errors.  bootstrapping will do better
     #std_1d = n.std(pspecs, axis=0) # in new noise subtraction, this remaining dither is essentially a bootstrap error, but with 5/7 of the data
 
     print 'Writing pspec_boot%04d.npz' % boot
-    n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, pk=avg_1d, err=std_1d)
-p.show()
+    n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, pk=avg_1d, err=std_1d, scalar=scalar, times=n.array(times),
+        pk_vs_t=avg_2d, err_vs_t=std_2d, temp_noise_var=temp_noise_var,
+        cmd=' '.join(sys.argv))
+if PLOT: p.show()
 
 import sys; sys.exit(0)
 print 'Making Fisher Matrix'

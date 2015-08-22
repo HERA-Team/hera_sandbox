@@ -2,3 +2,8 @@
 *.pyc
 *.txt
 *.png
+build
+*pyc
+.*.swp
+.*.swo
+Kfg.npy

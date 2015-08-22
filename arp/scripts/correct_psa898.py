@@ -38,7 +38,9 @@ def get_temps(tempdir, file_jd, uv_filetime=600, temp_filetime=3600,
 
 import optparse
 o = optparse.OptionParser()
-o.add_option('-t', '--tempdir', default='/data3/paper/psa/psalive',
+#o.add_option('-t', '--tempdir', default='/data3/paper/psa/psalive',
+#    help='Directory containing temperature data from the (labjack) gainometer.')
+o.add_option('-t', '--tempdir', default=None,
     help='Directory containing temperature data from the (labjack) gainometer.')
 opts,args = o.parse_args(sys.argv[1:])
 
