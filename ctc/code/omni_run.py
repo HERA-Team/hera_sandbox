@@ -91,7 +91,7 @@ for f in range(len(args)):
         g_ij = g_ij.conj() #Omnical conjugation convention is backwards
         g_ij.shape = (1,g_ij.size)
         data[(i,j)] = d[aipy.miriad.ij2bl(i,j)][pol]/g_ij #gains and data always have lower number first 
-        if r == 0:
+        if r == 0: #get flags from one file
             data_with_flags = data[(i,j)]
         #XXX data should be 0 when g_ij is 0? Right now it becomes nan's
     print '   logcal-ing' 
@@ -106,6 +106,7 @@ for f in range(len(args)):
             xtalk[key] = numpy.resize(xtalkavg,(m['res'][key].shape)) #must be same shape as data
     else:
         xtalk = None
+    #import IPython; IPython.embed()
     m2,g2,v2 = omnical.calib.redcal(data,info,xtalk=xtalk,gains=g,vis=v,uselogcal=False,removedegen=True) #lincal
         #XXX with this new xtalk dictionary, it's giving different chi-square results than before !!!
     #import IPython;IPython.embed()
