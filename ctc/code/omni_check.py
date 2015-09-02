@@ -33,7 +33,7 @@ if args[0][-3:] == 'npz':
             chisqs.append(chisq[t])
         #chisq is sum of square of (model-data) on all visibilities per time/freq snapshot
     cs = numpy.array(chisqs)
-    plt.imshow(numpy.log(cs),aspect='auto',interpolation='nearest',vmax=7,vmin=-6)
+    plt.imshow(numpy.log(cs),aspect='auto',interpolation='nearest')#,vmax=7,vmin=-6)
     plt.xlabel('Freq Channel',fontsize=10)
     plt.ylabel('Time',fontsize=10)
     plt.tick_params(axis='both',which='major',labelsize=8)
