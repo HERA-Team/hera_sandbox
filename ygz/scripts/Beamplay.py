@@ -12,16 +12,15 @@ X,Y,Z = img.get_top(center=(200,200))
 shape0 = X.shape
 X,Y,Z = X.flatten(),Y.flatten(),Z.flatten()
 aa = a.cal.get_aa('psa6622_v001',n.array([.15, .18]))
-
-
 aa.set_jultime(2456240.2)
 peak = []
 sample_ant = 1
 ntop = n.array([X,Y,Z])  #note all beams are the same
-bmp_list = export_beam.beam_real(aa[sample_ant], ntop, shape0, 'x')
-
-bmp = bmp_list[1]
+bmp_list = export_beam.beam_real(aa[sample_ant], ntop, shape0, 'x',sq=True)
+bmp = bmp_list[0]
 freq, fbmamp = export_beam.beam_fourier(bmp, d, 400)
+
+
 rax = [-1,1,-1,1]
 freq_pl = 5
 mid = len(freq)/2
@@ -29,6 +28,8 @@ flim = (mid-freq_pl,mid+freq_pl)
 freqax = [freq[flim[0]],freq[flim[1]], freq[flim[0]],freq[flim[1]]]
 f_range = n.array(n.arange(flim[0],flim[1]))
 m_range = n.arange(0, flim[1]-flim[0])
+
+
 #peak.append(fbmamp[mid,mid])
 fig = p.figure()
 ax1 = fig.add_subplot(121)
@@ -46,7 +47,7 @@ fig2 = p.figure()
 u_range = n.linspace(-3,3,100)
 f = export_beam.beam_interpol(freq,fbmamp)
 z = export_beam.get_overlap(f, u_range,u_range)
-z = z/n.amax(n.abs(z))
+#z = z/n.amax(n.abs(z))
 U,V = n.meshgrid(u_range,u_range)
 #z = abs(z)
 ax3 = fig2.add_subplot(121,projection='3d')

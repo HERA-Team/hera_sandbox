@@ -42,8 +42,9 @@ for ni in range(len(list_freq)):
     freq, fbmamp = export_beam.beam_fourier(bmp, sp, 400)
     bm_intpl = export_beam.beam_interpol(freq,fbmamp,'cubic')
     print 'Time to initialize:', sys_time.clock(), 'seconds'
+    print 'fbmampshape, midval', fbmamp.shape, fbmamp[200][200]
 
-    d = select_pair.pair_coarse(aa, src,times_coarse,dist,False, 0.5, True)  #coarsely determine crossings
+    d = select_pair.pair_coarse(aa, src,times_coarse,dist,False, 0.1, True)  #coarsely determine crossings
     print 'Time after coarse selection:', sys_time.clock(), 'seconds'
     #pairs_sorted = select_pair.pair_sort(d,freq,fbmamp)        #sort crossings
     #clos_app = select_pair.get_closest(pairs_sorted)           #determine closest approach points

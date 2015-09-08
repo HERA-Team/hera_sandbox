@@ -34,8 +34,8 @@ def beam_fourier(bmp, dreal, nreal, dl=0.005):
         fbmamp = fbm.real*dl*dl
         #fbmamp = n.abs(fbm)
         freq = frequv
-        fbmamp = n.fft.fftshift(fbmamp)
-        freq = n.fft.fftshift(freq)
+        fbmamp = n.array(n.fft.fftshift(fbmamp))
+        freq = n.array(n.fft.fftshift(freq))
         return freq, fbmamp
 
 def beam_interpol(freq, fbmamp,kind='cubic'):
