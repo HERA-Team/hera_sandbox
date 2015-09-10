@@ -135,6 +135,8 @@ if len(lsts) ==0:
 x ={}
 cnt_o, var_o = {},{},
 cnt_e, var_e = {},{},
+
+#collect count and vars from UV files to create TRMS model
 if set(['even','odd']) == set(days):
     for bl in data['even']:
         d = n.copy(data['even'][bl][:,band_chans]-data['odd'][bl][:,band_chans])* jy2T
@@ -158,6 +160,7 @@ theo_temp= {}
 nlst=len(lsts)
 dlst= n.ceil(nlst/13.)
 
+##Average over dlst because only about 13 independent LST samples
 for bl in bls_master:
     trms_data[bl] = n.sqrt( n.mean(x[bl][band_chans,::dlst].conj() * x[bl][band_chans,::dlst],axis=1)/2. ).real
     trms_e_the[bl] = n.sqrt( n.mean(var_e[bl][band_chans,::dlst]/cnt_e[bl][band_chans,::dlst].clip(1,n.Inf)**2,axis=1) ) * jy2T[band_chans]
@@ -165,13 +168,14 @@ for bl in bls_master:
 ##GSM emission + antenna temp / sqrt(df*dt*cnt)
     theo_temp[bl]= (1.2e5*(allfreqs/.15)**(-2.8)+400)/(n.sqrt( 8*60 *100/203 *1e6))* n.mean(1./n.sqrt(cnt_e[bl][band_chans,::dlst].clip(1,n.Inf)),axis=1)
 
-
+#bl_avgeraged counts and vars
 var_o_blavg = n.mean( [var_o[bl] for bl in bls_master],axis=0)
 cnt_o_blavg = n.mean( [cnt_o[bl] for bl in bls_master],axis=0)
 
 var_e_blavg = n.mean( [var_e[bl] for bl in bls_master],axis=0)
 cnt_e_blavg = n.mean( [cnt_e[bl] for bl in bls_master],axis=0)
 
+#Createing models from bl averaged data
 trms_e_the_blavg=n.sqrt( n.mean(var_e_blavg[band_chans,::dlst]/(cnt_e_blavg[band_chans,::dlst].clip(1,n.Inf)**2*nbls),axis=1)) * jy2T[band_chans]
 trms_o_the_blavg=n.sqrt( n.mean(var_o_blavg[band_chans,::dlst]/(cnt_o_blavg[band_chans,::dlst].clip(1,n.Inf)**2*nbls),axis=1)) * jy2T[band_chans]
 

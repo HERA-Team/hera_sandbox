@@ -24,6 +24,8 @@ o.add_option('--output', type='string', default='',
     help='output directory for pspec_boot files (default "")')
 o.add_option('--cav',action='store_true',
     help='Use Cav to inplace of Covariance Matrix')
+o.add_option('--auto', action='store_true',
+    help='Scales main diagonal of Cav by auto-covariances')
 
 opts,args = o.parse_args(sys.argv[1:])
 
@@ -97,6 +99,68 @@ def get_Q(mode, n_k):
         Q = n.zeros_like(C)
         Q[mode,mode] = 1
         return Q
+
+def get_cav(c_mat,nchan,scaling=False):
+        #Compute Cav by taking diags, averaging and reforming the matrix
+        diags =[c_mat.diagonal(count) for count in xrange(nchan-1, -nchan,-1)]
+        cav=n.zeros_like(c_mat)
+
+        for count,count_chan in enumerate(range(nchan-1,-nchan,-1)):
+                cav += n.diagflat( n.mean(diags[count]).repeat(len(diags[count])), count_chan)
+
+        if scaling:
+            temp=cav.copy()
+            for count in xrange(nchan):
+                cav[count,:] *= n.sqrt(c_mat[count,count]/temp[count,count])
+                cav[:,count] *= n.sqrt(c_mat[count,count]/temp[count,count])
+
+        if not n.allclose(cav.T.conj(),cav):
+            print 'Cav is not Hermitian'
+            print 'bl'
+
+        if PLOT and False:
+            p.subplot(131); capo.arp.waterfall(c_mat,mode='real',mx=3,drng=6);
+            p.title('C')
+            p.subplot(132); capo.arp.waterfall(cav,mode='real',mx=3,drng=6); p.colorbar()
+            p.title('Cav')
+            p.subplot(133); capo.arp.waterfall(diff,mode='real',mx=500,drng=500); p.colorbar()
+            p.title('Abs Difference')
+            p.suptitle('%d_%d'%a.miriad.bl2ij(bl))
+            p.show()
+
+        return cav
+
+def write_cav_stats(data,nchan):
+    days=data.keys()
+    for k in days:
+        statfile='Cav_{0}_data.csv'.format(k)
+        picfile='All_cav_diff_{0}.png'.format(k)
+        if not opts.output == '':
+            statfile =opts.output+'/'+statfile
+            picfile =opts.output+'/'+picfile
+        f = open(statfile,'w')
+        f.write('Baseline \t Max \t Min \t Mean \t Median \t Eig \t Eig_Cav \t Rms_Percent_Diff\n')
+        fig =p.figure()
+
+        for num,bl in enumerate(data[k]):
+            c_mat=cov(data[k][bl])
+            cav = get_cav(c_mat,nchan,scaling=opts.auto)
+            diff=abs(c_mat-cav)
+            U_cav,S_cav,V_cav=n.linalg.svd(cav)
+            U_c,S_c,V_c=n.linalg.svd(c_mat)
+            ###Plot and making file fore residuals, amplitudes of eigenvalues, and variance of data
+
+            f.write(' {0} \t {1} \t {2} \t {3} \t {4} \t {5} \t {6} \t {7} \n'.format(bl, n.max(diff), n.min(diff),n.mean(diff), n.median(diff), S_c[0],S_cav[0], n.sqrt(n.mean(diff**2))))
+
+            p.subplot(7,8,num+1); capo.arp.waterfall(diff/n.sqrt(nchan),mode='real',mx=100,drng=100); p.title(bl); p.axis('off')
+
+        f.close()
+        fig.subplots_adjust(hspace=.6)
+        p.suptitle('Percent diff/sqrt({0}'.format(nchan))
+        fig.savefig(picfile)
+        p.close()
+
+
 
 SEP = opts.sep
 #dsets = {
@@ -324,6 +388,10 @@ if INJECT_SIG > 0.: # Create a fake EoR signal to inject
 #    Q[i] = get_Q(i, nchan)
 Q = [get_Q(i,nchan) for i in xrange(nchan)]
 
+
+##write file of stats for c and cav
+write_cav_stats(x,nchan)
+
 # Compute baseline auto-covariances and apply inverse to data
 I,_I,_Ix = {},{},{}
 C,_C,_Cx = {},{},{}
@@ -333,11 +401,12 @@ for k in days:
     I[k],_I[k],_Ix[k] = {},{},{}
     C[k],_C[k],_Cx[k] = {},{},{}
     Cav[k] = {}
-    f = open('Cav_{0}_data.csv'.format(k),'w')
-    f.write('Baseline \t Max \t Min \t Mean \t Median \t Eig \t Eig_Cav \t Rms_Percent_Diff \t Var x \t Var _Cx \n')
-    fig =p.figure()
-    for num,bl in enumerate(x[k]):
+    for bl in x[k]:
         C[k][bl] = cov(x[k][bl])
+
+        if opts.cav:
+            C[k][bl]=get_cav(C[k][bl],nchan,scaling=opts.auto)
+
         I[k][bl] = n.identity(C[k][bl].shape[0])
         U,S,V = n.linalg.svd(C[k][bl].conj())
         _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
@@ -345,58 +414,6 @@ for k in days:
         _I[k][bl] = n.identity(_C[k][bl].shape[0])
         _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
         _Ix[k][bl] = x[k][bl].copy()
-
-        #Compute Cav by taking diags, averaging and reforming the matrix
-        diags =[C[k][bl].diagonal(count) for count in xrange(nchan-1, -nchan,-1)]
-        Cav[k][bl]=n.zeros_like(C[k][bl])
-
-
-        for count,count_chan in enumerate(range(nchan-1,-nchan,-1)):
-                Cav[k][bl] += n.diagflat( n.mean(diags[count]).repeat(len(diags[count])), count_chan)
-
-        if not n.allclose(Cav[k][bl].T.conj(),Cav[k][bl]):
-            print 'Cav is not Hermitian'
-            print 'bl'
-
-        diff=abs(C[k][bl]-Cav[k][bl])
-        U_cav,S_cav,V_cav=n.linalg.svd(Cav[k][bl])
-        U_c,S_c,V_c=n.linalg.svd(C[k][bl])
-        if PLOT and False:
-            p.subplot(131); capo.arp.waterfall(C[k][bl],mode='real',mx=3,drng=6);
-            p.title('C')
-            p.subplot(132); capo.arp.waterfall(Cav[k][bl],mode='real',mx=3,drng=6); p.colorbar()
-            p.title('Cav')
-            p.subplot(133); capo.arp.waterfall(diff,mode='real',mx=500,drng=500); p.colorbar()
-            p.title('Percent Diff')
-            p.suptitle('%d_%d'%a.miriad.bl2ij(bl))
-            p.show()
-
-        if opts.cav:
-            if S_cav[0] < 20:
-                print 'Downweighting %d with cav'%bl
-                #bad_bl.append(bl)
-                C[k][bl]=n.copy(Cav[k][bl])
-                U,S,V = n.linalg.svd(C[k][bl].conj())
-                _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
-            else:
-                C[k][bl]= cov(x[k][bl])
-                U,S,V = n.linalg.svd(C[k][bl].conj())
-                _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
-                bad_bl.append(bl)
-
-            _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
-
-        if not n.allclose(C[k][bl],C[k][bl].T.conj()):
-            print('C matrix not symmetric day: {0} bl: {1}'.format(k,bl))
-            continue
-###Plot and making file fore residuals, amplitudes of eigenvalues, and variance of data
-
-        f.write(' {0} \t {1} \t {2} \t {3} \t {4} \t {5} \t {6} \t {7} \t {8} \t {9} \n'.format(bl, n.max(diff), n.min(diff),n.mean(diff), n.median(diff), S_c[0],S_cav[0], n.sqrt(n.mean(diff**2)) , n.var(x[k][bl]),n.var(_Cx[k][bl])))
-
-        p.subplot(7,8,num+1); capo.arp.waterfall(diff/n.sqrt(nchan),mode='real',mx=100,drng=100); p.title(bl); p.axis('off')
-
-
-
 
 
         if PLOT and True:
@@ -410,11 +427,6 @@ for k in days:
 #            p.figure(2); p.plot(n.diag(S))
             p.show()
 
-    f.close()
-    fig.subplots_adjust(hspace=.6)
-    p.suptitle('Percent diff/sqrt({0}'.format(nchan))
-    fig.savefig('All_cav_diff_{0}.png'.format(k))
-    p.close()
 
 bls_master = set(bls_master)
 bls_master = bls_master - set(bad_bl)
