@@ -3,7 +3,7 @@ import matplotlib
 #matplotlib.use('Agg')
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random
-import ipdb
+
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
 o.add_option('-b', '--nboot', type='int', default=20,
@@ -334,7 +334,7 @@ for k in days:
     C[k],_C[k],_Cx[k] = {},{},{}
     Cav[k] = {}
     f = open('Cav_{0}_data.csv'.format(k),'w')
-    f.write('Baseline \t Max \t Min \t Mean \t Median \t Eig \t Rms \t Var x \t Var _Cx \n')
+    f.write('Baseline \t Max \t Min \t Mean \t Median \t Eig \t Eig_Cav \t Rms_Percent_Diff \t Var x \t Var _Cx \n')
     fig =p.figure()
     for num,bl in enumerate(x[k]):
         C[k][bl] = cov(x[k][bl])
@@ -358,8 +358,9 @@ for k in days:
             print 'Cav is not Hermitian'
             print 'bl'
 
-        diff=n.abs(C[k][bl]-Cav[k][bl])/n.abs(C[k][bl])*100
-
+        diff=abs(C[k][bl]-Cav[k][bl])
+        U_cav,S_cav,V_cav=n.linalg.svd(Cav[k][bl])
+        U_c,S_c,V_c=n.linalg.svd(C[k][bl])
         if PLOT and False:
             p.subplot(131); capo.arp.waterfall(C[k][bl],mode='real',mx=3,drng=6);
             p.title('C')
@@ -371,18 +372,26 @@ for k in days:
             p.show()
 
         if opts.cav:
-            C[k][bl]=n.copy(Cav[k][bl])
-            U,S,V = n.linalg.svd(C[k][bl].conj())
-            _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
+            if S_cav[0] < 20:
+                print 'Downweighting %d with cav'%bl
+                #bad_bl.append(bl)
+                C[k][bl]=n.copy(Cav[k][bl])
+                U,S,V = n.linalg.svd(C[k][bl].conj())
+                _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
+            else:
+                C[k][bl]= cov(x[k][bl])
+                U,S,V = n.linalg.svd(C[k][bl].conj())
+                _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
+                bad_bl.append(bl)
+
             _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
-            #if S[0] < 10:
-            #    bad_bl.append(bl)
+
         if not n.allclose(C[k][bl],C[k][bl].T.conj()):
             print('C matrix not symmetric day: {0} bl: {1}'.format(k,bl))
             continue
 ###Plot and making file fore residuals, amplitudes of eigenvalues, and variance of data
 
-        f.write(' {0} \t {1} \t {2} \t {3} \t {4} \t {5} \t {6} \t {7} \t {8} \n'.format(bl, n.max(diff), n.min(diff),n.mean(diff), n.median(diff), S[0], n.sqrt(n.mean(_Cx[k][bl].conj()*_Cx[k][bl])).real, n.var(x[k][bl]),n.var(_Cx[k][bl])))
+        f.write(' {0} \t {1} \t {2} \t {3} \t {4} \t {5} \t {6} \t {7} \t {8} \t {9} \n'.format(bl, n.max(diff), n.min(diff),n.mean(diff), n.median(diff), S_c[0],S_cav[0], n.sqrt(n.mean(diff**2)) , n.var(x[k][bl]),n.var(_Cx[k][bl])))
 
         p.subplot(7,8,num+1); capo.arp.waterfall(diff/n.sqrt(nchan),mode='real',mx=100,drng=100); p.title(bl); p.axis('off')
 
@@ -390,7 +399,7 @@ for k in days:
 
 
 
-        if PLOT and False:
+        if PLOT and True:
             #p.plot(S); p.show()
             p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
             p.subplot(334); capo.arp.waterfall(C[k][bl])
@@ -410,6 +419,7 @@ for k in days:
 bls_master = set(bls_master)
 bls_master = bls_master - set(bad_bl)
 bls_master = list(bls_master)
+print 'Number of baselines:',len(bls_master)
 for boot in xrange(opts.nboot):
     print '%d / %d' % (boot+1,opts.nboot)
     bls = bls_master[:]
