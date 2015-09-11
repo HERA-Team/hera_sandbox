@@ -74,6 +74,7 @@ for fn in os.listdir(DIR):
         uv1.select('polarization',pol,0,include=True)
 
         for preamble, datnu in uv1.all():
+            print preamble
             datnu = datnu.filled(fill_value=0)[90:110]    #have to fill because fft ignores mask?
             datatau = dl_tr.nu2tau(datnu)
             data1.append(datatau.transpose())

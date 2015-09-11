@@ -14,9 +14,10 @@ def get_fdict(DIR):
     for s in args:
         s = str(s)
         temp = str(os.path.splitext(s)[0]).split('_')
-        if temp[0] == 'z':             #case of real data zen. simu are pspec_
-            temp = temp[0][4:]                    #strip of zen.
-        t = float(temp[len(temp) - 1])
+        if temp[0][0] == 'z':             #case of real data zen. simu are pspec_
+            lststr = temp[0][4:]                    #strip of zen.
+        else: lststr = temp[len(temp) - 1]
+        t = float(lststr)
         filedict[t] = s
     return filedict
 
