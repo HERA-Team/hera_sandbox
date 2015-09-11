@@ -16,10 +16,11 @@ df = 0.1/203
 nchan = 20
 
 DIR1 = '/Users/yunfanzhang/local/simuDATA/64_UV/0_26/'
-DIR2 = '/Users/yunfanzhang/local/simuDATA/64_UV/0_38/'
-Cname = 'P0.15.cue'
+DIR2 = '/Users/yunfanzhang/local/simuDATA/64_UV/0_26/'
+Cname = 'P0.15.cue_mod'
 uv1 = a.miriad.UV(DIR1+'pspec_2456249.20169.uv/')
-uv2 = a.miriad.UV(DIR2+'pspec_0_38_2456249.20169.uv/')
+uv2 = uv1
+#uv2 = a.miriad.UV(DIR2+'pspec_0_38_2456249.20169.uv/')
 
 freqflist = n.array((uv1['sfreq'] + uv1['sdf']*n.arange(uv1['nchan'])))  #GHz
 freqlist = n.array((uv1['sfreq'] + uv1['sdf']*92 + uv1['sdf']*n.arange(10)))  #GHz
@@ -55,7 +56,7 @@ with open(Cname, 'r') as f1:
         Ompp = float(line.split(' ')[3])                                          #Ompp computed for different separation in uv plane
         for i in range(4): ant[i] = int(ant[i])
         T1,T2 = float(T1),float(T2)
-        if ant[0] != 0 or ant[1] != 26 or ant[2] != 0 or ant[3] != 38: continue   #only simulated these baselines
+        #if ant[0] != 0 or ant[1] != 26 or ant[2] != 0 or ant[3] != 38: continue   #only simulated these baselines
         norm = X2Y*bb*Omp*Omp/Ompp    #1.E6 is K2 to mK2
 
         uv1.rewind()

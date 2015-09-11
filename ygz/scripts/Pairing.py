@@ -32,14 +32,29 @@ list_freq = [.15]
 dt = 0.001
 #dt_fine = 43./3600/24
 
-dt_file = dt_fine*8
-times_coarse = n.arange(2456249.20169,2456249.50791, dt)
-times_fine = n.arange(2456249.20169,2456249.50791, dt_fine)
+
 dist = 1.5                           #size of cells to store in dictionary.
 corr_tol = 5000.                    #cutoff of minimum correlation
 aa = a.cal.get_aa('psa6240_v003',n.array(list_freq))
 src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.18, name='test')
 #src=a.fit.RadioSpecial("Sun")
+fdict1, fdict2 = get_files.get_fdict(dir1), get_files.get_fdict(dir2)
+T_files = fdict1.keys()
+T_files.sort()
+T_iter = T_files[:]              #This makes a new list, rather than just a pointer, which screws up the iteration with remove
+for t in T_iter:
+    aa.set_jultime(t)
+    src.compute(aa)
+    try: uvw = aa.gen_uvw(0,26,src=src).flatten()
+    except(a.phs.PointingError):                                #test if below horizon
+        print 'remove',t, len(T_iter), len(T_files)
+        T_files.remove(t)
+print T_files
+#times_coarse = n.arange(T_files[0],T_files[-1]+dt_file, dt)
+#times_fine = n.arange(T_files[0],T_files[-1]+dt_file, dt_fine)
+times_coarse = n.arange(T_files[0],T_files[-1], dt)
+times_fine = n.arange(T_files[0],T_files[-1], dt_fine)
+
 nants = len(aa)
 bmp_list  = export_beam.beam_real(aa[0], ntop, shape0, 'x')
 
@@ -77,7 +92,6 @@ for ni in range(len(list_freq)):
     for j in n.arange(len(pairs_final)):
         #print pairs_final[j]
         T1, T2 = float(pairs_final[j][2][1]), float(pairs_final[j][3][1])
-        fdict1, fdict2 = get_files.get_fdict(dir1), get_files.get_fdict(dir2)
         fn1, fn2 = get_files.get_file(T1,dt_file, fdict1), get_files.get_file(T2,dt_file, fdict2)
 
         blstr = str(pairs_final[j][2][0][0])+'_'+str(pairs_final[j][2][0][1])+'_'+str(pairs_final[j][3][0][0])+'_'+str(pairs_final[j][3][0][1])
