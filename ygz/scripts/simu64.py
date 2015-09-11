@@ -18,8 +18,8 @@ nchan = 20
 DIR1 = '/Users/yunfanzhang/local/simuDATA/64_UV/0_26/'
 DIR2 = '/Users/yunfanzhang/local/simuDATA/64_UV/0_38/'
 Cname = 'P0.15.cue'
-uv1 = a.miriad.UV('/Users/yunfanzhang/local/simuDATA/64_UV/pspec_2456249.20169.uv/')
-uv2 = a.miriad.UV('/Users/yunfanzhang/local/simuDATA/64_UV/pspec_0_38_2456249.20169.uv/')
+uv1 = a.miriad.UV(DIR1+'pspec_2456249.20169.uv/')
+uv2 = a.miriad.UV(DIR2+'pspec_0_38_2456249.20169.uv/')
 
 freqflist = n.array((uv1['sfreq'] + uv1['sdf']*n.arange(uv1['nchan'])))  #GHz
 freqlist = n.array((uv1['sfreq'] + uv1['sdf']*92 + uv1['sdf']*n.arange(10)))  #GHz

@@ -9,11 +9,17 @@ o = optparse.OptionParser()
 #o.add_option('-d', '--dft', dest='dst', default=43./3600/24)
 o.add_option('-s','--sys', dest='sys', default='MacPro')
 #o.add_option('-d','--dir',dest='dir',default='/Users/yunfanzhang/local/simuDATA/64_UV')
+o.add_option('-y','--typ',dest='typ',default='simu',help='simu or real')
 opts,args = o.parse_args(sys.argv[1:])
 print opts, args
 
-if opts.sys == 'MacPro':
+dt_fine = 0.0004971027374267578
+if opts.typ == 'simu':
     dir1, dir2 = '/Users/yunfanzhang/local/simuDATA/64_UV/0_26/', '/Users/yunfanzhang/local/simuDATA/64_UV/0_38/'
+    dt_file = dt_fine*8
+elif opts.typ == 'real':
+    dir1, dir2 = '/Users/yunfanzhang/local/DATA64/runDIR/', '/Users/yunfanzhang/local/DATA64/runDIR/'
+    dt_file = dt_fine*13
 sz = 200
 sp = 1./sz
 img = a.img.Img(200,res=0.5)   #400 by 400 image, i.e. 200 boxes, with 4 pixels per box,freq space kmax=100, dk=0.5
@@ -25,7 +31,7 @@ ntop = n.array([X,Y,Z])
 list_freq = [.15]
 dt = 0.001
 #dt_fine = 43./3600/24
-dt_fine = 0.0004971027374267578
+
 dt_file = dt_fine*8
 times_coarse = n.arange(2456249.20169,2456249.50791, dt)
 times_fine = n.arange(2456249.20169,2456249.50791, dt_fine)
@@ -74,11 +80,11 @@ for ni in range(len(list_freq)):
         fdict1, fdict2 = get_files.get_fdict(dir1), get_files.get_fdict(dir2)
         fn1, fn2 = get_files.get_file(T1,dt_file, fdict1), get_files.get_file(T2,dt_file, fdict2)
 
-        str1 = str(pairs_final[j][2][0][0])+'_'+str(pairs_final[j][2][0][1])+'_'+str(pairs_final[j][3][0][0])+'_'+str(pairs_final[j][3][0][1])
-        str2 = str(pairs_final[j][2][1])+'_'+str(pairs_final[j][3][1])
+        blstr = str(pairs_final[j][2][0][0])+'_'+str(pairs_final[j][2][0][1])+'_'+str(pairs_final[j][3][0][0])+'_'+str(pairs_final[j][3][0][1])
+        lststr = str(pairs_final[j][2][1])+'_'+str(pairs_final[j][3][1])
 
         OPP = pairs_final[j][1]
-        f1.write(str1+','+str2+' '+str(fn1)+' '+str(fn2)+' '+str(OPP)+'\n')
+        f1.write(blstr+','+lststr+' '+str(fn1)+' '+str(fn2)+' '+str(OPP)+'\n')
     f1.close()
 
     #call plotting routines

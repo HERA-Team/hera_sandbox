@@ -6,6 +6,12 @@ def P_v_Eta(ax,k,P):
     #ax.set_yscale('log')
     p.plot(k,P,'bo')
 
+def P_v_Eta_log(ax,k,P):
+    ax.set_xlabel('kz')
+    ax.set_ylabel(r'$P(k) K^{2} (h^{-1} Mpc)^{3}$')
+    ax.set_yscale('log')
+    p.plot(k,P,'bo')
+
 def Del_v_Eta(ax,k,P):
     ax.set_xlabel('kz')
     ax.set_ylabel(r'$\Delta^{2}(k) K^{2}$')

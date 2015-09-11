@@ -226,6 +226,7 @@ def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=True,noiseweight=True,
         freqlm = n.fft.fftfreq(len(freq),d=(freq[1]-freq[0]))
         rbm2 = n.fft.fftshift(rbm2)
         freqlm = n.fft.fftshift(freqlm)
+        print "###small imaginary components are error, nothing to worry about"
         rbm2interp = interpolate.interp2d(freqlm, freqlm, rbm2, kind='cubic')
     for key in clos_app:
         cnt = cnt+1

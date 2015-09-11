@@ -10,9 +10,9 @@ def cross_mult(data1, data2):
 def bootstrap(B, data):
     boot = []
     for b in range(B):
-        temps = n.array([])
+        temps = n.array([],dtype='complex64')
         for i in range(len(data[0])):    #for each channel
-            temps = n.append(temps,0.)
+            temps = n.append(temps,0.+0.j)
             for j in range(len(data)):      #bootstrap over all the time samples
                 choi = random.choice(data)   #choi contains all channels of a time sample
                 temps[i] = temps[i] + choi[i]
