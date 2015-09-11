@@ -24,21 +24,26 @@ df = 0.1/203
 nchan = 20
 
 pol,lst,ant,tauchan = opts.pol,opts.lst.split('_'),opts.ant.split('_'),int(opts.chan)
-DIR = '/Users/yunfanzhang/local/simuDATA/64_UV/0_26/'
-
-uv1 = a.miriad.UV(args[0])
-uv2 = a.miriad.UV(args[1])
+#DIR = '/Users/yunfanzhang/local/simuDATA/64_UV/0_26/'   #Desktop
+DIR = '/Users/yunfanzhang/local/simuDATA/uv_64_203/0_26/'    #Macbook pro
+dataDIR = ''
+uv1 = a.miriad.UV(dataDIR+args[0])
+uv2 = a.miriad.UV(dataDIR+args[1])
 
 freqflist = n.array((uv1['sfreq'] + uv1['sdf']*n.arange(uv1['nchan'])))  #GHz
 freqlist = n.array((uv1['sfreq'] + uv1['sdf']*92 + uv1['sdf']*n.arange(10)))  #GHz
 aa = a.cal.get_aa('psa6240_v003',freqlist)
+#src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
 pol = a.miriad.str2pol[pol]
 t1,t2 = float(lst[0]),float(lst[1])
+#bl_list1 = (0,26)]
+#bl_list2 = [(0,26)]
 bl1, bl2 = (0,26), (0,26)
 #taulist = n.fft.fftfreq(int(uv1['nchan']),uv1['sdf']*1000)
 taulist = n.fft.fftfreq(nchan,uv1['sdf'])                                  #GHz
 taulist = n.fft.ifftshift(taulist)
 print uv1['sdf']
+
 #dt = uv1['inttime']
 uv1.select('antennae',0,26,include=True)
 preamble, junk = uv1.read()
@@ -54,7 +59,6 @@ cnt = 0
 #norm = 1.E6*X2Y*bb*Omp*Omp/Ompp    #1.E6 is K to mK
 norm = X2Y*bb*Omp*Omp/Ompp
 for fn in os.listdir(DIR):
-    print "processing file", fn
     uv1 = a.miriad.UV(DIR+fn)
     uv2 = a.miriad.UV(DIR+fn)
 
@@ -69,7 +73,7 @@ for fn in os.listdir(DIR):
         #print 'bl1: ', preamble
         datnu = datnu[90:110]
         datatau = dl_tr.nu2tau(datnu)
-        data1.append(n.array(datatau).T)
+        data1.append(n.array(datatau).transpose())
     #data1 = n.array(data1).transpose()
 
     uv2.rewind()
@@ -83,7 +87,7 @@ for fn in os.listdir(DIR):
         datnu = datnu[90:110]
        #print "data lenth", len(datnu)
         datatau = dl_tr.nu2tau(datnu)
-        data2.append(n.array(datatau).T)
+        data2.append(n.array(datatau).transpose())
         #print tauchan, datatau[tauchan]
 
 
@@ -94,10 +98,12 @@ data = n.multiply(n.conjugate(data1), data2)*norm
 #data is shaped [timesample, channel]
 P=[]
 for ind in n.arange(len(taulist)): P.append(n.mean(data.T[ind]))
+#print len(taulist), len(P)
 #kz = taulist*2*n.pi/Y
 kz = cosmo_units.eta2kparr(taulist*1.E-9,z)     #This function needs tau in Hz^-1
 
 
+#print "shapes of arrays:", data1.shape, data2.shape
 #Bootstrap resampling
 B = 100
 bootmean, booterr = boot_simple.bootstrap(B, data)

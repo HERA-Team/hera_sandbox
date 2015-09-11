@@ -7,10 +7,19 @@ import optparse, sys
 o = optparse.OptionParser()
 #o.add_option('-t', '--lst', dest='lst', default=-1, help='Choose the time point of data')
 #o.add_option('-d', '--dft', dest='dst', default=43./3600/24)
-o.add_option('-d','--dir',dest='dir',default='/Users/yunfanzhang/local/simuDATA/64_UV')
+o.add_option('-s','--sys', dest='sys', default='MacPro')
+#o.add_option('-d','--dir',dest='dir',default='/Users/yunfanzhang/local/simuDATA/64_UV')
+o.add_option('-y','--typ',dest='typ',default='simu',help='simu or real')
 opts,args = o.parse_args(sys.argv[1:])
 print opts, args
 
+dt_fine = 0.0004971027374267578
+if opts.typ == 'simu':
+    dir1, dir2 = '/Users/yunfanzhang/local/simuDATA/64_UV/0_26/', '/Users/yunfanzhang/local/simuDATA/64_UV/0_38/'
+    dt_file = dt_fine*8
+elif opts.typ == 'real':
+    dir1, dir2 = '/Users/yunfanzhang/local/DATA64/runDIR/', '/Users/yunfanzhang/local/DATA64/runDIR/'
+    dt_file = dt_fine*13
 sz = 200
 sp = 1./sz
 img = a.img.Img(200,res=0.5)   #400 by 400 image, i.e. 200 boxes, with 4 pixels per box,freq space kmax=100, dk=0.5
@@ -22,7 +31,8 @@ ntop = n.array([X,Y,Z])
 list_freq = [.15]
 dt = 0.001
 #dt_fine = 43./3600/24
-dt_fine = 0.0004971027374267578
+
+dt_file = dt_fine*8
 times_coarse = n.arange(2456249.20169,2456249.50791, dt)
 times_fine = n.arange(2456249.20169,2456249.50791, dt_fine)
 dist = 1.5                           #size of cells to store in dictionary.
@@ -38,14 +48,15 @@ for ni in range(len(list_freq)):
     freq, fbmamp = export_beam.beam_fourier(bmp, sp, 400)
     bm_intpl = export_beam.beam_interpol(freq,fbmamp,'cubic')
     print 'Time to initialize:', sys_time.clock(), 'seconds'
+    print 'fbmampshape, midval', fbmamp.shape, fbmamp[200][200]
 
-    d = select_pair.pair_coarse(aa, src,times_coarse,dist,False, 0.5, True)  #coarsely determine crossings
+    d = select_pair.pair_coarse(aa, src,times_coarse,dist,False, 0.1, True)  #coarsely determine crossings
     print 'Time after coarse selection:', sys_time.clock(), 'seconds'
     #pairs_sorted = select_pair.pair_sort(d,freq,fbmamp)        #sort crossings
     #clos_app = select_pair.get_closest(pairs_sorted)           #determine closest approach points
     clos_app = select_pair.alter_clos(d,bm_intpl)            #determine closest approach points
     print 'Found closest approach points after:', sys_time.clock(), 'seconds'
-    pairs_final = select_pair.pair_fin(clos_app,dt_fine,aa,src,freq,fbmamp,multweight=True,noiseweight=True,ovlpweight=True,cutoff=5000.,puv=False)
+    pairs_final = select_pair.pair_fin(clos_app,dt_fine,aa,src,freq,fbmamp,multweight=True,noiseweight=True,ovlpweight=True,puv=False)
     print 'Total time:', sys_time.clock(), 'seconds'
 
     #write result to file and screen
@@ -66,12 +77,14 @@ for ni in range(len(list_freq)):
     for j in n.arange(len(pairs_final)):
         #print pairs_final[j]
         T1, T2 = float(pairs_final[j][2][1]), float(pairs_final[j][3][1])
-        fdict = get_files.get_fdict(opts.dir)
-        fn1, fn2 = get_files.get_file(T1,dt_fine, fdict), get_files.get_file(T2,dt_fine, fdict)
+        fdict1, fdict2 = get_files.get_fdict(dir1), get_files.get_fdict(dir2)
+        fn1, fn2 = get_files.get_file(T1,dt_file, fdict1), get_files.get_file(T2,dt_file, fdict2)
 
-        str1 = str(pairs_final[j][2][0][0])+'_'+str(pairs_final[j][2][0][1])+'_'+str(pairs_final[j][3][0][0])+'_'+str(pairs_final[j][3][0][1])
-        str2 = str(pairs_final[j][2][1])+'_'+str(pairs_final[j][3][1])
-        f1.write(str1+','+str2+' '+str(fn1)+' '+str(fn2)+'\n')
+        blstr = str(pairs_final[j][2][0][0])+'_'+str(pairs_final[j][2][0][1])+'_'+str(pairs_final[j][3][0][0])+'_'+str(pairs_final[j][3][0][1])
+        lststr = str(pairs_final[j][2][1])+'_'+str(pairs_final[j][3][1])
+
+        OPP = pairs_final[j][1]
+        f1.write(blstr+','+lststr+' '+str(fn1)+' '+str(fn2)+' '+str(OPP)+'\n')
     f1.close()
 
     #call plotting routines
