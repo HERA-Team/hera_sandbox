@@ -7,6 +7,10 @@ import glob
 import matplotlib.pyplot as plt
 import os, sys
 
+###
+# Compares phases of Omnicaled data from version 1 vs. version 2
+###
+
 #Epoch 3 Comparison Day: JD 2456962
 v2path = numpy.sort(glob.glob('/data4/paper/2014EoR/Analysis/ProcessedData/epoch3/omni_v2/zen.2456942.[3-4]*.xx.uvcRREO'))
 v1path = numpy.sort(glob.glob('/data4/paper/2014EoR/Analysis/ProcessedData/epoch3/good/zen.2456942.[3-4]*.xx.uvcRREOO'))
