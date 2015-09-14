@@ -33,9 +33,11 @@ print 'lstmax=',lstmax,'rad'
 
 ### Read Files ###
 aa = aipy.cal.get_aa('psa898_v003',0.001,0.1,203) #parameters don't matter... only used to find LSTs
-data128 = numpy.sort(glob.glob('/data4/paper/2014EoR/pot3/data2/2456928/*xx.uvcRRE')) #compressed 128
+#data128 = numpy.sort(glob.glob('/data4/paper/2014EoR/pot3/data2/2456928/*xx.uvcRRE')) #compressed 128
 #data128 = numpy.sort(glob.glob('/data4/paper/2014EoR/Analysis/ProcessedData/epoch3/good/zen.2456962.*xx.uvcRREOO')) #omnicaled 128
-data64 = glob.glob('/data4/paper/2012EoR/psa_live/forlstbinning_omnical_2/zen.2456247.*.uvcRREcACO')
+data128 = numpy.sort(glob.glob('/data4/paper/2014EoR/Analysis/ProcessedData/epoch3/omni_v2/lstbin_noxtalk/even/*uvL')) #LST-binned, FRF data
+#data64 = numpy.sort(glob.glob('/data4/paper/2012EoR/psa_live/forlstbinning_omnical_2/zen.2456247.*.uvcRREcACO')) #absolute&omnicaled data
+data64 = numpy.sort(glob.glob('/data4/paper/2012EoR/psa_live/forlstbinning_omnical_2/lstbin_even_noxtalk/sep0,1/*uvGL')) #LST-binned, FRF, abscal  data
 simdata = glob.glob('/home/cacheng/capo/ctc/simpawz_sims/08_21_2015/gsm_Jy.uv')
 
 
@@ -43,7 +45,7 @@ simdata = glob.glob('/home/cacheng/capo/ctc/simpawz_sims/08_21_2015/gsm_Jy.uv')
 good_files = []
 lst_files = []
 for file in data128:
-    jd = file.split('.')[-4]+'.'+file.split('.')[-3]
+    jd = file.split('.')[1]+'.'+file.split('.')[2]
     aa.set_jultime(float(jd))
     lst = aa.sidereal_time() #[rad] when used but [hrs] when printed
     if lst > lstmin and lst < lstmax:
@@ -54,7 +56,7 @@ print 'Reading 128 Data in LST Range:',len(numpy.array(good_files)),'files'
 t1,d1,f1 = capo.arp.get_dict_of_uv_data(good_files,antstr='64_49',polstr='xx',return_lsts=True)
 d1 = d1[aipy.miriad.ij2bl(64,49)]['xx']
 plt.subplot(2,2,1)
-capo.arp.waterfall(d1,drng=3,mode=opts.mode,extent=(0,202,lst_files.max()*12/numpy.pi,lst_files.min()*12/numpy.pi))
+capo.arp.waterfall(d1,mode=opts.mode,extent=(0,202,lst_files.max()*12/numpy.pi,lst_files.min()*12/numpy.pi))
 plt.colorbar()
 plt.ylabel('LST Hours')
 plt.xlabel('Freq Chan')
@@ -74,11 +76,11 @@ for file in data64:
 lst_files = numpy.array(lst_files)
 print 'Reading 64 Data in LST Range:',len(numpy.array(good_files)),'files'
 bl = '24_48'
-t2,d2,f2 = capo.arp.get_dict_of_uv_data(good_files,antstr=bl,polstr='xx',return_lsts=True)
-d2 = d2[aipy.miriad.ij2bl(int(bl.split('_')[0]),int(bl.split('_')[1]))]['xx'] #24_48
+t2,d2,f2 = capo.arp.get_dict_of_uv_data(good_files,antstr=bl,polstr='I',return_lsts=True)
+d2 = d2[aipy.miriad.ij2bl(int(bl.split('_')[0]),int(bl.split('_')[1]))]['I'] #24_48
 #d2 = numpy.nan_to_num(d2)
 plt.subplot(2,2,2)
-capo.arp.waterfall(d2,drng=3,mx=3.8,mode=opts.mode,extent=(0,202,lst_files.max()*12/numpy.pi,lst_files.min()*12/numpy.pi))
+capo.arp.waterfall(d2,mx=3,drng=4,mode=opts.mode,extent=(0,202,lst_files.max()*12/numpy.pi,lst_files.min()*12/numpy.pi))
 plt.colorbar()
 plt.ylabel('LST Hours')
 plt.xlabel('Freq Chan')
@@ -130,7 +132,7 @@ d2 = numpy.mean(data_allbls,axis=0)
 ### Calibration Against 64-Data ###
 if opts.abscal == True:
     print 'Absolute Calibrating...'
-    ref_t1_index = len(t1)/2
+    ref_t1_index = len(t1)/3
     ref_t1 = t1[ref_t1_index] 
     print '...calibrating to LST =',ref_t1*12/numpy.pi,'hours =',ref_t1,'rad'
     diff = numpy.abs(t2-ref_t1)
@@ -138,7 +140,7 @@ if opts.abscal == True:
     close_lst1 = t2[close_lst1_index]
     test2_1 = diff[close_lst1_index-1]
     test2_2 = diff[close_lst1_index+1]
-    if test2_1 < test2_2:
+    if test2_1 <= test2_2:
         close_lst2_index = close_lst1_index-1
         close_lst2 = t2[close_lst1_index-1]
     elif test2_1 > test2_2:
@@ -152,12 +154,15 @@ if opts.abscal == True:
     d_128 = numpy.ma.masked_where(d1[ref_t1_index]==0,d1[ref_t1_index])
     d_64 = numpy.ma.masked_where(d1[ref_t1_index]==0,d2_interp)
     factors = d_64/d_128
+    factors_simple = numpy.ones_like(factors)
+    factors_simple *= 5*10**3
+    factors = factors_simple
     print 'Applying Sample Calibration...'
     d1_cal = numpy.zeros_like(d1)
     for t in range(len(d1)):
         d1_cal[t] = d1[t]*factors
     plt.subplot(2,2,4)
-    capo.arp.waterfall(d1_cal,drng=3,mode=opts.mode,extent=(0,202,lstmax*12/numpy.pi,lstmin*12/numpy.pi),mx=3.8)
+    capo.arp.waterfall(d1_cal,mx=3,drng=4,mode=opts.mode,extent=(0,202,lstmax*12/numpy.pi,lstmin*12/numpy.pi))
     plt.colorbar()
     plt.ylabel('LST Hours')
     plt.xlabel('Freq Chan')
