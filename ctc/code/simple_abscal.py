@@ -78,14 +78,17 @@ if opts.factor == None:
     plt.xlabel('Freq Chan')
     plt.title('64 Data (Absolute calibrated)')
 
-    freq_chan = 125 #hard-coded frequency channel to get factor from
-    d2_f = d2[:,freq_chan]
-    d1_f = d1[:,freq_chan]
-    factors = d2_f/d1_f
-    factor = numpy.mean(factors)
-    factor = numpy.real(factor)
-    print 'YOUR FACTOR IS:',factor
-
+    freq_chans = numpy.arange(115,135,5) #hard-coded frequency channel to get factor from
+    #freq_chans = [125]
+    factor_all = []
+    for f,freq_chan in enumerate(freq_chans):
+        d2_f = d2[:,freq_chan]
+        d1_f = d1[:,freq_chan]
+        factors = d2_f/d1_f
+        factor = numpy.real(numpy.mean(factors))
+        factor_all.append(factor)
+    print 'YOUR FACTOR IS:',numpy.mean(factor_all)
+    #factor = -4000
     print 'Applying Sample Calibration...'
     d1_cal = numpy.zeros_like(d1)
     d1_cal = d1*factor
