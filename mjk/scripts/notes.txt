@@ -1,0 +1,5 @@
+mask off dz in Average Covariance Matrix
+    apply masked dz to channel band
+        run output through powerspectrum with Identity
+        into powerspectrum
+
