@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 
 import aipy as a, numpy as n, pylab as p, sys, optparse, glob, ipdb, ephem, capo as C
 o=optparse.OptionParser()
@@ -101,7 +101,7 @@ fig_file='Tsys_chan_'+opts.chan
 if not opts.output == '':
     fig_file= opts.output + '/' + fig_file
 p.savefig(fig_file)
-#p.show()
+p.show()
 
 Tsys_jy = Tsys / 1e-3 / jy2T
 
