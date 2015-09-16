@@ -1,9 +1,14 @@
 #! /usr/bin/env python
 """
 
-Creates waterfall plot of T_RMS from Miriad UV files.
+Creates waterfall plot of T_RMS from Miriad UV files. 
 
-
+    Here is some info the help with the legend:  \n
+    avg: Data is averaged AFTER  multiplying x.conj * x \n
+    blavg: Data averaged over baseling BEFORE x.conj * x \n
+    e-0: Even - Odd subtraction of data \n
+    var: T_RMS constructed from using the var and cnt info from uv files \n
+    GSM: Global Sky Moden \n
 """
 
 
@@ -20,6 +25,8 @@ o.add_option('--vline',default=False,action='store_true',\
     help='Emphasizes chosen channel range')
 o.add_option('--band', default='0_202', action='store',
     help='Channels from which to Calculate full band Covariance')
+o.add_option('--inttime', default=None, action='store',
+    help="Specify inttime for data, else use uv['inttime']")
 opts,args=o.parse_args(sys.argv[1:])
 
 
@@ -72,15 +79,19 @@ dsets = {
 
 print 'Number of even data sets: {0:d}'.format(len(dsets['even']))
 print 'Number of odd data sets: {0:d}'.format(len(dsets['odd']))
-for dset_count in xrange(len(dsets['even'])):
-        print dsets['even'][dset_count].split('/')[-1], dsets['odd'][dset_count].split('/')[-1]
+#for even_count in xrange(len(dsets['even'])):
+#        print dsets['even'][dset_count].split('/')[-1], dsets['odd'][dset_count].split('/')[-1]
 
 uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 band_chans = a.scripting.parse_chans(opts.band, uv['nchan'])
-inttime = uv['inttime'] * 4 # XXX hack for *E files that have inttime set incorrectly
+
+if not opts.inttime is None:
+    inttime= opts.inttime
+else:
+    inttime = uv['inttime'] * 4 / (8.*60.) # XXX hack for *E files that have inttime set incorrectly
 print 'inttime', inttime
 del(uv)
 
@@ -147,9 +158,9 @@ if set(['even','odd']) == set(days):
         if conj[bl]: d=n.conj(d)        
         x[bl] = n.transpose(d,[1,0])
         cnt_e[bl] = n.transpose(c_e,[1,0])
-        var_e[bl] = n.transpose(v_e, [1,0]) * (inttime/(8.*60.))
+        var_e[bl] = n.transpose(v_e, [1,0]) * inttime
         cnt_o[bl] = n.transpose(c_o,[1,0])
-        var_o[bl] = n.transpose(v_o, [1,0]) * (inttime/(8.*60.))
+        var_o[bl] = n.transpose(v_o, [1,0]) * inttime
 bls_master=x.keys()
 nbls = len(bls_master)
 bls_master.sort()
@@ -196,16 +207,19 @@ print 'BL Averaged Trms/Tvar:','meam', n.mean(blavg_ratio),'meadian', n.median(b
 for bl in bls_master:
     print 'Ploting Trms for %d_%d'%a.miriad.bl2ij(bl)
     p.plot(band_chans, trms_data[bl], label='$T_{e-o}$')
-    p.plot(band_chans, avg_trms, 'm--', label='$T_{avg,e-o}$')
-    p.plot(band_chans, trms_o_the[bl], label='$T_{odd,RMS}$')
-    p.plot(band_chans, trms_e_the[bl], label='$T_{even,RMS}$')
-    p.plot(band_chans, trms_blavg, label='$T_{e-o,blavg}$')
-    p.plot(band_chans, trms_o_the_blavg, label='$T_{odd,RMS,blavg}$')
-    p.plot(band_chans, trms_e_the_blavg, label='$T_{even,RMS,blavg}$')
-    p.plot(band_chans, theo_temp[bl],'k--')
+    p.plot(band_chans, avg_trms, 'm--', label='$T_{e-o,avg}$')
+    p.plot(band_chans, trms_o_the[bl], label='$T_{odd,var}$')
+    p.plot(band_chans, trms_e_the[bl], label='$T_{even,var}$')
+    p.plot(band_chans, trms_blavg, label='$T_{blavg,e-o}$')
+    p.plot(band_chans, trms_o_the_blavg, label='$T_{blavg,odd,var}$')
+    p.plot(band_chans, trms_e_the_blavg, label='$T_{blavg,even,var}$')
+    p.plot(band_chans, theo_temp[bl],'k--',label='GSM')
     p.yscale('log')
     p.xlim([band_chans[0]-1,band_chans[-1]+1])
-    p.legend(loc='upper right',ncol=2)
+    p.xlabel('chan')
+    p.ylabel('$T_{rms}\ [K]$')
+    p.legend(loc='lower center',ncol=4, bbox_to_anchor=(.5,-.35))
+    p.subplots_adjust(bottom=.25)
     p.title('%d_%d'%a.miriad.bl2ij(bl))
     if opts.plot:
         p.show()
@@ -213,5 +227,5 @@ for bl in bls_master:
     outfile = 'Trms_%d_%d.png'%a.miriad.bl2ij(bl)
     if not opts.output == '':
         outfile =opts.output+'/'+outfile
-    p.savefig(outfile,format='png')
+    p.savefig(outfile,format='png', bbox_inches='tight')
     p.clf()
