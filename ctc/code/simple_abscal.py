@@ -34,7 +34,7 @@ if opts.factor == None:
 
     aa = aipy.cal.get_aa('psa898_v003',0.001,0.1,203) #parameters don't matter... only used to find LSTs
     #data128 = numpy.sort(glob.glob('/data4/paper/2014EoR/Analysis/ProcessedData/epoch3/omni_v2/lstbin_noxtalk/even/*uvL')) #LST-binned, FRF data
-    data128 = numpy.sort(glob.glob('/data4/paper/2014EoR/Analysis/ProcessedData/epoch3/omni_v2/lstbin_noxtalk/even/*uv')) #LST-binned data
+    data128 = numpy.sort(glob.glob('/data4/paper/2014EoR/Analysis/ProcessedData/epoch3/omni_v2/lstbin_xtalk_flagedges/even/*uv')) #LST-binned data
     #data64 = numpy.sort(glob.glob('/data4/paper/2012EoR/psa_live/forlstbinning_omnical_2/lstbin_even_noxtalk/sep0,1/*uvGL')) #LST-binned, FRF, abscal Data
     data64 = numpy.sort(glob.glob('/home/jacobsda/storage/psa128/2014_epoch3/v5_xtalksub_omni/lstbin_June2_v1/even/sep0,2/*uvAS')) #LST-binned, abscal 128 !! Data
     
@@ -75,7 +75,7 @@ if opts.factor == None:
     t2,d2,f2 = capo.arp.get_dict_of_uv_data(good_files_64,antstr=bl,polstr='xx',return_lsts=True)
     d2 = d2[aipy.miriad.ij2bl(int(bl.split('_')[0]),int(bl.split('_')[1]))]['xx'] #24_48
     plt.subplot(2,2,2)
-    capo.arp.waterfall(d2,mx=3,drng=4,mode='log',extent=(0,202,lst_files_64.max()*12/numpy.pi,lst_files_64.min()*12/numpy.pi))
+    capo.arp.waterfall(d2,mx=2,drng=4,mode='log',extent=(0,202,lst_files_64.max()*12/numpy.pi,lst_files_64.min()*12/numpy.pi))
     plt.colorbar()
     plt.ylabel('LST Hours')
     plt.xlabel('Freq Chan')
@@ -91,12 +91,12 @@ if opts.factor == None:
         factor = numpy.real(numpy.mean(factors))
         factor_all.append(factor)
     print 'YOUR FACTOR IS:',numpy.mean(factor_all)
-    #factor = 1000
+    factor = 1000
     print 'Applying Sample Calibration...'
     d1_cal = numpy.zeros_like(d1)
     d1_cal = d1*factor
     plt.subplot(2,2,3)
-    capo.arp.waterfall(d1_cal,mx=3,drng=4,mode='log',extent=(0,202,lstmax*12/numpy.pi,lstmin*12/numpy.pi))
+    capo.arp.waterfall(d1_cal,mx=2,drng=4,mode='log',extent=(0,202,lstmax*12/numpy.pi,lstmin*12/numpy.pi))
     plt.colorbar()
     plt.ylabel('LST Hours')
     plt.xlabel('Freq Chan')
