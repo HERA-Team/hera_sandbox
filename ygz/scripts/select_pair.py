@@ -239,29 +239,17 @@ def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=True,noiseweight=True,
         if ovlpweight: ovlp = get_ovlp(aa,t1,t2,rbm2interp)
         else: ovlp = 1.
         weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight,ovlp)
-        while correlation > cutoff:
-            if puv: final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
-            else: final.append((weight*correlation,correlation,(bl1,t1),(bl2,t2)))
-            t1,t2 = t1+dt,t2+dt
-            try: correlation,(uvw1,uvw2)  = get_corr(aa, src,bm_intpl, t1,t2, bl1, bl2)
-            except(TypeError): correlation  = 0.
-            else:
-                if ovlpweight: ovlp = get_ovlp(aa,t1,t2,rbm2interp)
-                else: ovlp = 1.
-                weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight,ovlp)
-        if ovlpweight: ovlp = get_ovlp(aa,t1,t2,rbm2interp)
-        else: ovlp = 1.
-        weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight,ovlp)
-        while correlation > cutoff:
-            if puv: final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
-            else: final.append((weight*correlation,correlation,(bl1,t1),(bl2,t2)))
-            t1,t2 = t1-dt,t2-dt
-            try: correlation,(uvw1,uvw2)  = get_corr(aa, src,bm_intpl, t1,t2, bl1, bl2)
-            except(TypeError): correlation  = 0.
-            else:
-                if ovlpweight: ovlp = get_ovlp(aa,t1,t2,rbm2interp)
-                else: ovlp = 1.
-                weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight,ovlp)
+        #while correlation > cutoff:
+        if puv: final.append((weight*correlation,correlation,(bl1,t1,uvw1),(bl2,t2,uvw2)))
+        else: final.append((weight*correlation,correlation,(bl1,t1),(bl2,t2)))
+        #t1,t2 = t1+dt,t2+dt
+        try: correlation,(uvw1,uvw2)  = get_corr(aa, src,bm_intpl, t1,t2, bl1, bl2)
+        except(TypeError): correlation  = 0.
+        else:
+            if ovlpweight: ovlp = get_ovlp(aa,t1,t2,rbm2interp)
+            else: ovlp = 1.
+            weight = get_weight(aa,bl1,bl2,uvw1,multweight,noiseweight,ovlp)
+
     quick_sort.quick_sort(final,0,len(final)-1)
     return final
 

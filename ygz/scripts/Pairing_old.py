@@ -36,7 +36,7 @@ dt = 0.001
 dist = 1.5                           #size of cells to store in dictionary.
 corr_tol = 5000.                    #cutoff of minimum correlation
 aa = a.cal.get_aa('psa6240_v003',n.array(list_freq))
-src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
+src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.18, name='test')
 #src=a.fit.RadioSpecial("Sun")
 fdict1, fdict2 = get_files.get_fdict(dir1), get_files.get_fdict(dir2)
 T_files = fdict1.keys()
@@ -89,18 +89,16 @@ for ni in range(len(list_freq)):
     f1.close()
 
     f1 = open(Cname, 'a')
-    f1.write("bl1_bl2,T2-T1,Opp \n")
     for j in n.arange(len(pairs_final)):
         #print pairs_final[j]
         T1, T2 = float(pairs_final[j][2][1]), float(pairs_final[j][3][1])
-        #fn1, fn2 = get_files.get_file(T1,dt_file, fdict1), get_files.get_file(T2,dt_file, fdict2)
+        fn1, fn2 = get_files.get_file(T1,dt_file, fdict1), get_files.get_file(T2,dt_file, fdict2)
 
         blstr = str(pairs_final[j][2][0][0])+'_'+str(pairs_final[j][2][0][1])+'_'+str(pairs_final[j][3][0][0])+'_'+str(pairs_final[j][3][0][1])
-        lststr = str(-pairs_final[j][2][1]+pairs_final[j][3][1])     #time lag T2-T1
+        lststr = str(pairs_final[j][2][1])+'_'+str(pairs_final[j][3][1])
 
         OPP = pairs_final[j][1]
-        #f1.write(blstr+','+lststr+' '+str(fn1)+' '+str(fn2)+' '+str(OPP)+'\n')
-        f1.write(blstr+','+lststr+','+str(OPP)+'\n')
+        f1.write(blstr+','+lststr+' '+str(fn1)+' '+str(fn2)+' '+str(OPP)+'\n')
     f1.close()
 
     #call plotting routines
