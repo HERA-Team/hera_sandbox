@@ -9,7 +9,7 @@ from numpy.fft import ifft, fftshift, ifftshift, fftfreq, fft
 import scipy.interpolate
 import optparse,sys
 
-DEFAULT_FRBINS = n.arange(-.01+5e-5,.01,5e-5) # Hz
+DEFAULT_FRBINS = n.arange(-.01+5e-5/2,.01,5e-5) # Hz
 DEFAULT_WGT = lambda bm: bm**2
 DEFAULT_IWGT = lambda h: n.sqrt(h)
 
@@ -22,6 +22,8 @@ def fr_profile(bm, fng, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT)
     h, _ = n.histogram(fng, bins=bins, weights=wgt(bm)) 
     h = iwgt(h)
     h /= h.max()
+    #bins given to histogram are bin edges. Want bin centers.
+    bins = 0.5 * (bins[:-1] + bins[1:]) 
     return h, bins
 
 def gauss(cenwid, bins): return n.exp(-(bins-cenwid[0])**2/(2*cenwid[1]**2))
@@ -43,7 +45,7 @@ def hmap_to_fr_profile(bm_hmap, bl, lat, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, i
     eq = bm_hmap.px2crd(n.arange(bm_hmap.npix()), ncrd=3) # equatorial coordinates
     eq2zen = a.coord.eq2top_m(0., lat)
     top = n.dot(eq2zen, eq)
-    bm = bm_hmap[top]
+    bm = bm_hmap[(top[0], top[1], top[2])]
     fng = mk_fng(bl,eq)
     return fr_profile(bm, fng, bins=bins, wgt=wgt, iwgt=iwgt)
     
@@ -102,4 +104,3 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
     firs *= a.dsp.gen_window(bins.size, window)
     firs /= n.sum(n.abs(firs),axis=1).reshape(-1,1) # normalize so that n.sum(abs(fir)) = 1
     return tbins, firs
-
