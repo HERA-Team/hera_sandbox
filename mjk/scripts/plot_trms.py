@@ -89,7 +89,7 @@ chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 band_chans = a.scripting.parse_chans(opts.band, uv['nchan'])
 
 if not opts.inttime is None:
-    inttime= opts.inttime
+    inttime = float(opts.inttime)
 else:
     inttime = uv['inttime'] * 4 / (8.*60.) # XXX hack for *E files that have inttime set incorrectly
 print 'inttime', inttime
