@@ -59,10 +59,10 @@ def aa_to_fr_profile(aa, (i,j), ch, pol='I', bins=DEFAULT_FRBINS, wgt=DEFAULT_WG
     # XXX computing bm at all freqs, but only taking one
     _bmx = aa[0].bm_response((top), pol='x')[ch]; _bmx = n.where(top[2] > 0, _bmx, 0)
     _bmy = aa[0].bm_response((top), pol='y')[ch]; _bmy = n.where(top[2] > 0, _bmy, 0)
-    if   pol == 'XX': bm = _bmx * _bmx.conj()
-    elif pol == 'YY': bm = _bmy * _bmy.conj()
-    elif pol == 'XY': bm = _bmx * _bmy.conj()
-    elif pol == 'YX': bm = _bmy * _bmx.conj()
+    if   pol == 'xx': bm = _bmx * _bmx.conj()
+    elif pol == 'yy': bm = _bmy * _bmy.conj()
+    elif pol == 'xy': bm = _bmx * _bmy.conj()
+    elif pol == 'yx': bm = _bmy * _bmx.conj()
     elif pol ==  'I': bm = .5 * (_bmx*_bmx.conj() + _bmy*_bmy.conj())
     elif pol ==  'Q': bm = .5 * (_bmx*_bmx.conj() - _bmy*_bmy.conj())
     elif pol ==  'U': bm = .5 * (_bmx*_bmy.conj() + _bmy*_bmx.conj())
@@ -77,16 +77,37 @@ def aa_to_fr_profile(aa, (i,j), ch, pol='I', bins=DEFAULT_FRBINS, wgt=DEFAULT_WG
 # XXX write a function that generates bins from inttime and time window for fir
 
 def fir_to_frp(fir,tbins=None):
-    '''XXX DOCSTRING'''
+    '''Transform a fir (time domain fr filter) to a fringe rate profile.
+       fir: array of fringe rate profile. 
+       tbins: Corresponding time bins of filter. If None, doesnt return ffringe rates.
+    '''
     fir = ifftshift(fir, axes=-1)
     frp = fft(fir, axis=-1)
     frp = fftshift(frp, axes=-1)
     if tbins is not None: return frp, fftshift(fftfreq(tbins.size, tbins[1]-tbins[0]))
     else: return frp
 
+def frp_to_fir(frp, fbins=None):
+    '''Transform a fringe rate profile to a fir filter.'''
+    frp = ifftshift(frp,axes=-1)
+    fir = ifft(frp, axis=-1)
+    fir = fftshift(fir, axes=-1)
+    if fbins is not None: return fir, fftshift(fftfreq(fbins.size, fbins[1] - fbins[0]))
+    else: return fir
+    
+
 def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, fr_xtalk=.00035, maxfr=None,
         mdl=gauss, maxfun=1000, ftol=1e-6, xtol=1e-6, startprms=(.001,.0001), window='blackman-harris', verbose=False):
-    '''XXX DOCSTRING'''
+    ''' Take a fringe rate profile at one frequency, fit an analytic function and extend 
+        to other frequencies. 
+        frp0: fringe rate profile at a single frequency. 
+        bins: fr bins that correspind to frp0.
+        fqs: Frequencies to extend fiter to. 
+        fq0: Frequency at which frp0 is made for.
+        limit_maxfr: cut of fringe rates above maximum possible fringe rate.
+        fr_xtalk: Threshold for removing crosstalk. 
+        mdl: a function to fit the fringe rate profile too. gaussian for default.
+    '''
     if maxfr is None: maxfr = bins[n.argwhere(frp0 != 0).max()] # XXX check this
     prms0 = fit_mdl(frp0, bins, maxfr, mdl=mdl,maxfun=maxfun,ftol=ftol,xtol=xtol,startprms=startprms,verbose=verbose)
     prms0 = n.array(prms0)
@@ -98,9 +119,10 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
     else: limit_xtalk = 1
     frps = n.array([mdl(prms0*fq/fq0,bins) * limit_maxfr(fq) * limit_xtalk for i,fq in enumerate(fqs)])
     tbins = fftshift(fftfreq(bins.size, bins[1]-bins[0]))
-    frps = ifftshift(frps, axes=-1)
-    firs = ifft(frps, axis=-1)
-    firs = fftshift(firs, axes=-1)
+    firs = frp_to_fir(frps) 
+    #frps = ifftshift(frps, axes=-1)
+    #firs = ifft(frps, axis=-1)
+    #firs = fftshift(firs, axes=-1)
     firs *= a.dsp.gen_window(bins.size, window)
     firs /= n.sum(n.abs(firs),axis=1).reshape(-1,1) # normalize so that n.sum(abs(fir)) = 1
     return tbins, firs
