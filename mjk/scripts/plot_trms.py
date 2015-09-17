@@ -22,11 +22,11 @@ o.add_option('--plot',dest='plot',default=False, action='store_true',\
 o.add_option('--output', type='string', default='',
     help='output directory for image files (default "")')
 o.add_option('--vline',default=False,action='store_true',\
-    help='Emphasizes chosen channel range')
+    help='Emphasizes chosen channel range with vertical lines on plot')
 o.add_option('--band', default='0_202', action='store',
-    help='Channels from which to Calculate full band Covariance')
+    help='Full channel range to plot T_RMS')
 o.add_option('--inttime', default=None, action='store',
-    help="Specify inttime for data, else use uv['inttime']")
+    help="Specify inttime for data in seconds, default: uv['inttime']")
 opts,args=o.parse_args(sys.argv[1:])
 
 
