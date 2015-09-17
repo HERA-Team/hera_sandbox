@@ -30,7 +30,7 @@ o.add_option('--inttime', default=None, action='store',
 opts,args=o.parse_args(sys.argv[1:])
 
 
-POL = 'I'
+POL = opts.pol
 try:
     rmbls = map(int, opts.rmbls.split(','))
 except:
