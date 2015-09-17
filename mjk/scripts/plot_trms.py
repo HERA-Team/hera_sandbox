@@ -22,11 +22,11 @@ o.add_option('--plot',dest='plot',default=False, action='store_true',\
 o.add_option('--output', type='string', default='',
     help='output directory for image files (default "")')
 o.add_option('--vline',default=False,action='store_true',\
-    help='Emphasizes chosen channel range')
+    help='Emphasizes chosen channel range with vertical lines on plot')
 o.add_option('--band', default='0_202', action='store',
-    help='Channels from which to Calculate full band Covariance')
+    help='Full channel range to plot T_RMS')
 o.add_option('--inttime', default=None, action='store',
-    help="Specify inttime for data, else use uv['inttime']")
+    help="Specify inttime for data in seconds, default: uv['inttime']")
 opts,args=o.parse_args(sys.argv[1:])
 
 
@@ -91,8 +91,9 @@ band_chans = a.scripting.parse_chans(opts.band, uv['nchan'])
 if not opts.inttime is None:
     inttime = float(opts.inttime)
 else:
-    inttime = uv['inttime'] * 4 / (8.*60.) # XXX hack for *E files that have inttime set incorrectly
+    inttime = uv['inttime'] * 4  # XXX hack for *E files that have inttime set incorrectly
 print 'inttime', inttime
+print 'sdf', sdf
 del(uv)
 
 afreqs = freqs.take(chans)
@@ -158,9 +159,9 @@ if set(['even','odd']) == set(days):
         if conj[bl]: d=n.conj(d)        
         x[bl] = n.transpose(d,[1,0])
         cnt_e[bl] = n.transpose(c_e,[1,0])
-        var_e[bl] = n.transpose(v_e, [1,0]) * inttime
+        var_e[bl] = n.transpose(v_e, [1,0]) * inttime * sdf
         cnt_o[bl] = n.transpose(c_o,[1,0])
-        var_o[bl] = n.transpose(v_o, [1,0]) * inttime
+        var_o[bl] = n.transpose(v_o, [1,0]) * inttime * sdf
 bls_master=x.keys()
 nbls = len(bls_master)
 bls_master.sort()
@@ -177,7 +178,7 @@ for bl in bls_master:
     trms_e_the[bl] = n.sqrt( n.mean(var_e[bl][band_chans,::dlst]/cnt_e[bl][band_chans,::dlst].clip(1,n.Inf)**2,axis=1) ) * jy2T[band_chans]
     trms_o_the[bl] = n.sqrt( n.mean(var_o[bl][band_chans,::dlst]/cnt_o[bl][band_chans,::dlst].clip(1,n.Inf)**2,axis=1) ) * jy2T[band_chans]
 ##GSM emission + antenna temp / sqrt(df*dt*cnt)
-    theo_temp[bl]= (1.2e5*(allfreqs/.15)**(-2.8)+400)/(n.sqrt( 8*60 *100/203 *1e6))* n.mean(1./n.sqrt(cnt_e[bl][band_chans,::dlst].clip(1,n.Inf)),axis=1)
+    theo_temp[bl]= (1.2e5*(allfreqs/.15)**(-2.8)+400)/(n.sqrt( inttime * sdf *1e9))* n.mean(1./n.sqrt(cnt_e[bl][band_chans,::dlst].clip(1,n.Inf)),axis=1)
 
 #bl_avgeraged counts and vars
 var_o_blavg = n.mean( [var_o[bl] for bl in bls_master],axis=0)
