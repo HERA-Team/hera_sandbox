@@ -71,7 +71,7 @@ for ni in range(len(list_freq)):
     #clos_app = select_pair.get_closest(pairs_sorted)           #determine closest approach points
     clos_app = select_pair.alter_clos(d,bm_intpl)            #determine closest approach points
     print 'Found closest approach points after:', sys_time.clock(), 'seconds'
-    pairs_final = select_pair.pair_fin(clos_app,dt_fine,aa,src,freq,fbmamp,multweight=True,noiseweight=True,ovlpweight=True,puv=False)
+    pairs_final = select_pair.pair_fin(clos_app,dt_fine,aa,src,freq,fbmamp,multweight=True,noiseweight=True,ovlpweight=True,puv=True)
     print 'Total time:', sys_time.clock(), 'seconds'
 
     #write result to file and screen
@@ -109,6 +109,6 @@ for ni in range(len(list_freq)):
     plot_pair.plot_closapp(clos_app,corr_tol,figname)
 
     #plot sample approach points, puv in pair_fin must be True
-    #pair_xampl = select_pair.test_sample(pairs_final)
-    #plot_pair.plot_pair_xampl(pair_xampl)
+    pair_xampl = select_pair.test_sample(pairs_final)
+    plot_pair.plot_pair_xampl(pair_xampl)
 

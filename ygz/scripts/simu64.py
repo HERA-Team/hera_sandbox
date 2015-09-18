@@ -52,7 +52,7 @@ with open(Cname, 'r') as f1:
     for line in f1:
         bl,DelT,Opp = line.rstrip('\n').split(',')
         if bl != '0_26_0_38' and bl != '0_38_0_26': continue
-        DelT, Opp = float(DelT), float(Opp)
+        DelT, Opp = -float(DelT), float(Opp)
         norm = X2Y*bb*Omp*Omp/Opp    #1.E6 is K2 to mK2
         T1, dat1, flg1 = capo.arp.get_dict_of_uv_data(F1,antstr='0_26',polstr=polstr)
         T2, dat2, flg2 = capo.arp.get_dict_of_uv_data(F2,antstr='0_38',polstr=polstr)
@@ -76,6 +76,8 @@ with open(Cname, 'r') as f1:
 
         print data1.shape, data2.shape  #(time,freq)
 
+
+        #Phase data to the src with which the approach points were computed
         phs1, phs2 = n.zeros(data1.shape,dtype='complex64'), n.zeros(data2.shape,dtype='complex64')
         t026 = 2456249.2666900107
         t038 = 2456249.3086900176
@@ -92,7 +94,8 @@ with open(Cname, 'r') as f1:
         for t2 in T2:
             phs2[ind][:] = aa.gen_phs(src,0,38)
             ind = ind+1
-        data1, data2 = n.multiply(data1,phs1),n.multiply(data2,phs2)
+        #data1, data2 = n.multiply(data1,phs1),n.multiply(data2,phs2)
+        data1, data2 = n.multiply(data1,phs1.conj()),n.multiply(data2,phs2.conj())
 
         dau1, dau2 = [],[]
         for datnu in data1:
