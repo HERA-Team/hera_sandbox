@@ -3,7 +3,7 @@ import matplotlib
 #matplotlib.use('Agg')
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random
-
+from IPython import embed
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
 o.add_option('-b', '--nboot', type='int', default=20,
@@ -133,21 +133,35 @@ def get_cav(c_mat,nchan,scaling=False):
 def write_cav_stats(data,nchan):
     days=data.keys()
     for k in days:
-        statfile='Cav_{0}_data.csv'.format(k)
-        picfile='All_cav_diff_{0}.png'.format(k)
+        if opts.auto:
+            statfile='Cav_{0}_data_{1}_scaled.csv'.format(k,opts.sep)
+            picfile='All_cav_diff_{0}_{1}_scaled.png'.format(k,opts.sep)
+        else:
+            statfile='Cav_{0}_data_{1}.csv'.format(k)
+            picfile='All_cav_diff_{0}_{1}.png'.format(k)
         if not opts.output == '':
             statfile =opts.output+'/'+statfile
             picfile =opts.output+'/'+picfile
         f = open(statfile,'w')
-        f.write('Baseline \t Max \t Min \t Mean \t Median \t Eig \t Eig_Cav \t Rms_Percent_Diff\n')
+        f.write('Baseline \t Max \t Min \t Mean \t Median \t Eig \t Eig_Cav \t Rms_C_Cav_diff\n')
         fig =p.figure()
 
         for num,bl in enumerate(data[k]):
             c_mat=cov(data[k][bl])
             cav = get_cav(c_mat,nchan,scaling=opts.auto)
             diff=abs(c_mat-cav)
-            U_cav,S_cav,V_cav=n.linalg.svd(cav)
-            U_c,S_c,V_c=n.linalg.svd(c_mat)
+            U_cav,S_cav,V_cav=n.linalg.svd(cav.conj())
+            U_c,S_c,V_c=n.linalg.svd(c_mat.conj())
+
+
+            if PLOT and True:
+                f=p.figure()
+                p.plot(S_c,label='C')
+                p.plot(S_cav,label='Cav')
+                p.yscale('log')
+                p.legend(loc='best')
+                p.title('Eigenvalues')
+                p.show()
             ###Plot and making file fore residuals, amplitudes of eigenvalues, and variance of data
 
             f.write(' {0} \t {1} \t {2} \t {3} \t {4} \t {5} \t {6} \t {7} \n'.format(bl, n.max(diff), n.min(diff),n.mean(diff), n.median(diff), S_c[0],S_cav[0], n.sqrt(n.mean(diff**2))))
@@ -156,11 +170,45 @@ def write_cav_stats(data,nchan):
 
         f.close()
         fig.subplots_adjust(hspace=.6)
-        p.suptitle('Percent diff/sqrt({0}'.format(nchan))
+        p.suptitle('Percent diff/sqrt({0})'.format(nchan))
         fig.savefig(picfile)
         p.close()
 
+def plot_eig(data,nchan):
+    days=data.keys()
+    for k in days:
+        eig_order=[]
+        eigs = []
+        eigs_cav = []
+        for bl in data[k]:
+           c_mat=cov(data[k][bl])
+           cav = get_cav(c_mat,nchan,scaling=opts.auto)
+           U,S,V= n.linalg.svd(c_mat.conj())
+           U_cav,S_cav,V_cav = n.linalg.svd(cav.conj())
+           eig_order.append(S[0])
+           eigs.append( n.fft.fftshift(n.fft.fft(V.T.conj(),axis=0)))
+           eigs_cav.append( n.fft.fftshift(n.fft.fft(V_cav.T.conj(),axis=0)))
 
+
+        order=n.argsort(eig_order)
+
+        eig_order=n.take(eig_order,order)
+        eigs=n.take(eigs,order,axis=0)
+        eigs_cav=n.take(eigs_cav,order,axis=0)
+        embed()
+        fig=p.figure(1)
+        for cnt,eig in enumerate(eigs):
+            p.plot(eig[0] + cnt*5)
+        p.title('Eigenvectors for day {0}'.format(k))
+        p.show()
+        p.savefig('eigenvectors_{0}.png'.format(k))
+        p.clf()
+        for cnt,eig in enumerate(eigs_cav):
+            p.plot(eig[0] + cnt*5)
+        p.title('Eigenvectors of Cav for day {0}'.format(k))
+        p.savefig('eigenvectors_cav_{0}.png'.format(k))
+        p.clf()
+        p.close()
 
 SEP = opts.sep
 #dsets = {
@@ -391,7 +439,7 @@ Q = [get_Q(i,nchan) for i in xrange(nchan)]
 
 ##write file of stats for c and cav
 write_cav_stats(x,nchan)
-
+plot_eig(x,nchan)
 # Compute baseline auto-covariances and apply inverse to data
 I,_I,_Ix = {},{},{}
 C,_C,_Cx = {},{},{}
@@ -409,6 +457,11 @@ for k in days:
 
         I[k][bl] = n.identity(C[k][bl].shape[0])
         U,S,V = n.linalg.svd(C[k][bl].conj())
+
+        if S[0] >= 18:
+            C[k][bl]=cov(x[k][bl])
+            U,S,V=n.linalg.svd(C[k][bl].conj())
+
         _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
         #_C[k][bl] = n.identity(_C[k][bl].shape[0])
         _I[k][bl] = n.identity(_C[k][bl].shape[0])
