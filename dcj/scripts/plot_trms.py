@@ -25,9 +25,16 @@ o.add_option('--vline',default=False,action='store_true',\
     help='Emphasizes chosen channel range')
 o.add_option('--band', default='0_202', action='store',
     help='Channels from which to Calculate full band Covariance')
-o.add_option('--inttime', default=None, action='store',
+o.add_option('--inttime', default=None, action='store',type=float,
     help="Specify inttime for data, else use uv['inttime']")
+o.add_option('--Tsky',default=180,type=float,help='rough estimate of the sky temperature in this data @ 180MHz.  \
+[default 180K]')
+o.add_option('--Trcvr',default=100,type=float,help='receiver termp [default 100K]')
+o.add_option('--rmbls',type=str,help='list of baselines to NOT use, comma delim, integers output by a.miriad.ij2bl')
+o.add_option('--varinttime',type=float,help='integration time of the variances (s, default=inttime)')
 opts,args=o.parse_args(sys.argv[1:])
+if opts.varinttime is None:
+    opts.varinttime=opts.inttime
 
 
 POL = opts.pol
@@ -89,7 +96,7 @@ chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 band_chans = a.scripting.parse_chans(opts.band, uv['nchan'])
 
 if not opts.inttime is None:
-    inttime = float(opts.inttime)
+    inttime = opts.inttime
 else:
     inttime = uv['inttime'] * 4 / (8.*60.) # XXX hack for *E files that have inttime set incorrectly
 print 'inttime', inttime
@@ -164,9 +171,9 @@ if set(['even','odd']) == set(days):
         c_e = n.ma.masked_where(c_e<1,c_e)
         c_o = n.ma.masked_where(c_o<1,c_o)
         cnt_e[bl] = n.transpose(c_e,[1,0])[:,::dlst]
-        var_e[bl] = n.transpose(v_e, [1,0])[:,::dlst] * (inttime*sdf*1e9)
+        var_e[bl] = n.transpose(v_e, [1,0])[:,::dlst]# * (inttime*sdf*1e9)
         cnt_o[bl] = n.transpose(c_o,[1,0])[:,::dlst]
-        var_o[bl] = n.transpose(v_o, [1,0])[:,::dlst] * (inttime*sdf*1e9)
+        var_o[bl] = n.transpose(v_o, [1,0])[:,::dlst] #* (inttime*sdf*1e9)
 bls_master=x.keys()
 nbls = len(bls_master)
 bls_master.sort()
@@ -175,13 +182,13 @@ trms_data, trms_o_the,trms_e_the = {}, {}, {}
 theo_temp= {}
 
 
-
+print opts.inttime/opts.varinttime
 for bl in bls_master:
     trms_data[bl] = n.sqrt( n.mean(x[bl].conj() * x[bl],axis=1)/2. ).real
-    trms_e_the[bl] = n.sqrt( n.ma.mean(var_e[bl]/cnt_e[bl],axis=1) ) * jy2T[band_chans]
-    trms_o_the[bl] = n.sqrt( n.mean(var_o[bl]/cnt_o[bl],axis=1) ) * jy2T[band_chans] * 20000
+    trms_e_the[bl] = n.sqrt( n.ma.mean(var_e[bl]/cnt_e[bl]/(opts.inttime/opts.varinttime),axis=1) ) * jy2T[band_chans]
+    trms_o_the[bl] = n.sqrt( n.ma.mean(var_o[bl]/cnt_o[bl]/(opts.inttime/opts.varinttime),axis=1) ) * jy2T[band_chans]
 ##GSM emission + antenna temp / sqrt(df*dt*cnt)
-    theo_temp[bl]= (450e3*(allfreqs/.15)**(-2.8)+100e3)/(n.sqrt( inttime *sdf*1e9))* n.mean(1./n.sqrt(cnt_e[bl]),axis=1)
+    theo_temp[bl]= (opts.Tsky*1e3*(allfreqs/.18)**(-2.8)+opts.Trcvr*1e3)/(n.sqrt( inttime *sdf*1e9))* n.mean(1./n.sqrt(cnt_e[bl]),axis=1)
 #bl_avgeraged counts and vars
 var_o_blavg = n.mean( [var_o[bl] for bl in bls_master],axis=0)
 cnt_o_blavg = n.mean( [cnt_o[bl] for bl in bls_master],axis=0)
@@ -199,29 +206,39 @@ trms_blavg= n.sqrt( n.mean(diff_blavg.conj()*diff_blavg ,axis=1)/2.)
 avg_trms= n.mean([ trms_data[bl] for bl in bls_master], axis=0)
 gsm_data={}
 
-for bl in bls_master:
-    gsm_data[bl] = n.ma.masked_invalid(theo_temp[bl]/avg_trms)
+#for bl in bls_master:
+#    gsm_data[bl] = n.ma.masked_invalid(theo_temp[bl]/avg_trms)
     #print 'baseline:', bl, 'mean, median, std ratio', n.mean(gsm_data[bl]), n.median(gsm_data[bl]), n.std(gsm_data[bl])
 
-blavg_ratio=n.ma.masked_invalid(trms_blavg/trms_o_the_blavg)
+#blavg_ratio=n.ma.masked_invalid(trms_blavg/trms_o_the_blavg)
 #print 'BL Averaged Trms/Tvar:','meam', n.mean(blavg_ratio),'meadian', n.median(blavg_ratio)
 
-
-for bl in bls_master:
+mychan=110
+T_vs_bl = n.zeros((len(bls_master),len(band_chans)))
+for i,bl in enumerate(bls_master):
+    T_vs_bl[i] = trms_data[bl]
+p.subplot(121)
+p.plot(bls_master,n.mean(T_vs_bl[:,110:150],axis=1))
+p.subplot(122)
+p.imshow(n.log(T_vs_bl),aspect='auto',interpolation='nearest')
+T_vs_bl_mean = n.mean(T_vs_bl[:,110:150],axis=1)
+print "hottest baseline = ",bls_master[n.argwhere(T_vs_bl_mean==T_vs_bl_mean.max()).squeeze()]
+p.show()
+for i,bl in enumerate(bls_master):
     print 'Ploting Trms for %d_%d'%a.miriad.bl2ij(bl)
     p.plot(band_chans, trms_data[bl], label='$T_{e-o}$')
     p.plot(band_chans, avg_trms, 'm--', label='$T_{e-o,avg}$')
     p.plot(band_chans, trms_o_the[bl], label='$T_{odd,var}$')
     p.plot(band_chans, trms_e_the[bl], label='$T_{even,var}$')
     p.plot(band_chans, trms_blavg, label='$T_{blavg,e-o}$')
-    p.plot(band_chans, trms_o_the_blavg, label='$T_{blavg,odd,var}$')
-    p.plot(band_chans, trms_e_the[bl], label='$T_{blavg,even,var}$')
+    #p.plot(band_chans, trms_o_the_blavg, label='$T_{blavg,odd,var}$')
+    #p.plot(band_chans, trms_e_the_blavg, label='$T_{blavg,even,var}$')
     p.plot(band_chans, theo_temp[bl],'k--',label='GSM')
     p.plot(band_chans, theo_temp[bl]/n.sqrt(nbls),'k--')
     p.yscale('log')
     p.xlim([band_chans[0]-1,band_chans[-1]+1])
     p.xlabel('chan')
-    p.ylabel('$T_{rms}\ [K]$')
+    p.ylabel('$T_{rms}\ [mK]$')
     p.legend(loc='lower center',ncol=4, bbox_to_anchor=(.5,-.35))
     p.subplots_adjust(bottom=.25)
     p.title('%d_%d'%a.miriad.bl2ij(bl))
