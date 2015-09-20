@@ -43,14 +43,16 @@ for chan in $chans; do
                echo `date` | tee -a ${LOGFILE} 
                ANTS='cross'
                    
-               echo python ${SCRIPTSDIR}/pspec_cov_v002_sigloss.py \
-                    --window=${WINDOW} -p ${pol} -c ${chan} -b ${NBOOT} \
-                     -C ${cal} -i ${inject} -a ${ANTS} --output=${ijectdir} \
-                     ${EVEN_FILES} ${ODD_FILES} 
+               echo python ${SCRIPTSDIR}/pspec_cav_v002_sigloss.py \
+                    --window=${WINDOW} -p ${pol} -c ${chan} --band=${band}\
+                     -b ${NBOOT} -C ${cal} -i ${inject}\
+                     -a ${ANTS} --output=${ijectdir} --auto \
+                     ${EVEN_FILES} ${ODD_FILES}
 
-               python ${SCRIPTSDIR}/pspec_cov_v002_sigloss.py \
-                    --window=${WINDOW} -p ${pol} -c ${chan} -b ${NBOOT} \
-                     -C ${cal} -i ${inject} -a ${ANTS} --output=${injectdir} \
+               python ${SCRIPTSDIR}/pspec_cav_v002_sigloss.py \
+                    --window=${WINDOW} -p ${pol} -c ${chan} --band=${band}\
+                     -b ${NBOOT} -C ${cal} -i ${inject} \
+                     -a ${ANTS} --output=${injectdir} --auto \
                      ${EVEN_FILES} ${ODD_FILES} \
                      |tee -a ${LOGFILE}
             done
@@ -58,7 +60,7 @@ for chan in $chans; do
     done
 done
 
-echo waiting on `python -c "print len('${PIDS}'.split())"` power spectra threads ${PIDS} 
+echo waiting on `python -c "print len('${PIDS}'.split())"` sigloss threads ${PIDS} 
 wait $PIDS
 
 

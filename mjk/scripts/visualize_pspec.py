@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random
 
@@ -26,7 +26,7 @@ o.add_option('--output', type='string', default='',
 opts,args = o.parse_args(sys.argv[1:])
 
 random.seed(0)
-POL = opts.pol#'I'
+POL = 'I'
 LST_STATS = False
 DELAY = False
 NGPS = 5
@@ -154,15 +154,14 @@ if opts.loss:
     'even': glob.glob('/home/mkolopanis/psa64/lstbin_even_noxtalk/sep0,1/*242.[3456]*uvGL'),
     'odd' : glob.glob('/home/mkolopanis/psa64/lstbin_odd_noxtalk/sep0,1/*243.[3456]*uvGL'),
 }
-print "getting spectral info from ",dsets.values()[0][0],"...",
-sys.stdout.flush()
+
 WINDOW = opts.window
 uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 del(uv)
-print "[Done]"
+
 afreqs = freqs.take(chans)
 nchan = chans.size
 fq = n.average(afreqs)
@@ -204,18 +203,10 @@ sys.stdout.flush()
 #antstr = '41_49,3_10,9_58,22_61,20_63,2_43,21_53,31_45,41_47,3_25,1_58,35_61,42_63,2_33'
 antstr = 'cross'
 lsts,data,flgs = {},{},{}
-days = dsets.keys() #days might be even/odd or more than two jacknifes.
-print "loading data"
+days = dsets.keys()
 for k in days:
     lsts[k],data[k],flgs[k] = get_data(dsets[k], antstr=antstr, polstr=POL, rmbls=rmbls, verbose=True)
-    bls = data[k].keys()
-    for bl in bls:
-        print k,bl,n.sum(n.isnan(data[k][bl]))/float(n.array(data[k][bl]).size),n.sum(flgs[k][bl])/float(n.array(data[k][bl]).size)
-        if n.sum(flgs[k][bl])>(0.9*n.array(flgs[k][bl]).size):
-            del(data[k][bl])
-            del(flgs[k][bl])
-            print "removing baseline ",bl,"because it is 90% or more flagged"
-    print k,"nbls = ",len(data[k])
+    print data[k].keys()
 
 if LST_STATS:
     # collect some metadata from the lst binning process
@@ -235,14 +226,17 @@ else: cnt,var = n.ones_like(lsts.values()[0]), n.ones_like(lsts.values()[0])
 if True:
 #if False:
     # Align data sets in LST
+    print [lsts[k][0] for k in days]
     lstmax = max([lsts[k][0] for k in days])
     for k in days:
+        print k
         for i in xrange(len(lsts[k])):
             # allow for small numerical differences (which shouldn't exist!)
             if lsts[k][i] >= lstmax - .001: break
         lsts[k] = lsts[k][i:]
         for bl in data[k]:
             data[k][bl],flgs[k][bl] = data[k][bl][i:],flgs[k][bl][i:]
+    print [len(lsts[k]) for k in days]
     j = min([len(lsts[k]) for k in days])
     for k in days:
         lsts[k] = lsts[k][:j]
@@ -255,6 +249,8 @@ else:
 lsts = lsts.values()[0]
 
 x = {}
+print len(data[k][bl])
+print type(chans)
 for k in days:
     x[k] = {}
     for bl in data[k]:
@@ -343,8 +339,9 @@ for k in days:
         if PLOT and False:
             #p.plot(S); p.show()
             p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
-            p.subplot(323); capo.arp.waterfall(C[k][bl])
-            p.subplot(324); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
+            p.subplot(334); capo.arp.waterfall(C[k][bl])
+            p.subplot(335); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
+            p.subplot(336); capo.arp.waterfall(_C[k][bl])
             p.subplot(313); capo.arp.waterfall(_Cx[k][bl], mode='real')
             p.suptitle('%d_%d'%a.miriad.bl2ij(bl))
 #            p.figure(2); p.plot(n.diag(S))
@@ -372,14 +369,17 @@ for boot in xrange(opts.nboot):
     print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps])
     _Iz,_Isum,_IsumQ = {},{},{}
     _Cz,_Csum,_CsumQ = {},{},{}
+    Csum = {}
     for k in days:
         _Iz[k],_Isum[k],_IsumQ[k] = {},{},{}
         _Cz[k],_Csum[k],_CsumQ[k] = {},{},{}
+        Csum[k]={}
         for i,gp in enumerate(gps):
             _Iz[k][i] = sum([_Ix[k][bl] for bl in gp])
             _Cz[k][i] = sum([_Cx[k][bl] for bl in gp])
             _Isum[k][i] = sum([_I[k][bl] for bl in gp])
             _Csum[k][i] = sum([_C[k][bl] for bl in gp])
+            Csum[k][i] = sum([C[k][bl] for bl in gp])
             _IsumQ[k][i] = {}
             _CsumQ[k][i] = {}
             if DELAY: # this is much faster
@@ -392,19 +392,36 @@ for boot in xrange(opts.nboot):
         if PLOT:
             NGPS = len(gps)
             _Csumk = n.zeros((NGPS,nchan,NGPS,nchan), dtype=n.complex)
+            Csumk = n.zeros((NGPS,nchan,NGPS,nchan), dtype=n.complex)
             _Isumk = n.zeros((NGPS,nchan,NGPS,nchan), dtype=n.complex)
             for i in xrange(len(gps)): _Isumk[i,:,i,:] = _Isum[k][i]
             _Isumk.shape = (NGPS*nchan, NGPS*nchan)
             #_Isum[k] = _Isumk
-            for i in xrange(len(gps)): _Csumk[i,:,i,:] = _Csum[k][i]
+            for i in xrange(len(gps)):
+                     _Csumk[i,:,i,:] = _Csum[k][i]
+                     Csumk[i,:,i,:] = Csum[k][i] 
             _Csumk.shape = (NGPS*nchan, NGPS*nchan)
+            Csumk.shape = (NGPS*nchan, NGPS*nchan)
             #_Csum[k] = _Csumk
             _Czk = n.array([_Cz[k][i] for i in _Cz[k]])
+            _Izk = n.array([_Iz[k][i] for i in _Iz[k]])
             _Czk = n.reshape(_Czk, (_Czk.shape[0]*_Czk.shape[1], _Czk.shape[2]))
-            p.subplot(211); capo.arp.waterfall(_Czk, mode='real')
-            p.subplot(223); capo.arp.waterfall(_Csumk)
-            p.subplot(224); capo.arp.waterfall(cov(_Czk))
-            p.show()
+            _Izk = n.reshape(_Izk, (_Izk.shape[0]*_Izk.shape[1], _Izk.shape[2]))
+            C_I=cov(_Izk)
+            I_U,I_S,I_V=n.linalg.svd(C_I)
+            _C_I=n.einsum('ij,j,jk',I_V.T,1./I_S,I_U.T)
+            p.subplot(411); capo.arp.waterfall(_Izk, mode='real')
+            p.subplot(423); capo.arp.waterfall(Csumk)
+            p.subplot(424); capo.arp.waterfall(_Csumk)
+            p.subplot(425); capo.arp.waterfall(C_I)
+            p.subplot(426); capo.arp.waterfall(_C_I)
+            #p.subplot(426); capo.arp.waterfall(cov(_Czk))
+            p.subplot(414); capo.arp.waterfall(_Czk, mode='real')
+            fig_file='Data_Covariance_boot{0:0>4d}_'.format(boot) +opts.chan
+            if not opts.output == '':
+                fig_file= opts.output + '/' + fig_file
+            p.savefig(fig_file)
+            p.close()
 
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex)
@@ -456,69 +473,13 @@ for boot in xrange(opts.nboot):
                                 FC[i,j] += n.einsum('ij,ji', _CsumQ[k1][bl1][i], _CsumQ[k2][bl2][j])
 
     if PLOT:
-        p.subplot(121); capo.arp.waterfall(FC, drng=4)
-        p.subplot(122); capo.arp.waterfall(FI, drng=4)
-        p.show()
-
-    print 'Psuedoinverse of FC'
-    
-    # Other choices for M
-    #U,S,V = n.linalg.svd(FC.conj())
-    #_S = n.sqrt(1./S)
-    # _S = 1./S
-    # _S = n.ones_like(S)
-    #MC = n.dot(n.transpose(V), n.dot(n.diag(_S), n.transpose(U)))
-    #order = n.array([10,11,9,12,8,13,7,14,6,15,5,16,4,17,3,18,2,19,1,20,0])
-
-    # Cholesky decomposition
-    order = n.array([10,11,9,12,8,20,0,13,7,14,6,15,5,16,4,17,3,18,2,19,1])
-    iorder = n.argsort(order)
-    FC_o = n.take(n.take(FC,order, axis=0), order, axis=1)
-    if True:
-        print FC.min(),FC.max()
-        p.imshow(FC.real)
-        p.show()
-    L_o = n.linalg.cholesky(FC_o)
-    U,S,V = n.linalg.svd(L_o.conj())
-    MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
-    MC = n.take(n.take(MC_o,iorder, axis=0), iorder, axis=1)
-    MI  = n.identity(nchan, dtype=n.complex128)
-    
-    print 'Normalizing M/W'
-    WI = n.dot(MI, FI)
-    norm  = WI.sum(axis=-1); norm.shape += (1,)
-    #norm  = WI.max(axis=-1); norm.shape += (1,) # XXX
-    MI /= norm; WI = n.dot(MI, FI)
-    WC = n.dot(MC, FC)
-    norm  = WC.sum(axis=-1); norm.shape += (1,)
-    #norm  = WC.max(axis=-1); norm.shape += (1,) # XXX
-    MC /= norm; WC = n.dot(MC, FC)
-
-    print 'Generating ps'
-    pC = n.dot(MC, qC) * scalar
-    #pC[m] *= 1.81 # signal loss, high-SNR XXX
-    #pC[m] *= 1.25 # signal loss, low-SNR XXX
-    pI = n.dot(MI, qI) * scalar
-
-    if PLOT:
-        p.subplot(411); capo.arp.waterfall(qC, mode='real'); p.colorbar(shrink=.5)
-        p.subplot(412); capo.arp.waterfall(pC, mode='real'); p.colorbar(shrink=.5)
-        p.subplot(413); capo.arp.waterfall(qI, mode='real'); p.colorbar(shrink=.5)
-        p.subplot(414); capo.arp.waterfall(pI, mode='real'); p.colorbar(shrink=.5)
-        p.show()
-
-    if PLOT:
-        p.plot(kpl, n.average(pC.real, axis=1), 'b.-')
-        p.plot(kpl, n.average(pI.real, axis=1), 'k.-')
-        p.show()
-
-    outfile = 'pspec_boot%04d.npz'%(boot)
-    if not opts.output == '':
-        outfile =opts.output+'/'+outfile
-    print "Writing", outfile
-    n.savez(outfile, kpl=kpl, scalar=scalar, times=n.array(lsts),
-        pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI, 
-        afreqs=afreqs, chans=chans,
-        cmd=' '.join(sys.argv))
-
+        p.subplot(141); capo.arp.waterfall(FC, drng=4)
+        p.subplot(142); capo.arp.waterfall(FI, drng=4)
+        p.subplot(143); capo.arp.waterfall(qC, mode='real')
+        p.subplot(144); capo.arp.waterfall(qI, mode='real')
+        fig_file = 'FC_FI_qC_qI_boot{0:0>4d}_'.format(boot)+opts.chan
+        if not opts.output == '':
+            fig_file= opts.output + '/' + fig_file
+        p.savefig(fig_file)
+        p.close()
 
