@@ -19,8 +19,6 @@ o.add_option('--redinfo',dest='redinfo',type='string',
             help='Path and name of .bin redundant info file.')
 o.add_option('-C',dest='cal',default='psa6622_v003',type='string',
             help='Path and name of calfile.')
-o.add_option('--xtalk',dest='xtalk',default=False,action="store_true",
-            help='Option to use xtalk command when performing lincal. Default is False.')
 o.add_option('--omniruntag',dest='omniruntag',default='',type='string',
             help='Tag for omni run, if wanted. Default is empty.')
 o.add_option('--omnipath',dest='omnipath',default='',type='string',
@@ -97,15 +95,12 @@ for f in range(len(args)):
     print '   logcal-ing' 
     m,g,v = omnical.calib.redcal(data,info) #logcal
     print '   lincal-ing'
-    if opts.xtalk == True:
-        xtalk = {}
-        xtalk_flat = {}
-        for key in m['res'].keys():
-            xtalkavg = numpy.mean(m['res'][key],axis=0) #avg over time
-            xtalk_flat[key] = xtalkavg #saved for later (not reshaped to minimize size)
-            xtalk[key] = numpy.resize(xtalkavg,(m['res'][key].shape)) #must be same shape as data
-    else:
-        xtalk = None
+    xtalk = {}
+    xtalk_flat = {}
+    for key in m['res'].keys():
+        xtalkavg = numpy.mean(m['res'][key],axis=0) #avg over time
+        xtalk_flat[key] = xtalkavg #saved for later (not reshaped to minimize size)
+        xtalk[key] = numpy.resize(xtalkavg,(m['res'][key].shape)) #must be same shape as data
     #import IPython; IPython.embed()
     m2,g2,v2 = omnical.calib.redcal(data,info,xtalk=xtalk,gains=g,vis=v,uselogcal=False,removedegen=True) #lincal
         #XXX with this new xtalk dictionary, it's giving different chi-square results than before !!!
@@ -115,9 +110,8 @@ for f in range(len(args)):
     out = tag + '.omni_output'+opts.omniruntag
     print '   saving '+out+'.npz'
     d_npz = {}
-    if opts.xtalk == True:
-        for bl in xtalk_flat.keys(): #save xtalk
-            d_npz['%s,%s,%s' % (pol,'xtalk',bl)] = xtalk_flat[bl]
+    for bl in xtalk_flat.keys(): #save xtalk
+        d_npz['%s,%s,%s' % (pol,'xtalk',bl)] = xtalk_flat[bl]
     d_npz['%s,%s' % (pol,'chisq')] = m2['chisq'] #save chisq
     #for vv in v.keys(): #save vis models
         #d_npz['%s,%s,%s' % (pol,'v_log',vv)] = v[vv]
