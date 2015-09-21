@@ -45,7 +45,7 @@ def hmap_to_fr_profile(bm_hmap, bl, lat, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, i
     eq = bm_hmap.px2crd(n.arange(bm_hmap.npix()), ncrd=3) # equatorial coordinates
     eq2zen = a.coord.eq2top_m(0., lat)
     top = n.dot(eq2zen, eq)
-    bm = bm_hmap[top]
+    bm = bm_hmap[(top[0], top[1], top[2])]
     fng = mk_fng(bl,eq)
     return fr_profile(bm, fng, bins=bins, wgt=wgt, iwgt=iwgt)
     

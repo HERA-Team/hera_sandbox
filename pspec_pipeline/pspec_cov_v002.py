@@ -245,7 +245,7 @@ if set(['even','odd'])==set(days):
     print "Trms (bl avg) =",Trms
     print "Pk (bl avg) = {Pk:e} mK^2/Mpc^3".format(Pk=Trms**2*scalar)
     
-sys.exit()
+#sys.exit()
 if PLOT and False:
     #p.plot(d[3602][0,:].real)
     capo.arp.waterfall(d[1298],mode='real')
@@ -386,7 +386,7 @@ for k in days:
             C[k][bl] -= n.identity(nchan)*sigma[bl]
         I[k][bl] = n.identity(C[k][bl].shape[0])
         U,S,V = n.linalg.svd(C[k][bl].conj())
-        if True: #calculate a realization of finite sample noise covariance
+        if False: #calculate a realization of finite sample noise covariance
             NC = stats.wishart.rvs(df=Nt[bl],scale=n.identity(nchan)*sigma[bl])/(Nt[bl])
             UN,SN,VN = n.linalg.svd(NC)
             #S -= SN
@@ -480,7 +480,7 @@ for boot in xrange(opts.nboot):
                 capo.arp.waterfall(_Cz[k][i],mode='real')
                 
             p.show()
-    continue
+#    continue
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex)
     qI = n.zeros((nchan,_Iz.values()[0].values()[0].shape[1]), dtype=n.complex)
@@ -549,7 +549,8 @@ for boot in xrange(opts.nboot):
     order = n.array([10,11,9,12,8,20,0,13,7,14,6,15,5,16,4,17,3,18,2,19,1])
     iorder = n.argsort(order)
     FC_o = n.take(n.take(FC,order, axis=0), order, axis=1)
-    if True:
+    #if True:
+    if False:
         print FC.min(),FC.max()
         p.imshow(FC.real)
         p.show()

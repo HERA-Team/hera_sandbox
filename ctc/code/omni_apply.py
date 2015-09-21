@@ -11,7 +11,7 @@ import os, sys
 
 ### Options ###
 o = optparse.OptionParser()
-o.set_usage('omini_apply.py [options] *uvcRRE')
+o.set_usage('omni_apply.py [options] *uvcRRE')
 o.set_description(__doc__)
 #o.add_option('-C',dest='cal',default='psa6622_v003',type='string',
 #            help='Path and name of calfile.')
@@ -28,10 +28,16 @@ pol2 = pol[1]
 
 ### mfunc ###
 def mfunc(uv,p,d): #loops over time and baseline
-    a1,a2 = p[2]
-    #XXX To do: get xtalk for (a1,a2) and subtract it from d
-        #if d is (a2,a1), then conjugate xtalk
-        #if no xtalk, keep going without subtracting
+    a1,a2 = p[2] #data always has bl of (lower num, higher num)
+    try: #xtalk isn't always like that
+        xtalk = npz[pol+',xtalk,('+str(a1)+', '+str(a2)+')'] 
+    except:
+        try: 
+            xtalk = npz[pol+',xtalk,('+str(a2)+', '+str(a1)+')']
+            xtalk = xtalk.conj() #conjugate if bl is backwards
+        except:
+            xtalk = numpy.zeros_like(d) #some bls don't have xtalk soln
+    d = d-xtalk #subtract xtalk
     key1 = pol1+',gains,'+str(a1)
     key2 = pol1+',gains,'+str(a2)
     time_index = numpy.where(t_file == p[1])[0][0]
