@@ -24,7 +24,7 @@ df = 0.1/203
 nchan = 20
 
 pol,lst,ant,tauchan = opts.pol,opts.lst.split('_'),opts.ant.split('_'),int(opts.chan)
-DIR = '/Users/yunfanzhang/local/simuDATA/64_UV/0_26/'
+DIR = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_26/'
 
 uv1 = a.miriad.UV(args[0])
 uv2 = a.miriad.UV(args[1])

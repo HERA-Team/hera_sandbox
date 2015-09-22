@@ -17,15 +17,15 @@ nchan = 20
 schan = 90
 polstr = 'xx'
 
-DIR1 = '/Users/yunfanzhang/local/simuDATA/64_UV/0_26/'
-DIR2 = '/Users/yunfanzhang/local/simuDATA/64_UV/0_38/'
+DIR1 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_26/'
+DIR2 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_38/'
 F1, F2 = os.listdir(DIR1), os.listdir(DIR2)
 for i in range(len(F1)): F1[i] = DIR1+F1[i]
 for i in range(len(F2)): F2[i] = DIR2+F2[i]
 Cname = 'P0.15.cue'
-uv1 = a.miriad.UV(DIR1+'pspec_2456249.20169.uv/')
+uv1 = a.miriad.UV(DIR1+'pspec_2456249.0.uv/')
 #uv2 = uv1
-uv2 = a.miriad.UV(DIR2+'pspec_0_38_2456249.20169.uv/')
+uv2 = a.miriad.UV(DIR2+'pspec_2456249.0.uv/')
 
 freqflist = n.array((uv1['sfreq'] + uv1['sdf']*n.arange(uv1['nchan'])))  #GHz
 freqlist = n.array((uv1['sfreq'] + uv1['sdf']*schan + uv1['sdf']*n.arange(nchan)))  #GHz
@@ -52,7 +52,7 @@ with open(Cname, 'r') as f1:
     for line in f1:
         bl,DelT,Opp = line.rstrip('\n').split(',')
         if bl != '0_26_0_38' and bl != '0_38_0_26': continue
-        DelT, Opp = -float(DelT), float(Opp)
+        DelT, Opp = float(DelT), float(Opp)
         norm = X2Y*bb*Omp*Omp/Opp    #1.E6 is K2 to mK2
         T1, dat1, flg1 = capo.arp.get_dict_of_uv_data(F1,antstr='0_26',polstr=polstr)
         T2, dat2, flg2 = capo.arp.get_dict_of_uv_data(F2,antstr='0_38',polstr=polstr)

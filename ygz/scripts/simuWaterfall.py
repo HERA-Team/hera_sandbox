@@ -1,14 +1,14 @@
 #loads the data and match times
 import numpy as n, aipy as a, capo, os
-DIR1 = '/Users/yunfanzhang/local/simuDATA/64_UV/0_26/'
-DIR2 = '/Users/yunfanzhang/local/simuDATA/64_UV/0_38/'
+DIR1 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_26/'
+DIR2 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_38/'
 F1 = os.listdir(DIR1)
 F2 = os.listdir(DIR2)
 for i in range(len(F1)): F1[i] = DIR1+F1[i] 
 for i in range(len(F2)): F2[i] = DIR2+F2[i] 
 t026 = 2456249.2666900107
 t038 = 2456249.3086900176
-dt = -(t038-t026)
+dt = t038-t026
 df = 100./203
 #freql = n.arange(100,200,df)*1.E6
 #phsfac = n.exp(-2*n.pi*3000*n.sin(dt*2*n.pi)*freql/a.phs.const.c*1.j)
@@ -38,10 +38,10 @@ dataave = n.mean(data1*data2.conj(),axis=0)
 print dataave.shape
 
 #Phase data to original source
-DIR1 = '/Users/yunfanzhang/local/simuDATA/64_UV/0_26/'
-DIR2 = '/Users/yunfanzhang/local/simuDATA/64_UV/0_38/'
-uv1 = a.miriad.UV(DIR1+'pspec_2456249.26525.uv/')
-uv2 = a.miriad.UV(DIR2+'pspec_0_38_2456249.30497.uv/')
+DIR1 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_26/'
+DIR2 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_38/'
+uv1 = a.miriad.UV(DIR1+'pspec_2456249.26465.uv/')
+uv2 = a.miriad.UV(DIR2+'pspec_2456249.30536.uv/')
 polstr = 'xx'
 nchan = 203
 schan = 0
@@ -52,13 +52,13 @@ src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15)
 src.compute(aa)
 phs1, phs2 = n.zeros(data1.shape,dtype='complex64'), n.zeros(data2.shape,dtype='complex64')
 ind = 0
-aa.set_jultime(t038)      #must set to exact time determined with the same src and aa
+aa.set_jultime(t026)      #must set to exact time determined with the same src and aa
 src.compute(aa)
 for t1 in T1:
     phs1[ind][:] = aa.gen_phs(src,0,26)
     ind = ind+1
 ind = 0
-aa.set_jultime(t026)
+aa.set_jultime(t038)
 src.compute(aa)
 for t2 in T2:
     phs2[ind][:] = aa.gen_phs(src,0,38)
