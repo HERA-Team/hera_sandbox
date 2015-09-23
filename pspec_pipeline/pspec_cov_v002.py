@@ -267,6 +267,7 @@ bls_master = x.values()[0].keys()
 nbls = len(bls_master)
 print 'Baselines:', nbls
 
+
 if INJECT_SIG > 0.: # Create a fake EoR signal to inject
     print 'INJECTING SIMULATED SIGNAL'
     eor_sets = {
@@ -336,6 +337,13 @@ for k in days:
         C[k][bl] = cov(x[k][bl])
         I[k][bl] = n.identity(C[k][bl].shape[0])
         U,S,V = n.linalg.svd(C[k][bl].conj())
+<<<<<<< HEAD
+=======
+        if False: #calculate a realization of finite sample noise covariance
+            NC = stats.wishart.rvs(df=Nt[bl],scale=n.identity(nchan)*sigma[bl])/(Nt[bl])
+            UN,SN,VN = n.linalg.svd(NC)
+            #S -= SN
+>>>>>>> carina/master
         _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
         _I[k][bl] = n.identity(_C[k][bl].shape[0])
         _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
@@ -405,7 +413,11 @@ for boot in xrange(opts.nboot):
             p.subplot(223); capo.arp.waterfall(_Csumk)
             p.subplot(224); capo.arp.waterfall(cov(_Czk))
             p.show()
+<<<<<<< HEAD
 
+=======
+#    continue
+>>>>>>> carina/master
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex)
     qI = n.zeros((nchan,_Iz.values()[0].values()[0].shape[1]), dtype=n.complex)
@@ -474,7 +486,8 @@ for boot in xrange(opts.nboot):
     order = n.array([10,11,9,12,8,20,0,13,7,14,6,15,5,16,4,17,3,18,2,19,1])
     iorder = n.argsort(order)
     FC_o = n.take(n.take(FC,order, axis=0), order, axis=1)
-    if True:
+    #if True:
+    if False:
         print FC.min(),FC.max()
         p.imshow(FC.real)
         p.show()
