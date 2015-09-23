@@ -12,7 +12,7 @@ LSTS=`python -c "import numpy as n; hr = 1.0; print ' '.join(['%f_%f' % (d,d+hr/
 #LSTS=`python -c "import numpy as n; hr = 1.0; print ' '.join(['%f_%f' % (d,d+hr/4.) for d in n.arange(5.25,9.5*hr,hr/4.)])"`
 #LSTS=9.250000_9.500000
 MY_LSTS=`~/src/capo/dcj/scripts/pull_args.py $LSTS`
-CALFILE=psa6622_v001
+CALFILE=psa6622_v002
 PREFIX=lstbin_June22_v2
 
 echo $MY_LSTS
