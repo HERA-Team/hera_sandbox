@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random
+import capo.frf_conv as fringe
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
@@ -214,9 +215,12 @@ for boot in xrange(opts.nboot):
             for ch in xrange(eor1.shape[0]):
                 eor1[ch] = n.convolve(eor1[ch], fringe_filter, mode='same')
         else: # this one is the exact one
-            bl = a.miriad.bl2ij(bls_master[0])
-            beam_w_fr = capo.frf_conv.get_beam_w_fr(aa, bl)
-            t, firs, frbins,frspace = capo.frf_conv.get_fringe_rate_kernels(beam_w_fr, inttime, FRF_WIDTH)
+            ij = a.miriad.bl2ij(bls_master[0])
+            print 'baseline used to make fringe rate filter is = ',ij
+            frp, bins = fringe.aa_to_fr_profile(aa, ij, 100)
+            timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[100])
+            #beam_w_fr = capo.frf_conv.get_beam_w_fr(aa, bl)
+            #t, firs, frbins,frspace = capo.frf_conv.get_fringe_rate_kernels(beam_w_fr, inttime, FRF_WIDTH)
             #for cnt,ch in enumerate(chans):
             #    eor1[cnt] = n.convolve(eor1[cnt], firs[ch], mode='same')
         for k in days:

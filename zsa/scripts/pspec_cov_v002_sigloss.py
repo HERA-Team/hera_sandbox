@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n, pylab as p, capo
+import capo.frf_conv as fringe
 import glob, optparse, sys, random
 
 o = optparse.OptionParser()
@@ -47,7 +48,7 @@ def get_data(filenames, antstr, polstr, verbose=False):
             #if not dat[bl].has_key(pol):
             #    dat[bl][pol],flg[bl][pol] = [],[]
             #dat[bl][pol].append(d)
-m            #flg[bl][pol].append(f)
+            #flg[bl][pol].append(f)
     return n.array(lsts), dat, flg
 
 def cov(m):
@@ -203,9 +204,11 @@ for boot in xrange(opts.nboot):
             for ch in xrange(eor1.shape[0]):
                 eor1[ch] = n.convolve(eor1[ch], fringe_filter, mode='same')
         else: # this one is the exact one
-            bl = a.miriad.bl2ij(bls_master[0])
-            beam_w_fr = capo.frf_conv.get_beam_w_fr(aa, bl)
-            t, firs, frbins,frspace = capo.frf_conv.get_fringe_rate_kernels(beam_w_fr, inttime, FRF_WIDTH)
+            ij = a.miriad.bl2ij(bls_master[0])
+            #beam_w_fr = capo.frf_conv.get_beam_w_fr(aa, bl)
+            #t, firs, frbins,frspace = capo.frf_conv.get_fringe_rate_kernels(beam_w_fr, inttime, FRF_WIDTH)
+            frp, bins = fringe.aa_to_fr_profile(aa, ij, 100)
+            timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[100])
             for cnt,ch in enumerate(chans):
                 eor1[cnt] = n.convolve(eor1[cnt], firs[ch], mode='same')
         #eor2 = eor.values()[0] * INJECT_SIG
