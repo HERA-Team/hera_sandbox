@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random
+from scipy import interpolate
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
@@ -14,6 +15,10 @@ o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 o.add_option('--output', type='string', default='',
     help='output directory for pspec_boot files (default "")')
+o.add_option('--band', default='80_150', action='store',
+    help='Channels from which to Calculate full band Covariance')
+o.add_option('--auto',  action='store_true',
+    help='Auto-scale covariance matrix')
 opts,args = o.parse_args(sys.argv[1:])
 
 random.seed(0)
@@ -102,10 +107,13 @@ uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
+band_chans = a.scripting.parse_chans(opts.band, uv['nchan'])
 inttime = uv['inttime'] * 4 # XXX hack for *E files that have inttime set incorrectly
 del(uv)
 
 afreqs = freqs.take(chans)
+allfreqs = freqs.take(band_chans)
+nchan_band = band_chans.size
 nchan = chans.size
 fq = n.average(afreqs)
 z = capo.pspec.f2z(fq)
@@ -113,7 +121,7 @@ z = capo.pspec.f2z(fq)
 #aa = a.cal.get_aa(opts.cal, n.array([.150]))
 aa = a.cal.get_aa(opts.cal, freqs)
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
-jy2T = capo.pspec.jy2T(afreqs)
+jy2T = capo.pspec.jy2T(allfreqs)
 window = a.dsp.gen_window(nchan, WINDOW)
 #if not WINDOW == 'none': window.shape=(1,nchan)
 if not WINDOW == 'none': window.shape=(nchan,1)
@@ -190,12 +198,23 @@ lsts = lsts.values()[0]
 for boot in xrange(opts.nboot):
     print '%d / %d' % (boot+1,opts.nboot)
     x = {}
+    x1 = {}
+    index= map(lambda i:  n.where(band_chans == i)[0][0], chans)
     for k in days:
         x[k] = {}
+        x1[k] = {}
         for bl in data[k]:
-            d = data[k][bl][:,chans] * jy2T
-            if conj[bl]: d = n.conj(d)
+            print k, bl
+            d = data[k][bl][:,band_chans] *jy2T
+            #d1 = n.zeros_like(d)
+            #d1[:,index] +=  d[:,index]
+            d1= n.copy(d)
+            d[:,index] = 0. + 0j
+            if conj[bl]: 
+                d = n.conj(d)
+                d1 = n.conj(d1)
             x[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
+            x1[k][bl] = n.transpose(d1, [1,0]) # swap time and freq axes
 
     #eor = x.pop('eor'); days = x.keys() # make up for putting eor in list above
     bls_master = x.values()[0].keys()
@@ -220,7 +239,10 @@ for boot in xrange(opts.nboot):
         #eor2 = eor.values()[0] * INJECT_SIG
         eor = eor1 * INJECT_SIG
         for k in days:
-            for bl in x[k]: x[k][bl] += eor
+            for bl in x[k]: 
+                x[k][bl] += eor
+                x1[k][bl] += eor
+                x[k][bl][index] = 0. + 0j
         if False and PLOT:
             p.subplot(211); capo.arp.waterfall(eor1, mode='real'); p.colorbar()
             p.subplot(212); capo.arp.waterfall(eor2, mode='real'); p.colorbar(); p.show()
@@ -232,22 +254,60 @@ for boot in xrange(opts.nboot):
 
     # Compute baseline auto-covariances and apply inverse to data
     I,_I,_Ix = {},{},{}
-    C,_C,_Cx = {},{},{}
+    C,Cav,_C,_Cav,_Cavx,_Cx = {},{},{},{},{},{}
     for k in days:
         I[k],_I[k],_Ix[k] = {},{},{}
-        C[k],_C[k],_Cx[k] = {},{},{}
+        C[k],Cav[k],_C[k],_Cav[k],_Cavx[k],_Cx[k] = {},{},{},{},{},{}
         for bl in x[k]:
             C[k][bl] = cov(x[k][bl])
-            #C[k][bl] = n.identity(C[k][bl].shape[0])
             I[k][bl] = n.identity(C[k][bl].shape[0])
             U,S,V = n.linalg.svd(C[k][bl].conj())
             _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
-            #_C[k][bl] = n.identity(_C[k][bl].shape[0])
             _I[k][bl] = n.identity(_C[k][bl].shape[0])
             #_Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
             #_Ix[k][bl] = x[k][bl].copy()
             _Cx[k][bl] = n.dot(_C[k][bl], eor) # XXX
             _Ix[k][bl] = eor.copy() # XXX
+
+            #Compute Cav by taking diags, averaging and reforming the matrix
+            diags =[C[k][bl].diagonal(count) for count in xrange(nchan_band-1, -nchan_band,-1)]
+            Cav[k][bl]=n.zeros_like(C[k][bl])
+            for count,count_chan in enumerate(range(nchan_band-1,-nchan_band,-1)):
+                    Cav[k][bl] += n.diagflat( n.mean(diags[count]).repeat(len(diags[count])), count_chan)
+            
+            if opts.auto:
+                #Need full covariance for auto-covariance
+                #points=C[k][bl].nonzero()
+           #     points=n.where(abs(C[k][bl]) > 1e-10)
+           #     values=C[k][bl][points]
+           #     X,Y=n.meshgrid(n.arange(C[k][bl].shape[0]),n.arange(C[k][bl].shape[1]))
+           #     new_c = interpolate.griddata(points,values,(X,Y),method='nearest')
+                new_c = cov(x1[k][bl])
+                #scale rows and columns by sqrt of auto-covariance
+                for count in xrange(nchan_band):
+                    tmp=Cav[k][bl]
+                    Cav[k][bl][count,:] *= n.sqrt(new_c[count,count]/tmp[count,count])
+                    Cav[k][bl].T[count,:] *= n.sqrt(new_c[count,count]/tmp[count,count])
+                #Ensure symmetric matrix, some interpolation alogrithms 
+                #have artefacts
+                #Cav[k][bl] /= n.mean(Cav[k][bl].diagonal())
+                #Cav[k][bl] = n.array(Cav[k][bl]+Cav[k][bl].T)/2.
+            
+            
+            U1,S1,V1 = n.linalg.svd(Cav[k][bl].conj())
+            _Cav[k][bl] = n.einsum('ij,j,jk', V1.T, 1./S1, U1.T)
+            norm  = _Cav[k][bl].sum(axis=-1); norm.shape += (1,)
+            _Cav[k][bl] /= norm
+            _Cavx[k][bl] = n.dot(_Cav[k][bl], eor) 
+            ####
+            #check that power is convserved
+            #print('Dim X.X', n.shape( (_Cavx[k][bl].conj()*_Cavx[k][bl]).sum(axis=0)   ))
+            #if not n.allclose( (_Cavx[k][bl].conj()*_Cavx[k][bl]).sum(axis=0), (eor.conj()*eor).sum(axis=0)):
+            #    print('Total Power Not Conserved')
+            #    print('_CavEor', (_Cavx[k][bl].conj()*_Cavx[k][bl]).sum(axis=0))
+            #    print('eor', (eor.conj()*eor).sum(axis=0))
+            #    sys.exit(0)
+        
             if PLOT and False:
                 #p.plot(S); p.show()
                 print a.miriad.bl2ij(bl), k
@@ -256,7 +316,31 @@ for boot in xrange(opts.nboot):
                 p.subplot(324); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
                 p.subplot(313); capo.arp.waterfall(_Cx[k][bl], mode='real')
                 p.show()
-        
+    #Select down to just the channel range for x
+    x={}
+    eor = eor[index]
+    grid = n.meshgrid(index,index)
+    for k in days:
+        x[k] = {}
+        for bl in data[k]:
+            x[k][bl] = _Cavx[k][bl][index]
+    for k in days:
+        I[k],_I[k],_Ix[k] = {},{},{}
+        C[k],_C[k],_Cx[k] = {},{},{}
+        for bl in x[k]:
+            C[k][bl] = cov(x[k][bl])
+            C[k][bl] = n.identity(C[k][bl].shape[0])
+            I[k][bl] = n.identity(C[k][bl].shape[0])
+            U,S,V = n.linalg.svd(C[k][bl].conj())
+            _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
+            _C[k][bl] =  n.identity(_C[k][bl].shape[0])
+            _I[k][bl] = n.identity(_C[k][bl].shape[0])
+            _Cx[k][bl] = x[k][bl].copy()
+            _Ix[k][bl] = eor.copy()
+    
+    bls_master = x.values()[0].keys()
+    nbls = len(bls_master)
+    print 'Baselines:', nbls
     bls = bls_master[:]
     if True: # shuffle and group baselines for bootstrapping
         random.shuffle(bls)
@@ -266,6 +350,7 @@ for boot in xrange(opts.nboot):
     else: gps = [bls[i::NGPS] for i in range(NGPS)]
     bls = [bl for gp in gps for bl in gp]
     print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps])
+
     _Iz,_Isum,_IsumQ = {},{},{}
     _Cz,_Csum,_CsumQ = {},{},{}
     for k in days:
@@ -367,14 +452,15 @@ for boot in xrange(opts.nboot):
     #order = n.array([10,11,9,12,8,13,7,14,6,15,5,16,4,17,3,18,2,19,1,20,0])
 
     # Cholesky decomposition
-    order = n.array([10,11,9,12,8,20,0,13,7,14,6,15,5,16,4,17,3,18,2,19,1])
-    iorder = n.argsort(order)
-    FC_o = n.take(n.take(FC,order, axis=0), order, axis=1)
-    L_o = n.linalg.cholesky(FC_o)
-    U,S,V = n.linalg.svd(L_o.conj())
-    MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
-    MC = n.take(n.take(MC_o,iorder, axis=0), iorder, axis=1)
+    #order = n.array([10,11,9,12,8,20,0,13,7,14,6,15,5,16,4,17,3,18,2,19,1])
+    #iorder = n.argsort(order)
+    #FC_o = n.take(n.take(FC,order, axis=0), order, axis=1)
+    #L_o = n.linalg.cholesky(FC_o)
+    #U,S,V = n.linalg.svd(L_o.conj())
+    #MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
+    #MC = n.take(n.take(MC_o,iorder, axis=0), iorder, axis=1)
     MI  = n.identity(nchan, dtype=n.complex128)
+    MC  = n.identity(nchan, dtype=n.complex128)
     
     print 'Normalizing M/W'
     WI = n.dot(MI, FI)

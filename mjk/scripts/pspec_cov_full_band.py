@@ -1,6 +1,9 @@
 #! /usr/bin/env python
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
+from IPython import embed
+from scipy import interpolate
+from matplotlib.widgets import Slider
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random
 
@@ -22,6 +25,10 @@ o.add_option('--rmbls', action='store',
     help='List of baselines, in miriad format, to remove from the power spectrum analysis.')
 o.add_option('--output', type='string', default='',
     help='output directory for pspec_boot files (default "")')
+o.add_option('--band', default='80_150', action='store',
+    help='Channels from which to Calculate full band Covariance')
+o.add_option('--auto',  action='store_true',
+    help='Auto-scale covariance matrix')
 
 opts,args = o.parse_args(sys.argv[1:])
 
@@ -160,16 +167,19 @@ uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
+band_chans = a.scripting.parse_chans(opts.band, uv['nchan'])
 del(uv)
 
 afreqs = freqs.take(chans)
+allfreqs = freqs.take(band_chans)
+nchan_band = len(band_chans)
 nchan = chans.size
 fq = n.average(afreqs)
 z = capo.pspec.f2z(fq)
 
 aa = a.cal.get_aa(opts.cal, n.array([.150]))
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
-jy2T = capo.pspec.jy2T(afreqs)
+jy2T = capo.pspec.jy2T(allfreqs)
 window = a.dsp.gen_window(nchan, WINDOW)
 #if not WINDOW == 'none': window.shape=(1,nchan)
 if not WINDOW == 'none': window.shape=(nchan,1)
@@ -247,18 +257,28 @@ else:
         for bl in data[k]:
             data[k][bl], flgs[k][bl] = n.array(data[k][bl][:]), n.array(flgs[k][bl][:])
 lsts = lsts.values()[0]
-
+index = map(lambda x: n.where( x == band_chans)[0][0], chans)
 x = {}
+x1 = {}
 print len(data[k][bl])
 print type(chans)
 for k in days:
     x[k] = {}
+    x1[k] = {}
     for bl in data[k]:
         print k, bl
-        d = data[k][bl][:,chans] * jy2T
-        if conj[bl]: d = n.conj(d)
+        d = data[k][bl][:,band_chans] *jy2T
+        d1 = n.copy(d)
+        d[:,index] = 0. + 0j
+        if conj[bl]:
+             d = n.conj(d)
+             d1 = n.conj(d1)
         x[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
-        
+        x1[k][bl] = n.transpose(d1, [1,0]) # swap time and freq axes
+        if n.allclose(x1[k][bl][index], n.zeros_like(x1[k][bl][index])):
+            print('New X is set to zero')
+            print( k,bl)
+            embed()
 bls_master = x.values()[0].keys()
 nbls = len(bls_master)
 print 'Baselines:', nbls
@@ -322,32 +342,191 @@ if INJECT_SIG > 0.: # Create a fake EoR signal to inject
 #    Q[i] = get_Q(i, nchan)
 Q = [get_Q(i,nchan) for i in xrange(nchan)]
 
-# Compute baseline auto-covariances and apply inverse to data
+##MAKE Average covariance
 I,_I,_Ix = {},{},{}
-C,_C,_Cx = {},{},{}
+C,Cav,Cst,_C,_Cav,_Cavx,_Cx = {},{},{},{},{},{},{}
 for k in days:
     I[k],_I[k],_Ix[k] = {},{},{}
-    C[k],_C[k],_Cx[k] = {},{},{}
+    C[k],Cav[k],Cst[k],_Cav[k],_C[k],_Cavx[k],_Cx[k] = {},{},{},{},{},{},{}
     for bl in x[k]:
         C[k][bl] = cov(x[k][bl])
         I[k][bl] = n.identity(C[k][bl].shape[0])
         U,S,V = n.linalg.svd(C[k][bl].conj())
         _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
-        _C[k][bl] = n.identity(_C[k][bl].shape[0])
         _I[k][bl] = n.identity(_C[k][bl].shape[0])
-        _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
+        _Cx[k][bl] = n.dot(_C[k][bl], x1[k][bl])
+#/n.dot(_C[k][bl],n.ones_like(x1[k][bl]))
         _Ix[k][bl] = x[k][bl].copy()
-        if PLOT and False:
-            #p.plot(S); p.show()
-            p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
-            p.subplot(334); capo.arp.waterfall(C[k][bl])
-            p.subplot(335); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
-            p.subplot(336); capo.arp.waterfall(_C[k][bl])
-            p.subplot(313); capo.arp.waterfall(_Cx[k][bl], mode='real')
-            p.suptitle('%d_%d'%a.miriad.bl2ij(bl))
-#            p.figure(2); p.plot(n.diag(S))
-            p.show()
+
+
+        #diags =[C[k][bl].diagonal(count) for count in xrange(nchan_band-1, -nchan_band,-1)]
+        #Cav[k][bl]=n.zeros_like(C[k][bl])
+        #Cst[k][bl]=n.zeros_like(C[k][bl])
+
+        #for count,count_chan in enumerate(range(nchan_band-1,-nchan_band,-1)):
+        #        Cav[k][bl] += n.diagflat( n.mean(diags[count]).repeat(len(diags[count])), count_chan)
+        #        Cst[k][bl] += n.diagflat( n.sqrt( n.mean( (diags[count]-n.mean(diags[count]) ) *n.conj(diags[count] - n.mean(diags[count]) )  )).repeat(len(diags[count])), count_chan)
         
+        
+        #Compute Cav by taking diags, averaging and reforming the matrix
+        diags =[C[k][bl].diagonal(count) for count in xrange(nchan_band-1, -nchan_band,-1)]
+        Cav[k][bl]=n.zeros_like(C[k][bl])
+
+
+        for count,count_chan in enumerate(range(nchan_band-1,-nchan_band,-1)):
+                Cav[k][bl] += n.diagflat( n.mean(diags[count]).repeat(len(diags[count])), count_chan)
+        
+        if opts.auto:
+            #Need full covariance for auto-covariance
+            #points=C[k][bl].nonzero()
+            new_c = cov(x1[k][bl])
+            U2,S2,V2=n.linalg.svd(new_c.conj())
+            #scale rows and columns by sqrt of auto-covariance
+            for count in xrange(nchan_band):
+                tmp=n.copy(Cav[k][bl])
+                Cav[k][bl][count,:] *= n.sqrt(new_c[count,count]/tmp[count,count])
+                Cav[k][bl].T[count,:] *= n.sqrt(new_c[count,count]/tmp[count,count])
+            #Ensure symmetric matrix, some interpolation alogrithms 
+            #have artefacts
+            #Cav[k][bl] /= n.mean(Cav[k][bl].diagonal())
+            #Cav[k][bl] = n.array(Cav[k][bl]+Cav[k][bl].T)/2.
+        U1,S1,V1 = n.linalg.svd(Cav[k][bl].conj())
+        _Cav[k][bl] = n.einsum('ij,j,jk', V1.T, 1./S1, U1.T)
+        norm  = _Cav[k][bl].sum(axis=-1); norm.shape += (1,)
+        _Cav[k][bl] /= norm
+        
+        if not n.allclose( Cav[k][bl], Cav[k][bl].T.conj()):
+            good_values=n.isclose(Cav[k][bl].Cav[k][bl].T.conj())
+            bad_values=~good_values
+            print('There are {0:d} elements which do not match'.format(n.sum(bad_values)))
+            sys.exit(0)
+
+        _Cavx[k][bl] = n.dot(_Cav[k][bl], x1[k][bl]) 
+#/ n.dot(_Cav[k][bl], n.ones(n.shape(x1[k][bl])))
+        #_Cavx[k][bl] = n.zeros_like(_Cx[k][bl])
+        #_Cavx[k][bl][index] += temp[index]
+        if PLOT and True:
+            #p.plot(S); p.show()
+                f1=p.figure(1)
+                p.subplot(511); capo.arp.waterfall(x1[k][bl], mode='real',mx=6,drng=12);
+                p.subplot(534); capo.arp.waterfall(C[k][bl],mx=1.2,drng=2.4); p.ylabel('C')
+                p.subplot(535); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
+                p.subplot(536); capo.arp.waterfall(_C[k][bl])
+                p.subplot(537); capo.arp.waterfall(Cav[k][bl],mx=1.2,drng=2.4); p.ylabel('Cav')
+                #p.subplot(537); capo.arp.waterfall(C[k][bl] - Cav[k][bl],mx=1.2,drng=2.4); p.ylabel('Cav')
+                p.subplot(538); p.plot(n.einsum('ij,jk',n.diag(S1),V1).T.real)
+                p.subplot(539); capo.arp.waterfall(_Cav[k][bl])
+                p.subplot(514); capo.arp.waterfall(_Cx[k][bl], mode='real'); p.ylabel('_Cx')
+                p.subplot(515); capo.arp.waterfall(_Cavx[k][bl], mode='real',mx=6,drng=12); p.ylabel('_Cavx')
+                p.suptitle('%d_%d'%a.miriad.bl2ij(bl))
+                f1.savefig('Cov_'+k+'_Baseline_%d_%d'%a.miriad.bl2ij(bl))
+                f1.clf()
+                f2=p.figure(2);
+                p.subplot(121)
+                p.plot(S2,label='C')
+                p.plot(S1,label='Cav')
+                p.legend(loc='best')
+                p.subplot(222)
+                p.plot(n.einsum('ij,jk',n.diag(S2),V2).T.real)
+                p.title('C')
+                p.subplot(224)
+                p.plot(n.einsum('ij,jk',n.diag(S1),V1).T.real)
+                p.title('Cav')
+                f2.savefig('Cov_'+k+'_Eigenvalues_%d_%d'%a.miriad.bl2ij(bl))
+                f2.clf()
+                f3=p.figure(3)
+                pmax=new_c.max()
+                prng=new_c.max()-new_c.min()
+                p.subplot(131); capo.arp.waterfall(new_c,mode='real', mx=pmax,drng=prng)
+                p.subplot(132); capo.arp.waterfall(Cav[k][bl],mode='real',mx=pmax,drng=prng)
+                p.subplot(133); capo.arp.waterfall(new_c-Cav[k][bl],mode='real',mx=pmax,drng=prng); p.colorbar()
+                f3.savefig('Cov_'+k+'_Residual_%d_%d'%a.miriad.bl2ij(bl))
+                f3.clf()
+                if False: 
+                    fig=p.figure(4); 
+                    S2_=n.zeros_like(S2)
+                    S2_[-1:]+=S2[-1:]
+                    C1 = n.einsum('ij,j,jk', U2, S2_, V2)
+                    S1_=n.zeros_like(S1)
+                    S1_[-1:]+=S1[-1:]
+                    Cav1= n.einsum('ij,j,jk', U1, S1_, V1)
+
+                    p.subplot(231); capo.arp.waterfall(new_c, mode='real',mx=7,drng=14); p.ylabel('C')
+                    p.subplot(232);l= p.plot(n.einsum('ij,jk',n.diag(S2_),V2).T.real) 
+                    p.subplot(233); capo.arp.waterfall(C1,mode='real',mx=7,drng=14) 
+                    p.subplot(234); capo.arp.waterfall(Cav[k][bl], mode='real',mx=7,drng=14);  p.ylabel('Cav')
+                    
+                    p.subplot(235);l1=p.plot(n.einsum('ij,jk',n.diag(S1_),V1).T.real) 
+                    p.subplot(236); capo.arp.waterfall(Cav1,mode='real',mx=7,drng=14) 
+                    axeig=p.axes([0.15,.01,.65,.03])
+                    seig = Slider(axeig, 'Eig val',1,71,valinit=1, valfmt='%0.0f')
+                    #embed()
+                    def update(val):
+                        S2_=n.zeros_like(S2)
+                        S1_=n.zeros_like(S1)
+                        s= int(seig.val)
+                        S2_[-s:]+=S2[-s:]
+                        S1_[-s:]+=S1[-s:]
+                        C1 = n.einsum('ij,j,jk', U2, S2_, V2)
+                        Cav1= n.einsum('ij,j,jk', U1, S1_, V1)
+                        vals1 = n.einsum('ij,jk',n.diag(S2_),V2).T.real
+                        valsav1=n.einsum('ij,jk', n.diag(S1_),V1).T.real
+                        for j in xrange(len(l)):
+                            l[j].set_ydata(vals1[:,j])
+                            l1[j].set_ydata(valsav1[:,j])
+                        fig.axes[1].relim()
+                        fig.axes[1].autoscale_view()
+                        fig.axes[4].relim()
+                        fig.axes[4].autoscale_view()
+                        p.subplot(233); capo.arp.waterfall(C1,mode='real',mx=7,drng=14) 
+                        p.subplot(236); capo.arp.waterfall(Cav1, mode='real',mx=7,drng=14); 
+                        fig.canvas.draw_idle()
+                    seig.on_changed(update)
+                p.show()
+                p.close
+
+
+
+# Compute baseline auto-covariances and apply inverse to data
+x = {}
+grid = n.meshgrid(index,index)
+I,_I,_Ix = {},{},{}
+C,_C,_Cx = {},{},{}
+if False:
+    for k in days:
+        x[k] = {}
+        for bl in data[k]:
+            print k, bl
+            x[k][bl] = x1[k][bl][index,:]
+    
+    for k in days:
+        I[k],_I[k],_Ix[k] = {},{},{}
+        C[k],_C[k],_Cx[k] = {},{},{}
+        for bl in x[k]:
+                C[k][bl] = Cav[k][bl][grid]
+                I[k][bl] = n.identity(C[k][bl].shape[0])
+                U,S,V = n.linalg.svd(C[k][bl].conj())
+                _C[k][bl] =  _Cav[k][bl][grid]
+                _I[k][bl] = n.identity(_C[k][bl].shape[0])
+                _Cx[k][bl] = _Cavx[k][bl][index]
+                _Ix[k][bl] = x[k][bl].copy()
+else:
+    for k in days:
+        x[k] = {}
+        for bl in data[k]:
+            print k, bl
+            x[k][bl] = _Cavx[k][bl][index,:]
+    for k in days:
+        I[k],_I[k],_Ix[k] = {},{},{}
+        C[k],_C[k],_Cx[k] = {},{},{}
+        for bl in x[k]:
+            C[k][bl] = cov(x[k][bl])
+            I[k][bl] = n.identity(C[k][bl].shape[0])
+            U,S,V = n.linalg.svd(C[k][bl].conj())
+            _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
+            _I[k][bl] = n.identity(_C[k][bl].shape[0])
+            _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
+            _Ix[k][bl] = x[k][bl].copy()
 
 
 for boot in xrange(opts.nboot):
@@ -528,7 +707,7 @@ for boot in xrange(opts.nboot):
         p.subplot(414); capo.arp.waterfall(pI, mode='real'); p.colorbar(shrink=.5)
         p.show()
 
-    if PLOT:
+    if PLOT and False:
         p.plot(kpl, n.average(pC.real, axis=1), 'b.-')
         p.plot(kpl, n.average(pI.real, axis=1), 'k.-')
         p.show()
@@ -538,8 +717,14 @@ for boot in xrange(opts.nboot):
         outfile =opts.output+'/'+outfile
     print "Writing", outfile
     n.savez(outfile, kpl=kpl, scalar=scalar, times=n.array(lsts),
-        pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI, 
+        pk_vs_t=pI, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI, 
         afreqs=afreqs, chans=chans,
         cmd=' '.join(sys.argv))
 
+
+###    #n.savez(outfile, kpl=kpl, scalar=scalar, times=n.array(lsts),
+###        pk_vs_t=pI, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI, 
+###        afreqs=afreqs, chans=chans,
+###        cmd=' '.join(sys.argv))
+###
 

@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random
 
@@ -333,7 +333,6 @@ for k in days:
         I[k][bl] = n.identity(C[k][bl].shape[0])
         U,S,V = n.linalg.svd(C[k][bl].conj())
         _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
-        _C[k][bl] = n.identity(_C[k][bl].shape[0])
         _I[k][bl] = n.identity(_C[k][bl].shape[0])
         _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
         _Ix[k][bl] = x[k][bl].copy()
@@ -418,7 +417,7 @@ for boot in xrange(opts.nboot):
             p.subplot(426); capo.arp.waterfall(_C_I)
             #p.subplot(426); capo.arp.waterfall(cov(_Czk))
             p.subplot(414); capo.arp.waterfall(_Czk, mode='real')
-            fig_file='Data_Covariance_boot{0:0>4d}'.format(boot) 
+            fig_file='Data_Covariance_boot{0:0>4d}_'.format(boot) +opts.chan
             if not opts.output == '':
                 fig_file= opts.output + '/' + fig_file
             p.savefig(fig_file)
@@ -478,68 +477,9 @@ for boot in xrange(opts.nboot):
         p.subplot(142); capo.arp.waterfall(FI, drng=4)
         p.subplot(143); capo.arp.waterfall(qC, mode='real')
         p.subplot(144); capo.arp.waterfall(qI, mode='real')
-        fig_file = 'FC_FI_qC_qI_boot{0:0>4d}'.format(boot)
-        p.show()
+        fig_file = 'FC_FI_qC_qI_boot{0:0>4d}_'.format(boot)+opts.chan
         if not opts.output == '':
             fig_file= opts.output + '/' + fig_file
         p.savefig(fig_file)
         p.close()
-
-    print 'Psuedoinverse of FC'
-    
-    # Other choices for M
-    #U,S,V = n.linalg.svd(FC.conj())
-    #_S = n.sqrt(1./S)
-    # _S = 1./S
-    # _S = n.ones_like(S)
-    #MC = n.dot(n.transpose(V), n.dot(n.diag(_S), n.transpose(U)))
-    #order = n.array([10,11,9,12,8,13,7,14,6,15,5,16,4,17,3,18,2,19,1,20,0])
-
-    # Cholesky decomposition
-    order = n.array([10,11,9,12,8,20,0,13,7,14,6,15,5,16,4,17,3,18,2,19,1])
-    iorder = n.argsort(order)
-    FC_o = n.take(n.take(FC,order, axis=0), order, axis=1)
-    L_o = n.linalg.cholesky(FC_o)
-    U,S,V = n.linalg.svd(L_o.conj())
-    MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
-    MC = n.take(n.take(MC_o,iorder, axis=0), iorder, axis=1)
-    MI  = n.identity(nchan, dtype=n.complex128)
-    
-    print 'Normalizing M/W'
-    WI = n.dot(MI, FI)
-    norm  = WI.sum(axis=-1); norm.shape += (1,)
-    #norm  = WI.max(axis=-1); norm.shape += (1,) # XXX
-    MI /= norm; WI = n.dot(MI, FI)
-    WC = n.dot(MC, FC)
-    norm  = WC.sum(axis=-1); norm.shape += (1,)
-    #norm  = WC.max(axis=-1); norm.shape += (1,) # XXX
-    MC /= norm; WC = n.dot(MC, FC)
-
-    print 'Generating ps'
-    pC = n.dot(MC, qC) * scalar
-    #pC[m] *= 1.81 # signal loss, high-SNR XXX
-    #pC[m] *= 1.25 # signal loss, low-SNR XXX
-    pI = n.dot(MI, qI) * scalar
-
-    if PLOT:
-        p.subplot(411); capo.arp.waterfall(qC, mode='real'); p.colorbar(shrink=.5)
-        p.subplot(412); capo.arp.waterfall(pC, mode='real'); p.colorbar(shrink=.5)
-        p.subplot(413); capo.arp.waterfall(qI, mode='real'); p.colorbar(shrink=.5)
-        p.subplot(414); capo.arp.waterfall(pI, mode='real'); p.colorbar(shrink=.5)
-        p.show()
-
-    if PLOT:
-        p.plot(kpl, n.average(pC.real, axis=1), 'b.-')
-        p.plot(kpl, n.average(pI.real, axis=1), 'k.-')
-        p.show()
-
-    outfile = 'pspec_boot%04d.npz'%(boot)
-    if not opts.output == '':
-        outfile =opts.output+'/'+outfile
-    print "Writing", outfile
-    n.savez(outfile, kpl=kpl, scalar=scalar, times=n.array(lsts),
-        pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI, 
-        afreqs=afreqs, chans=chans,
-        cmd=' '.join(sys.argv))
-
 

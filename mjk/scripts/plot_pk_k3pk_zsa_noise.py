@@ -1,9 +1,10 @@
 #! /usr/bin/env python
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 import aipy as a, numpy as n, pylab as p
 import capo as C
 import sys, optparse, re, os
+from IPython import embed
 
 o=optparse.OptionParser()
 o.add_option('--flux', action='store_true', 
@@ -22,6 +23,8 @@ o.add_option('--med', action='store_true',
             help='correction factor for using median statistics instead of the mean')
 o.add_option('--show', action='store_true',
             help='Show the plot')
+o.add_option('--cav', action='store_true',
+            help='plot Cav')
 opts,args = o.parse_args(sys.argv[1:])
 print args
 
@@ -202,6 +205,17 @@ dsum, dwgt = {}, {}
 dsum_fold, dwgt_fold = {}, {}
 afreqs=[]
 chans=[]
+
+NS_VS_KPL = {} # K^2
+NS_VS_KPL_FOLD = {} # K^2
+nsum, nsum_fold = {}, {}
+dnwgt,dnwgt_fold= {}, {}
+
+WNS_VS_KPL = {} # K^2
+WNS_VS_KPL_FOLD = {} # K^2
+wnsum, wnsum_fold = {}, {}
+dwnwgt,dwnwgt_fold= {}, {}
+
 for filename in args:
     print 'Reading', filename
     f = n.load(filename)
@@ -209,11 +223,33 @@ for filename in args:
     chans=f['chans']
     RS_VS_KPL[filename] = {}
     RS_VS_KPL_FOLD[filename] = {}
-    kpl,pk,err = f['kpl'], f['pk'], f['err']
-    try: pkfold,errfold = f['pk_fold'],f['err_fold']
-    except(KeyError): pkfold,errfold = None, None
+    NS_VS_KPL[filename] = {}
+    NS_VS_KPL_FOLD[filename] = {}
+    WNS_VS_KPL[filename] = {}
+    WNS_VS_KPL_FOLD[filename] = {}
+
+    kpl= f['kpl']
+    if opts.cav:
+        pk,err = f['pcav'], f['caverr']
+        try: pkfold,errfold = f['cav_fold'],f['caverr_fold']
+        except(KeyError): pkfold,errfold = None, None
+    else:
+        pk,err = f['pk'], f['err']
+        try: pkfold,errfold = f['pk_fold'],f['err_fold']
+        except(KeyError): pkfold,errfold = None, None
+
+    nk,nerr = f['nk'],f['nerr']
+    try: nkfold,nerrfold = f['nk_fold'],f['nerr_fold']
+    except(KeyError): nkfold,nerrfold = None, None
+    
+    wnk,wnerr = f['wnk'],f['wnerr']
+    try: wnkfold,wnerrfold = f['wnk_fold'],f['wnerr_fold']
+    except(KeyError): wnkfold,wnerrfold = None, None
+    
     if False: # Hacky way to get a noise bias out, if necessary
         pk -= n.median(n.concatenate([pk[:8], pk[-8:]]))
+        nk -= n.median(n.concatenate([nk[:8], nk[-8:]]))
+        wnk -= n.median(n.concatenate([wnk[:8], wnk[-8:]]))
     if False: # Hacky way to estimate noise
         print 'Overriding errors for %s:' % filename
         print 'Old err:'
@@ -225,22 +261,65 @@ for filename in args:
         RS_VS_KPL[filename][_kpl] = (_pk, _err)
         dsum[_kpl] = dsum.get(_kpl, 0) + _pk / _err**2
         dwgt[_kpl] = dwgt.get(_kpl, 0) + 1 / _err**2
+    
+    for _kpl, _nk, _nerr in zip(kpl, nk, nerr):
+        NS_VS_KPL[filename][_kpl] = (_nk, _nerr)
+        nsum[_kpl] = nsum.get(_kpl, 0) + _nk / _nerr**2
+        dnwgt[_kpl] = dnwgt.get(_kpl, 0) + 1. / _nerr**2
+    
+
+    for _kpl, _wnk, _wnerr in zip(kpl, wnk, wnerr):
+        WNS_VS_KPL[filename][_kpl] = (_wnk, _wnerr)
+        wnsum[_kpl] = wnsum.get(_kpl, 0) + _wnk / _wnerr**2
+        dwnwgt[_kpl] = dwnwgt.get(_kpl, 0) + 1. / _wnerr**2
+
+
     k0 = n.abs(kpl).argmin()
     if not pkfold is None:
         for _kpl, _pk, _err in zip(kpl[k0:], pkfold, errfold):
             RS_VS_KPL_FOLD[filename][_kpl] = (_pk, _err)
             dsum_fold[_kpl] = dsum_fold.get(_kpl, 0) + _pk / _err**2
             dwgt_fold[_kpl] = dwgt_fold.get(_kpl, 0) + 1 / _err**2
+    
+    if not nkfold is None:
+        for _kpl, _nk, _nerr in zip(kpl[k0:], nkfold, nerrfold):
+            NS_VS_KPL_FOLD[filename][_kpl] = (_nk, _nerr)
+            nsum_fold[_kpl] = nsum_fold.get(_kpl, 0) + _nk / _nerr**2
+            dnwgt_fold[_kpl] = dnwgt_fold.get(_kpl, 0) + 1. / _nerr**2
+    
+    if not wnkfold is None:
+        for _kpl, _wnk, _wnerr in zip(kpl[k0:], wnkfold, wnerrfold):
+            WNS_VS_KPL_FOLD[filename][_kpl] = (_wnk, _wnerr)
+            wnsum_fold[_kpl] = wnsum_fold.get(_kpl, 0) + _wnk / _wnerr**2
+            dwnwgt_fold[_kpl] = dwnwgt_fold.get(_kpl, 0) + 1. / _wnerr**2
 #freq = f['freq']
 freq=n.average(afreqs)
 #RS_VS_KPL = {}
 if True:
     RS_VS_KPL['total'] = {}
     RS_VS_KPL_FOLD['total'] = {}
+    
+    NS_VS_KPL['total'] = {}
+    NS_VS_KPL_FOLD['total'] = {}
+   
+    WNS_VS_KPL['total'] = {}
+    WNS_VS_KPL_FOLD['total'] = {}
+
+
     for _kpl in dsum:
         RS_VS_KPL['total'][_kpl] = (dsum[_kpl] / dwgt[_kpl], 1./n.sqrt(dwgt[_kpl]))
     for _kpl in dsum_fold:
         RS_VS_KPL_FOLD['total'][_kpl] = (dsum_fold[_kpl] / dwgt_fold[_kpl], 1./n.sqrt(dwgt_fold[_kpl]))
+    
+    for _kpl in nsum:
+        NS_VS_KPL['total'][_kpl] = (nsum[_kpl] / dnwgt[_kpl], 1./n.sqrt(dnwgt[_kpl]))
+    for _kpl in nsum_fold:
+        NS_VS_KPL_FOLD['total'][_kpl] = (nsum_fold[_kpl] / dnwgt_fold[_kpl], 1./n.sqrt(dnwgt_fold[_kpl]))
+
+    for _kpl in wnsum:
+        WNS_VS_KPL['total'][_kpl] = (wnsum[_kpl] / dwnwgt[_kpl], 1./n.sqrt(dwnwgt[_kpl]))
+    for _kpl in wnsum_fold:
+        WNS_VS_KPL_FOLD['total'][_kpl] = (wnsum_fold[_kpl] / dwnwgt_fold[_kpl], 1./n.sqrt(dwnwgt_fold[_kpl]))
 
 fig=p.figure(figsize=(12,7.2))
 if False: # put in raw delay spec
@@ -282,45 +361,83 @@ colors = 'kbcm' * 10
 for sep in RS_VS_KPL:
     if not sep == 'total': continue
     dsum, dwgt = {}, {}
+    nsum,nsum_fold = {}, {}
+    wnsum,wnsum_fold = {}, {}
     dsum_fold, dwgt_fold = {}, {}
+    dnwgt, dnwgt_fold ={},{}
+    dwnwgt, dwnwgt_fold ={},{}
     ks = RS_VS_KPL[sep].keys(); ks.sort()
     for k in ks:
         _d,_n = RS_VS_KPL[sep][k]
+        _dn,_nn = NS_VS_KPL[sep][k]
+        _dwn,_wnn = WNS_VS_KPL[sep][k]
         #print k, _d, _n, '->',
         dsum[k] = dsum.get(k,0) + _d / _n**2
+        nsum[k] = nsum.get(k,0) + _dn / _nn**2
+        wnsum[k] = wnsum.get(k,0) + _dwn / _wnn**2
         dwgt[k] = dwgt.get(k,0) + 1 / _n**2
+        dnwgt[k] = dnwgt.get(k,0) + 1. / _nn**2
+        dwnwgt[k] = dwnwgt.get(k,0) + 1. / _wnn**2
         #print dsum[k] / dwgt[k], 1./n.sqrt(dwgt[k])
     ks_fold = RS_VS_KPL_FOLD[sep].keys(); ks_fold.sort()
     for k in ks_fold:
         _d,_n = RS_VS_KPL_FOLD[sep][k]
+        _dn,_nn = NS_VS_KPL_FOLD[sep][k]
+        _dwn,_wnn = WNS_VS_KPL_FOLD[sep][k]
         #print k, _d, _n, '->',
         dsum_fold[k] = dsum_fold.get(k,0) + _d / _n**2
+        nsum_fold[k] = nsum_fold.get(k,0) + _dn / _nn**2
+        wnsum_fold[k] = wnsum_fold.get(k,0) + _dwn / _wnn**2
         dwgt_fold[k] = dwgt_fold.get(k,0) + 1 / _n**2
+        dnwgt_fold[k] = dnwgt_fold.get(k,0) + 1 / _nn**2
+        dwnwgt_fold[k] = dwnwgt_fold.get(k,0) + 1 / _wnn**2
         #print dsum[k] / dwgt[k], 1./n.sqrt(dwgt[k])
         
     kpl = dsum.keys(); kpl.sort()
     d = [dsum[k]/dwgt[k] for k in kpl]
+    dn = [nsum[k]/dnwgt[k] for k in kpl]
+    dwn = [wnsum[k]/dwnwgt[k] for k in kpl]
     nos = [1./n.sqrt(dwgt[k]) for k in kpl]
+    nnos = [1./n.sqrt(dnwgt[k]) for k in kpl]
+    wnnos = [1./n.sqrt(dwnwgt[k]) for k in kpl]
     kpl_fold = dsum_fold.keys(); kpl_fold.sort()
     d_fold = [dsum_fold[k]/dwgt_fold[k] for k in kpl_fold]
+    dn_fold = [nsum_fold[k]/dnwgt_fold[k] for k in kpl_fold]
+    dwn_fold = [wnsum_fold[k]/dwnwgt_fold[k] for k in kpl_fold]
     nos_fold = [1./n.sqrt(dwgt_fold[k]) for k in kpl_fold]
+    nnos_fold = [1./n.sqrt(dnwgt_fold[k]) for k in kpl_fold]
+    wnnos_fold = [1./n.sqrt(dwnwgt_fold[k]) for k in kpl_fold]
     #d = [RS_VS_KPL[k][0] for k in kpl]
     #nos = [RS_VS_KPL[k][1] for k in kpl]
-    if True: #if 'I' in sep: # Add foregrounds
+    if False: #if 'I' in sep: # Add foregrounds
         print 'Adding Foregrounds'
         for cnt,k in enumerate(kpl):
             k = '%6.3f' % k
             if not FG_VS_KPL.has_key(k): continue
             d[cnt] += FG_VS_KPL[k]
+            dn[cnt] += FG_VS_KPL[k]
+            dwn[cnt] += FG_VS_KPL[k]
             nos[cnt] = 2*n.sqrt(FG_VS_KPL_NOS*FG_VS_KPL[k])
+            nnos[cnt] = 2*n.sqrt(FG_VS_KPL_NOS*FG_VS_KPL[k])
+            wnnos[cnt] = 2*n.sqrt(FG_VS_KPL_NOS*FG_VS_KPL[k])
         for cnt,k in enumerate(kpl_fold):
             k = '%6.3f' % k
             if not FG_VS_KPL.has_key(k): continue
             d_fold[cnt] += FG_VS_KPL[k]
+            dn_fold[cnt] += FG_VS_KPL[k]
+            dwn_fold[cnt] += FG_VS_KPL[k]
             nos_fold[cnt] = 2*n.sqrt(FG_VS_KPL_NOS*FG_VS_KPL[k])
+            nnos_fold[cnt] = 2*n.sqrt(FG_VS_KPL_NOS*FG_VS_KPL[k])
+            wnnos_fold[cnt] = 2*n.sqrt(FG_VS_KPL_NOS*FG_VS_KPL[k])
         
     d,kpl,nos = n.array(d, dtype=n.complex), n.array(kpl), n.array(nos)
     d_fold,kpl_fold,nos_fold = n.array(d_fold, dtype=n.complex), n.array(kpl_fold), n.array(nos_fold)
+    
+    dn, dn_fold = n.array(dn, dtype=n.complex), n.array(dn_fold,dtype=n.complex)
+    nnos,nnos_fold = n.array(nnos), n.array(nnos_fold)
+    
+    dwn, dwn_fold = n.array(dwn, dtype=n.complex), n.array(dwn_fold,dtype=n.complex)
+    wnnos,wnnos_fold = n.array(wnnos), n.array(wnnos_fold)
     if False:
         # PSA32 was calibrated to Pictor A @ 160 MHz = 424 Jy
         # To recalibrate to new Pic A, must multiply by square of ratio of fluxes
@@ -331,8 +448,10 @@ for sep in RS_VS_KPL:
         print 'Scaling data and noise by %f for recalibration to PicA from Jacobs et al. 2013 (PSA32 only)' % f
         d *= f
         nos *= f
+        nnos *= f
         d_fold *= f
         nos_fold *= f
+        nnos_fold *= f
     if False:
         f = 2.35 # Use power**2 beam, which is a 1.69/0.72=2.35 penalty factor
         print 'Scaling data and noise by %f for correcting cosmo scalar to use power^2 beam' % f
@@ -349,6 +468,16 @@ for sep in RS_VS_KPL:
         nos *= f
         d_fold *= f
         nos_fold *= f
+
+        dn *= f
+        dn_fold *= f
+        nnos *= f
+        nnos_fold *= f
+
+        dwn *= f
+        wnnos *= f
+        dwn_fold *= f
+        wnnos_fold *= f
     if True: # extra penalty for signal loss in covariance diagonalization
         #f = 1.2
 #        f = 1.15 # this is the conservative number, for the biggest modes outside the of the wedge. Get ~1.03 correction at k=.2
@@ -358,6 +487,16 @@ for sep in RS_VS_KPL:
         nos *= f
         d_fold *= f
         nos_fold *= f
+
+        dn *= f
+        nnos *= f
+        dn_fold *= f
+        nnos_fold *= f
+
+        dwn *= f
+        wnnos *= f
+        dwn_fold *= f
+        wnnos_fold *= f
     if True:
         f = 1/n.log(2)
         print 'Scaling data and noise by %f for using the median statistic.'%f
@@ -365,6 +504,17 @@ for sep in RS_VS_KPL:
         nos *= f
         d_fold *= f
         nos_fold *= f
+
+        dn *= f
+        nnos *= f
+        dn_fold *= f
+        nnos_fold *= f
+
+        dwn *= f
+        wnnos *= f
+        dwn_fold *= f
+        wnnos_fold *= f
+
     if True:
         f1 = 1.048
         f2 = 1.013
@@ -374,13 +524,42 @@ for sep in RS_VS_KPL:
         d[k0+2] *= f1; d[k0-2] *= f1
         d[k0+3] *= f2; d[k0-3] *= f2
         d[k0+4:] *= f; d[:k0-3] *= f
+        
         nos[k0+2] *= f1; nos[k0-2] *= f1
         nos[k0+3] *= f2; nos[k0-3] *= f2
         nos[k0+4:] *= f; nos[:k0-3] *= f
-
+        
         d_fold[2] *= f1; nos_fold *= f1
         d_fold[3] *= f2; nos_fold *= f2
         d_fold[4:] *= f; nos_fold *= f
+
+
+
+        dn[k0+2] *= f1; dn[k0-2] *= f1
+        dn[k0+3] *= f2; dn[k0-3] *= f2
+        dn[k0+4:] *= f; dn[:k0-3] *= f
+
+        nnos[k0+2] *= f1; nnos[k0-2] *= f1
+        nnos[k0+3] *= f2; nnos[k0-3] *= f2
+        nnos[k0+4:] *= f; nnos[:k0-3] *= f
+        
+        dn_fold[2] *= f1; nnos_fold *= f1
+        dn_fold[3] *= f2; nnos_fold *= f2
+        dn_fold[4:] *= f; nnos_fold *= f
+
+        dwn[k0+2] *= f1; dwn[k0-2] *= f1
+        dwn[k0+3] *= f2; dwn[k0-3] *= f2
+        dwn[k0+4:] *= f; dwn[:k0-3] *= f
+
+        wnnos[k0+2] *= f1; wnnos[k0-2] *= f1
+        wnnos[k0+3] *= f2; wnnos[k0-3] *= f2
+        wnnos[k0+4:] *= f; wnnos[:k0-3] *= f
+        
+        dwn_fold[2] *= f1; wnnos_fold *= f1
+        dwn_fold[3] *= f2; wnnos_fold *= f2
+        dwn_fold[4:] *= f; wnnos_fold *= f
+
+
     if True:
         f=1 + 2e-9 
         print 'Scaling data and noise by %f for signal loss from bandpass calibration.'%f
@@ -389,6 +568,15 @@ for sep in RS_VS_KPL:
         d_fold *= f
         nos_fold *= f
 
+        dn *= f
+        nnos *= f
+        dn_fold *= f
+        nnos_fold *= f
+
+        dwn *= f
+        wnnos *= f
+        dwn_fold *= f
+        wnnos_fold *= f
     #for _kpl,_pk,_nos in zip(kpl,d,nos): print _kpl, _pk, _nos
     print sep, colors[0]
     '''
@@ -398,6 +586,8 @@ for sep in RS_VS_KPL:
         nos = n.std(n.concatenate([d[:8], d[-8:]])) * n.ones_like(d)
     '''
     if d_fold.size == 0: d_fold,nos_fold = None, None
+    if dn_fold.size == 0: dn_fold,nnos_fold = None, None
+    if dwn_fold.size == 0: dwn_fold,wnnos_fold = None, None
     #dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS)#,f0=freq) # 2-sigma error bars
     dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS,f0=freq) # 2-sigma error bars
     #dual_plot(kpl, d, nos, color=colors[0], bins=BINS) # 2-sigma error bars
@@ -414,21 +604,30 @@ for filename in glob.glob('lidz_mcquinn_k3pk/*7.3*dat'):
     d = n.array([map(float, L.split()) for L in open(filename).readlines()])
     ks, pk = d[:,0], d[:,1]
     z_file = float(re_z.match(os.path.basename(filename)).groups()[0])
-    z = C.pspec.f2z(.151)
+    z = C.pspec.f2z(freq)
     k3pk = ks**3 / (2*n.pi**2) * pk
     p.subplot(122)
     p.plot(ks, k3pk * mean_temp(z)**2, 'm-')
-    
+
+
 tau_h = 100 + 15. #in ns
-k_h = C.pspec.dk_deta(C.pspec.f2z(.151)) * tau_h
+k_h = C.pspec.dk_deta(C.pspec.f2z(freq)) * tau_h
 p.subplot(121)
+
+p.errorbar(kpl,2*dn.real,2*nnos,fmt='.r',capsize=0) ##Add noise curve to PK plot
+p.errorbar(kpl,2*dwn.real,2*wnnos,fmt='.b',capsize=0) ##Add noise curve to PK plot
+
+
+#plot e-o minus e-o white noise
+p.errorbar(kpl,2*(dn.real-dwn.real),2*n.sqrt(wnnos**2+nnos**2),fmt='.b',capsize=0) ##Add noise curve to PK plot
+
 p.vlines(k_h, -1e7, 1e8, linestyles='--', linewidth=1.5)
 p.vlines(-k_h, -1e7, 1e8, linestyles='--', linewidth=1.5)
 #p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k_\parallel\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$P(k)[\ {\rm mK}^2\ (h^{-1}\ {\rm Mpc})^3]$',fontsize='large')
 p.ylim(-.6e7,1.75e7)
-#p.ylim(1e5,5e16)
+#p.ylim(-.5e7,5e8)
 p.grid()
 
 
@@ -452,11 +651,26 @@ theo_noise = noise_level(freq=freq)
 #print k0
 #print kpl_pos[0], theo_noise[0]
 #2 for the 2 sigma
+k3 = abs(n.array(kpl[k0:])**3/(2*n.pi**2))
+noise_est = k3*dn_fold.real
+noise_est_err = k3*nnos_fold.real
+
+wnoise_est = k3*dwn_fold.real
+wnoise_est_err = k3*wnnos_fold.real
+
+bias_est= noise_est-wnoise_est
+bias_err= n.sqrt(noise_est_err**2+wnoise_est_err**2)
+
 p.plot(n.array(kpl_pos), 2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2), 'c--')
+p.plot(n.array(kpl[k0:]), noise_est+ 2*noise_est_err,'r--',alpha=.5)
+p.plot(n.array(kpl[k0:]), wnoise_est + 2*wnoise_est_err,'b--',alpha=.5)
+
+#plot e-o minus e-o white noise
+#p.plot(n.array(kpl[k0:]), (bias_est + 2*bias_err)/2.,'g--',alpha=.5)
 p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')
-p.ylim(1e0,1e5)
+p.ylim(1e0,1e7)
 p.xlim(0, 0.6)
 p.grid()
 p.savefig('pspec.png')
@@ -597,6 +811,10 @@ def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,theo_no
 #posterior(f['kpl'], f['pk'], f['err'], f['pk_fold'], f['err_fold'])
 posterior(kpl, d, 2*nos, d_fold, nos_fold,theo_noise=noise_line,f0=freq)
 
+s2l_noise=n.sqrt(1./n.mean(1./noise_est[1:]**2))
+print('Data Noise Estimate: {0:0>5.3f} mk^2'.format(s2l_noise**2))
+s2l_noise=n.sqrt(1./n.mean(1./(wnoise_est[1:]) **2))
+print('White Noise Estimate: {0:0>5.3f} mk^2'.format(s2l_noise**2))
 
 
 if opts.show:

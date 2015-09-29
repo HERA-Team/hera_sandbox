@@ -3,7 +3,7 @@ import matplotlib
 #matplotlib.use('Agg')
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random
-
+from IPython import embed
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
 o.add_option('-b', '--nboot', type='int', default=20,
@@ -22,6 +22,10 @@ o.add_option('--rmbls', action='store',
     help='List of baselines, in miriad format, to remove from the power spectrum analysis.')
 o.add_option('--output', type='string', default='',
     help='output directory for pspec_boot files (default "")')
+o.add_option('--cav',action='store_true',
+    help='Use Cav to inplace of Covariance Matrix')
+o.add_option('--auto', action='store_true',
+    help='Scales main diagonal of Cav by auto-covariances')
 
 opts,args = o.parse_args(sys.argv[1:])
 
@@ -95,6 +99,116 @@ def get_Q(mode, n_k):
         Q = n.zeros_like(C)
         Q[mode,mode] = 1
         return Q
+
+def get_cav(c_mat,nchan,scaling=False):
+        #Compute Cav by taking diags, averaging and reforming the matrix
+        diags =[c_mat.diagonal(count) for count in xrange(nchan-1, -nchan,-1)]
+        cav=n.zeros_like(c_mat)
+
+        for count,count_chan in enumerate(range(nchan-1,-nchan,-1)):
+                cav += n.diagflat( n.mean(diags[count]).repeat(len(diags[count])), count_chan)
+
+        if scaling:
+            temp=cav.copy()
+            for count in xrange(nchan):
+                cav[count,:] *= n.sqrt(c_mat[count,count]/temp[count,count])
+                cav[:,count] *= n.sqrt(c_mat[count,count]/temp[count,count])
+
+        if not n.allclose(cav.T.conj(),cav):
+            print 'Cav is not Hermitian'
+            print 'bl'
+
+        if PLOT and False:
+            p.subplot(131); capo.arp.waterfall(c_mat,mode='real',mx=3,drng=6);
+            p.title('C')
+            p.subplot(132); capo.arp.waterfall(cav,mode='real',mx=3,drng=6); p.colorbar()
+            p.title('Cav')
+            p.subplot(133); capo.arp.waterfall(diff,mode='real',mx=500,drng=500); p.colorbar()
+            p.title('Abs Difference')
+            p.suptitle('%d_%d'%a.miriad.bl2ij(bl))
+            p.show()
+
+        return cav
+
+def write_cav_stats(data,nchan):
+    days=data.keys()
+    for k in days:
+        if opts.auto:
+            statfile='Cav_{0}_data_{1}_scaled.csv'.format(k,opts.sep)
+            picfile='All_cav_diff_{0}_{1}_scaled.png'.format(k,opts.sep)
+        else:
+            statfile='Cav_{0}_data_{1}.csv'.format(k)
+            picfile='All_cav_diff_{0}_{1}.png'.format(k)
+        if not opts.output == '':
+            statfile =opts.output+'/'+statfile
+            picfile =opts.output+'/'+picfile
+        f = open(statfile,'w')
+        f.write('Baseline \t Max \t Min \t Mean \t Median \t Eig \t Eig_Cav \t Rms_C_Cav_diff\n')
+        fig =p.figure()
+
+        for num,bl in enumerate(data[k]):
+            c_mat=cov(data[k][bl])
+            cav = get_cav(c_mat,nchan,scaling=opts.auto)
+            diff=abs(c_mat-cav)
+            U_cav,S_cav,V_cav=n.linalg.svd(cav.conj())
+            U_c,S_c,V_c=n.linalg.svd(c_mat.conj())
+
+
+            if PLOT and True:
+                f=p.figure()
+                p.plot(S_c,label='C')
+                p.plot(S_cav,label='Cav')
+                p.yscale('log')
+                p.legend(loc='best')
+                p.title('Eigenvalues')
+                p.show()
+            ###Plot and making file fore residuals, amplitudes of eigenvalues, and variance of data
+
+            f.write(' {0} \t {1} \t {2} \t {3} \t {4} \t {5} \t {6} \t {7} \n'.format(bl, n.max(diff), n.min(diff),n.mean(diff), n.median(diff), S_c[0],S_cav[0], n.sqrt(n.mean(diff**2))))
+
+            p.subplot(7,8,num+1); capo.arp.waterfall(diff/n.sqrt(nchan),mode='real',mx=100,drng=100); p.title(bl); p.axis('off')
+
+        f.close()
+        fig.subplots_adjust(hspace=.6)
+        p.suptitle('Percent diff/sqrt({0})'.format(nchan))
+        fig.savefig(picfile)
+        p.close()
+
+def plot_eig(data,nchan):
+    days=data.keys()
+    for k in days:
+        eig_order=[]
+        eigs = []
+        eigs_cav = []
+        for bl in data[k]:
+           c_mat=cov(data[k][bl])
+           cav = get_cav(c_mat,nchan,scaling=opts.auto)
+           U,S,V= n.linalg.svd(c_mat.conj())
+           U_cav,S_cav,V_cav = n.linalg.svd(cav.conj())
+           eig_order.append(S[0])
+           eigs.append( n.fft.fftshift(n.fft.fft(V.T.conj(),axis=0)))
+           eigs_cav.append( n.fft.fftshift(n.fft.fft(V_cav.T.conj(),axis=0)))
+
+
+        order=n.argsort(eig_order)
+
+        eig_order=n.take(eig_order,order)
+        eigs=n.take(eigs,order,axis=0)
+        eigs_cav=n.take(eigs_cav,order,axis=0)
+        embed()
+        fig=p.figure(1)
+        for cnt,eig in enumerate(eigs):
+            p.plot(eig[0] + cnt*5)
+        p.title('Eigenvectors for day {0}'.format(k))
+        p.show()
+        p.savefig('eigenvectors_{0}.png'.format(k))
+        p.clf()
+        for cnt,eig in enumerate(eigs_cav):
+            p.plot(eig[0] + cnt*5)
+        p.title('Eigenvectors of Cav for day {0}'.format(k))
+        p.savefig('eigenvectors_cav_{0}.png'.format(k))
+        p.clf()
+        p.close()
 
 SEP = opts.sep
 #dsets = {
@@ -322,22 +436,40 @@ if INJECT_SIG > 0.: # Create a fake EoR signal to inject
 #    Q[i] = get_Q(i, nchan)
 Q = [get_Q(i,nchan) for i in xrange(nchan)]
 
+
+##write file of stats for c and cav
+write_cav_stats(x,nchan)
+plot_eig(x,nchan)
 # Compute baseline auto-covariances and apply inverse to data
 I,_I,_Ix = {},{},{}
 C,_C,_Cx = {},{},{}
+Cav = {}
+bad_bl=[]
 for k in days:
     I[k],_I[k],_Ix[k] = {},{},{}
     C[k],_C[k],_Cx[k] = {},{},{}
+    Cav[k] = {}
     for bl in x[k]:
         C[k][bl] = cov(x[k][bl])
+
+        if opts.cav:
+            C[k][bl]=get_cav(C[k][bl],nchan,scaling=opts.auto)
+
         I[k][bl] = n.identity(C[k][bl].shape[0])
         U,S,V = n.linalg.svd(C[k][bl].conj())
+
+        if S[0] >= 18:
+            C[k][bl]=cov(x[k][bl])
+            U,S,V=n.linalg.svd(C[k][bl].conj())
+
         _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
-        _C[k][bl] = n.identity(_C[k][bl].shape[0])
+        #_C[k][bl] = n.identity(_C[k][bl].shape[0])
         _I[k][bl] = n.identity(_C[k][bl].shape[0])
         _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
         _Ix[k][bl] = x[k][bl].copy()
-        if PLOT and False:
+
+
+        if PLOT and True:
             #p.plot(S); p.show()
             p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
             p.subplot(334); capo.arp.waterfall(C[k][bl])
@@ -347,9 +479,12 @@ for k in days:
             p.suptitle('%d_%d'%a.miriad.bl2ij(bl))
 #            p.figure(2); p.plot(n.diag(S))
             p.show()
-        
 
 
+bls_master = set(bls_master)
+bls_master = bls_master - set(bad_bl)
+bls_master = list(bls_master)
+print 'Number of baselines:',len(bls_master)
 for boot in xrange(opts.nboot):
     print '%d / %d' % (boot+1,opts.nboot)
     bls = bls_master[:]
@@ -390,7 +525,7 @@ for boot in xrange(opts.nboot):
             for ch in xrange(nchan): # XXX this loop makes computation go as nchan^3
                 _IsumQ[k][i][ch] = n.dot(_Isum[k][i], Q[ch])
                 _CsumQ[k][i][ch] = n.dot(_Csum[k][i], Q[ch])
-        if PLOT:
+        if PLOT and False:
             NGPS = len(gps)
             _Csumk = n.zeros((NGPS,nchan,NGPS,nchan), dtype=n.complex)
             Csumk = n.zeros((NGPS,nchan,NGPS,nchan), dtype=n.complex)
@@ -473,7 +608,7 @@ for boot in xrange(opts.nboot):
                                 FI[i,j] += n.einsum('ij,ji', _IsumQ[k1][bl1][i], _IsumQ[k2][bl2][j])
                                 FC[i,j] += n.einsum('ij,ji', _CsumQ[k1][bl1][i], _CsumQ[k2][bl2][j])
 
-    if PLOT:
+    if PLOT and False:
         p.subplot(141); capo.arp.waterfall(FC, drng=4)
         p.subplot(142); capo.arp.waterfall(FI, drng=4)
         p.subplot(143); capo.arp.waterfall(qC, mode='real')
@@ -486,7 +621,7 @@ for boot in xrange(opts.nboot):
         p.close()
 
     print 'Psuedoinverse of FC'
-    
+    print 'Regularizaing FC'
     # Other choices for M
     #U,S,V = n.linalg.svd(FC.conj())
     #_S = n.sqrt(1./S)
@@ -499,8 +634,16 @@ for boot in xrange(opts.nboot):
     order = n.array([10,11,9,12,8,20,0,13,7,14,6,15,5,16,4,17,3,18,2,19,1])
     iorder = n.argsort(order)
     FC_o = n.take(n.take(FC,order, axis=0), order, axis=1)
-    L_o = n.linalg.cholesky(FC_o)
-    U,S,V = n.linalg.svd(L_o.conj())
+    ##add regularization
+    #ipdb.set_trace()
+    #FC_o[FC_o <=0] = 1e-3
+    #L_o = n.linalg.cholesky(FC_o)
+    #U,S,V = n.linalg.svd(L_o.conj())
+##Trying SVD with QR decomp instead to get triangular matrix
+    U,S,V =n.linalg.svd(FC_o)
+    S[S<0] = 0  ## mask negative eigenvalues which cause semi-definite to be zero
+    Q_mat,R_mat= n.linalg.qr(n.dot(U,n.sqrt(n.diagflat(S))).T)
+    U,S,V = n.linalg.svd(R_mat.T.conj())
     MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
     MC = n.take(n.take(MC_o,iorder, axis=0), iorder, axis=1)
     MI  = n.identity(nchan, dtype=n.complex128)
@@ -521,14 +664,20 @@ for boot in xrange(opts.nboot):
     #pC[m] *= 1.25 # signal loss, low-SNR XXX
     pI = n.dot(MI, qI) * scalar
 
-    if PLOT:
+    if PLOT and True:
+        p.subplot(121);capo.arp.waterfall(WI,mode='real'); p.colorbar()
+        p.subplot(122);capo.arp.waterfall(WC,mode='real'); p.colorbar()
+        p.show()
+
+
+    if PLOT and False:
         p.subplot(411); capo.arp.waterfall(qC, mode='real'); p.colorbar(shrink=.5)
         p.subplot(412); capo.arp.waterfall(pC, mode='real'); p.colorbar(shrink=.5)
         p.subplot(413); capo.arp.waterfall(qI, mode='real'); p.colorbar(shrink=.5)
         p.subplot(414); capo.arp.waterfall(pI, mode='real'); p.colorbar(shrink=.5)
         p.show()
 
-    if PLOT:
+    if PLOT and False:
         p.plot(kpl, n.average(pC.real, axis=1), 'b.-')
         p.plot(kpl, n.average(pI.real, axis=1), 'k.-')
         p.show()

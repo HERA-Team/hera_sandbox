@@ -343,7 +343,7 @@ for sep in RS_VS_KPL:
     if True: # For aggressive fringe-rate filtering, change beam area
         f = opts.afrf_factor
 #        f = 1.90 # ratio of power**2 beams for filtered * unfiltered beams: 0.306 / 0.162
-        f = 1.39 # ratio of power**2 beams for filtered * unfiltered beams: 0.306 / 0.162
+        f = 1.77 # ratio of power**2 beams for filtered * unfiltered beams: 0.306 / 0.162
         print 'Scaling data and noise by %f for beam constriction in aggressive fringe-rate filtering.' % f
         d *= f
         nos *= f
@@ -399,7 +399,7 @@ for sep in RS_VS_KPL:
     '''
     if d_fold.size == 0: d_fold,nos_fold = None, None
     #dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS)#,f0=freq) # 2-sigma error bars
-    dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS,f0=freq) # 2-sigma error bars
+    dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS,f0=.151) # 2-sigma error bars
     #dual_plot(kpl, d, nos, color=colors[0], bins=BINS) # 2-sigma error bars
     colors = colors[1:] + colors[0]
 
@@ -595,7 +595,7 @@ def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,theo_no
     #p.show()
 
 #posterior(f['kpl'], f['pk'], f['err'], f['pk_fold'], f['err_fold'])
-posterior(kpl, d, 2*nos, d_fold, nos_fold,theo_noise=noise_line,f0=freq)
+posterior(kpl, d, 2*nos, d_fold, nos_fold,theo_noise=noise_line)
 
 
 
