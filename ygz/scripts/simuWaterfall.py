@@ -1,22 +1,27 @@
 #loads the data and match times
 import numpy as n, aipy as a, capo, os
 DIR1 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_26/'
-DIR2 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_38/'
+#DIR2 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_38/'
+DIR2 = DIR1
 F1 = os.listdir(DIR1)
 F2 = os.listdir(DIR2)
 for i in range(len(F1)): F1[i] = DIR1+F1[i] 
 for i in range(len(F2)): F2[i] = DIR2+F2[i] 
 t026 = 2456249.2666900107
 t038 = 2456249.3086900176
+#t038 = t026
 dt = t038-t026
 df = 100./203
+bl1, bl2 = (0,26),(0,26)
+bl1c, bl2c = a.miriad.ij2bl(*bl1),a.miriad.ij2bl(*bl2)
 #freql = n.arange(100,200,df)*1.E6
 #phsfac = n.exp(-2*n.pi*3000*n.sin(dt*2*n.pi)*freql/a.phs.const.c*1.j)
-T1, dat1, flg1 = capo.arp.get_dict_of_uv_data(F1,antstr='0_26',polstr='xx')
-T2, dat2, flg2 = capo.arp.get_dict_of_uv_data(F2,antstr='0_38',polstr='xx')
+T1, dat1, flg1 = capo.arp.get_dict_of_uv_data(F1,antstr='_'.join(map(str,bl1)),polstr='xx')
+T2, dat2, flg2 = capo.arp.get_dict_of_uv_data(F2,antstr='_'.join(map(str,bl2)),polstr='xx')
 print dat1[283]['xx'].shape
-data1 = dat1[283]['xx']
-data2 = dat2[295]['xx']
+
+data1 = dat1[bl1c]['xx']
+data2 = dat2[bl2c]['xx']  #check 295
 print len(T1), len(T2)
 
 while T1[0]+dt>T2[0]: 
@@ -38,34 +43,32 @@ dataave = n.mean(data1*data2.conj(),axis=0)
 print dataave.shape
 
 #Phase data to original source
-DIR1 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_26/'
-DIR2 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_38/'
 uv1 = a.miriad.UV(DIR1+'pspec_2456249.26465.uv/')
-uv2 = a.miriad.UV(DIR2+'pspec_2456249.30536.uv/')
+#uv2 = a.miriad.UV(DIR2+'pspec_2456249.30536.uv/')
+uv2 = uv1
 polstr = 'xx'
 nchan = 203
 schan = 0
-freqlist = n.array((uv1['sfreq'] + uv1['sdf']*schan + uv1['sdf']*n.arange(nchan)))  #GHz
+#freqlist = n.array((uv1['sfreq'] + uv1['sdf']*schan + uv1['sdf']*n.arange(nchan)))  #GHz
+freqlist = a.cal.get_freqs(uv1['sdf'],uv1['sfreq'],uv1['nchan'])  #GHz
 aa = a.cal.get_aa('psa6240_v003',freqlist)
 aa.set_active_pol(polstr)
-src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15)
-src.compute(aa)
-phs1, phs2 = n.zeros(data1.shape,dtype='complex64'), n.zeros(data2.shape,dtype='complex64')
-ind = 0
 aa.set_jultime(t026)      #must set to exact time determined with the same src and aa
+src = a.phs.RadioFixedBody(aa.sidereal_time(), aa.lat, epoch=aa.epoch)
+#phs1, phs2 = n.zeros(data1.shape,dtype='complex64'), n.zeros(data2.shape,dtype='complex64')
+#ind = 0
 src.compute(aa)
-for t1 in T1:
-    phs1[ind][:] = aa.gen_phs(src,0,26)
-    ind = ind+1
-ind = 0
+print aa.gen_uvw(0,26,src)
+print aa.gen_uvw(0,26,'z')
+import IPython; IPython.embed()
+phs1 = aa.gen_phs(src, *bl1); phs1.shape = (1,nchan)
 aa.set_jultime(t038)
 src.compute(aa)
-for t2 in T2:
-    phs2[ind][:] = aa.gen_phs(src,0,38)
-    ind = ind+1
+
+phs2 = aa.gen_phs(src, *bl2); phs2.shape = (1,nchan)
 print data2.shape
 print phs2.shape
-dapa1, dapa2 = n.multiply(data1,phs1),n.multiply(data2,phs2)
+dapa1, dapa2 = data1*phs1,data2*phs2
 #dapa1, dapa2 = n.multiply(data1,phs1.conj()),n.multiply(data2,phs2.conj())
 #print data2
 
@@ -81,6 +84,7 @@ ax.set_title("data2")
 capo.arp.waterfall(data2,mode='real')
 ax = fig.add_subplot(334)
 capo.arp.waterfall(phs1,mode='phs')
+P.colorbar()
 ax.set_title("phs1")
 #ax.set_xlabel("channel")
 ax = fig.add_subplot(335)
@@ -99,6 +103,7 @@ ax.set_title("d2phs2")
 capo.arp.waterfall(dapa2,mode='real')
 ax = fig.add_subplot(333)
 capo.arp.waterfall(data1*data2.conj(),mode='phs')
+P.colorbar()
 #ax = fig.add_subplot(255)
 #capo.arp.waterfall(data1*data2.conj())
 ax = fig.add_subplot(339)
