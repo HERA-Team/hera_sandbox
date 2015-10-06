@@ -15,11 +15,12 @@ df = 0.1/203
 
 nchan = 20
 
-#pol,lst,ant,tauchan = opts.pol,opts.lst.split('_'),opts.ant.split('_'),int(opts.chan)
-pol = 'xx'
-DIR = '/Users/yunfanzhang/local/DATA64/runDIR/'
-uv1 = a.miriad.UV(DIR+'zen.2456249.24345.uvcRREcACOc')
-Cname = 'P0.15.cue'
+DIR1 = '/Users/yunfanzhang/local/simuDATA/64_UV/0_26/'
+DIR2 = '/Users/yunfanzhang/local/simuDATA/64_UV/0_26/'
+Cname = 'P0.15.cue_mod'
+uv1 = a.miriad.UV(DIR1+'pspec_2456249.20169.uv/')
+uv2 = uv1
+#uv2 = a.miriad.UV(DIR2+'pspec_0_38_2456249.20169.uv/')
 
 freqflist = n.array((uv1['sfreq'] + uv1['sdf']*n.arange(uv1['nchan'])))  #GHz
 freqlist = n.array((uv1['sfreq'] + uv1['sdf']*92 + uv1['sdf']*n.arange(10)))  #GHz
@@ -42,13 +43,14 @@ sum = []
 data1,data2 = [],[]
 cnt = 0
 with open(Cname, 'r') as f1:
+    f1.read()    #skip header
     for line in f1:
         fnls = line.rstrip('\n').split(' ')
         if fnls[1]=='None' or fnls[2]=='None':
             print "No file for", fnls
             continue
-        uv1 = a.miriad.UV(DIR+str(fnls[1]))
-        uv2 = uv1
+        uv1 = a.miriad.UV(DIR1+str(fnls[1]))
+        uv2 = a.miriad.UV(DIR2+str(fnls[2]))
 
         ant = line.split(' ')[0].split(',')[0].split('_')
         T1,T2 = line.split(' ')[0].split(',')[1].split('_')
@@ -56,7 +58,7 @@ with open(Cname, 'r') as f1:
         for i in range(4): ant[i] = int(ant[i])
         T1,T2 = float(T1),float(T2)
         #if ant[0] != 0 or ant[1] != 26 or ant[2] != 0 or ant[3] != 38: continue   #only simulated these baselines
-        norm = X2Y*bb*Omp*Omp/Ompp*capo.pspec.jy2T(nu0)**2   #jy2T returns mk/Jy for nu0 in GHz
+        norm = X2Y*bb*Omp*Omp/Ompp    #1.E6 is K2 to mK2
 
         uv1.rewind()
         uv1.select('clear',0,0,include=True)
