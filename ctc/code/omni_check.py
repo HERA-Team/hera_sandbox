@@ -56,11 +56,11 @@ if opts.gains == True:
             if "gains" in key:
                 gain = file[key]
                 antnum = key.split(',')[2]
-                try: gains[antnum].append(gain) #XXX only works if files are same size in time and freq
+                try: gains[antnum].append(gain) 
                 except: gains[antnum] = [gain]
     for key in gains.keys():
-        gains[key] = numpy.array(gains[key])
-        gains[key] = gains[key].reshape(gains[key].shape[0]*gains[key].shape[1],gains[key].shape[2])
+        gains[key] = numpy.vstack(gains[key]) #cool thing to stack 2D arrays that only match in 1 dimension
+        print numpy.array(gains[key]).shape
 
     subplotnum = 1
     plotnum = 1
