@@ -17,13 +17,10 @@ o.add_option('--seps',type=str,
     help='list of seperations to use, ex 0,1;-1,1')
 opts,args = o.parse_args(sys.argv[1:])
 
-uv = a.miriad.UV(args[0])
-#nants = uv['nants']
-#inttime = uv['inttime'] * 4 #integration time hack
-aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
-nchan = uv['nchan']
+freqs = n.linspace(0.1,0.2,num=203)
+aa = a.cal.get_aa(opts.cal, freqs)
+nchan = len(freqs)
 #pol = a.miriad.pol2str[uv['pol']]
-del(uv)
 
 #Get only the antennas of interest
 sep2ij, blconj, bl2sep = zsa.grid2ij(aa.ant_layout)
@@ -52,11 +49,11 @@ baselines = ''.join(sep2ij[sep] for sep in seps)
 #times, data, flags = arp.get_dict_of_uv_data(args, baselines, pol, verbose=True)
 #lsts = [ aa.sidereal_time() for k in map(aa.set_jultime(), times) ]
 for sep in seps:
-    #p.plot(timebins,firs[sep][mychan])
-    p.plot(timebins,n.abs(firs[sep][mychan]))
-    p.xlabel('s')
     envelope = n.abs(firs[sep][mychan])
+    print envelope.max()
     envelope /= n.max(envelope)
+    p.plot(timebins,envelope)
+    p.xlabel('s')
     dt = n.sqrt(n.sum(envelope*timebins**2)/n.sum(envelope))
     dt_50 = (timebins[envelope>0.5].max() - timebins[envelope>0.5].min())
     print "variance width ",sep, " [s]:",int(n.round(dt)),"50% width",int(n.round(dt_50))
