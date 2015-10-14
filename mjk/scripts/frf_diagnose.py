@@ -30,13 +30,10 @@ def get_colors(N):
     return map_index_to_rgb
 
 
-uv = a.miriad.UV(args[0])
-#nants = uv['nants']
-#inttime = uv['inttime'] * 4 #integration time hack
-aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
-nchan = uv['nchan']
+freqs = n.linspace(0.1,0.2,num=203)
+aa = a.cal.get_aa(opts.cal, freqs)
+nchan = len(freqs)
 #pol = a.miriad.pol2str[uv['pol']]
-del(uv)
 
 #Get only the antennas of interest
 sep2ij, blconj, bl2sep = zsa.grid2ij(aa.ant_layout)
