@@ -50,20 +50,20 @@ z = export_beam.get_overlap(f, u_range,u_range)
 #z = z/n.amax(n.abs(z))
 U,V = n.meshgrid(u_range,u_range)
 #z = abs(z)
-ax3 = fig2.add_subplot(121,projection='3d')
+ax3 = fig2.add_subplot(111,projection='3d')
 ax3.set_xlabel('u')
 ax3.set_ylabel('v')
 surf = ax3.plot_surface(U,V,z,cmap=cm.coolwarm)
 #p.colorbar(surf, shrink=0.5, aspect=5)
 
 
-ax4 = fig2.add_subplot(122)
-ax4.set_xlabel('u')
-ax4.set_ylabel('FT')
-for v in [0.,1.]:
-    z = export_beam.get_overlap(f,u_range,v)
-    curv, = p.plot(u_range,z,label='v= %f' % v)
-p.legend()
+#ax4 = fig2.add_subplot(122)
+#ax4.set_xlabel('u')
+#ax4.set_ylabel('FT')
+#for v in [0.,1.]:
+#    z = export_beam.get_overlap(f,u_range,v)
+#    curv, = p.plot(u_range,z,label='v= %f' % v)
+#p.legend()
 p.show()
 
 

@@ -80,7 +80,8 @@ with open(Cname, 'r') as f1:
         #Phase data to the src with which the approach points were computed
         phs1, phs2 = n.zeros(data1.shape,dtype='complex64'), n.zeros(data2.shape,dtype='complex64')
         t026 = 2456249.2666900107
-        t038 = 2456249.3086900176
+        #t038 = 2456249.3086900176
+        t038 = 2456249.3000900176
 
         ind = 0
         aa.set_jultime(t026)
