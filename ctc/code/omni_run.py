@@ -23,6 +23,8 @@ o.add_option('--omniruntag',dest='omniruntag',default='',type='string',
             help='Tag for omni run, if wanted. Default is empty.')
 o.add_option('--omnipath',dest='omnipath',default='',type='string',
             help='Path to save .omni_output npz files. Include final / in path.')
+o.add_option('--xtalk',dest='xtalk',default=False,action="store_true",
+            help='Include xtalk in lincal.')
 #o.add_option('--ubls',dest='ubls',default=None,
 #            help='Unique baselines to include. Ex: [(64,49),(64,10)]')
 #o.add_option('--ex_ubls',dest='ex_ubls',default=None,
@@ -93,6 +95,7 @@ for f in range(len(args)):
             data_with_flags = data[(i,j)]
     print '   logcal-ing' 
     m,g,v = omnical.calib.redcal(data,info) #logcal
+    #import IPython;IPython.embed()
     print '   lincal-ing'
     xtalk = {}
     xtalk_flat = {}
@@ -100,7 +103,13 @@ for f in range(len(args)):
         xtalkavg = numpy.mean(m['res'][key],axis=0) #avg over time
         xtalk_flat[key] = xtalkavg #saved for later (not reshaped to minimize size)
         xtalk[key] = numpy.resize(xtalkavg,(m['res'][key].shape)) #must be same shape as data
-    m2,g2,v2 = omnical.calib.redcal(data,info,xtalk=xtalk,gains=g,vis=v,uselogcal=False,removedegen=True) #lincal
+    #import IPython;IPython.embed()
+    # XXX code always saves xtalk, but do I want to always give it below?
+    if opts.xtalk:
+        m2,g2,v2 = omnical.calib.redcal(data,info,xtalk=xtalk,gains=g,vis=v,uselogcal=False,removedegen=True) #lincal w/xtalk
+    else:
+        m2,g2,v2 = omnical.calib.redcal(data,info,gains=g,vis=v,uselogcal=False,removedegen=True) #lincal w/o xtalk
+
     m2['chisq'][data_with_flags==0] = 0 #flag chisq
     
     ### Save Outputs ###
@@ -117,7 +126,7 @@ for f in range(len(args)):
     for aa in g.keys(): #save antenna gains
         g_pre = gains[pol1][aa] #XXX taking first letter of pol
         g_pre.shape = (1,g_pre.size)
-        d_npz['%s,%s,%d' % (pol1,'gains',aa)] = g_pre*g2[aa]
+        d_npz['%s,%s,%d' % (pol1,'gains',aa)] = g2[aa]*g_pre
     numpy.savez(out,**d_npz) 
     #import IPython; IPython.embed()
     

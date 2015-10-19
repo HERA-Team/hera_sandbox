@@ -11,12 +11,12 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, ant=True, pol=True)
 o.add_option('--outpath', action='store',
     help='Output path to write to.')
-
+o.add_option('--frpad',default=1.0,type=float,help='make the fringe rate convolution longer by this factor (default 1.0)')
 opts,args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
 nants = uv['nants']
-inttime = uv['inttime']
+inttime = uv['inttime'] * 4 #integration time hack
 aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
 pol = a.miriad.pol2str[uv['pol']]
 del(uv)
@@ -28,9 +28,9 @@ print "Looking for baselines matching ", opts.ant
 ants = [ b[0] for b in a.scripting.parse_ants(opts.ant, nants) ]
 seps = [ bl2sep[b] for b in ants ]
 seps = n.unique(seps)
-print 'These are the separations that we are going to use ', seps
+print 'These are the spearations that we are going to use ', seps
     
-#Get the fir filters for the separation used
+#Get the fir filters for the separation used.
 firs = {}
 for sep in seps:
     c = 0 
@@ -39,8 +39,8 @@ for sep in seps:
         bl = a.miriad.ij2bl(*ij)
         if blconj[bl]: c+=1
         else: break
-    frp, bins = fringe.aa_to_fr_profile(aa, ij, 100, pol=pol) 
-    timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[100])
+    frp, bins = fringe.aa_to_fr_profile(aa, ij, 100,frpad=opts.frpad)
+    timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[100])
     
 baselines = ''.join(sep2ij[sep] for sep in seps)
 times, data, flags = arp.get_dict_of_uv_data(args, baselines, pol, verbose=True)
