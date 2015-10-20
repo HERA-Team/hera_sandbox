@@ -82,9 +82,9 @@ for i in range(len(F2)): F2[i] = DIR2+F2[i]
 
 t026 = 2456249.2666900107
 corl,corp = [],[]
-Trang = n.arange(2456249.15,2456249.35,0.005)
+Trang = n.arange(2456249.15,2456249.35,0.01)
 for t038 in Trang:
-    co,cp = get_corr(t026,t038,F1,F2,bl1,bl2,chan=None),get_corr(t026,t038,F1,F2,bl1,bl2,chan=None,phsd=True)
+    co,cp = get_corr(t026,t038,F1,F2,bl1,bl2,chan=140),get_corr(t026,t038,F1,F2,bl1,bl2,chan=140,phsd=True)
     if co ==None or cp==None:
         n.delete(Trang,t038)
         break

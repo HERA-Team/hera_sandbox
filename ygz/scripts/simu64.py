@@ -54,6 +54,9 @@ with open(Cname, 'r') as f1:
         bl,DelT,Opp = line.rstrip('\n').split(',')
         if bl != '0_26_0_38' and bl != '0_38_0_26': continue
         DelT, Opp = float(DelT), float(Opp)
+        ##########
+        DelT = -0.036
+        ###########
         norm = X2Y*bb*Omp*Omp/Opp    #1.E6 is K2 to mK2
         T1, dat1, flg1 = capo.arp.get_dict_of_uv_data(F1,antstr='0_26',polstr=polstr)
         T2, dat2, flg2 = capo.arp.get_dict_of_uv_data(F2,antstr='0_38',polstr=polstr)
@@ -115,36 +118,48 @@ data = n.multiply(n.conjugate(dau1), dau2)
 print "shape of data: ", data.shape
 #print data.all()
 
-P=[]
+P,Q=[],[]
 for ind in n.arange(len(taulist)):
     pp = n.abs(n.mean(data.T[ind]))
+    qq = n.mean(data.T[ind]).real
     P.append(pp)
+    Q.append(qq)
 #print len(taulist), len(P)
 #kz = taulist*2*n.pi/Y
 kz = cosmo_units.eta2kparr(taulist*1.E-9,z)     #This function needs tau in Hz^-1
 
+k, Pb = n.abs(n.array(kz)), n.abs(data)
+Deldata = k*k*k*Pb/2/(n.pi**2)
+print "Deldatashape", Deldata.shape
+#import IPython; IPython.embed()
 
 #print "shapes of arrays:", data1.shape, data2.shape
 #Bootstrap resampling
 B = 100
-bootmean, booterr = boot_simple.bootstrap(B, data)
-print bootmean
+bootmean, booterr = boot_simple.bootstrap(B, Deldata)
+#print bootmean
 
 #plotting
 fig = p.figure()
-ax = fig.add_subplot(311)
+ax = fig.add_subplot(411)
 #plotp.P_v_Eta(ax,kz,P)
 ax.set_xlabel('kz')
 ax.set_ylabel(r'$P(k) K^{2} (h^{-1} Mpc)^{3}$')
 p.plot(kz,P,'bo')
+p.plot(kz,Q,'go')
+p.plot(kz,(10*2*n.pi**2)/n.abs(kz)**3,'ro')
 ax.set_yscale('log')
-ax = fig.add_subplot(312)
-ax.errorbar(kz, n.abs(bootmean), yerr=booterr, fmt='ok', ecolor='gray', alpha=0.5)
+ax = fig.add_subplot(412)
+#ax.errorbar(kz, n.abs(bootmean), yerr=booterr, fmt='ok', ecolor='gray', alpha=0.5)
+ax.errorbar(k, n.abs(bootmean), yerr=booterr, fmt='ok', ecolor='gray', alpha=0.5)
 #ax.set_ylim([0,0.5])
 #ax.set_yscale('log')
 ax.set_xlabel('kz')
 ax.set_ylabel(r'$P(k) K^{2} (h^{-1} Mpc)^{3}$')
-ax = fig.add_subplot(313)
+ax = fig.add_subplot(413)
 plotp.Del_v_Eta(ax,kz,P)
+#p.plot(kz,10*n.ones(kz.size),'ro')
+ax = fig.add_subplot(414)
+for timesample in range
 p.show()
 
