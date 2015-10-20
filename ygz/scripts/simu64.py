@@ -13,6 +13,7 @@ X2Y = capo.pspec.X2Y(z)      #[h^-3 Mpc^3] / [str * GHz]
 bb = 0.1*(20./203)   # total window in GHz
 df = 0.1/203
 
+phsd=False
 nchan = 20
 schan = 90
 polstr = 'xx'
@@ -95,8 +96,8 @@ with open(Cname, 'r') as f1:
         for t2 in T2:
             phs2[ind][:] = aa.gen_phs(src,0,38)
             ind = ind+1
-        #data1, data2 = n.multiply(data1,phs1),n.multiply(data2,phs2)
-        data1, data2 = n.multiply(data1,phs1.conj()),n.multiply(data2,phs2.conj())
+        if phsd: data1, data2 = n.multiply(data1,phs1),n.multiply(data2,phs2)
+        #data1, data2 = n.multiply(data1,phs1.conj()),n.multiply(data2,phs2.conj())
 
         dau1, dau2 = [],[]
         for datnu in data1:
@@ -112,10 +113,12 @@ with open(Cname, 'r') as f1:
 dau1, dau2 = n.array(dau1), n.array(dau2)
 data = n.multiply(n.conjugate(dau1), dau2)
 print "shape of data: ", data.shape
-print data.all()
+#print data.all()
 
 P=[]
-for ind in n.arange(len(taulist)): P.append(n.mean(data.T[ind]))
+for ind in n.arange(len(taulist)):
+    pp = n.abs(n.mean(data.T[ind]))
+    P.append(pp)
 #print len(taulist), len(P)
 #kz = taulist*2*n.pi/Y
 kz = cosmo_units.eta2kparr(taulist*1.E-9,z)     #This function needs tau in Hz^-1
@@ -125,7 +128,7 @@ kz = cosmo_units.eta2kparr(taulist*1.E-9,z)     #This function needs tau in Hz^-
 #Bootstrap resampling
 B = 100
 bootmean, booterr = boot_simple.bootstrap(B, data)
-
+print bootmean
 
 #plotting
 fig = p.figure()
@@ -134,8 +137,9 @@ ax = fig.add_subplot(311)
 ax.set_xlabel('kz')
 ax.set_ylabel(r'$P(k) K^{2} (h^{-1} Mpc)^{3}$')
 p.plot(kz,P,'bo')
+ax.set_yscale('log')
 ax = fig.add_subplot(312)
-ax.errorbar(kz, bootmean, yerr=booterr, fmt='ok', ecolor='gray', alpha=0.5)
+ax.errorbar(kz, n.abs(bootmean), yerr=booterr, fmt='ok', ecolor='gray', alpha=0.5)
 #ax.set_ylim([0,0.5])
 #ax.set_yscale('log')
 ax.set_xlabel('kz')

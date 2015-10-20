@@ -31,7 +31,8 @@ def beam_fourier(bmp, dreal, nreal, dl=0.005):
         fbm = n.fft.fft2(bmp)
         frequv = n.fft.fftfreq(nreal,d=dreal)
         freqk = frequv*2*n.pi
-        fbmamp = fbm.real*dl*dl
+        #fbmamp = fbm.real*dl*dl
+        fbmamp = n.abs(fbm)*dl*dl
         #fbmamp = n.abs(fbm)
         freq = frequv
         fbmamp = n.array(n.fft.fftshift(fbmamp))
