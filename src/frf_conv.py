@@ -8,6 +8,7 @@ import numpy as n, pylab as p
 from numpy.fft import ifft, fftshift, ifftshift, fftfreq, fft
 import scipy.interpolate
 import optparse,sys
+from IPython import embed
 
 DEFAULT_FRBINS = n.arange(-.01+5e-5/2,.01,5e-5) # Hz
 DEFAULT_WGT = lambda bm: bm**2
@@ -15,7 +16,7 @@ DEFAULT_IWGT = lambda h: n.sqrt(h)
 
 def mk_fng(bl, eq):
     '''Return fringe rates given eq coords and a baseline vector (measured in wavelengths) in eq coords'''
-    return -2*n.pi/a.const.sidereal_day * n.dot(n.cross(n.array([0,0,1.]),bl), eq)
+    return -2.*n.pi/a.const.sidereal_day * n.dot(n.cross(n.array([0,0,1.]),bl), eq)
 
 #fringe used in ali et.al to degrade optimal fringe rate filter.
 #def mk_fng_alietal(bl, ex, ey, ez):
@@ -100,7 +101,7 @@ def frp_to_fir(frp, fbins=None):
     else: return fir
     
 
-def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, fr_xtalk=.00035, maxfr=None,
+def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, fr_xtalk=.00035, maxfr=None,frpad=1.0,
         mdl=gauss, maxfun=1000, ftol=1e-6, xtol=1e-6, startprms=(.001,.0001), window='blackman-harris', verbose=False):
     ''' Take a fringe rate profile at one frequency, fit an analytic function and extend 
         to other frequencies. 
@@ -113,6 +114,7 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
         mdl: a function to fit the fringe rate profile too. gaussian for default.
     '''
     if maxfr is None: maxfr = bins[n.argwhere(frp0 != 0).max()] # XXX check this
+    startprms=tuple([sp*frpad for sp in startprms])
     prms0 = fit_mdl(frp0, bins, maxfr, mdl=mdl,maxfun=maxfun,ftol=ftol,xtol=xtol,startprms=startprms,verbose=verbose)
     prms0 = n.array(prms0)
     if limit_maxfr:

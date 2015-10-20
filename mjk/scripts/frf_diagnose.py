@@ -7,6 +7,7 @@ import numpy as n, pylab as p
 import sys, os, optparse
 import matplotlib.cm as cmx
 import matplotlib.colors as colors
+from IPython import embed
 """
 plot the frf response and print out the effective integration time, same inputs as frf_filter.py
 needs as input one file for baselines etc
@@ -51,6 +52,8 @@ mychan = n.floor(nchan/2)
 print 'These are the separations that we are going to use ', seps
 print "calculating fringe profile at channel ",mychan
 #Get the fir filters for the separation used.
+fig_firs,ax_firs=p.subplots(1)
+fig_frp,ax_frp=p.subplots(1)
 for cnt,pad in enumerate(frpads):
     firs = {}
     for sep in seps:
@@ -61,8 +64,15 @@ for cnt,pad in enumerate(frpads):
             if blconj[bl]: c+=1
             else: break
         frp, bins = fringe.aa_to_fr_profile(aa, ij, mychan,frpad=pad)
-        timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan])
-        
+        #frp1,bin1 = fringe.aa_to_fr_profile(aa,ij,mychan,frpad=1)
+        #ind,ind_1=n.argwhere(frp != 0).max(),n.argwhere(frp1 != 0).max()
+        #ind_max=n.argwhere(frp != 0).max()
+        #zero_point=ind_max+ind_1-ind
+        #frp = n.roll(frp,ind_1-ind)
+        #frp[zero_point+1:] =0
+        timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad)
+        ax_firs.plot(timebins,abs(firs[sep][mychan]))
+        ax_frp.plot(bins,frp)
     baselines = ''.join(sep2ij[sep] for sep in seps)
     #times, data, flags = arp.get_dict_of_uv_data(args, baselines, pol, verbose=True)
     #lsts = [ aa.sidereal_time() for k in map(aa.set_jultime(), times) ]
@@ -76,6 +86,9 @@ for cnt,pad in enumerate(frpads):
         dt = n.sqrt(n.sum(envelope*timebins**2)/n.sum(envelope))
         dt_50 = (timebins[envelope>0.5].max() - timebins[envelope>0.5].min())
         print "pad:", pad, "variance width ",sep, " [s]:",int(n.round(dt)),"50% width",int(n.round(dt_50))
+
+p.show(block=0)
+embed()
 if PLOT:
     p.title('Fringe Rates Filter widths')
     p.legend(loc='best')
