@@ -2,8 +2,10 @@ import aipy as a, numpy as n, pylab as p, ephem as e
 #Plot tracks of the entire array as the earth rotates
 #aa=a.cal.get_aa('psa6622_v001',n.array([.15]))
 
-def plot_c(src, TIME, i=0,J=[26,38]):
+def plot_c(src, TIME, ann=False, i=0,J=[26,38]):
+    C=['b','g','r','c','m']
     for j in J:
+        c=C[j%len(C)]
         U,V=[],[]
         for time in TIME:
             aa.set_jultime(time)
@@ -12,9 +14,16 @@ def plot_c(src, TIME, i=0,J=[26,38]):
                 u,v,w = aa.gen_uvw(i,j,src=src)
                 u,v = u.flatten(), v.flatten()
                 U.append(u); V.append(v)
-        p.plot(U,V,label='0_'+str(j),color=str(float(j)/64))
-    #for xy in zip(U, V):                                                # <--
-    #    ax.annotate('(%s, %s)' % xy, xy=xy, textcoords='offset points') # <--
+        p.plot(U,V,label='0_'+str(j),color=c,alpha=0.3)
+        if ann:
+            #annotate times
+            step = len(U)/10
+            UA,VA,TA = U[1::step],V[1::step],TIME[1::step]-2456249
+            ind=0
+            for xy in zip(UA,VA):
+                #ax.annotate('%s,%s' % xyt[2], xy=xyt[:1], textcoords='offset points') # <--
+                ax.annotate('%.3f' % TA[ind], xy=xy, textcoords='data') # <--
+                ind=ind+1
     #p.legend()
     return
 
@@ -27,11 +36,14 @@ rad2deg=180/n.pi
 fig = p.figure()
 ax = fig.add_subplot(111)
 dt = 0.001
-TIME = n.arange(2456249.25,2456249.35, dt)
-DEC = aa.lat+n.arange(-0.3,0.3,0.1)
+TIME = n.arange(2456249.20,2456249.35, dt)
+dd = 0.01
+DEC = aa.lat+n.arange(-0.4,0.41,dd)
 for dec in DEC:
     src = a.fit.RadioFixedBody(0, dec, janskies=0., mfreq=.15)
-    plot_c(src,TIME)
+    if abs(dec-aa.lat)<dd/2: ann=True
+    else: ann=False
+    plot_c(src,TIME,ann=ann)
 
 
             #print u,v
