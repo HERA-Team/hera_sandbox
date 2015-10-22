@@ -3,21 +3,17 @@ import numpy as n, pylab as p, capo as C
 import sys
 
 for f in sys.argv[1:]:
-    npz = n.load(f)
+    meta,gains,vismdl,xtalk = C.omni.from_npz(f)
     p.subplot(131)
-    nchan = npz['xx,chisq'].shape[1]
-    C.arp.waterfall(npz['xx,chisq'], drng=3); p.colorbar()
+    nchan = meta['chisq'].shape[1]
+    C.arp.waterfall(meta['chisq'], drng=3); p.colorbar()
 
-    gains = [k for k in npz.files if k.find('gains') != -1]
-    ants = [int(k.split(',')[-1]) for k in gains]
-    nant = max(ants) + 1
+    nant = max(gains.keys()) + 1
     amps = n.zeros((nant,nchan), dtype=n.complex)
     vars = n.zeros((nant,nchan), dtype=n.complex)
-    for g in gains:
-        pol,_,i = g.split(',')
-        lbl,i = i+pol, int(i)
-        amps[i] = n.median(npz[g], axis=0)
-        vars[i] = n.var(npz[g], axis=0)
+    for i in gains:
+        amps[i] = n.median(gains[i], axis=0)
+        vars[i] = n.var(gains[i], axis=0)
     p.subplot(132)
     p.title(f)
     C.arp.waterfall(amps, drng=2); p.colorbar()
