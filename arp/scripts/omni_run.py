@@ -31,12 +31,13 @@ if False:
 else:
     aa = aipy.cal.get_aa(opts.cal,numpy.array([.15]))
     ex_ants = [72,53] + [48,82,83,37] + [107,15,16] + [92,7] + [27,50,54] + [26,38,110,46]
-    #ex_ants += [29,24,28,55] + [68,17,69,13] + [76,5,77,32] + [84,40,85,14] # are all these bad?
-    ex_ants += [29,24,28,55] + [68,17,69,13] + [76,5,77] + [84,40,85,14] # are all these bad?
+    #ex_ants += [84,76,68,57,29,28,24,17,5,63,8]
+    ex_ants += [29,24,28,55] + [68,17,69,13] + [76,5,77,32] + [84,40,85,14] # are all these bad?
+    ex_ants += [57,63,8,74]
     info = capo.omni.aa_to_info(aa, ex_ants=ex_ants)
 
-reds = info.get_reds()
 # if you want to plot fiducial baselines to check omnical sol, this prints out what's been calibrated
+reds = info.get_reds()
 reds_02 = omnical.arrayinfo.filter_reds(reds, ubls=[(64,10)])
 print ','.join(['%d_%d' % (i,j) for i,j in reds_02[0]])
 
@@ -50,14 +51,13 @@ for k in calpar.keys():
 for f,filename in enumerate(args):
     print 'Reading', filename
     pol = filename.split('.')[-2] # XXX assumes 1 pol per file
-    t,d,f = capo.arp.get_dict_of_uv_data([filename],antstr='cross',polstr=pol)
+    t,d,f = capo.arp.get_dict_of_uv_data([filename],antstr='cross',polstr=pol) # XXX could try reading only bls in reds
     SH = d.values()[0].values()[0].shape
     data,wgts,xtalk = {}, {}, {}
     m2,g2,v2 = {}, {}, {}
     for i in g0: g0[i] = numpy.resize(g0[i], SH)
-    for i,j in reduce(lambda x,y: x+y, reds):
-        if i > j: i,j = j,i #always puts lower number first
-        bl = aipy.miriad.ij2bl(i,j)
+    for bl in d:
+        i,j = aipy.miriad.bl2ij(bl)
         data[(i,j)] = d[bl][pol]
         wgts[(j,i)] = wgts[(i,j)] = numpy.logical_not(f[bl][pol]).astype(numpy.int) # in case res is switched
     print '   logcal-ing' 

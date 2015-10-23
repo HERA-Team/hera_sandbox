@@ -30,8 +30,9 @@ def to_npz(filename, meta, gains, vismdl, xtalk):
     Each of these is assumed to be a dict keyed by pol, and then by bl/ant/keyword'''
     d = {}
     for pol in meta:
-        d['chisq %s' % (pol)] = meta[pol]['chisq']
-        # XXX chisq per antenna
+        for k in meta[pol]:
+            if k.startswith('chisq'):
+                d[k + ' %s' % pol] = meta[pol][k]
         # XXX chisq after xtalk removal
     for pol in gains:
         for ant in gains[pol]:
@@ -67,5 +68,5 @@ def from_npz(filename, meta={}, gains={}, vismdl={}, xtalk={}):
     for k in [f for f in npz.files if f[0].isalpha()]:
         key,pol = k.split()
         if not meta.has_key(pol): meta[pol] = {}
-        meta[pol]['chisq'] = npz[k]
+        meta[pol][k.split()[0]] = npz[k]
     return meta, gains, vismdl, xtalk
