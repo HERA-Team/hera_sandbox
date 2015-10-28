@@ -3,12 +3,18 @@ import aipy as a, numpy as n, pylab as p
 import capo as C
 import sys, optparse, re, os, random
 
+o = optparse.OptionParser()
+o.add_option('--nocov', action='store_true', 
+            help='Use non covariance applied data')
+opts,args = o.parse_args(sys.argv[1:])
+
+
 NBOOT = 400
 MEDIAN = True
-CLIP = True
-#LO,HI = 40,320
-LO,HI = 40,600
-args = sys.argv[1:]
+CLIP = False
+LO,HI = 40,320
+NOCOV=opts.nocov
+#LO,HI = 40,600
 
 pk_vs_t = {}
 err_vs_t = {}
@@ -58,9 +64,15 @@ wgts = n.ones_like(avg_pk_2d)
 #wgts = n.ones_like(wgts) / nos_std_1d**2
 #wgts = 1./(n.abs(avg_pk_1d) + nos_std_2d)**2
 
-if False: # override power spectrum with the version w/o covariance diagonalization
+if NOCOV: # override power spectrum with the version w/o covariance diagonalization
     print 'Overriding power spectrum with non-covariance diagonalized version'
     pk_2d = nocov_2d
+
+if False: # XXX decimate
+    DEC = 4
+    pk_2d = pk_2d[...,::DEC]
+    wgts = wgts[...,::DEC]
+    avg_pk_2d = avg_pk_2d[...,::DEC]
 
 if CLIP:
     pk_2d = pk_2d[...,LO:HI]
@@ -73,7 +85,8 @@ else:
     #    nos_std_2d[i,j] = n.convolve(nos_std_2d[i,j], n.ones((50,)), mode='same')
     #wgts = 1./nos_std_2d**2
 
-if True: # plot some stuff
+#if True: # plot some stuff
+if False: # plot some stuff
     plt1 = int(n.sqrt(len(paths)))
     plt2 = int(n.ceil(len(paths)/float(plt1)))
     #for cnt,path in enumerate(paths):
@@ -120,6 +133,7 @@ pk_2d.shape = pk_2d.shape[:-2] + (pk_2d.shape[-2] * pk_2d.shape[-1],) # (bootstr
 wgts = wgts.transpose([1,2,0]).copy() # (kpls, times, bltypes)
 wgts.shape = wgts.shape[:-2] + (wgts.shape[-2] * wgts.shape[-1],) # (bootstraps, kpls, timebls)
 
+
 #ntimes = pk_2d.shape[-1] / 2
 npaths = pk_2d.shape[0]
 ntimes = pk_2d.shape[-1]
@@ -130,6 +144,7 @@ for boot in xrange(NBOOT):
     if boot % 10 == 0: print boot
     #dsum,dwgt = 0, 0
     dsum,dwgt = [],[]
+    dsum_fold,dwgt_fold = [], []
     for t in xrange(ntimes):
         t = random.choice(range(pk_2d.shape[-1]))
         b = random.choice(range(pk_2d.shape[0]))
@@ -137,20 +152,39 @@ for boot in xrange(NBOOT):
         #dwgt += wgts[:,t]
         dsum += [pk_2d[b,:,t] * wgts[:,t]]
         dwgt += [wgts[:,t]]
-    if MEDIAN: dsum,dwgt = n.median(dsum, axis=0), n.median(dwgt, axis=0)
-    else: dsum,dwgt = n.average(dsum,axis=0), n.average(dwgt,axis=0)
-    pk_boot.append(dsum/dwgt)
-    dsum_fold = dsum[k0:].copy()
-    dwgt_fold = dwgt[k0:].copy()
-    dsum_fold[1:] = 0
-    dwgt_fold[1:] = 0
-    dsum_pos,dwgt_pos = dsum[k0+1:].copy(), dwgt[k0+1:].copy() 
-    #dsum_neg,dwgt_neg = dsum[k0-1:0:-1].copy(), dwgt[k0-1:0:-1].copy() # for even # of channels
-    dsum_neg,dwgt_neg = dsum[k0-1::-1].copy(), dwgt[k0-1::-1].copy() # for odd # of channels
-    for h in xrange(2): # bootstrap over which half of the spectrum (or both) are used
+    for t in xrange(2*ntimes):
+        t = random.choice(range(pk_2d.shape[-1]))
+        b = random.choice(range(pk_2d.shape[0]))
         h = random.randint(0,1)
-        dsum_fold[1:] += [dsum_pos, dsum_neg][h]
-        dwgt_fold[1:] += [dwgt_pos, dwgt_neg][h]
+        if h == 0:
+            dsum_fold += [pk_2d[b,k0+1:,t] * wgts[k0+1:,t]]
+            dwgt_fold += [wgts[k0+1:,t]]
+        else:
+            dsum_fold += [pk_2d[b,k0-1::-1,t] * wgts[k0-1::-1,t]]
+            dwgt_fold += [wgts[k0-1::-1,t]]
+    if MEDIAN:
+        dsum,dwgt = n.median(dsum, axis=0), n.median(dwgt, axis=0)
+        dsum_fold,dwgt_fold = n.median(dsum_fold, axis=0), n.median(dwgt_fold, axis=0)
+    else:
+        dsum,dwgt = n.average(dsum,axis=0), n.average(dwgt,axis=0)
+    #_dsum_fold,_dwgt_fold = dsum[k0:].copy(), dsum[k0:].copy()
+    #_dsum_fold[1:],_dwgt_fold[1:] = n.average(dsum_fold, axis=0), n.average(dwgt_fold, axis=0)
+    #print dsum.shape, _dsum_fold.shape
+    #dsum_fold,dwgt_fold = _dsum_fold,_dwgt_fold
+    dsum_fold = n.concatenate([[dsum[k0]], dsum_fold])
+    dwgt_fold = n.concatenate([[dwgt[k0]], dwgt_fold])
+    pk_boot.append(dsum/dwgt)
+    #dsum_fold = dsum[k0:].copy()
+    #dwgt_fold = dwgt[k0:].copy()
+    #dsum_fold[1:] = 0
+    #dwgt_fold[1:] = 0
+    #dsum_pos,dwgt_pos = dsum[k0+1:].copy(), dwgt[k0+1:].copy() 
+    ##dsum_neg,dwgt_neg = dsum[k0-1:0:-1].copy(), dwgt[k0-1:0:-1].copy() # for even # of channels
+    #dsum_neg,dwgt_neg = dsum[k0-1::-1].copy(), dwgt[k0-1::-1].copy() # for odd # of channels
+    #for h in xrange(2): # bootstrap over which half of the spectrum (or both) are used
+    #    h = random.randint(0,1)
+    #    dsum_fold[1:] += [dsum_pos, dsum_neg][h]
+    #    dwgt_fold[1:] += [dwgt_pos, dwgt_neg][h]
     pk_fold_boot.append(dsum_fold / dwgt_fold)
 pk_boot = n.array(pk_boot).T
 pk_fold_boot = n.array(pk_fold_boot).T
@@ -177,22 +211,27 @@ else:
     err = n.std(pk_boot, axis=1)
     err_fold = n.std(pk_fold_boot, axis=1)
 
-#p.subplot(221); C.arp.waterfall(pk_boot, mx=9, drng=3); p.colorbar(shrink=.5)
-p.subplot(221); p.plot(pk_boot)
-p.subplot(222)
-p.plot(pk)
-p.plot(n.median(pk_boot,axis=1))
-p.plot(pk+2*err)
-#p.subplot(223); C.arp.waterfall(pk_fold_boot, mx=9, drng=3); p.colorbar(shrink=.5)
-p.subplot(223); p.plot(pk_fold_boot)
-p.subplot(224)
-p.plot(pk_fold)
-p.plot(n.median(pk_fold_boot,axis=1))
-p.plot(pk_fold+2*err_fold)
-p.show()
+if False:
+    #p.subplot(221); C.arp.waterfall(pk_boot, mx=9, drng=3); p.colorbar(shrink=.5)
+    p.subplot(221); p.plot(pk_boot)
+    p.subplot(222)
+    p.plot(pk)
+    p.plot(n.median(pk_boot,axis=1))
+    p.plot(pk+2*err)
+    #p.subplot(223); C.arp.waterfall(pk_fold_boot, mx=9, drng=3); p.colorbar(shrink=.5)
+    p.subplot(223); p.plot(pk_fold_boot)
+    p.subplot(224)
+    p.plot(pk_fold)
+    p.plot(n.median(pk_fold_boot,axis=1))
+    p.plot(pk_fold+2*err_fold)
+    p.show()
 
-print 'Writing pspec.npz'
-n.savez('pspec.npz', kpl=kpl, pk=pk, err=err, pk_fold=pk_fold, err_fold=err_fold, cmd=cmd)
+if opts.nocov:
+    print 'Writing nopspec.npz'
+    n.savez('nocov_pspec.npz', kpl=kpl, pk=pk, err=err, pk_fold=pk_fold, err_fold=err_fold, cmd=cmd)
+else:
+    print 'Writing pspec.npz'
+    n.savez('pspec.npz', kpl=kpl, pk=pk, err=err, pk_fold=pk_fold, err_fold=err_fold, cmd=cmd)
     
     
 

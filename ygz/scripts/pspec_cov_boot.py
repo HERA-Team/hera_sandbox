@@ -3,12 +3,18 @@ import aipy as a, numpy as n, pylab as p
 import capo as C
 import sys, optparse, re, os, random
 
+o = optparse.OptionParser()
+o.add_option('--nocov', action='store_true', 
+            help='Use non covariance applied data')
+opts,args = o.parse_args(sys.argv[1:])
+
+
 NBOOT = 400
 MEDIAN = True
 CLIP = False
 LO,HI = 40,320
+NOCOV=opts.nocov
 #LO,HI = 40,600
-args = sys.argv[1:]
 
 pk_vs_t = {}
 err_vs_t = {}
@@ -58,7 +64,7 @@ wgts = n.ones_like(avg_pk_2d)
 #wgts = n.ones_like(wgts) / nos_std_1d**2
 #wgts = 1./(n.abs(avg_pk_1d) + nos_std_2d)**2
 
-if False: # override power spectrum with the version w/o covariance diagonalization
+if NOCOV: # override power spectrum with the version w/o covariance diagonalization
     print 'Overriding power spectrum with non-covariance diagonalized version'
     pk_2d = nocov_2d
 
@@ -79,7 +85,8 @@ else:
     #    nos_std_2d[i,j] = n.convolve(nos_std_2d[i,j], n.ones((50,)), mode='same')
     #wgts = 1./nos_std_2d**2
 
-if True: # plot some stuff
+#if True: # plot some stuff
+if False: # plot some stuff
     plt1 = int(n.sqrt(len(paths)))
     plt2 = int(n.ceil(len(paths)/float(plt1)))
     #for cnt,path in enumerate(paths):
@@ -204,22 +211,27 @@ else:
     err = n.std(pk_boot, axis=1)
     err_fold = n.std(pk_fold_boot, axis=1)
 
-#p.subplot(221); C.arp.waterfall(pk_boot, mx=9, drng=3); p.colorbar(shrink=.5)
-p.subplot(221); p.plot(pk_boot)
-p.subplot(222)
-p.plot(pk)
-p.plot(n.median(pk_boot,axis=1))
-p.plot(pk+2*err)
-#p.subplot(223); C.arp.waterfall(pk_fold_boot, mx=9, drng=3); p.colorbar(shrink=.5)
-p.subplot(223); p.plot(pk_fold_boot)
-p.subplot(224)
-p.plot(pk_fold)
-p.plot(n.median(pk_fold_boot,axis=1))
-p.plot(pk_fold+2*err_fold)
-p.show()
+if False:
+    #p.subplot(221); C.arp.waterfall(pk_boot, mx=9, drng=3); p.colorbar(shrink=.5)
+    p.subplot(221); p.plot(pk_boot)
+    p.subplot(222)
+    p.plot(pk)
+    p.plot(n.median(pk_boot,axis=1))
+    p.plot(pk+2*err)
+    #p.subplot(223); C.arp.waterfall(pk_fold_boot, mx=9, drng=3); p.colorbar(shrink=.5)
+    p.subplot(223); p.plot(pk_fold_boot)
+    p.subplot(224)
+    p.plot(pk_fold)
+    p.plot(n.median(pk_fold_boot,axis=1))
+    p.plot(pk_fold+2*err_fold)
+    p.show()
 
-print 'Writing pspec.npz'
-n.savez('pspec.npz', kpl=kpl, pk=pk, err=err, pk_fold=pk_fold, err_fold=err_fold, cmd=cmd)
+if opts.nocov:
+    print 'Writing nopspec.npz'
+    n.savez('nocov_pspec.npz', kpl=kpl, pk=pk, err=err, pk_fold=pk_fold, err_fold=err_fold, cmd=cmd)
+else:
+    print 'Writing pspec.npz'
+    n.savez('pspec.npz', kpl=kpl, pk=pk, err=err, pk_fold=pk_fold, err_fold=err_fold, cmd=cmd)
     
     
 

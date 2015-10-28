@@ -57,12 +57,12 @@ fig, ax1= p.subplots()
 chans=n.arange( max( n.array( plot_n['nchan']  ) ) )  
 n_color=n.array(plot_n['cnt']).max()
 levels=n.arange(n_color)
-cnt_plot =  n.array(plot_n['cnt'])
-#cnt_plot=n.reshape(plot_n['cnt'],(len(chans),len(plot_n['jd'])))
-#img=ax1.contour( chans , plot_n['jd'], cnt_plot.T , levels )
 lsts = n.array(plot_n['lst'])
+lst_order = n.argsort(lsts).squeeze()
+cnt_plot =  n.array(plot_n['cnt'])[lst_order]
+lsts = lsts[lst_order]
 img=ax1.imshow(cnt_plot,aspect='auto',interpolation='nearest',cmap=cmap,
-    extent=(freqs.min(),freqs.max(),lsts.min()*12/n.pi,lsts.max()*12/n.pi))
+    extent=(freqs.min(),freqs.max(),lsts.max()*12/n.pi,lsts.min()*12/n.pi))
 #ax1.set_yticklabels(str(plot_n['lst']))
 #str_ticks=[ str(plot_n['lst'][k]) for k in xrange(len(times))]
 #ax1.set_yticklabels(str_ticks)
@@ -75,7 +75,7 @@ fig.colorbar(img,cax=cbar_ax)
 fig.savefig('N_obs_waterfall.png',format='png')
 
 p.figure()
-p.plot(lsts*12/n.pi,cnt_plot[:,100],'.')
+p.plot(lsts*12/n.pi,n.mean(cnt_plot,axis=1),'.')
 p.xlabel('lst')
 p.ylabel('count')
 
