@@ -114,7 +114,9 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
         mdl: a function to fit the fringe rate profile too. gaussian for default.
     '''
     if maxfr is None: maxfr = bins[n.argwhere(frp0 != 0).max()] # XXX check this
-    startprms=tuple([sp*frpad for sp in startprms])
+
+    startprms=tuple([sp*frpad for sp in startprms]) ## Changed this to move startprms when using frpad > 4
+
     prms0 = fit_mdl(frp0, bins, maxfr, mdl=mdl,maxfun=maxfun,ftol=ftol,xtol=xtol,startprms=startprms,verbose=verbose)
     prms0 = n.array(prms0)
     if limit_maxfr:
