@@ -8,7 +8,7 @@ def nu2tau(datnu):
         #nu = uv1['sfreq']+S*uv1['sdf']*1.E9
     #print datanu
     datatau = n.fft.ifft(datanu)
-    datatau = n.fft.fftshift(datatau)
+    datatau = n.fft.ifftshift(datatau)
     #print datatau
 
     return datatau

@@ -12,7 +12,7 @@ import os, sys
 
 ### Options ###
 o = optparse.OptionParser()
-o.set_usage('omni_check.py [options] *omni_output.npz')
+o.set_usage('omni_check.py [options] *.npz')
 o.add_option('--chisq',dest='chisq',default=False,action="store_true",
             help='Plot chisq.')
 o.add_option('--gains',dest='gains',default=False,action="store_true",
@@ -32,7 +32,7 @@ if opts.chisq == True:
     for i,file in enumerate(args):
         print 'Reading',file
         file = numpy.load(file)
-        chisq = file[str(pol)+',chisq'] #shape is (#times, #freqs)
+        chisq = file['chisq '+str(pol)] #shape is (#times, #freqs)
         for t in range(len(chisq)):
             chisqs.append(chisq[t])
         #chisq is sum of square of (model-data) on all visibilities per time/freq snapshot
@@ -53,10 +53,10 @@ if opts.gains == True:
         print 'Reading',file
         file = numpy.load(file)
         for key in file.keys(): #loop over antennas
-            if "gains" in key:
+            if key[0] != '<' and key[0] != '(' and key[0] != 'c':
                 gain = file[key]
-                antnum = key.split(',')[2]
-                try: gains[antnum].append(gain) 
+                antnum = key[:-1]
+                try: gains[antnum].append(gain)
                 except: gains[antnum] = [gain]
     for key in gains.keys():
         gains[key] = numpy.vstack(gains[key]) #cool thing to stack 2D arrays that only match in 1 dimension

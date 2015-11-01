@@ -81,7 +81,7 @@ def data_mode(data, mode='abs'):
     if mode.startswith('phs'): data = n.angle(data)
     elif mode.startswith('lin'):
         data = n.absolute(data)
-        data = n.masked_less_equal(data, 0)
+        #data = n.masked_less_equal(data, 0)
     elif mode.startswith('real'): data = data.real
     elif mode.startswith('imag'): data = data.imag
     elif mode.startswith('log'):
