@@ -46,10 +46,15 @@ def mfunc(uv,p,d): #loops over time and baseline
     key1 = pol1+',gains,'+str(a1)
     key2 = pol1+',gains,'+str(a2)
     time_index = numpy.where(t_file == p[1])[0][0]
-    try: g_ij = npz[key1][time_index]*npz[key2][time_index].conj()
-    #XXX To do: split up gi and gj and if there's no solution, set gain to 1
-        #dictionary.get(key,1) #returns 1 if no key
-    except: g_ij = numpy.ones_like(d) #if no antenna solution, set gain to one
+    try: g_i = npz[key1][time_index]
+    except: g_i = numpy.ones_like(d)
+    try: g_j = npz[key2][time_index]
+    except: g_j = numpy.ones_like(d)
+    g_ij = g_i*g_j.conj()
+
+    #try: g_ij = npz[key1][time_index]*npz[key2][time_index].conj()
+    #except: g_ij = numpy.ones_like(d) #if no antenna solution, set gain to one
+    
     g_ij = g_ij.conj() #Omnical conjugation is backwards
     d /= g_ij #calibration happens here
     return p,d

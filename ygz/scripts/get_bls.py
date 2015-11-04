@@ -1,6 +1,6 @@
 __author__ = 'yunfanzhang'
 
-#get all baselines equivalent to the given on in antenna array aa
+#get all baselines equivalent to the given one in antenna array aa
 
 def get_bldict(aa):
     NU,NV = len(aa.ant_layout),len(aa.ant_layout[0])
