@@ -2,8 +2,8 @@ import aipy as a, numpy as n, pylab as p, ephem as e
 #Plot tracks of the entire array as the earth rotates
 #aa=a.cal.get_aa('psa6622_v001',n.array([.15]))
 
-def plot_c(src, TIME, ann=False, i=0,J=[26,38]):
-    C=['b','g','r','c','m']
+def plot_c(src, TIME, ann=False, C=None,i=0,J=[26,51]):
+    if C==None: C=['b','g','y','c','m']
     for j in J:
         c=C[j%len(C)]
         U,V=[],[]
@@ -24,6 +24,7 @@ def plot_c(src, TIME, ann=False, i=0,J=[26,38]):
                 #ax.annotate('%s,%s' % xyt[2], xy=xyt[:1], textcoords='offset points') # <--
                 ax.annotate('%.3f' % TA[ind], xy=xy, textcoords='data') # <--
                 ind=ind+1
+            p.scatter(UA,VA)
     #p.legend()
     return
 
@@ -36,14 +37,23 @@ rad2deg=180/n.pi
 fig = p.figure()
 ax = fig.add_subplot(111)
 dt = 0.001
-TIME = n.arange(2456249.20,2456249.35, dt)
-dd = 0.01
-DEC = aa.lat+n.arange(-0.4,0.41,dd)
+#TIME = n.arange(2456249.20,2456249.35, dt)
+TIME = n.arange(2456249.0,2456250.0, dt)
+dd = 0.05
+DEC = aa.lat+n.arange(-1,0.41,dd)
+rad2deg = 180./n.pi
+deg2rad = n.pi/180
 for dec in DEC:
     src = a.fit.RadioFixedBody(0, dec, janskies=0., mfreq=.15)
-    if abs(dec-aa.lat)<dd/2: ann=True
+    C = None
+    if abs(dec-aa.lat)<dd/2:
+        ann=True,
+        C = ['r']
+    elif abs(dec-60*deg2rad)<dd:
+        ann=True,
+        C = ['y']
     else: ann=False
-    plot_c(src,TIME,ann=ann)
+    plot_c(src,TIME,ann=ann,C=C)
 
 
             #print u,v

@@ -55,8 +55,9 @@ with open(Cname, 'r') as f1:
         if bl != '0_26_0_38' and bl != '0_38_0_26': continue
         DelT, Opp = float(DelT), float(Opp)
         ##########
-        DelT = -0.036
+        #DelT = 0.027     #peak as seen in find_corr for channel 100
         ###########
+        print Opp
         norm = X2Y*bb*Omp*Omp/Opp    #1.E6 is K2 to mK2
         T1, dat1, flg1 = capo.arp.get_dict_of_uv_data(F1,antstr='0_26',polstr=polstr)
         T2, dat2, flg2 = capo.arp.get_dict_of_uv_data(F2,antstr='0_38',polstr=polstr)
@@ -108,7 +109,7 @@ with open(Cname, 'r') as f1:
             datatau = dl_tr.nu2tau(datnu)
             dau1.append(datatau)
         for datnu in data2:
-            datnu = datnu[schan:schan+nchan]*norm           # only one of data1, data2 needs to be normalized such
+            datnu = datnu[schan:schan+nchan]#*norm           # only one of data1, data2 needs to be normalized such
             datatau = dl_tr.nu2tau(datnu)
             dau2.append(datatau)
 
@@ -141,25 +142,25 @@ bootmean, booterr = boot_simple.bootstrap(B, Deldata)
 
 #plotting
 fig = p.figure()
-ax = fig.add_subplot(411)
+ax = fig.add_subplot(311)
 #plotp.P_v_Eta(ax,kz,P)
 ax.set_xlabel('kz')
 ax.set_ylabel(r'$P(k) K^{2} (h^{-1} Mpc)^{3}$')
 p.plot(kz,P,'bo')
 p.plot(kz,Q,'go')
-p.plot(kz,(10*2*n.pi**2)/n.abs(kz)**3,'ro')
+p.plot(kz,(10*2*n.pi**2)/n.abs(kz)**3,'ro')    #input
 ax.set_yscale('log')
-ax = fig.add_subplot(412)
+p.ylim(1.E2,1.E7)
+ax = fig.add_subplot(312)
 #ax.errorbar(kz, n.abs(bootmean), yerr=booterr, fmt='ok', ecolor='gray', alpha=0.5)
 ax.errorbar(k, n.abs(bootmean), yerr=booterr, fmt='ok', ecolor='gray', alpha=0.5)
 #ax.set_ylim([0,0.5])
 #ax.set_yscale('log')
 ax.set_xlabel('kz')
 ax.set_ylabel(r'$P(k) K^{2} (h^{-1} Mpc)^{3}$')
-ax = fig.add_subplot(413)
+ax = fig.add_subplot(313)
 plotp.Del_v_Eta(ax,kz,P)
 #p.plot(kz,10*n.ones(kz.size),'ro')
-ax = fig.add_subplot(414)
-for timesample in range
+
 p.show()
 
