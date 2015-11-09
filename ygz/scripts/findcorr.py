@@ -24,10 +24,9 @@ def comb(T,dat):
             tp = T[i]
             TP.append(tp); data.append(dat[i])
     #print len(TP)
-    return TP,data
+    return n.array(TP),n.array(data)
 
 def get_corr_fourier(F1,F2,bl1,bl2,chan=None):
-
     bl1c, bl2c = a.miriad.ij2bl(*bl1),a.miriad.ij2bl(*bl2)
     T1, dat1, flg1 = capo.arp.get_dict_of_uv_data(F1,antstr='_'.join(map(str,bl1)),polstr='xx')
     T2, dat2, flg2 = capo.arp.get_dict_of_uv_data(F2,antstr='_'.join(map(str,bl2)),polstr='xx')
@@ -36,6 +35,7 @@ def get_corr_fourier(F1,F2,bl1,bl2,chan=None):
     data2 = dat2[bl2c]['xx']  #check 295
     #print data2.shape
     T2,data2 = comb(T2,data2)
+    #print data2.shape
     if chan != None:
         try: data1, data2 = data1[:,chan],data2[:,chan]
         except(TypeError):
@@ -61,13 +61,11 @@ def get_corr_fourier(F1,F2,bl1,bl2,chan=None):
 
 
 import matplotlib.pyplot as P
-#DIR1 = '/Users/yunfanzhang/local/simuDATA/Deltatest/0_26/'
-#DIR2 = '/Users/yunfanzhang/local/simuDATA/Deltatest/0_38/'
-DIR1 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_26/'
-DIR2 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_23/'
-#single bl test
-#DIR2 = DIR1
+
 bl1, bl2 = (0,26),(0,23)
+
+DIR1 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_'+str(bl1[1])+'/'
+DIR2 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_'+str(bl2[1])+'/'
 #clist = [50,80,100,120,150]
 clist = [50,80,100,120,150]
 F1 = os.listdir(DIR1)
@@ -82,8 +80,10 @@ drang = range(0,CORL.shape[0])
 #print Trang.size
 P.figure()
 P.subplot(111)
-#P.axvline(0.042000,color='k',alpha=0.5,linewidth=5)   #for 26 38
-P.axvline(0.125000,color='k',alpha=0.5,linewidth=5)    #for 26 23
+
+cuedict = {'26_23':0.125, '26_38': 0.042, '26_50': 0.083}
+ver = cuedict[str(bl1[1])+'_'+str(bl2[1])]
+P.axvline(ver,color='k',alpha=0.5,linewidth=5)    #for 26 23
 for i in range(len(clist)):
     corl = CORL[drang,i]/n.max(n.abs(CORL[:,i]))
     print clist[i], n.max(n.abs(CORL[:,i]))
