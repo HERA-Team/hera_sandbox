@@ -436,7 +436,6 @@ for boot in xrange(opts.nboot):
             p.subplot(223); capo.arp.waterfall(_Csumk)
             p.subplot(224); capo.arp.waterfall(cov(_Czk))
             p.show()
-
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex)
     qI = n.zeros((nchan,_Iz.values()[0].values()[0].shape[1]), dtype=n.complex)
