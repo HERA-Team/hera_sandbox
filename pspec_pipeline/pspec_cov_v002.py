@@ -266,7 +266,33 @@ for k in days:
 bls_master = x.values()[0].keys()
 nbls = len(bls_master)
 print 'Baselines:', nbls
-
+print days==set(['even','odd'])
+#compute the difference
+print "estimating noise"    
+if set(['even','odd'])==set(days):
+    print "differencing even odd days"
+    d = {}
+    for bl in bls_master:
+        d[bl] = x['even'][bl] - x['odd'][bl]
+        Trms = n.sqrt(n.mean(d[bl][0,:]*n.conj(d[bl][0,:])).real)
+        print bl,"Trms  = {Trms:3.2f}mK".format(Trms=Trms),
+        print "Pk = {Pk:4e} mK^2/Mpc^3".format(Pk=Trms**2*scalar)
+    #average over all baselines
+    diff_blavg = n.mean([d[bl] for bl in d],axis=0)
+    Trms = n.sqrt(n.mean(diff_blavg[0,:]*n.conj(diff_blavg[0,:])).real)
+    print "Trms (bl avg) =",Trms
+    print "Pk (bl avg) = {Pk:e} mK^2/Mpc^3".format(Pk=Trms**2*scalar)
+    
+#sys.exit()
+if PLOT and False:
+    #p.plot(d[3602][0,:].real)
+    capo.arp.waterfall(d[1298],mode='real')
+    p.show()
+#else: #ACtually I don't think this else works.
+#    print "differencing days ",x.keys()[0], "and",x.keys()[1]
+#    d = {}
+#    for bl in bls_master:
+#        d[bl] = x[x.keys()[0]][bl] - x[x.keys()[0]][bl]
 
 if INJECT_SIG > 0.: # Create a fake EoR signal to inject
     print 'INJECTING SIMULATED SIGNAL'
@@ -337,13 +363,10 @@ for k in days:
         C[k][bl] = cov(x[k][bl])
         I[k][bl] = n.identity(C[k][bl].shape[0])
         U,S,V = n.linalg.svd(C[k][bl].conj())
-<<<<<<< HEAD
-=======
         if False: #calculate a realization of finite sample noise covariance
             NC = stats.wishart.rvs(df=Nt[bl],scale=n.identity(nchan)*sigma[bl])/(Nt[bl])
             UN,SN,VN = n.linalg.svd(NC)
             #S -= SN
->>>>>>> carina/master
         _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
         _I[k][bl] = n.identity(_C[k][bl].shape[0])
         _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
@@ -413,11 +436,6 @@ for boot in xrange(opts.nboot):
             p.subplot(223); capo.arp.waterfall(_Csumk)
             p.subplot(224); capo.arp.waterfall(cov(_Czk))
             p.show()
-<<<<<<< HEAD
-
-=======
-#    continue
->>>>>>> carina/master
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex)
     qI = n.zeros((nchan,_Iz.values()[0].values()[0].shape[1]), dtype=n.complex)

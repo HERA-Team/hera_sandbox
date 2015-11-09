@@ -4,15 +4,14 @@ import capo
 import numpy as np
 import matplotlib.pylab as pl
 
-data_dir = '/home/kara/capo/kmk/data/'
+data_dir = '/data2/home/kkundert/capo/kmk/data/'
 data_file = 'zen.2456895.51490.xx.uvcRRE'
 uv = a.miriad.UV(data_dir + data_file)
 N = uv.__getitem__('nchan')
-print uv.__getitem__('nchan')
 
 # NOTE: optimal baseline length formula given in Presley et al 2015 eq. 9
 # fill sky map with flat temperature across whole sky (DC signal)
-h = a.healpix.HealpixMap(nside=64)
+h = a.healpix.HealpixMap(nside=512)
 h.map = np.ones(shape = h.map.shape)
 print "h size = " + str(h.map.shape)
 h.map = h.map*4*np.pi/h.npix() # convert to Jy to make summable
@@ -34,14 +33,13 @@ print "array parameters imported"
 
 # fill sky map with GSM
 # create array of GSM files for simulation of multiple frequencies
-gsm_dir = '/home/kara/capo/kmk/gsm/gsm_raw/gsm'
+gsm_dir = '/data2/home/kkundert/capo/kmk/gsm/gsm_raw/gsm'
 gsm_files = [1001, 1002, 1003, 1004, 1005]
 g = a.healpix.HealpixMap(nside=512)
-gsm = a.healpix.HealpixMap(nside=64)
 print "gsm size = " + str(gsm.map.shape)
 d = np.loadtxt(gsm_dir + str(gsm_files[0]) + '.dat')
-g.map = d
-gsm.from_hpm(g) # hack to lower resolution to prevent memory overload
+print "d size = " + str(d.shape)
+gsm.map = d
 gsm.map = gsm.map*4*np.pi/gsm.npix() # convert to Jy to make summable
 # convert to topocentric coordinates
 ga2eq = a.coord.convert_m('eq', 'ga', oepoch=aa.epoch) #conversion matrix
