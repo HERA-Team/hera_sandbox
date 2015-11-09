@@ -2,7 +2,7 @@
 
 seps='sep0,1 sep1,1 sep-1,1'
 cal=psa6240_v003
-frpad='1.0'
+frpad='2.0'
 declare -A ants
 ants[sep0,1]=0_44
 ants[sep1,1]=1_3
@@ -13,7 +13,7 @@ paths='even odd'
 printf 'This is Batch Fringe Rate Filter using:\n'
 printf 'calfile: %s \n' $cal
 printf 'frpad: %s\n' $frpad
-sleep 2
+sleep 1.5
 for path in $paths; do
     for sep in $seps; do
         printf 'Checking for Old FRF Data\n'
@@ -31,14 +31,13 @@ for path in $paths; do
                     rm -rf $(ls -d $path/$sep/*.uvGAL)
                     printf 'Files are deleted\nContinuting to Fringe Rate Filter\n'
                 else
-                    printf 'Nothing is deleted\nexiting now\n'
-                    exit 1
+                    printf 'Nothing is deleted\ncontinuing\n'
+                    continue
             fi
         fi
         printf 'Filtering %s by selecting ant %s \n' $sep ${ants[$sep]}
-        printf '/home/mkolopanis/src/capo/dcj/scripts/frf_filter.py -C %s -a %s --frpad %s'  $cal ${ants[$sep]} $frpad
-        printf '%s' $frpad $EVENAPTH/$sep
-        "/home/mkolopanis/src/capo/dcj/scripts/frf_filter.py" -C $cal -a ${ants[$sep]} -C $cal --frpad $frpad $path/$sep/*.uvGA        
-    
+        printf '/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py -C %s -a %s --frpad %s '  $cal ${ants[$sep]} $frpad
+        printf '%s\n' $path/$sep
+        "/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py" -C $cal -a ${ants[$sep]} -C $cal --frpad $frpad $path/$sep/lst*.uvGA 
     done
 done
