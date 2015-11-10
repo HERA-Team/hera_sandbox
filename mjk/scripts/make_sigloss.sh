@@ -46,12 +46,12 @@ for chan in $chans; do
                echo python ${SCRIPTSDIR}/pspec_cov_v002_sigloss.py \
                     --window=${WINDOW} -p ${pol} -c ${chan} -b ${NBOOT} \
                      -C ${cal} -i ${inject} -a ${ANTS} --output=${ijectdir} \
-                     ${EVEN_FILES} ${ODD_FILES} --plot
+                     ${EVEN_FILES} ${ODD_FILES} 
 
                python ${SCRIPTSDIR}/pspec_cov_v002_sigloss.py \
                     --window=${WINDOW} -p ${pol} -c ${chan} -b ${NBOOT} \
                      -C ${cal} -i ${inject} -a ${ANTS} --output=${injectdir} \
-                     ${EVEN_FILES} ${ODD_FILES} --plot \
+                     ${EVEN_FILES} ${ODD_FILES} \
                      |tee -a ${LOGFILE}
             done
         done

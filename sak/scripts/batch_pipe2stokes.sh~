@@ -1,0 +1,13 @@
+#$ -S /bin/bash
+#$ -V
+#$ -cwd
+#$ -j y
+#$ -N LIN2STOKES
+#$ -o grid_output/
+#$ -l h_vmem=2G
+#$ -t 1:100
+
+echo 'here we go!'
+source activate PAPER
+
+FILES=`pull_args.py $*`
