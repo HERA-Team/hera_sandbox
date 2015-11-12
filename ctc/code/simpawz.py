@@ -37,15 +37,15 @@ import datetime
 
 #GLOBAL VARIABLES                                ### to be updated each time ###
 
-NCHAN = 203 #number of frequency channels
-SFREQ = 0.1 #starting frequency [GHz]
+NCHAN = 1#203 #number of frequency channels
+SFREQ = 0.408 #starting frequency [GHz]
 SDF = 0.00049261 #spacing between frequencies [GHz]
 
 INTTIME = 42.9 #integration time [s]
 STARTJD = 2456843 #starting julian date
 ENDJD = 2456844 #ending julian date
 
-FILEPATH = '/home/cacheng/capo/ctc/images/gsm/gsm203' #path to save all outputs (either where your maps are or where you want them to be created) #INCLUDE FINAL SLASH
+FILEPATH = '/home/cacheng/capo/ctc/images/gsm/' #path to save all outputs (either where your maps are or where you want them to be created) #INCLUDE FINAL SLASH
 
 LMAX = 250 #maximum l to simulate PSPEC maps up to (if opts.pspec == True)
 K_VALS = numpy.arange(0.001,0.5,0.01) #k-values to make maps for (if opts.pspec == True)

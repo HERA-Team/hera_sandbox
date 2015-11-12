@@ -19,12 +19,12 @@ o.add_option('--redinfo',dest='redinfo',type='string',
             help='Path and name of .bin redundant info file.')
 o.add_option('-C',dest='cal',default='psa6622_v003',type='string',
             help='Path and name of calfile.')
-o.add_option('--xtalk',dest='xtalk',default=False,action="store_true",
-            help='Option to use xtalk command when performing lincal. Default is False.')
 o.add_option('--omniruntag',dest='omniruntag',default='',type='string',
             help='Tag for omni run, if wanted. Default is empty.')
 o.add_option('--omnipath',dest='omnipath',default='',type='string',
             help='Path to save .omni_output npz files. Include final / in path.')
+o.add_option('--xtalk',dest='xtalk',default=False,action="store_true",
+            help='Include xtalk in lincal.')
 #o.add_option('--ubls',dest='ubls',default=None,
 #            help='Unique baselines to include. Ex: [(64,49),(64,10)]')
 #o.add_option('--ex_ubls',dest='ex_ubls',default=None,
@@ -91,40 +91,42 @@ for f in range(len(args)):
         g_ij = g_ij.conj() #Omnical conjugation convention is backwards
         g_ij.shape = (1,g_ij.size)
         data[(i,j)] = d[aipy.miriad.ij2bl(i,j)][pol]/g_ij #gains and data always have lower number first 
-        if r == 0:
+        if r == 0: #get flags from one file
             data_with_flags = data[(i,j)]
-        #XXX data should be 0 when g_ij is 0? Right now it becomes nan's
     print '   logcal-ing' 
     m,g,v = omnical.calib.redcal(data,info) #logcal
-    print '   lincal-ing'
-    if opts.xtalk == True:
-        xtalk = {}
-        xtalk_flat = {}
-        for key in m['res'].keys():
-            xtalkavg = numpy.mean(m['res'][key],axis=0) #avg over time
-            xtalk_flat[key] = xtalkavg #saved for later (not reshaped to minimize size)
-            xtalk[key] = numpy.resize(xtalkavg,(m['res'][key].shape)) #must be same shape as data
-    else:
-        xtalk = None
-    m2,g2,v2 = omnical.calib.redcal(data,info,xtalk=xtalk,gains=g,vis=v,uselogcal=False,removedegen=True) #lincal
-        #XXX with this new xtalk dictionary, it's giving different chi-square results than before !!!
     #import IPython;IPython.embed()
+    print '   lincal-ing'
+    xtalk = {}
+    xtalk_flat = {}
+    for key in m['res'].keys():
+        xtalkavg = numpy.mean(m['res'][key],axis=0) #avg over time
+        xtalk_flat[key] = xtalkavg #saved for later (not reshaped to minimize size)
+        xtalk[key] = numpy.resize(xtalkavg,(m['res'][key].shape)) #must be same shape as data
+    #import IPython;IPython.embed()
+    # XXX code always saves xtalk, but do I want to always give it below?
+    if opts.xtalk:
+        m2,g2,v2 = omnical.calib.redcal(data,info,xtalk=xtalk,gains=g,vis=v,uselogcal=False,removedegen=True) #lincal w/xtalk
+    else:
+        m2,g2,v2 = omnical.calib.redcal(data,info,gains=g,vis=v,uselogcal=False,removedegen=True) #lincal w/o xtalk
+
     m2['chisq'][data_with_flags==0] = 0 #flag chisq
+    
     ### Save Outputs ###
+    
     out = tag + '.omni_output'+opts.omniruntag
     print '   saving '+out+'.npz'
     d_npz = {}
-    if opts.xtalk == True:
-        for bl in xtalk_flat.keys(): #save xtalk
-            d_npz['%s,%s,%s' % (pol,'xtalk',bl)] = xtalk_flat[bl]
+    for bl in xtalk_flat.keys(): #save xtalk
+        d_npz['%s,%s,%s' % (pol,'xtalk',bl)] = xtalk_flat[bl]
     d_npz['%s,%s' % (pol,'chisq')] = m2['chisq'] #save chisq
-    #for vv in v.keys(): #save vis models
-        #d_npz['%s,%s,%s' % (pol,'v_log',vv)] = v[vv]
-        #d_npz['%s,%s,%s' % (pol,'v_lin',vv)] = v2[vv]
+    for vv in v.keys(): #save vis models
+        d_npz['%s,%s,%s' % (pol,'v_log',vv)] = v[vv]
+        d_npz['%s,%s,%s' % (pol,'v_lin',vv)] = v2[vv]
     for aa in g.keys(): #save antenna gains
         g_pre = gains[pol1][aa] #XXX taking first letter of pol
         g_pre.shape = (1,g_pre.size)
-        d_npz['%s,%s,%d' % (pol1,'gains',aa)] = g_pre*g2[aa]
+        d_npz['%s,%s,%d' % (pol1,'gains',aa)] = g2[aa]*g_pre
     numpy.savez(out,**d_npz) 
     #import IPython; IPython.embed()
     

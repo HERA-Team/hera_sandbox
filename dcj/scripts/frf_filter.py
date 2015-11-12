@@ -11,7 +11,7 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, ant=True, pol=True)
 o.add_option('--outpath', action='store',
     help='Output path to write to.')
-
+o.add_option('--frpad',default=1.0,type=float,help='make the fringe rate convolution longer by this factor (default 1.0)')
 opts,args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
@@ -39,7 +39,7 @@ for sep in seps:
         bl = a.miriad.ij2bl(*ij)
         if blconj[bl]: c+=1
         else: break
-    frp, bins = fringe.aa_to_fr_profile(aa, ij, 100)
+    frp, bins = fringe.aa_to_fr_profile(aa, ij, 100,frpad=opts.frpad)
     timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[100])
     
 baselines = ''.join(sep2ij[sep] for sep in seps)

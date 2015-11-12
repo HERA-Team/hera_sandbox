@@ -2,6 +2,8 @@
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random
 
+#modified by Yunfan Zhang
+
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
 o.add_option('-b', '--nboot', type='int', default=20,
@@ -25,8 +27,8 @@ random.seed(0)
 POL = 'I'
 LST_STATS = False
 DELAY = False
-NGPS = 5
-INJECT_SIG = 0.
+NGPS = 5                                     #groups of baslines
+INJECT_SIG = 0.                                #Whether we inject artificial signals
 SAMPLE_WITH_REPLACEMENT = True
 NOISE = .0
 PLOT = opts.plot
@@ -43,6 +45,7 @@ if opts.loss:
         print 'Exiting. If in signal loss mode, need a signal level to input.'
         exit()
 
+#function to retrieve data, put them in dictionary dat. Exclude baselines in vmbls
 def get_data(filenames, antstr, polstr, rmbls, verbose=False):
     # XXX could have this only pull channels of interest to save memory
     lsts, dat, flg = [], {}, {}
@@ -71,23 +74,23 @@ def cov(m):
     '''Because numpy.cov is stupid and casts as float.'''
     #return n.cov(m)
     X = n.array(m, ndmin=2, dtype=n.complex)
-    X -= X.mean(axis=1)[(slice(None),n.newaxis)]
+    X -= X.mean(axis=1)[(slice(None),n.newaxis)]                   #?
     N = X.shape[1]
     fact = float(N - 1)
-    return (n.dot(X, X.T.conj()) / fact).squeeze()
+    return (n.dot(X, X.T.conj()) / fact).squeeze()     #X.T is transpose, so its an outer product.
 
 def noise(size):
     return n.random.normal(size=size) * n.exp(1j*n.random.uniform(0,2*n.pi,size=size))
 
-def get_Q(mode, n_k):
+def get_Q(mode, n_k):      #mode is alpha, the index for the k-mode, n_k in number of k modes
     if not DELAY:
-        _m = n.zeros((n_k,), dtype=n.complex)
+        _m = n.zeros((n_k,), dtype=n.complex)                                    #FTransform of m
         _m[mode] = 1.
-        m = n.fft.fft(n.fft.ifftshift(_m)) * a.dsp.gen_window(nchan, WINDOW)
+        m = n.fft.fft(n.fft.ifftshift(_m)) * a.dsp.gen_window(nchan, WINDOW)    #first ishift and then fft, same as first fft then shift, window-none
         Q = n.einsum('i,j', m, m.conj())
         return Q
     else:
-        # XXX need to have this depend on window
+        # XXX need to have this depend on window                                       ??
         Q = n.zeros_like(C)
         Q[mode,mode] = 1
         return Q
@@ -112,8 +115,14 @@ dsets = {
 #    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd_nomni_xtalk/'+SEP+'/*243.[3456]*uvGL'),
 #    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even_xtalk_removed/'+SEP+'/*242.[3456]*uvGF'),
 #    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd_xtalk_removed/'+SEP+'/*243.[3456]*uvGF'),
-    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even_xtalk_removed/'+SEP+'/*242.[3456]*uvGL'),
-    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd_xtalk_removed/'+SEP+'/*243.[3456]*uvGL'),
+
+
+#    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even_xtalk_removed/'+SEP+'/apjsub_v0/*242.[3456]*uvGL'),
+#    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd_xtalk_removed/'+SEP+'/apjsub_v0/*243.[3456]*uvGL'),
+    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even_xtalk_removed/'+SEP+'/newfrf/*242.[3456]*uvGL'),
+    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd_xtalk_removed/'+SEP+'/newfrf/*243.[3456]*uvGL'),
+#    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even_xtalk_removed/'+SEP+'/nonopt_wide_1/*242.[3456]*uvGL'),
+#    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd_xtalk_removed/'+SEP+'/nonopt_wide_1/*243.[3456]*uvGL'),
 #    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even_xtalk_removed_optimal/'+SEP+'/*242.[3456]*uvGL'),
 #    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd_xtalk_removed_optimal/'+SEP+'/*243.[3456]*uvGL'),
 
@@ -137,15 +146,15 @@ if opts.loss:
 
 WINDOW = opts.window
 uv = a.miriad.UV(dsets.values()[0][0])
-freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
+freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])                   #returns a numpy array
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 del(uv)
 
-afreqs = freqs.take(chans)
+afreqs = freqs.take(chans)                             #chosen frequncies
 nchan = chans.size
 fq = n.average(afreqs)
-z = capo.pspec.f2z(fq)
+z = capo.pspec.f2z(fq)                          #fg in GHz, z is redshift
 
 aa = a.cal.get_aa(opts.cal, n.array([.150]))
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
@@ -162,11 +171,11 @@ if not WINDOW == 'none': window.shape=(nchan,1)
 B = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW] # normalization. See above.
 etas = n.fft.fftshift(capo.pspec.f2eta(afreqs)) #create etas (fourier dual to frequency)
 #etas = capo.pspec.f2eta(afreqs) #create etas (fourier dual to frequency)
-kpl = etas * capo.pspec.dk_deta(z) #111
+kpl = etas * capo.pspec.dk_deta(z)                                        #111
 print kpl
 
 if True:
-    bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 # correction for beam^2
+    bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 # correction for beam^2     222
     scalar = capo.pspec.X2Y(z) * bm * B
 else: scalar = 1
 if not DELAY:
@@ -312,7 +321,7 @@ for k in days:
         C[k][bl] = cov(x[k][bl])
         I[k][bl] = n.identity(C[k][bl].shape[0])
         U,S,V = n.linalg.svd(C[k][bl].conj())
-        _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
+        _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)                                #S is real
         _I[k][bl] = n.identity(_C[k][bl].shape[0])
         _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
         _Ix[k][bl] = x[k][bl].copy()
@@ -359,7 +368,7 @@ for boot in xrange(opts.nboot):
             _IsumQ[k][i] = {}
             _CsumQ[k][i] = {}
             if DELAY: # this is much faster
-                _Iz[k][i] = n.fft.fftshift(n.fft.ifft(window*_Iz[k][i], axis=0), axes=0)
+                _Iz[k][i] = n.fft.fftshift(n.fft.ifft(window*_Iz[k][i], axis=0), axes=0)            #ifftshift?
                 _Cz[k][i] = n.fft.fftshift(n.fft.ifft(window*_Cz[k][i], axis=0), axes=0)
                 # XXX need to take fft of _Csum, _Isum here
             for ch in xrange(nchan): # XXX this loop makes computation go as nchan^3
