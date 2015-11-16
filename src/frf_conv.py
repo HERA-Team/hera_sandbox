@@ -136,7 +136,8 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
     #firs = ifft(frps, axis=-1)
     #firs = fftshift(firs, axes=-1)
     firs *= a.dsp.gen_window(bins.size, window)
-    firs /= n.sqrt(n.sum(n.abs(firs)**2,axis=1).reshape(-1,1)) # normalize so that n.sum(abs(fir)**2) = 1
     if alietal:
         firs /= n.sum(n.abs(firs),axis=1).reshape(-1,1) # normalize so that n.sum(abs(fir)) = 1
+    else:
+        firs /= n.sqrt(n.sum(n.abs(firs)**2,axis=1).reshape(-1,1)) # normalize so that n.sum(abs(fir)**2) = 1
     return tbins, firs
