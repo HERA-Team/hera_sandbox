@@ -62,14 +62,17 @@ for chan in $chans; do
                 echo python ${SCRIPTSDIR}/pspec_cov_v002.py -C ${cal} \
                      -b ${NBOOT} -a ${ANTS} -c ${chan} -p ${pol}\
                       --window=${WINDOW}  ${NOPROJ} --output=${sepdir} \
-                       ${EVEN_FILES} ${ODD_FILES} 
+                       ${EVEN_FILES} ${ODD_FILES} ${OPTIONS}
                 
                 python ${SCRIPTSDIR}/pspec_cov_v002.py -C ${cal} -b ${NBOOT} \
                     -a ${ANTS} -c ${chan} -p ${pol} --window=${WINDOW} \
                       ${NOPROJ} --output=${sepdir} \
-                      ${EVEN_FILES} ${ODD_FILES} #\
+                      ${EVEN_FILES} ${ODD_FILES} ${OPTIONS} #\
                      #| tee -a ${LOGFILE}
-
+                if [ $? -ne 0 ] 
+                then
+                exit
+                fi
                 
                 echo beginning bootstrap: `date` | tee -a ${LOGFILE} 
                 ${SCRIPTSDIR}/pspec_cov_boot.py ${sepdir}/pspec_boot*npz | tee -a ${LOGFILE} 
