@@ -4,10 +4,9 @@ Implements a Fringe Rate Filter useing and FIR filter.
 '''
 import aipy as a
 import capo
-import numpy as n, pylab as p
+import numpy as n
 from numpy.fft import ifft, fftshift, ifftshift, fftfreq, fft
 import scipy.interpolate
-import optparse,sys
 
 DEFAULT_FRBINS = n.arange(-.01+5e-5,.01,5e-5) # Hz
 DEFAULT_WGT = lambda bm: bm**2
