@@ -54,6 +54,7 @@ frpads = [ float(x) for x in opts.frpad.split(',')]
 npads=len(frpads)
 cmap= get_colors(int(1.5*npads))
 mychan = n.floor(nchan/2)
+#mychan = 150
 print 'These are the separations that we are going to use ', seps
 print "calculating fringe profile at channel ",mychan
 #Get the fir filters for the separation used.
@@ -69,11 +70,12 @@ for cnt,pad in enumerate(frpads):
             bl = a.miriad.ij2bl(*ij)
             if blconj[bl]: c+=1
             else: break
-        frp, bins = fringe.aa_to_fr_profile(aa, ij, mychan,frpad=1.0)
+        frp, bins = fringe.aa_to_fr_profile(aa, ij, mychan)
 
-       # timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True,mdl=skew,startprms=(.001,.001,-50))
-        #timebins, firs[sep], prms0 = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True,mdl=skew,startprms=(.001,.001,-50))
-        timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True)
+        timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True,mdl=skew,startprms=(.001,.001,-5))
+        #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True)
+       # timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True,alietal=True)
+        print 'current sum of n.abs(firs)**2: ', n.sum(n.abs(firs[sep][mychan])**2)
         
         if False and pad ==1:
             delta=prms0[-1]/n.sqrt(1+prms0[-1]**2)
@@ -95,7 +97,7 @@ for cnt,pad in enumerate(frpads):
     #lsts = [ aa.sidereal_time() for k in map(aa.set_jultime(), times) ]
     for sep in seps:
         if PLOT:
-            ax_frp.plot(frp_freqs*1e3,frps[sep][mychan], label='{0}'.format(pad),color=cmap(cnt))
+            ax_frp.plot(frp_freqs*1e3,frps[sep][mychan]/n.max(frps[sep][mychan]), label='{0}'.format(pad),color=cmap(cnt))
            # p.plot(timebins,firs[sep][mychan])
             ax_firs.plot(timebins,n.abs(firs[sep][mychan]),label='{0}'.format(pad),color=cmap(cnt))
             ax_firs.set_xlabel('s')
