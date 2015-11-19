@@ -105,6 +105,7 @@ for f in args:
     if src is None or (src_alt_start < opts.altmax or src_alt_end < opts.altmax):
         nargs.append(f)
 # Places the data into lst bins, but does not actually combine or average.
+print "binning ",len(nargs),"files"
 jds = {}
 files = {}
 for filename in nargs:

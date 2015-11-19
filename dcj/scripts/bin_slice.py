@@ -15,32 +15,50 @@ def file2jd(zenuv):
     return float(re.findall(r'\d+\.\d+', zenuv)[0])
 def hms(h):
     return ephem.hours(h)
-
+def dB(x):
+    return 10*n.log10(x)
 data = {}
-time = {}
+time = {} #time is the lst axis... sorry
+jd_times = {}
 jds = []
 for filename in sys.argv[1:]:
     jd = int(n.round(file2jd(filename)))
-    if jd<jdjump:continue  #focus on my epoch
+    t = file2jd(filename)
+#    if jd<jdjump:continue  #focus on my epoch
 #    print 'Reading', filename
     try:
         npz = n.load(filename)
     except:
         print "    failed to load"
     try:
+        npz[mybl]
+
+    except(KeyError):
+        print "baseline {i}_{j} not found in {f}, skipping".format(i=i,j=j,f=filename)
+        continue
+    try:
+        ntimes = len(npz[mybl])
+        print npz['t'+mybl]
+        dt = n.diff(npz['t'+mybl])[0]/n.pi #convert radians to fraction of a day
         data[jd].append(npz[mybl])
         time[jd].append(npz['t'+mybl])
+        jd_times[jd].append(n.arange(0,ntimes)*dt + file2jd(filename))
+
     except(KeyError):
 	try:
             data[jd] = [npz[mybl]]
             time[jd] = [npz['t'+mybl]]
+            jd_times[jd] = [n.arange(0,ntimes)*dt + file2jd(filename)]
         except(KeyError):
             continue
+if len(data)==0:
+    print "ERROR: no data found"
+    sys.exit()
 for jd in data:
     data[jd] = n.concatenate(data[jd])#turna list of arrays into a single array
     time[jd] = n.concatenate(time[jd])
-
-
+    jd_times[jd] = n.concatenate(jd_times[jd])
+jd_samples = n.concatenate([jd_times[jd] for jd in jd_times])
 #####
 ## GRID THE DATA
 #make my lst grid    
@@ -51,7 +69,7 @@ lst_grid = n.arange(lstmin*0.95,lstmax*1.05,dlst*2) #note I am tweaking the grid
 #make a jd grid
 jds = n.array(time.keys())
 jd_grid = n.arange(jds.min()-1,jds.max()+2,1)
-print jd_grid.min(),jds.min(),jds.max(),jd_grid.max()
+daynums = jd_grid-jd_grid.min()
 #grid the data into lst,jd bins
 gridded_data = n.zeros((lst_grid.size,jd_grid.size)).astype(n.complex64) #dimensions lstbins x jds
 counts = n.zeros_like(gridded_data).astype(int)
@@ -71,34 +89,208 @@ jds = n.array(time.keys())
 lst_model = n.ma.median(gridded_data,axis=1)
 lst_model.shape += (1,)
 lst_model = n.repeat(lst_model,gridded_data.shape[1],axis=1)
-
+res = gridded_data-lst_model
+lst_model_errs = n.std(res,axis=1)
+figure()
+errorbar(lst_grid*r2h,lst_model[:,0],yerr=lst_model_errs)
+xlabel('lst')
+ylabel('Jy')
 #### PLOT THE GRID
+figure()
 subplot(131)
 imshow(n.abs(gridded_data),aspect='auto',vmax=0.05,interpolation='nearest',extent=(0,jds.max()-jds.min(),lst_grid.max()*r2h,lst_grid.min()*r2h))
+colorbar()
 text(0.92,-0.07,"+%i"%jds.min(),fontsize=10,transform=gca().transAxes)
 #hist(n.abs(gridded_data.ravel()),bins=100)
-ax2 = subplot(132)
-imshow(gridded_data.real,aspect='auto',vmax=0.05,interpolation='nearest',extent=(0,jds.max()-jds.min(),lst_grid.max()*r2h,lst_grid.min()*r2h))
+subplot(132)
+imshow(gridded_data.real,aspect='auto',interpolation='nearest',extent=(0,jds.max()-jds.min(),lst_grid.max()*r2h,lst_grid.min()*r2h))
 text(0.92,-0.07,"+%i"%jds.min(),fontsize=10,transform=gca().transAxes)
-ax2.set_yticklabels([])
+colorbar()
 subplot(133)
 imshow(n.abs(gridded_data-lst_model),aspect='auto',interpolation='nearest',
     extent=(0,jds.max()-jds.min(),lst_grid.max()*r2h,lst_grid.min()*r2h),vmax=0.05)
 colorbar()
-subplots_adjust(hspace=0)
 
-### PLOT a lst slice.
-mylst = 4.36/r2h #hours of lst
-mylst_i = n.abs(lst_grid-mylst).argmin()
-print mylst_i
+
+### Make a 2D histogram in lst
+linear_data = n.concatenate([data[jd] for jd in jds])
+linear_data = n.ma.masked_where(linear_data==0,linear_data)
+Jy_range = n.array([-3,3])*n.std(linear_data.real)
+Jy_res = n.diff(Jy_range)/25
+lst_range = [lst_grid.min(),lst_grid.max()]
+Jy_grid = n.arange(Jy_range[0],Jy_range[1],Jy_res)
+H,lst_edges,Jy_edges = n.histogram2d(lsts[linear_data!=0],linear_data[linear_data!=0].real,
+        bins=[lst_grid,Jy_grid])
+##Make a basic plot of the slice vs lst and JD
 figure()
-for i in range(mylst_i-3,mylst_i+3):
-    #lstname = hms(lst_grid[i])
-    lstname = str(n.round(lst_grid[i]*r2h,2))
-    plot(jd_grid-jd_grid.min(),n.abs(gridded_data-lst_model)[i,:],label=lstname)
-legend()
-text(0.92,-0.07,"+%i"%jd_grid.min(),fontsize=10,transform=gca().transAxes)
-title('lst slices')
+subplot(221)
+plot(lsts,linear_data,'.')
+xlabel('lst')
+subplot(222)
+plot(jd_samples,n.concatenate([data[jd] for jd in jds]),'.')
+xlabel('jd')
+subplot(313)
+imshow(H.T,aspect='auto',interpolation='nearest',extent=(lst_edges.min()*r2h,lst_edges.max()*r2h,Jy_edges.min(),Jy_edges.max()),cmap='cubehelix')
+xlabel('lst [h]')
+colorbar()
+show()
+sys.exit()
+
+### Flag the residuals
+ncut = 3
+if False:
+    ###Flag vs jd
+    v = n.sqrt(n.mean(res*n.conj(res),axis=1))
+    v.shape += (1,)
+    v = n.repeat(v,res.shape[1],axis=1)
+    res_m = n.ma.masked_where(n.logical_or(n.abs(res.real)>(ncut*v/n.sqrt(2)),
+                            n.abs(res.imag)>(ncut*v/n.sqrt(2))),res)
+if False:
+    ### Flag vs lst
+    v = n.sqrt(n.mean(res*n.conj(res),axis=0))
+    v.shape = (1,)+v.shape
+    v = n.repeat(v,res.shape[0],axis=0)
+    res_m = n.ma.masked_where(n.logical_or(n.abs(res.real)>(ncut*v/n.sqrt(2)),
+                            n.abs(res.imag)>(ncut*v/n.sqrt(2))),res)
+
+
+### Flag using lst and jd
+if True:
+    v = n.sqrt(n.mean(res*n.conj(res)))
+    res_m = n.ma.masked_where(n.abs(res)>(ncut*v),res)
+print "flagging fraction: {frac}".format(frac=n.sum(res_m.mask-res.mask)/float(res_m.size))
+
+
+### Plots of the residual.  There seems to be a slow phase drift.
+if False:
+    figure()
+    subplot(131)
+    imshow(res.real,aspect='auto',interpolation='nearest',vmin=-0.01,vmax=0.01)
+    subplot(132)
+    imshow(res_m.mask-res.mask,aspect='auto',cmap='gray_r',interpolation='nearest')
+    subplot(133)
+    imshow(res_m.real,aspect='auto',interpolation='nearest',vmin=-0.01,vmax=0.01)
+    colorbar()
+    
+    figure()
+    subplot(131)
+    imshow(n.ma.abs(res_m),aspect='auto',interpolation='nearest',vmax=0.01)
+    
+    subplot(132)
+    imshow(n.ma.angle(res_m),aspect='auto',interpolation='nearest')
+    colorbar()
+    subplot(133)
+    res_m_frt = n.fft.fft(res_m,axis=0)
+    imshow(n.flipud(n.abs(res_m_frt)),aspect='auto',interpolation='nearest',
+    extent=(daynums.min(),daynums.max(),0,1/n.diff(lst_grid*r2h/60)[0]/2))
+    print n.diff(lst_grid*r2h/60)[0],1/n.diff(lst_grid*r2h/60)[0]/2
+    colorbar()
+
+if False: 
+    ### compare residuals at different times
+    figure()
+    #looks like 90 degrees from beginning to end
+    plot(lst_grid*r2h,lst_model[:,0])
+    plot(lst_grid*r2h,gridded_data[:,10],'g')
+    plot(lst_grid*r2h,gridded_data[:,57],'r')
+    plot(lst_grid*r2h,n.ma.mean(res_m[:,:10],axis=1),'--g')
+    plot(lst_grid*r2h,n.ma.mean(res_m[:,56:],axis=1),'--r')
+#its an ever so slight gain shift...
+G = dB(n.ma.abs(gridded_data/lst_model))
+G.mask[n.ma.abs(G)>5] = 1 #flag gains over 5dB and under -5dB
+G_model_parms = n.ma.polyfit(daynums,n.mean(G,axis=0),1)
+print "Gain model slope (dB/day):",G_model_parms[0]
+G_model = n.poly1d(G_model_parms)
+figure()
+subplot(211)
+imshow(G,aspect='auto',vmin=-1,vmax=1)
+colorbar()
+subplot(212)
+gain_vs_day = n.ma.mean(G,axis=0)
+plot(daynums,gain_vs_day)
+plot(daynums,G_model(daynums),'k')
+text(0.92,-0.07,"+%i"%jds.min(),fontsize=10,transform=gca().transAxes)
+xlabel('daynum')
+
+figure()
+### plot the gain vs temps
+try:
+    temps = n.loadtxt('../Temperatures/nightly_temps_2456969_2456929.txt')
+    plot(jd_grid,gain_vs_day,label='gain')
+    #twinx()
+    plot(temps[:,0],(temps[:,1]-n.mean(temps[:,1]))*(-0.06),'.k',label='nightly temp min')
+
+except:
+    print "couldn't find temps! skipping "
+
+
+###gain corrected LST model
+res_gain_corrected = gridded_data/10**(G_model(daynums)/10) - lst_model
+res_gain_corrected.mask = res_m.mask
+figure()
+subplot(121)
+imshow(res_m.real,aspect='auto',vmax=0.01)
+subplot(122)
+imshow(res_gain_corrected.real,aspect='auto',vmax=0.01)
+colorbar()
+
+### Check for xtalk
+figure()
+errorbar(daynums,n.mean(res_gain_corrected,axis=0).real,
+            yerr=n.std(res_gain_corrected.real,axis=0),label='real')
+errorbar(daynums,n.mean(res_gain_corrected,axis=0).imag,
+            yerr=n.std(res_gain_corrected.imag,axis=0),label='imag')
+
+if True:
+    ### a basic test of integrating down
+    figure()
+    subplot(211)
+    plot(lst_grid*r2h,n.ma.mean(n.abs(res.real),axis=1),label='inst')
+    plot(lst_grid*r2h,n.abs(n.ma.mean(res,axis=1).real),label='all time')
+    N_vs_lst = n.sum(n.logical_not(res.mask),axis=1)
+    #plot(lst_grid*r2h,n.ones_like(lst_grid)*n.mean(n.abs(res),axis=1)/n.sqrt(len(jd_grid)),'--')
+    plot(lst_grid*r2h,n.ma.mean(n.ma.abs(res.real),axis=1)/n.sqrt(N_vs_lst),'--k',label='2sigma')
+    subplot(212)
+    plot(lst_grid*r2h,n.ma.mean(n.abs(res_m.real),axis=1))
+    plot(lst_grid*r2h,n.abs(n.ma.mean(res_m,axis=1).real))
+    N_vs_lst = n.sum(n.logical_not(res_m.mask),axis=1)
+    plot(lst_grid*r2h,n.mean(n.abs(res_m.real),axis=1)/n.sqrt(N_vs_lst),'--k',label='2sigma')
+    xlabel('lst')
+    show()
+    sys.exit()
+if False:
+    ### Check that the residuals integrate down like noise
+    nchoose = 10 #for each time length, draw and average this many samples of the residuals
+    res = gridded_data - lst_model
+    mylst = 4.4/r2h
+    mylst_i = n.abs(lst_grid-mylst).argmin()
+    integrated_residual = n.zeros((len(jds),len(lst_grid))).astype(n.complex64)
+    res_lst_vs_time = [] #list of lsts each having rms vs number of days
+    res_lst_vs_time_err =[]
+    for i in range(len(lst_grid)):
+        res_vs_time = []
+        res_vs_time_err = []
+        for j in range(len(jds)):
+            vals = n.array([n.random.choice(res[i,:],j) for m in xrange(nchoose)])#sample,time
+#            vals = res[i,:j]
+            res_vs_time.append(n.mean(vals))
+#            res_vs_time_err.append(n.std(n.mean(vals,axis=1)))
+#            if i==mylst_i:
+#                print res_vs_time[-1]
+        res_lst_vs_time.append(res_vs_time)
+        res_lst_vs_time_err.append(res_vs_time_err)
+    res_lst_vs_time = n.array(res_lst_vs_time)
+    figure()
+    subplot(211)
+    plot(res_lst_vs_time[mylst_i,:])
+    xlabel('number of nights')
+    ylabel('mean residual')
+    subplot(212)
+    loglog(n.abs(res_lst_vs_time.T))
+    show()
+    sys.exit()
+
+
 #lets look at the day to day correlation
 # I want to see a matrix of day_n x day_n, averaged over lst...
 def cov(m):
@@ -119,23 +311,15 @@ def cov2(m1,m2):
     N = X1.shape[1]
     fact = float(N - 1)
     return (n.dot(X1, X2.T.conj()) / fact).squeeze()
-def corrcoef(x):
-    C = cov(x)
-    return C/n.sqrt(n.outer(n.diag(C),n.diag(C)))
-### PLot COVARIANCES
+
 C = cov(gridded_data.T)
 print gridded_data.shape,C.shape
 figure()
-subplot(131)
+subplot(121)
 imshow(n.abs(C),interpolation='nearest')
 res_C = cov(gridded_data-lst_model)
-subplot(132)
+subplot(122)
 imshow(n.abs(res_C),interpolation='nearest')
-subplot(133)
-corr = corrcoef(gridded_data.T)
-imshow(n.abs(corr),interpolation='nearest')
-
-### plot/fit a historgram to the residuals
 figure()
 d = (gridded_data-lst_model).ravel().real
 d = d[d!=0]
@@ -150,13 +334,10 @@ print H.max(),H[n.abs(X)<1e-3]
 fit = lambda x: MAX*n.exp(-(x-MEAN)**2/(2*WIDTH**2))
 fitnarrow = lambda x: MAX*n.exp(-(x-MEAN)**2/(2*WHM**2))
 #hist(d[d!=0],bins=100,histtype='step')
-plot(X,H,label='res')
-plot(X,fit(X),label='fit')
-legend()
+semilogy(X,H)
+plot(X,fit(X))
 #plot(X,fitnarrow(X))
 ylim([H[H>0].min(),H.max()])
-
-
 
 #### PLOT AN ANIMATION
 #make a Zheng-like thingy

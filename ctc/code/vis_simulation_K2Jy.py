@@ -7,7 +7,7 @@ NAME:
 PURPOSE:
      Converts UV files with temperature [K] visibilities to [Jy] visibilities
 EXAMPLE CALL:
-     ./vis_simulation_K2Jy.py --uvfile <path>
+     ./vis_simulation_K2Jy.py --uvold <path> --uvnew <path> --sfreq 0.1 --sdf 0.001 --nchan 100
 AUTHOR:
      Carina Cheng
 
@@ -51,6 +51,7 @@ def mfunc(uv,p,d):
 
 
 freqs = numpy.linspace(opts.sfreq,opts.sfreq+opts.sdf*opts.nchan,num=opts.nchan, endpoint=False) #array of frequencies
+#print freqs
 
 uvi = aipy.miriad.UV(opts.uvold)
 #p,d,f = uvi.read(raw=True)
