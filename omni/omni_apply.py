@@ -16,7 +16,7 @@ opts,args = o.parse_args(sys.argv[1:])
 ### Read Data and Solutions ###
 for f,filename in enumerate(args):
     print 'Reading', filename
-    newfile = opts.omnipath+filename.split('/')[-1]+'O'
+    newfile = opts.omnipath+filename.split('/')[-1]+'Onoxtake2'
     print os.path
     if os.path.exists(newfile):
         print newfile, 'exists.  Skipping...'

@@ -52,9 +52,8 @@ g0 = {}
 for k in calpar.keys(): #loop over pol
     g0[k] = {}
     for i in xrange(calpar[k].shape[1]): #loop over antennas
-        g0[k][i] = calpar[k][:,i] / numpy.abs(calpar[k][:,i]) #gains have len(nfreq)
+        g0[k][i] = calpar[k][:,i] #/ numpy.abs(calpar[k][:,i]) #gains have len(nfreq)
 #XXX g0 pol should eventually be just 'x' or 'y' instead of 'xx'/'yy'
-
 
 ### Loop Through Compressed Files ###
 for f,filename in enumerate(args):
@@ -71,6 +70,7 @@ for f,filename in enumerate(args):
         wgts[(j,i)] = wgts[(i,j)] = numpy.logical_not(f[bl][pol]).astype(numpy.int)
     print '   Logcal-ing' 
     m1,g1,v1 = omnical.calib.redcal(data,info,gains=g0[pol])
+    import IPython;IPython.embed()
     print '   Lincal-ing'
     m2[pol],g2[pol[0]],v2[pol] = omnical.calib.redcal(data, info, gains=g1, vis=v1, uselogcal=False, removedegen=True)
     xtalk[pol] = capo.omni.compute_xtalk(m2[pol]['res'], wgts) #xtalk is time-average of residual
