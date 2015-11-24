@@ -9,9 +9,9 @@ def PAPER_32_all():
     outputs results[z] = n.array([k, Delta^2, 2-sigma upper, 2-sigma lower])
     '''
 
-    PAPER_RESULTS_FILES = glob.glob(os.path.dirname(__file__)+'/data/psa32_apj_April15_zs_1/pspec_*.npz')
+    PAPER_RESULTS_FILES = glob.glob(os.path.dirname(__file__)+'/data/psa32_apj/pspec_*.npz')
     PAPER_RESULTS_FILES.sort()
-    zs = n.array([8.33,7.75,7.48,7.36])
+    zs = n.array([10.35,8.33,7.75,7.48,7.36])
     results = {}
     for files,z in zip(PAPER_RESULTS_FILES,zs):
         f=n.load(files)
