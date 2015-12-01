@@ -20,7 +20,7 @@ def mk_fng(bl, eq):
 #fringe used in ali et.al to degrade optimal fringe rate filter.
 def mk_fng(bl, eq):
     '''Return distorted fringe rates for given eq coordinates and a baseline vector (measured in wavelengths) in eq coords. This was the version used in ali et.al'''
-    ey, ex, ez = eq
+    ey, ex, ez = eq#yes, ex and ey are flipped.
     return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
 
 def fr_profile(bm, fng, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT):
@@ -64,6 +64,7 @@ def aa_to_fr_profile(aa, (i,j), ch, pol='I', bins=DEFAULT_FRBINS, wgt=DEFAULT_WG
     eq = h.px2crd(n.arange(h.npix()), ncrd=3)
     top = n.dot(aa._eq2zen, eq)
     fng = mk_fng(aa.get_baseline(i,j,'r')*fq, eq)
+    print 'Max fng', fng.max()
     # XXX computing bm at all freqs, but only taking one
     _bmx = aa[0].bm_response((top), pol='x')[ch]; _bmx = n.where(top[2] > 0, _bmx, 0)
     _bmy = aa[0].bm_response((top), pol='y')[ch]; _bmy = n.where(top[2] > 0, _bmy, 0)
@@ -119,6 +120,7 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
         fr_xtalk: Threshold for removing crosstalk. 
         mdl: a function to fit the fringe rate profile too. gaussian for default.
     '''
+    #print bins
     if maxfr is None: maxfr = bins[n.argwhere(frp0 != 0).max()] # XXX check this
     prms0 = fit_mdl(frp0, bins, maxfr, mdl=mdl,maxfun=maxfun,ftol=ftol,xtol=xtol,startprms=startprms,verbose=verbose)
     prms0 = n.array(prms0)
