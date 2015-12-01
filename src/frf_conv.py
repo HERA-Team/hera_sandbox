@@ -56,13 +56,13 @@ def hmap_to_fr_profile(bm_hmap, bl, lat, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, i
     fng = mk_fng(bl,eq)
     return fr_profile(bm, fng, bins=bins, wgt=wgt, iwgt=iwgt)
     
-def aa_to_fr_profile(aa, (i,j), ch, pol='I', bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT, nside=64):
+def aa_to_fr_profile(aa, (i,j), ch, pol='I', bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT, nside=64,frpad=1.0):
     '''For an AntennaArray, for a baseline indexed by i,j, at frequency fq, return the fringe-rate profile.'''
-    fq = aa.get_freqs()[ch]
+    fq = aa.get_afreqs()[ch]
     h = a.healpix.HealpixMap(nside=nside)
     eq = h.px2crd(n.arange(h.npix()), ncrd=3)
     top = n.dot(aa._eq2zen, eq)
-    fng = mk_fng(aa.get_baseline(i,j,'r')*fq, eq)
+    fng = mk_fng(aa.get_baseline(i,j,'r')*fq*frpad, eq)
     print 'Max fng', fng.max()
     # XXX computing bm at all freqs, but only taking one
     _bmx = aa[0].bm_response((top), pol='x')[ch]; _bmx = n.where(top[2] > 0, _bmx, 0)

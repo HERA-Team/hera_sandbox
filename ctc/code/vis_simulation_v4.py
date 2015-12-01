@@ -96,7 +96,7 @@ for jj, f in enumerate(freqs):
         aa.set_jultime(t)
 
         ga2eq = aipy.coord.convert_m('eq','ga',iepoch=e.J2000,oepoch=aa.epoch) #conversion matrix
-        eq2top = aipy.coord.eq2top_m(aa.sidereal_time(),aa.lat) #conversion matrix
+        eq2top = aipy.coord.eq2top_m(-aa.sidereal_time(),aa.lat) #conversion matrix
         ga2eq2top = numpy.dot(eq2top,ga2eq)
         t3rot = numpy.dot(ga2eq2top,g3) #topocentric coordinates
         txrot = numpy.ma.compressed(numpy.ma.masked_where(t3rot[2]<0,t3rot[0]))
