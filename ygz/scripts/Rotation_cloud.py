@@ -2,7 +2,7 @@ import aipy as a, numpy as n, pylab as p, ephem as e
 #Plot tracks of the entire array as the earth rotates
 #aa=a.cal.get_aa('psa6622_v001',n.array([.15]))
 
-def plot_c(src, TIME, ann=False, C=None,i=0,J=[26,51]):
+def plot_c(src, TIME, ann=False, C=None,i=0,J=[26,23], ia=0):
     if C==None: C=['b','g','y','c','m']
     for j in J:
         c=C[j%len(C)]
@@ -15,7 +15,7 @@ def plot_c(src, TIME, ann=False, C=None,i=0,J=[26,51]):
                 u,v = u.flatten(), v.flatten()
                 U.append(u); V.append(v)
         p.plot(U,V,label='0_'+str(j),color=c,alpha=0.3)
-        if ann:
+        if ann == 'spread':
             #annotate times
             step = len(U)/10
             UA,VA,TA = U[1::step],V[1::step],TIME[1::step]-2456249
@@ -25,6 +25,10 @@ def plot_c(src, TIME, ann=False, C=None,i=0,J=[26,51]):
                 ax.annotate('%.3f' % TA[ind], xy=xy, textcoords='data') # <--
                 ind=ind+1
             p.scatter(UA,VA)
+        if ann == 'T':
+            UA,VA,TA = U[ia],V[ia],TIME[ia]-2456249
+            p.scatter(UA,VA)
+            #ax.annotate('%.3f' % TA, xy=(U,), textcoords='data')
     #p.legend()
     return
 
@@ -43,19 +47,24 @@ dd = 0.05
 DEC = aa.lat+n.arange(-1,0.41,dd)
 rad2deg = 180./n.pi
 deg2rad = n.pi/180
+
+####################################
 for dec in DEC:
-    src = a.fit.RadioFixedBody(0, dec, janskies=0., mfreq=.15)
-    C = None
-    if abs(dec-aa.lat)<dd/2:
-        ann=True,
-        C = ['r']
-    elif abs(dec-60*deg2rad)<dd:
-        ann=True,
-        C = ['y']
-    else: ann=False
-    plot_c(src,TIME,ann=ann,C=C)
+   src = a.fit.RadioFixedBody(0, dec, janskies=0., mfreq=.15)
+   C = None
+   if abs(dec-aa.lat)<dd/2:
+       ann='spread',
+       C = ['r']
+   elif abs(dec-60*deg2rad)<dd:
+       ann='spread',
+       C = ['y']
+   else: ann=False
+   plot_c(src,TIME,ann=ann,C=C)
 
-
+#############################################
+# for dec in DEC:
+#     src = a.fit.RadioFixedBody(0, dec, janskies=0., mfreq=.15)
+#     plot_c(src,TIME,ann='T',ia=200)
             #print u,v
 
             #p.plot(-u,-v,'ko')
@@ -73,4 +82,5 @@ p.grid()
 #p.ylim(-200,200)
 p.xlabel('u',size=14)
 p.ylabel('v',size=14)
+#import IPython; IPython.embed()
 p.show()

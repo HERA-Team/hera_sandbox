@@ -16,6 +16,8 @@ aa.set_jultime(2456240.2)
 peak = []
 sample_ant = 1
 ntop = n.array([X,Y,Z])  #note all beams are the same
+print X
+print Z
 bmp_list = export_beam.beam_real(aa[sample_ant], ntop, shape0, 'x',sq=True)
 bmp = bmp_list[0]
 freq, fbmamp = export_beam.beam_fourier(bmp, d, 400)

@@ -62,7 +62,7 @@ def get_corr_fourier(F1,F2,bl1,bl2,chan=None):
 
 import matplotlib.pyplot as P
 
-bl1, bl2 = (0,26),(0,23)
+bl1, bl2 = (0,26),(0,26)
 
 DIR1 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_'+str(bl1[1])+'/'
 DIR2 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_'+str(bl2[1])+'/'
@@ -81,7 +81,7 @@ drang = range(0,CORL.shape[0])
 P.figure()
 P.subplot(111)
 
-cuedict = {'26_23':0.125, '26_38': 0.042, '26_50': 0.083}
+cuedict = {'26_23':0.125, '26_38': 0.042, '26_50': 0.083,'26_26':0.}
 ver = cuedict[str(bl1[1])+'_'+str(bl2[1])]
 P.axvline(ver,color='k',alpha=0.5,linewidth=5)    #for 26 23
 for i in range(len(clist)):
