@@ -25,7 +25,6 @@ for ij in mdl['xx'].keys():
     except(KeyError):
         continue
     if s in bls and s[0] == 0:
-#        print bl, ij, s
         bls[s[-1]-1] = ij
 
 print bls
@@ -35,13 +34,12 @@ kmodes = n.einsum('j,i', freqs, seps) #these are all the kmodes measured. Need t
 
 fdict = {} #for a frequency, the seps and frequency that are redundant.
 errors = n.ones(shape=(len(freqs),len(freqs)))
-thresholdcut = 18.0 #degree error. 18 =.01
+thresholdcut = 9.0 #degree error. 18 =.01, 9=.005
 cut = thresholdcut/360/1e9*3e8/15
 print cut
 for ch1,fq1 in enumerate(freqs):
     print ch1,
     for ch2,fq2 in enumerate(freqs):
-#        if (ch1,ch2) not in fdict.keys(): fdict[(ch1,ch2)] = None
         if ch1 == ch2: continue
         err = []
         blp = []
@@ -54,15 +52,10 @@ for ch1,fq1 in enumerate(freqs):
         if errors[ch1,ch2]<cut:
             fdict[(ch1,ch2)] = n.asarray(blp)[n.where(err == n.min(err))]
         else: continue
-
-print 'kjdsfakjsnfa'
 print 
+
 print n.sum(errors - errors.T)
-#arp.waterfall(errors,mode='lin')
 p.imshow(errors, origin='lower', aspect='equal', extent=(freqs[0],freqs[-1],freqs[0],freqs[-1]))
-#ns, ds = p.hist(n.flatten(errors), bins=100)
-#print ns.shape, ds.shape
-#p.colorbar(shrink=.5)
 
 #read in data
 data = {}; 
@@ -99,23 +92,10 @@ for ch1,ch2 in fdict.keys():
 
 
 n.savez('ucal.npz',**reddata)
-                
-    
-
-        
-#arp.waterfall(n.array(data[b]), mode='lin')
-#p.show()
-    
-
 
 x,y = n.meshgrid(freqs, seps)
-#print y
 z = x*y
-#print z
 cs = p.contour(x,y,z, 100)
-#print cs
 p.scatter(x,y,s=1.5)
-#p.colorbar(shrink=.5)
-#p.clabel(cs, inline=1)
 p.grid(True)
-p.show()
+#p.show()
