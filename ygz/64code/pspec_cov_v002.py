@@ -96,8 +96,8 @@ def get_Q(mode, n_k):
 SEP = opts.sep
 dsets = {
 
-    'even': glob.glob('/data4/paper/2012EoR/ali_et_al_2015_apj_data/eve/'+SEP+'/*242.[3456]*uvGL'),
-    'odd' : glob.glob('/data4/paper/2012EoR/ali_et_al_2015_apj_data/od/'+SEP+'/*243.[3456]*uvGL'),
+    'even': glob.glob('/data4/paper/2012EoR/ali_et_al_2015_apj_data/even/'+SEP+'/*242.[3456]*uvGL'),
+    'odd' : glob.glob('/data4/paper/2012EoR/ali_et_al_2015_apj_data/odd/'+SEP+'/*243.[3456]*uvGL'),
 
 }
 #for i in xrange(10): dsets[i] = glob.glob('lstbinX%d/%s/lst.24562[45]*.[3456]*.uvAL'%(i,SEP))
