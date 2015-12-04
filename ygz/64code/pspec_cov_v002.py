@@ -101,7 +101,7 @@ dsets = {
 
 }
 #for i in xrange(10): dsets[i] = glob.glob('lstbinX%d/%s/lst.24562[45]*.[3456]*.uvAL'%(i,SEP))
-print dsets
+#print dsets
 if opts.loss:
     dsets = {
     'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/data/even/*242.[3456]*uvALG'),
@@ -136,7 +136,7 @@ B = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW] # normalization. See abo
 etas = n.fft.fftshift(capo.pspec.f2eta(afreqs)) #create etas (fourier dual to frequency)
 #etas = capo.pspec.f2eta(afreqs) #create etas (fourier dual to frequency)
 kpl = etas * capo.pspec.dk_deta(z) #111
-print kpl
+#print kpl
 
 if True:
     bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 # correction for beam^2
@@ -146,10 +146,10 @@ if not DELAY:
     # XXX this is a hack
     if WINDOW == 'hamming': scalar /= 3.67
     elif WINDOW == 'blackman-harris': scalar /= 5.72
-print 'Freq:',fq
-print 'z:', z
-print 'B:', B
-print 'scalar:', scalar
+#print 'Freq:',fq
+#print 'z:', z
+#print 'B:', B
+#print 'scalar:', scalar
 sys.stdout.flush()
 
 # acquire the data
@@ -458,7 +458,7 @@ for boot in xrange(opts.nboot):
         p.show()
 
     print 'Writing pspec_boot%04d.npz' % boot
-    n.savez('boot/pspec_boot_sep%04d.npz'%boot, kpl=kpl, scalar=scalar, times=n.array(lsts),
+    n.savez('boot/'+sstr(sep)+'_boot_%04d.npz'%boot, kpl=kpl, scalar=scalar, times=n.array(lsts),
         pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
         cmd=' '.join(sys.argv))
 
