@@ -22,6 +22,7 @@ o.add_option('--rmbls', action='store',
 
 opts,args = o.parse_args(sys.argv[1:])
  #args is calfile
+ sep = opts.sep
 random.seed(0)
 POL = 'I'
 LST_STATS = False
@@ -458,7 +459,7 @@ for boot in xrange(opts.nboot):
         p.show()
 
     print 'Writing pspec_boot%04d.npz' % boot
-    n.savez('boot/'+sstr(sep)+'_boot_%04d.npz'%boot, kpl=kpl, scalar=scalar, times=n.array(lsts),
+    n.savez('boot/'+str(sep)+'_boot_%04d.npz'%boot, kpl=kpl, scalar=scalar, times=n.array(lsts),
         pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
         cmd=' '.join(sys.argv))
 
