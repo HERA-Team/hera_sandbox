@@ -2,6 +2,7 @@
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random
 
+# sample run python pspec_cov_v002.py --window=none --sep=sep0,1 -b 20 -c 95_115 -p I -C psa6240_v003
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
 o.add_option('-b', '--nboot', type='int', default=20,
@@ -20,7 +21,7 @@ o.add_option('--rmbls', action='store',
     help='List of baselines, in miriad format, to remove from the power spectrum analysis.')
 
 opts,args = o.parse_args(sys.argv[1:])
-
+ #args is calfile
 random.seed(0)
 POL = 'I'
 LST_STATS = False
@@ -95,8 +96,8 @@ def get_Q(mode, n_k):
 SEP = opts.sep
 dsets = {
 
-    'even': glob.glob('/data4/paper/2012EoR/ali_et_al_2015_apj_data/even/'+SEP+'/*242.[3456]*uvGL'),
-    'odd' : glob.glob('/data4/paper/2012EoR/ali_et_al_2015_apj_data/odd/'+SEP+'/*243.[3456]*uvGL'),
+    'even': glob.glob('/data4/paper/2012EoR/ali_et_al_2015_apj_data/eve/'+SEP+'/*242.[3456]*uvGL'),
+    'odd' : glob.glob('/data4/paper/2012EoR/ali_et_al_2015_apj_data/od/'+SEP+'/*243.[3456]*uvGL'),
 
 }
 #for i in xrange(10): dsets[i] = glob.glob('lstbinX%d/%s/lst.24562[45]*.[3456]*.uvAL'%(i,SEP))
@@ -457,7 +458,7 @@ for boot in xrange(opts.nboot):
         p.show()
 
     print 'Writing pspec_boot%04d.npz' % boot
-    n.savez('pspec_boot%04d.npz'%boot, kpl=kpl, scalar=scalar, times=n.array(lsts),
+    n.savez('boot/pspec_boot_sep%04d.npz'%boot, kpl=kpl, scalar=scalar, times=n.array(lsts),
         pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
         cmd=' '.join(sys.argv))
 

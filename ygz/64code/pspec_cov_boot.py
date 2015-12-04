@@ -1,14 +1,16 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n, pylab as p
 import capo as C
-import sys, optparse, re, os, random
-
+import sys, optparse, re, os, randomd
+#sample run: pspec_cov_boot.py /directory/*
 o = optparse.OptionParser()
 o.add_option('--nocov', action='store_true', 
             help='Use non covariance applied data')
+o.add_option('--odir',default='boot/', action='store_true',
+            help='Use non covariance applied data')
 opts,args = o.parse_args(sys.argv[1:])
 
-
+OutDIR = opts.odir
 NBOOT = 400
 MEDIAN = True
 CLIP = False
@@ -231,7 +233,7 @@ if opts.nocov:
     n.savez('nocov_pspec.npz', kpl=kpl, pk=pk, err=err, pk_fold=pk_fold, err_fold=err_fold, cmd=cmd)
 else:
     print 'Writing pspec.npz'
-    n.savez('pspec.npz', kpl=kpl, pk=pk, err=err, pk_fold=pk_fold, err_fold=err_fold, cmd=cmd)
+    n.savez(OutDIR+'pspec.npz', kpl=kpl, pk=pk, err=err, pk_fold=pk_fold, err_fold=err_fold, cmd=cmd)
     
     
 
