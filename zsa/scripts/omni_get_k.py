@@ -36,31 +36,32 @@ fdict = [{} for i in range(400)] #for a frequency, the seps and frequency that a
 du = 15*15*(freqs[2]-freqs[1])/3e8 * 1e9
 us = (n.arange(400)+.5)*du #.5*du*N 
 errors = n.ones(shape=(len(freqs),len(freqs)))
-thresholdcut =9.0 #degree error. 18 =.01, 9=.005
-#cut = thresholdcut/360/1e9*3e8/15
 cut = 1/15.*du
 print cut
 for ch1,fq1 in enumerate(freqs):
     print ch1,
-    for ch2,fq2 in enumerate(freqs):
+    for ch2,fq2 in zip(range(ch1+1,len(freqs)),freqs[ch1+1:]):
         if ch1 == ch2: continue
         err = []
         blp = []
-        for s1 in n.arange(1,16):
-            for s2 in n.arange(1,16):
-#                if s1==s2: continue
+        found_one = 0
+        for s1 in n.arange(15,0,-1):
+            if found_one : break
+            for s2 in n.arange(s1-1,0,-1):
+                if s1==s2: continue
                 if n.abs(fq1*s1 - fq2*s2)*15*1e9/3e8 < cut:
                     u = (fq1*s1 + fq2*s2)*15/2.*1e9/3e8
-                    if (ch2,ch1) in fdict[int(n.floor(u/du))]: continue
-                    fdict[int(n.floor(u/du))][(ch1,ch2)] = [(s1,s2),  n.abs(fq1*s1 - fq2*s2)*15*1e9/3e8]
+                    fdict[int(n.floor(u/du))][(ch1,ch2)] = [(bls[s1-1],bls[s2-1]),  n.abs(fq1*s1 - fq2*s2)*15*1e9/3e8]
+                    found_one = 1
+                    break
+for i,d in enumerate(fdict):
+    if len(d) <= 1 : fdict[i] = {}
 #                err.append(n.abs(fq1*s1 - fq2*s2))
 #                blp.append((s1,s2))
 #        errors[ch1,ch2] = n.min(err)
 #        if errors[ch1,ch2]<cut:
 #            fdict[(ch1,ch2)] = n.asarray(blp)[n.where(err == n.min(err))]
 #        else: continue
-import IPython
-IPython.embed()
 print 
 
 print n.sum(errors - errors.T)
@@ -87,20 +88,19 @@ for fl in args:
 
 
 reddata = {}
-for ch1,ch2 in fdict.keys():
-    try:
-        ss = fdict[(ch1,ch2)][0]
-    except(TypeError): 
-        continue
-    s1,s2 = ss[0],ss[1]
-    b1,b2 = bls[s1-1], bls[s2-1]
-    avis = n.mean(data[b1][:,ch1]*n.conj(data[b2][:,ch2]))
-    if not avis: continue
-    else:
-        reddata[str((ch1,ch2))] = [ (b1,b2), avis ]
+for i,d in enumerate(fdict):
+    for ch1,ch2 in d.keys():
+        b1,b2 = d[(ch1,ch2)][0]
+        avis = n.mean(data[b1][:,ch1]*n.conj(data[b2][:,ch2]))
+        if not avis: continue
+        else:
+            reddata[str((ch1,ch2))] = [ (b1,b2), i,  avis ]
 
+print len(reddata)
 
-n.savez('ucal.npz',**reddata)
+#import IPython
+#IPython.embed()
+n.savez('ucal_test.npz',**reddata)
 
 x,y = n.meshgrid(freqs, seps)
 z = x*y
