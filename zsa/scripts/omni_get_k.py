@@ -32,10 +32,13 @@ conjugate = [(0,101), (0,62), (0,100), (0,97), (12,43), (57,64)]
 
 kmodes = n.einsum('j,i', freqs, seps) #these are all the kmodes measured. Need to align them.
 
-fdict = {} #for a frequency, the seps and frequency that are redundant.
+fdict = [{} for i in range(400)] #for a frequency, the seps and frequency that are redundant.
+du = 15*15*(freqs[2]-freqs[1])/3e8 * 1e9
+us = (n.arange(400)+.5)*du #.5*du*N 
 errors = n.ones(shape=(len(freqs),len(freqs)))
-thresholdcut = 9.0 #degree error. 18 =.01, 9=.005
-cut = thresholdcut/360/1e9*3e8/15
+thresholdcut =9.0 #degree error. 18 =.01, 9=.005
+#cut = thresholdcut/360/1e9*3e8/15
+cut = 1/15.*du
 print cut
 for ch1,fq1 in enumerate(freqs):
     print ch1,
@@ -46,12 +49,18 @@ for ch1,fq1 in enumerate(freqs):
         for s1 in n.arange(1,16):
             for s2 in n.arange(1,16):
 #                if s1==s2: continue
-                err.append(n.abs(fq1*s1 - fq2*s2))
-                blp.append((s1,s2))
-        errors[ch1,ch2] = n.min(err)
-        if errors[ch1,ch2]<cut:
-            fdict[(ch1,ch2)] = n.asarray(blp)[n.where(err == n.min(err))]
-        else: continue
+                if n.abs(fq1*s1 - fq2*s2)*15*1e9/3e8 < cut:
+                    u = (fq1*s1 + fq2*s2)*15/2.*1e9/3e8
+                    if (ch2,ch1) in fdict[int(n.floor(u/du))]: continue
+                    fdict[int(n.floor(u/du))][(ch1,ch2)] = [(s1,s2),  n.abs(fq1*s1 - fq2*s2)*15*1e9/3e8]
+#                err.append(n.abs(fq1*s1 - fq2*s2))
+#                blp.append((s1,s2))
+#        errors[ch1,ch2] = n.min(err)
+#        if errors[ch1,ch2]<cut:
+#            fdict[(ch1,ch2)] = n.asarray(blp)[n.where(err == n.min(err))]
+#        else: continue
+import IPython
+IPython.embed()
 print 
 
 print n.sum(errors - errors.T)
