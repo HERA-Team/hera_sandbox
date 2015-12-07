@@ -2,7 +2,7 @@
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random, itertools
 
-# sample run python pspec_cov_v003.py --window=none --sep=sep0,1 --sepd=sep-1,1 -b 20 -c 95_115 -p I -C psa6240_v003
+# sample run python pspec_cov_v004.py --window=none --sep=sep0,1 --sepd=sep-1,1 -b 20 -c 95_115 -p I -C psa6240_v003
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
 o.add_option('-b', '--nboot', type='int', default=20,
@@ -15,11 +15,11 @@ o.add_option('--sep', default='sep0,1', action='store',  #-1,1 is like 0_38
     help='Which separation type?')
 o.add_option('--sepd', default='sep-1,1', action='store',  #-1,1 is like 0_38
     help='Which separation type?')
-o.add_option('--loss', action='store', 
+o.add_option('--loss', action='store',
     help='In signal loss mode to measure the signal loss. Uses default data in my path. Give it the path to the simulated signal data. Assumes ends in ')
 o.add_option('--level', type='float', default=-1.0,
     help='Scalar to multiply the default signal level for simulation runs.')
-o.add_option('--rmbls', action='store', 
+o.add_option('--rmbls', action='store',
     help='List of baselines, in miriad format, to remove from the power spectrum analysis.')
 
 opts,args = o.parse_args(sys.argv[1:])
@@ -232,22 +232,27 @@ Q = [get_Q(i,nchan) for i in xrange(nchan)]
 I,_I,_Ix1,_Ix2 = {},{},{},{}
 C,_C,_Cx1,_Cx2 = {},{},{},{}
 C1,C2,_C1,_C2 = {},{},{},{}
+I1,I2,_I1,_I2 = {},{},{},{}
 for k in days:
     print len(x1[k]), len(x2[k])
     I[k],_I[k],_Ix1[k],_Ix2[k] = {},{},{},{}
     C[k],_C[k],_Cx1[k],_Cx2[k]  = {},{},{},{}
-    for bl1, bl2 in itertools.product(x1[k], x2[k]):
-        blt = (bl1, bl2)
-        C[k][blt] = cov2(x1[k][bl1],x2[k][bl2])
-        I[k][blt] = n.identity(C[k][blt].shape[0])
+    C1[k],_C1[k],C2[k],_C2[k]  = {},{},{},{}
+    I1[k],_I1[k],I2[k],_I2[k]  = {},{},{},{}
+    for bl1 in x1[k]:
+        C1[k][bl1] = cov(x1[k][bl1])
+        I1[k][bl1] = n.identity(C1[k][bl1].shape[0])
+        U1,S1,V1 = n.linalg.svd(C1[k][bl1].conj()) ; _C1[k][bl1] = n.einsum('ij,j,jk', V1.T, 1./S1, U1.T)
+        _I1[k][bl1] = n.identity(_1[k][bl1].shape[0])
+        _Cx1[k][bl1] = n.dot(_C1[k][bl1], x1[k][bl1]); _Ix1[k][bl1] = x1[k][bl1].copy()
+    for bl2 in x2[k]:
+        C2[k][bl2] = cov(x2[k][bl2])
+        I2[k][bl2] = n.identity(C2[k][bl2].shape[0])
         #print bl1,bl2
         #print n.linalg.eigvals(C[k][blt])
-        U,S,V = n.linalg.svd(C[k][blt].conj())
-        _C[k][blt] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
-        _I[k][blt] = n.identity(_C[k][blt].shape[0])
-        ####!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        _Cx1[k][blt] = n.dot(_C[k][blt], x1[k][bl1]); _Cx2[k][blt] = n.dot(_C[k][blt], x2[k][bl2])
-        _Ix1[k][blt] = x1[k][bl1].copy(); _Ix2[k][blt] = x2[k][bl2].copy()
+        U2,S2,V2 = n.linalg.svd(C2[k][bl2].conj()) ; _C2[k][bl2] = n.einsum('ij,j,jk', V2.T, 1./S2, U2.T)
+        _I2[k][bl2] = n.identity(_C2[k][bl2].shape[0])
+        _Cx2[k][bl2] = n.dot(_C2[k][bl2], x2[k][bl2]); _Ix2[k][bl2] = x2[k][bl2].copy()
         #should possible only be function of bl1, which is latter summed over
 #         if PLOT and True:
 #             #p.plot(S); p.show()
@@ -259,6 +264,7 @@ for k in days:
 # #            p.figure(2); p.plot(n.diag(S))
 #             p.show()
 ##########################################################################
+
 
 #import IPython; IPython.embed
 
@@ -278,41 +284,47 @@ for boot in xrange(opts.nboot):
     print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps1])
     print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps2])
 
-    _Iz1,_Iz2,_Isum,_IsumQ = {},{},{},{}
-    _Cz1,_Cz2,_Csum,_CsumQ = {},{},{},{}
+    _Iz1,_Iz2,_Isum1,_IsumQ1,_Isum2,_IsumQ2 = {},{},{},{},{},{}
+    _Cz1,_Cz2,_Csum1,_CsumQ1,_Csum2,_CsumQ2  = {},{},{},{},{},{}
     for k in days:
-        _Iz1[k],_Iz2[k],_Isum[k],_IsumQ[k] = {},{},{},{}
-        _Cz1[k],_Cz2[k],_Csum[k],_CsumQ[k] = {},{},{},{}
+        _Iz1[k],_Iz2[k],_Isum1[k],_IsumQ1[k],_Isum2[k],_IsumQ2[k] = {},{},{},{},{},{}
+        _Cz1[k],_Cz2[k],_Csum1[k],_CsumQ1[k],_Csum2[k],_CsumQ2[k] = {},{},{},{},{},{}
         #for i,gp in enumerate(gps1):
         #print gps1
         #print gps2
         #for i,gpt in enumerate(itertools.product(gps1, gps2)):   #must use index in dict
         for i, gp1 in enumerate(gps1):
-            for j, gp2 in enumerate(gps2):
-                gpt = (gp1,gp2)
-                #print gpt.shape
-                #for blt in itertools.product(*gpt): print blt
-                #print [_Ix1[k][blt] for blt in itertools.product(*gpt)]
-                _Iz1[k][(i,j)] = sum([_Ix1[k][blt] for blt in itertools.product(*gpt)])
-                _Cz1[k][(i,j)] = sum([_Cx1[k][blt] for blt in itertools.product(*gpt)])
-            #for i,gp in enumerate(gps2):
-                _Iz2[k][(i,j)] = sum([_Ix2[k][blt] for blt in itertools.product(*gpt)])
-                _Cz2[k][(i,j)] = sum([_Cx2[k][blt] for blt in itertools.product(*gpt)])
-            #for i,gpt in enumerate(itertools.product(gps1, gps2)):
-                _Isum[k][(i,j)] = sum([_I[k][blt] for blt in itertools.product(*gpt)])
-                _Csum[k][(i,j)] = sum([_C[k][blt] for blt in itertools.product(*gpt)])
-                _IsumQ[k][(i,j)] = {}
-                _CsumQ[k][(i,j)] = {}
+            _Iz1[k][i] = sum([_Ix1[k][bl] for bl in gp1])
+            _Cz1[k][i] = sum([_Cx1[k][bl] for bl in gp1])
+            _Isum1[k][i] = sum([_I1[k][bl] for bl in gp1])
+            _Csum1[k][i] = sum([_C1[k][bl] for bl in gp1])
+            _IsumQ1[k][i] = {}
+            _CsumQ1[k][i] = {}
+            #if DELAY: # this is much faster
+            #    _Iz1[k][(i,j)] = n.fft.fftshift(n.fft.ifft(window*_Iz1[k][gpt], axis=0), axes=0)
+            #    _Cz1[k][(i,j)] = n.fft.fftshift(n.fft.ifft(window*_Cz1[k][gpt], axis=0), axes=0)
+            for ch in xrange(nchan): # XXX this loop makes computation go as nchan^3
+                _IsumQ1[k][i][ch] = n.dot(_Isum1[k][i], Q[ch])
+        for j, gp2 in enumerate(gps2):
+            #gpt = (gp1,gp2)
+            #print gpt.shape
+            #for blt in itertools.product(*gpt): print blt
+            #print [_Ix1[k][blt] for blt in itertools.product(*gpt)]
+            _Iz2[k][j] = sum([_Ix2[k][bl] for bl in gp2])
+            _Cz2[k][j] = sum([_Cx2[k][bl] for bl in gp2])
+            _Isum2[k][j] = sum([_I2[k][bl] for bl in gp2])
+            _Csum2[k][j] = sum([_C2[k][bl] for bl in gp2])
+            _IsumQ2[k][j] = {}
+            _CsumQ2[k][j] = {}
 
-                if DELAY: # this is much faster
-                    _Iz1[k][(i,j)] = n.fft.fftshift(n.fft.ifft(window*_Iz1[k][gpt], axis=0), axes=0)
-                    _Cz1[k][(i,j)] = n.fft.fftshift(n.fft.ifft(window*_Cz1[k][gpt], axis=0), axes=0)
-                    _Iz2[k][(i,j)] = n.fft.fftshift(n.fft.ifft(window*_Iz2[k][gpt], axis=0), axes=0)
-                    _Cz2[k][(i,j)] = n.fft.fftshift(n.fft.ifft(window*_Cz2[k][gpt], axis=0), axes=0)
-                    # XXX need to take fft of _Csum, _Isum here
-                for ch in xrange(nchan): # XXX this loop makes computation go as nchan^3
-                    _IsumQ[k][(i,j)][ch] = n.dot(_Isum[k][(i,j)], Q[ch])
-                    _CsumQ[k][(i,j)][ch] = n.dot(_Csum[k][(i,j)], Q[ch])
+            #if DELAY: # this is much faster
+            #    _Iz1[k][(i,j)] = n.fft.fftshift(n.fft.ifft(window*_Iz1[k][gpt], axis=0), axes=0)
+            #    _Cz1[k][(i,j)] = n.fft.fftshift(n.fft.ifft(window*_Cz1[k][gpt], axis=0), axes=0)
+            #    _Iz2[k][(i,j)] = n.fft.fftshift(n.fft.ifft(window*_Iz2[k][gpt], axis=0), axes=0)
+            #    _Cz2[k][(i,j)] = n.fft.fftshift(n.fft.ifft(window*_Cz2[k][gpt], axis=0), axes=0)
+                # XXX need to take fft of _Csum, _Isum here
+            for ch in xrange(nchan): # XXX this loop makes computation go as nchan^3
+                _IsumQ2[k][j][ch] = n.dot(_Isum2[k][j], Q[ch])
         # if PLOT:
         #     NGPS = len(gps)
         #     _Csumk = n.zeros((NGPS,nchan,NGPS,nchan), dtype=n.complex)
@@ -342,7 +354,7 @@ for boot in xrange(opts.nboot):
             if not Q_Cz1.has_key(k2): Q_Cz1[k2] = {}
             if not Q_Iz2.has_key(k2): Q_Iz2[k2] = {}
             if not Q_Cz2.has_key(k2): Q_Cz2[k2] = {}
-            for bl1,bl2 in _Cz1[k1]:
+            for bl1,bl2 in itertools.product(_Cz1[k1],_Cz2[k2]):
                 #for bl2 in _Cz2[k2]:
                 #if k1 == k2 and bl1 == bl2: continue # this results in a significant bias
                 if k1 == k2 or bl1 == bl2: continue
@@ -368,20 +380,20 @@ for boot in xrange(opts.nboot):
                     #_qI = n.array([_Iz[k1][bl1].conj() * n.dot(Q[i], _Iz[k2][bl2]) for i in xrange(nchan)])
                     #_qC = n.array([_Cz[k1][bl1].conj() * n.dot(Q[i], _Cz[k2][bl2]) for i in xrange(nchan)])
                     blt = (bl1,bl2)
-                    if not Q_Iz2[k2].has_key(blt): Q_Iz2[k2][blt] = [n.dot(Q[c], _Iz2[k2][blt]) for c in xrange(nchan)]
-                    if not Q_Cz2[k2].has_key(blt): Q_Cz2[k2][blt] = [n.dot(Q[c], _Cz2[k2][blt]) for c in xrange(nchan)]
-                    _qI = n.array([_Iz1[k1][blt].conj() * Q_Iz2[k2][blt][c] for c in xrange(nchan)])
+                    if not Q_Iz2[k2].has_key(bl2): Q_Iz2[k2][bl2] = [n.dot(Q[c], _Iz2[k2][bl2]) for c in xrange(nchan)]
+                    if not Q_Cz2[k2].has_key(bl2): Q_Cz2[k2][bl2] = [n.dot(Q[c], _Cz2[k2][bl2]) for c in xrange(nchan)]
+                    _qI = n.array([_Iz1[k1][bl1].conj() * Q_Iz2[k2][bl2][c] for c in xrange(nchan)])
                     qI += n.sum(_qI, axis=1)
-                    _qC = n.array([_Cz1[k1][blt].conj() * Q_Cz2[k2][blt][c] for c in xrange(nchan)])
+                    _qC = n.array([_Cz1[k1][bl1].conj() * Q_Cz2[k2][bl2][c] for c in xrange(nchan)])
                     qC += n.sum(_qC, axis=1)
                 if DELAY: # by taking FFT of CsumQ above, each channel is already i,j separated
-                    FI += n.conj(_IsumQ[k1][blt]) * _IsumQ[k2][blt]
-                    FC += n.conj(_CsumQ[k1][blt]) * _CsumQ[k2][blt]
+                    FI += n.conj(_IsumQ1[k1][bl1]) * _IsumQ2[k2][bl2]
+                    FC += n.conj(_CsumQ1[k1][bl1]) * _CsumQ2[k2][bl2]
                 else:
                     for i in xrange(nchan):
                         for j in xrange(nchan):
-                            FI[i,j] += n.einsum('ij,ji', _IsumQ[k1][blt][i], _IsumQ[k2][blt][j])
-                            FC[i,j] += n.einsum('ij,ji', _CsumQ[k1][blt][i], _CsumQ[k2][blt][j])
+                            FI[i,j] += n.einsum('ij,ji', _IsumQ1[k1][bl1][i], _IsumQ2[k2][bl2][j])
+                            FC[i,j] += n.einsum('ij,ji', _CsumQ1[k1][bl1][i], _CsumQ2[k2][bl2][j])
 
     # if PLOT:
     #     p.subplot(121); capo.arp.waterfall(FC, drng=4)
