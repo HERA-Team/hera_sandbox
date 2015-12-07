@@ -22,7 +22,7 @@ o.add_option('--rmbls', action='store',
 
 opts,args = o.parse_args(sys.argv[1:])
  #args is calfile
- sep = opts.sep
+sep = opts.sep
 random.seed(0)
 POL = 'I'
 LST_STATS = False
@@ -161,7 +161,7 @@ days = dsets.keys()
 for k in days:
     lsts[k],data[k],flgs[k] = get_data(dsets[k], antstr=antstr, polstr=POL, rmbls=rmbls, verbose=True)
     print data[k].keys()
-
+## format  lsts[day]=array of lst
 if LST_STATS:
     # collect some metadata from the lst binning process
     cnt, var = {}, {}
@@ -179,14 +179,15 @@ else: cnt,var = n.ones_like(lsts.values()[0]), n.ones_like(lsts.values()[0])
 
 if True:
 #if False:
-    # Align data sets in LST
-    print [lsts[k][0] for k in days]
-    lstmax = max([lsts[k][0] for k in days])
+    # Align data sets in LST to all start at the lastest start lstmax
+    print [lsts[k][0] for k in days] #print the first lst of each day
+    lstmax = max([lsts[k][0] for k in days])    #latest start from all days
     for k in days:
         print k
         for i in xrange(len(lsts[k])):
             # allow for small numerical differences (which shouldn't exist!)
             if lsts[k][i] >= lstmax - .001: break
+        # so now the ith time of day k is
         lsts[k] = lsts[k][i:]
         for bl in data[k]:
             data[k][bl],flgs[k][bl] = data[k][bl][i:],flgs[k][bl][i:]
@@ -459,7 +460,7 @@ for boot in xrange(opts.nboot):
         p.show()
 
     print 'Writing pspec_boot%04d.npz' % boot
-    n.savez('boot/'+str(sep)+'_boot_%04d.npz'%boot, kpl=kpl, scalar=scalar, times=n.array(lsts),
+    n.savez('boot/pspec_boot_%04d.npz'%boot, kpl=kpl, scalar=scalar, times=n.array(lsts),
         pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
         cmd=' '.join(sys.argv))
 
