@@ -2,7 +2,7 @@
 import aipy as a, numpy as n, pylab as p
 import capo as C
 import sys, optparse, re, os, random
-#sample run: pspec_cov_boot.py /directory/*
+#sample run: python pspec_boot_v2.py boot/*
 o = optparse.OptionParser()
 o.add_option('--nocov', action='store_true', 
             help='Use non covariance applied data')
@@ -45,7 +45,15 @@ for filename in args:
 
 paths = pk_vs_t.keys()
 k0 = n.abs(kpl).argmin()
-#import IPython; IPython.embed()
+
+#####################################################
+NN = n.min([len(pk_vs_t['boot'][i][0]) for i in range(len(pk_vs_t['boot']))])
+print NN
+
+for i in range(len(pk_vs_t['boot'])):
+    for j in range(len(pk_vs_t['boot'][i])):
+        pk_vs_t['boot'][i][j] = pk_vs_t['boot'][i][j][:NN]
+import IPython; IPython.embed()
 pk_2d = n.array([pk_vs_t[path] for path in paths]) # (bltype,bootstraps,kpls,times)
 nocov_2d = n.array([nocov_vs_t[path] for path in paths]) # (bltype,bootstraps,kpls,times), T averaged over all bls
 temp_noise_var = n.array([temp_noise_var[path] for path in paths])

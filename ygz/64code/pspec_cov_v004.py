@@ -26,7 +26,7 @@ opts,args = o.parse_args(sys.argv[1:])
  #args is calfile
  #################################################
 SEP, SEPD = opts.sep, opts.sepd
-DicT = {'sep0,1_sep-1,1':0.032557, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.}
+DicT = {'sep0,1_sep-1,1':0.032557, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
 DelT = DicT[SEP+'_'+SEPD]
 print 'DelT=', DelT
 ###################################################
@@ -177,12 +177,13 @@ cnt,var = n.ones_like(lsts1.values()[0]), n.ones_like(lsts1.values()[0])
 
 ##################################################################################
 # Align data sets in LST to all start at the lastest start lstmax
-for k in days: lsts2[k][:] = lsts2[k][:] - DelT
+#for k in days: lsts2[k][:] = lsts2[k][:] - DelT
 #MAGIC!!!!!!!!!!!!!!!!!!!
 
 lstmax = max([lsts1[k][0] for k in days]+[lsts2[k][0] for k in days])    #latest start from all days
 for k in days:
     print k
+    #print len(lsts1[k]),len(lsts2[k])
     for i1 in xrange(len(lsts1[k])):
         if lsts1[k][i1] >= lstmax - .001: break
     # so now the ith time of day k is
@@ -190,10 +191,11 @@ for k in days:
     for i2 in xrange(len(lsts2[k])):
         if lsts2[k][i2] >= lstmax - .001: break
     lsts2[k] = lsts2[k][i2:]
-
+    #print len(lsts1[k]),len(lsts2[k])
 j = min([len(lsts1[k]) for k in days]+[len(lsts2[k]) for k in days])
 for k in days:
     lsts1[k] = lsts1[k][:j]; lsts2[k] = lsts2[k][:j]
+    # print len(lsts1[k]),len(lsts2[k])
     # print lsts1[k].shape
     # print lsts2[k].shape
     for bl in data1[k]:
@@ -202,6 +204,7 @@ for k in days:
         data2[k][bl],flgs2[k][bl] = n.array(data2[k][bl][i2:i2+j]),n.array(flgs2[k][bl][i2:i2+j])
 
 lsts = lsts1.values()[0]
+
 ###################################################################################
 x1,x2 = {},{}
 print type(chans)
@@ -243,7 +246,7 @@ for k in days:
         C1[k][bl1] = cov(x1[k][bl1])
         I1[k][bl1] = n.identity(C1[k][bl1].shape[0])
         U1,S1,V1 = n.linalg.svd(C1[k][bl1].conj()) ; _C1[k][bl1] = n.einsum('ij,j,jk', V1.T, 1./S1, U1.T)
-        _I1[k][bl1] = n.identity(_1[k][bl1].shape[0])
+        _I1[k][bl1] = n.identity(_C1[k][bl1].shape[0])
         _Cx1[k][bl1] = n.dot(_C1[k][bl1], x1[k][bl1]); _Ix1[k][bl1] = x1[k][bl1].copy()
     for bl2 in x2[k]:
         C2[k][bl2] = cov(x2[k][bl2])
@@ -253,6 +256,7 @@ for k in days:
         U2,S2,V2 = n.linalg.svd(C2[k][bl2].conj()) ; _C2[k][bl2] = n.einsum('ij,j,jk', V2.T, 1./S2, U2.T)
         _I2[k][bl2] = n.identity(_C2[k][bl2].shape[0])
         _Cx2[k][bl2] = n.dot(_C2[k][bl2], x2[k][bl2]); _Ix2[k][bl2] = x2[k][bl2].copy()
+
         #should possible only be function of bl1, which is latter summed over
 #         if PLOT and True:
 #             #p.plot(S); p.show()
@@ -264,7 +268,8 @@ for k in days:
 # #            p.figure(2); p.plot(n.diag(S))
 #             p.show()
 ##########################################################################
-
+#C2,_C2,_Cx2,I2,_I2,_Ix2 = C1,_C1,_Cx1,I1,_I1,_Ix1# for test against v002
+##########################################################################
 
 #import IPython; IPython.embed
 
@@ -279,10 +284,15 @@ for boot in xrange(opts.nboot):
             bls1 = [random.choice(bls1) for bl in bls1]; bls2 = [random.choice(bls2) for bl in bls2]
         gps1 = [bls1[i::NGPS] for i in range(NGPS)]; gps2 = [bls2[i::NGPS] for i in range(NGPS)]
         gps1 = [[random.choice(gp) for bl in gp] for gp in gps1]; gps2 = [[random.choice(gp) for bl in gp] for gp in gps2]
-
+    ############################################################
+    gps2 = gps1 #for test against v002
+    #print gps1
+    #print gps2
+    ############################################################
     bls1 = [bl for gp in gps1 for bl in gp]; bls2 = [bl for gp in gps2 for bl in gp]
-    print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps1])
-    print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps2])
+    #print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps1])
+    #print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps2])
+    #import IPython; IPython.embed()
 
     _Iz1,_Iz2,_Isum1,_IsumQ1,_Isum2,_IsumQ2 = {},{},{},{},{},{}
     _Cz1,_Cz2,_Csum1,_CsumQ1,_Csum2,_CsumQ2  = {},{},{},{},{},{}
@@ -305,6 +315,7 @@ for boot in xrange(opts.nboot):
             #    _Cz1[k][(i,j)] = n.fft.fftshift(n.fft.ifft(window*_Cz1[k][gpt], axis=0), axes=0)
             for ch in xrange(nchan): # XXX this loop makes computation go as nchan^3
                 _IsumQ1[k][i][ch] = n.dot(_Isum1[k][i], Q[ch])
+                _CsumQ1[k][i][ch] = n.dot(_Csum1[k][i], Q[ch])
         for j, gp2 in enumerate(gps2):
             #gpt = (gp1,gp2)
             #print gpt.shape
@@ -325,6 +336,7 @@ for boot in xrange(opts.nboot):
                 # XXX need to take fft of _Csum, _Isum here
             for ch in xrange(nchan): # XXX this loop makes computation go as nchan^3
                 _IsumQ2[k][j][ch] = n.dot(_Isum2[k][j], Q[ch])
+                _CsumQ2[k][j][ch] = n.dot(_Csum2[k][j], Q[ch])
         # if PLOT:
         #     NGPS = len(gps)
         #     _Csumk = n.zeros((NGPS,nchan,NGPS,nchan), dtype=n.complex)
@@ -342,6 +354,8 @@ for boot in xrange(opts.nboot):
         #     p.subplot(224); capo.arp.waterfall(cov(_Czk))
         #     p.show()
 ################################################################################################
+    #import IPython; IPython.embed()
+
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex)
     qI = n.zeros((nchan,_Iz1.values()[0].values()[0].shape[1]), dtype=n.complex)
@@ -350,16 +364,18 @@ for boot in xrange(opts.nboot):
     Q_Cz1,Q_Cz2 = {},{}
     for cnt1,k1 in enumerate(days):
         for k2 in days[cnt1:]:
-            if not Q_Iz1.has_key(k2): Q_Iz1[k2] = {}
-            if not Q_Cz1.has_key(k2): Q_Cz1[k2] = {}
+            #if not Q_Iz1.has_key(k2): Q_Iz1[k2] = {}
+            #if not Q_Cz1.has_key(k2): Q_Cz1[k2] = {}
             if not Q_Iz2.has_key(k2): Q_Iz2[k2] = {}
             if not Q_Cz2.has_key(k2): Q_Cz2[k2] = {}
             for bl1,bl2 in itertools.product(_Cz1[k1],_Cz2[k2]):
                 #for bl2 in _Cz2[k2]:
                 #if k1 == k2 and bl1 == bl2: continue # this results in a significant bias
+                #################################################################
                 if k1 == k2 or bl1 == bl2: continue
                 #if k1 == k2: continue
                 #if bl1 == bl2: continue # also a significant noise bias
+                #################################################################
                 print k1, k2, bl1, bl2
                 # if PLOT and False:
                 #     p.subplot(231); capo.arp.waterfall(C[m], drng=3)
@@ -392,9 +408,10 @@ for boot in xrange(opts.nboot):
                 else:
                     for i in xrange(nchan):
                         for j in xrange(nchan):
+                            #print 'i,j=',i,j
                             FI[i,j] += n.einsum('ij,ji', _IsumQ1[k1][bl1][i], _IsumQ2[k2][bl2][j])
                             FC[i,j] += n.einsum('ij,ji', _CsumQ1[k1][bl1][i], _CsumQ2[k2][bl2][j])
-
+   # import IPython; IPython.embed()
     # if PLOT:
     #     p.subplot(121); capo.arp.waterfall(FC, drng=4)
     #     p.subplot(122); capo.arp.waterfall(FI, drng=4)
@@ -415,7 +432,7 @@ for boot in xrange(opts.nboot):
     iorder = n.argsort(order)
     FC_o = n.take(n.take(FC,order, axis=0), order, axis=1)
     ####################################################################
-    print n.linalg.eigvals(FC_o)
+    #print n.linalg.eigvals(FC_o)
     #import IPython; IPython.embed
     #FC_o = n.abs(FC_o)
     ####################################################################
@@ -454,7 +471,7 @@ for boot in xrange(opts.nboot):
     #     p.show()
 
     print 'Writing pspec_boot%04d.npz' % boot
-    n.savez('boot/pspec_boot_%04d.npz'%boot, kpl=kpl, scalar=scalar, times=n.array(lsts),
+    n.savez('boot/'+str(SEP)+'_'+str(SEPD)+'_boot_%04d.npz'%boot, kpl=kpl, scalar=scalar, times=n.array(lsts),
         pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
         cmd=' '.join(sys.argv))
 

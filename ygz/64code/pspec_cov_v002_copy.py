@@ -2,7 +2,7 @@
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random
 
-# sample run python pspec_cov_v002.py --window=none --sep=sep0,1 -b 20 -c 95_115 -p I -C psa6240_v003
+# sample run python pspec_cov_v002_copy.py --window=none --sep=sep0,1 -b 20 -c 95_115 -p I -C psa6240_v003
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
 o.add_option('-b', '--nboot', type='int', default=20,
@@ -322,7 +322,7 @@ for boot in xrange(opts.nboot):
         gps = [bls[i::NGPS] for i in range(NGPS)]
     #gps = [[bl for bl in gp] for gp in gps]
     bls = [bl for gp in gps for bl in gp]
-    print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps])
+    #print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps])
     _Iz,_Isum,_IsumQ = {},{},{}
     _Cz,_Csum,_CsumQ = {},{},{}
     for k in days:
@@ -427,8 +427,8 @@ for boot in xrange(opts.nboot):
     order = n.array([10,11,9,12,8,20,0,13,7,14,6,15,5,16,4,17,3,18,2,19,1])
     iorder = n.argsort(order)
     FC_o = n.take(n.take(FC,order, axis=0), order, axis=1)
-    print n.linalg.eigvals(FC_o)
-    import IPython; IPython.embed
+    #print n.linalg.eigvals(FC_o)
+    #import IPython; IPython.embed
     L_o = n.linalg.cholesky(FC_o)
     U,S,V = n.linalg.svd(L_o.conj())
     MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
@@ -464,7 +464,7 @@ for boot in xrange(opts.nboot):
         p.show()
 
     print 'Writing pspec_boot%04d.npz' % boot
-    n.savez('boot/pspec_boot_%04d.npz'%boot, kpl=kpl, scalar=scalar, times=n.array(lsts),
+    n.savez('boot/'+str(SEP)+'_boot_%04d.npz'%boot, kpl=kpl, scalar=scalar, times=n.array(lsts),
         pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
         cmd=' '.join(sys.argv))
 
