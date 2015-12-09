@@ -2,7 +2,7 @@
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random
 
-# sample run python pspec_cov_v002_copy.py --window=none --sep=sep0,1 -b 20 -c 95_115 -p I -C psa6240_v003
+# sample run python pspec_cov_v002_copy.py --window=none --plot --sep=sep0,1 -b 20 -c 95_115 -p I -C psa6240_v003
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
 o.add_option('-b', '--nboot', type='int', default=20,
@@ -215,6 +215,8 @@ for k in days:
         d = data[k][bl][:,chans] * jy2T
         if conj[bl]: d = n.conj(d)
         x[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
+        print x[k][bl].shape
+
         
 bls_master = x.values()[0].keys()
 nbls = len(bls_master)
@@ -293,7 +295,7 @@ for k in days:
         _I[k][bl] = n.identity(_C[k][bl].shape[0])
         _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
         _Ix[k][bl] = x[k][bl].copy()
-        if PLOT and True:
+        if PLOT and bl == a.miriad.ij2bl(0,26):
             #p.plot(S); p.show()
             p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
             p.subplot(323); capo.arp.waterfall(C[k][bl])
@@ -342,6 +344,9 @@ for boot in xrange(opts.nboot):
             for ch in xrange(nchan): # XXX this loop makes computation go as nchan^3
                 _IsumQ[k][i][ch] = n.dot(_Isum[k][i], Q[ch])
                 _CsumQ[k][i][ch] = n.dot(_Csum[k][i], Q[ch])
+
+        #import IPython; IPython.embed()
+
         if PLOT:
             NGPS = len(gps)
             _Csumk = n.zeros((NGPS,nchan,NGPS,nchan), dtype=n.complex)
@@ -372,8 +377,8 @@ for boot in xrange(opts.nboot):
             for bl1 in _Cz[k1]:
                 for bl2 in _Cz[k2]:
                     #if k1 == k2 and bl1 == bl2: continue # this results in a significant bias
-                    if k1 == k2 or bl1 == bl2: continue
-                    #if k1 == k2: continue
+                    #if k1 == k2 or bl1 == bl2: continue
+                    if k1 == k2: continue
                     #if bl1 == bl2: continue # also a significant noise bias
                     print k1, k2, bl1, bl2
                     if PLOT and False:

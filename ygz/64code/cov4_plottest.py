@@ -2,7 +2,7 @@
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random, itertools
 
-# sample run python pspec_cov_v004.py --window=none --sep=sep0,1 --sepd=sep-1,1 -b 20 -c 95_115 -p I -C psa6240_v003
+# sample run python cov4_plottest.py --window=none --sep=sep0,1 --sepd=sep0,1 --plot -b 1 -c 95_115 -p I -C psa6240_v003
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
 o.add_option('-b', '--nboot', type='int', default=20,
@@ -29,11 +29,10 @@ SEP, SEPD = opts.sep, opts.sepd
 DicT = {'sep0,1_sep-1,1':0.032557, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
 DelT = DicT[SEP+'_'+SEPD]
 print 'DelT=', DelT
-EQUIV = (SEP == SEPD)
 ###################################################
 random.seed(0)
 POL = 'I'
-VERBOSE = False
+VERBOSE = True
 LST_STATS = False
 DELAY = False
 NGPS = 5
@@ -181,8 +180,7 @@ for k in days:
 cnt,var = n.ones_like(lsts1.values()[0]), n.ones_like(lsts1.values()[0])
 
 ##################################################################################
-if not EQUIV:
-    for k in days: lsts2[k][:] = lsts2[k][:] - DelT
+#for k in days: lsts2[k][:] = lsts2[k][:] - DelT
 #MAGIC!!!!!!!!!!!!!!!!!!!
 ##################################################################################
 
@@ -213,13 +211,11 @@ for k in days:
         data1[k][bl],flgs1[k][bl] = n.array(data1[k][bl][:j]),n.array(flgs1[k][bl][:j])
     for bl in data2[k]:
         data2[k][bl],flgs2[k][bl] = n.array(data2[k][bl][:j]),n.array(flgs2[k][bl][:j])
-
 lsts = lsts1.values()[0]
 #print lsts1
 #print lsts2
 ###################################################################################
 x1,x2 = {},{}
-print type(chans)
 for k in days:
     x1[k],x2[k] = {},{}
     for bl in data1[k]:
@@ -234,6 +230,7 @@ for k in days:
         if conj[bl]: d = n.conj(d)
         x2[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
         if VERBOSE: print x2[k][bl].shape
+
 
 bls_master1 = x1.values()[0].keys(); bls_master2 = x2.values()[0].keys()
 nbls1 = len(bls_master1); nbls2 = len(bls_master2)
@@ -268,13 +265,14 @@ for k in days:
         U2,S2,V2 = n.linalg.svd(C2[k][bl2].conj()) ; _C2[k][bl2] = n.einsum('ij,j,jk', V2.T, 1./S2, U2.T)
         _I2[k][bl2] = n.identity(_C2[k][bl2].shape[0])
         _Cx2[k][bl2] = n.dot(_C2[k][bl2], x2[k][bl2]); _Ix2[k][bl2] = x2[k][bl2].copy()
-        if PLOT and True:
+        #mport IPython; IPython.embed()
+        if PLOT and bl2 == a.miriad.ij2bl(0,26):
             #p.plot(S); p.show()
             p.subplot(311); capo.arp.waterfall(x2[k][bl2], mode='real')
             p.subplot(323); capo.arp.waterfall(C2[k][bl2])
             p.subplot(324); p.plot(n.einsum('ij,jk',n.diag(S2),V2).T.real)
-            p.subplot(313); capo.arp.waterfall(_Cx2[k][bl], mode='real')
-            p.suptitle('%d_%d'%a.miriad.bl2ij(bl))
+            p.subplot(313); capo.arp.waterfall(_Cx2[k][bl2], mode='real')
+            p.suptitle('%d_%d'%a.miriad.bl2ij(bl2))
 #            p.figure(2); p.plot(n.diag(S))
             p.show()
 ##########################################################################
@@ -291,11 +289,11 @@ for boot in xrange(opts.nboot):
             random.shuffle(bls1); random.shuffle(bls2)
             bls1 = bls1[:-5] ;bls2 = bls2[:-5]
         else: # sample with replacement
-            bls1 = [random.choice(bls1) for bl in bls1]; bls2 = [random.choice(bls2) for bl in bls2]
-        gps1 = [bls1[i::NGPS] for i in range(NGPS)]; gps2 = [bls2[i::NGPS] for i in range(NGPS)]
-        gps1 = [[random.choice(gp) for bl in gp] for gp in gps1]; gps2 = [[random.choice(gp) for bl in gp] for gp in gps2]
+            bls1 = [random.choice(bls1) for bl in bls1]#; bls2 = [random.choice(bls2) for bl in bls2]
+        gps1 = [bls1[i::NGPS] for i in range(NGPS)]#; gps2 = [bls2[i::NGPS] for i in range(NGPS)]
+        gps1 = [[random.choice(gp) for bl in gp] for gp in gps1]#; gps2 = [[random.choice(gp) for bl in gp] for gp in gps2]
     ############################################################
-    if EQUIV: gps2 = gps1 #for test against v002
+    gps2 = gps1 #for test against v002
     #print gps1
     #print gps2
     ############################################################
@@ -384,11 +382,8 @@ for boot in xrange(opts.nboot):
                 #for bl2 in _Cz2[k2]:
                 #if k1 == k2 and bl1 == bl2: continue # this results in a significant bias
                 #################################################################
-                if EQUIV:
-                    if k1 == k2 or bl1 == bl2: continue
-                else:
-                    print 'Non-equivalent baselines, cross multiply all groups!'
-                    if k1 == k2: continue
+                if k1 == k2 or bl1 == bl2: continue
+                #if k1 == k2: continue
                 #if bl1 == bl2: continue # also a significant noise bias
                 #################################################################
                 if VERBOSE: print k1, k2, bl1, bl2
