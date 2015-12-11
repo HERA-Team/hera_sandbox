@@ -136,7 +136,7 @@ print wgts.shape
 pk_2d = pk_2d.transpose([1,2,3,0]).copy() # (bootstraps, kpls, times, bltypes)
 pk_2d.shape = pk_2d.shape[:-2] + (pk_2d.shape[-2] * pk_2d.shape[-1],) # (bootstraps, kpls, timebls)
 wgts = wgts.transpose([1,2,0]).copy() # (kpls, times, bltypes)
-wgts.shape = wgts.shape[:-2] + (wgts.shape[-2] * wgts.shape[-1],) # (bootstraps, kpls, timebls)
+wgts.shape = wgts.shape[:-2] + (wgts.shape[-2] * wgts.shape[-1],) # (kpls, timebls)
 
 
 #ntimes = pk_2d.shape[-1] / 2

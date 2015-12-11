@@ -203,7 +203,9 @@ else:
     for k in days:
         for bl in data[k]:
             data[k][bl], flgs[k][bl] = n.array(data[k][bl][:]), n.array(flgs[k][bl][:])
-lsts = lsts.values()[0]
+
+#import IPython; IPython.embed()
+lsts = lsts.values()[0]  #from 0.06577 to 2.2237
 
 x = {}
 print len(data[k][bl])

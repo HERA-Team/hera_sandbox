@@ -2,7 +2,7 @@
 import aipy as a, numpy as n, pylab as p
 import capo as C
 import sys, optparse, re, os, random
-#sample run: python pspec_boot_v2.py boot/*
+#sample run: python pspec_boot_v2.py boot-11/* boot01/* boot11/* coot-1101/* coot1101/*
 o = optparse.OptionParser()
 o.add_option('--nocov', action='store_true', 
             help='Use non covariance applied data')
@@ -23,7 +23,7 @@ NOCOV=opts.nocov
 
 pk_vs_t = {}
 err_vs_t = {}
-temp_noise_var = {}
+temp_noise_dic = {}
 nocov_vs_t = {}
 for filename in args:
     print 'Reading', filename
@@ -35,7 +35,7 @@ for filename in args:
         print '   ', cmd
         pk_vs_t[path] = []
         err_vs_t[path] = []
-        temp_noise_var[path] = []
+        temp_noise_dic[path] = []
         nocov_vs_t[path] = []
     pk_vs_t[path].append(f['pk_vs_t'])
     scalar = f['scalar']
@@ -46,29 +46,35 @@ for filename in args:
 paths = pk_vs_t.keys()
 k0 = n.abs(kpl).argmin()
 
-#####################################################
-NN = n.min([len(pk_vs_t['boot'][i][0]) for i in range(len(pk_vs_t['boot']))])
-print NN
+##############################################################################
+#NN = n.min([len(pk_vs_t['boot'][i][0]) for i in range(len(pk_vs_t['boot']))])
+#print NN
 
-for i in range(len(pk_vs_t['boot'])):
-    for j in range(len(pk_vs_t['boot'][i])):
-        pk_vs_t['boot'][i][j] = pk_vs_t['boot'][i][j][:NN]
-import IPython; IPython.embed()
-pk_2d = n.array([pk_vs_t[path] for path in paths]) # (bltype,bootstraps,kpls,times)
-nocov_2d = n.array([nocov_vs_t[path] for path in paths]) # (bltype,bootstraps,kpls,times), T averaged over all bls
-temp_noise_var = n.array([temp_noise_var[path] for path in paths])
+#for i in range(len(pk_vs_t['boot'])):
+#    for j in range(len(pk_vs_t['boot'][i])):
+#        pk_vs_t['boot'][i][j] = pk_vs_t['boot'][i][j][:NN]
+
+pk_2d = n.empty(len(paths), dtype=n.ndarray)
+nocov_2d = n.empty(len(paths), dtype=n.ndarray)
+temp_noise_var = n.empty(len(paths), dtype=n.ndarray)
+for i,path in enumerate(paths):
+    pk_2d[i] = n.array(pk_vs_t[path]) # (bltype/path,bootstraps/numfilesinpath,kpls/nchan,times)
+    nocov_2d[i] = n.array(nocov_vs_t[path]) # (bltype,bootstraps,kpls,times), T averaged over all bls
+    temp_noise_var[i] = n.array(temp_noise_dic[path])
 #err_2d = n.array([err_vs_t[path] for path in paths])
 #print err_2d.shape, temp_noise_var.shape, pk_2d.shape
 #wgts = 1./(temp_noise_var * err_2d)
 #wgts.shape = wgts.shape[:2] + (1,) + wgts.shape[2:]
-avg_pk_2d = n.average(pk_2d, axis=1) # (bltype, kpls,times), best estimate of pk in each integration
-#print wgts.shape, avg_pk_2d.shape
-#wgts = n.average(wgts, axis=1) # (bltype, kpls,times), best estimate of pk in each integration
-#wgts = wgts * n.ones_like(avg_pk_2d)
-#avg_pk_1d = n.average(avg_pk_2d, axis=2).real
-
-wgts = n.ones_like(avg_pk_2d)
-
+#import IPython; IPython.embed()
+#average over files in each path
+avg_pk_2d = [n.average(pk_2d[i], axis=0) for i, k in enumerate(pk_2d)]
+wgts = [n.ones_like(avg_pk_2d[i]) for i,av in enumerate(avg_pk_2d)]
+#avg_pk_2d, wgts = n.array([]),n.array([])
+#for i, pk in enumerate(pk_2d):
+#    n.append(avg_pk_2d,n.average(pk_2d[i], axis=0))# (bltype, kpls,times), best estimate of pk in each integration
+#    n.append(wgts,n.ones_like(n.average(pk_2d[i], axis=0)))
+#import IPython; IPython.embed()
+#wgts = n.ones_like(avg_pk_2d)
 #avg_pk_1d.shape = avg_pk_1d.shape + (1,)
 ##wgts = 1./(nos_std_2d*tot_std_2d)
 #wgts = 1./(nos_std_1d*(avg_pk_1d + nos_std_1d))
@@ -134,23 +140,28 @@ if False: # plot some stuff
         p.colorbar(shrink=.5) 
     p.subplot(plt2,plt1,1); p.title('Weighted Power Spectrum [mK$^2$]'); p.show()
 
-print avg_pk_2d.shape, wgts.shape
+#print avg_pk_2d.shape, wgts.shape
+for i in range(len(wgts)): print 'avg_pk_2d[i].shape, wgts[i].shape',avg_pk_2d[i].shape, wgts[i].shape
+
 #p.plot(avg_pk_2d[0,30])
 #p.plot(n.cumsum(avg_pk_2d[0,30]*wgts[0,30])/n.cumsum(wgts[0,30]))
 #p.show()
 
-print pk_2d.shape
-print wgts.shape
-pk_2d = pk_2d.transpose([1,2,3,0]).copy() # (bootstraps, kpls, times, bltypes)
-pk_2d.shape = pk_2d.shape[:-2] + (pk_2d.shape[-2] * pk_2d.shape[-1],) # (bootstraps, kpls, timebls)
-wgts = wgts.transpose([1,2,0]).copy() # (kpls, times, bltypes)
-wgts.shape = wgts.shape[:-2] + (wgts.shape[-2] * wgts.shape[-1],) # (bootstraps, kpls, timebls)
-
-
+#print pk_2d.shape
+#print wgts.size
+#pk_2d = pk_2d.transpose([1,2,3,0]).copy() # (bootstraps(from pspec_cov4), kpls, times, bltypes(number paths))
+#pk_2d.shape = pk_2d.shape[:-2] + (pk_2d.shape[-2] * pk_2d.shape[-1],) # (bootstraps, kpls, time*bltypes)
+#gts = wgts.transpose([1,2,0]).copy() # (kpls, times, bltypes)
+#gts.shape = wgts.shape[:-2] + (wgts.shape[-2] * wgts.shape[-1],) # (bootstraps, kpls, time*bltypes)
+pk_2d = n.concatenate(tuple(pk_2d),axis=-1)
+wgts = n.concatenate(tuple(wgts),axis=-1)
+print 'pk_2d.shape',pk_2d.shape
+print 'wgts.shape',wgts.shape
+########################################################################################################
 #ntimes = pk_2d.shape[-1] / 2
 npaths = pk_2d.shape[0]
-ntimes = pk_2d.shape[-1]
-print npaths, ntimes
+ntimes = pk_2d.shape[-1]  #now its time*bls
+print 'ntimes, npaths=  ', ntimes,npaths
 pk_boot = []
 pk_fold_boot = []
 for boot in xrange(NBOOT):

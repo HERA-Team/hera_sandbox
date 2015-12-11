@@ -27,8 +27,9 @@ opts,args = o.parse_args(sys.argv[1:])
  #################################################
 SEP, SEPD = opts.sep, opts.sepd
 DicT = {'sep0,1_sep-1,1':0.032557, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
-DelT = DicT[SEP+'_'+SEPD]
-print 'DelT=', DelT
+simT = {'sep0,1_sep-1,1':0.034233, 'sep0,1_sep1,1':-0.03099, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
+DelT = simT[SEP+'_'+SEPD]*2*n.pi*(24*3600./a.const.sidereal_day)   #sidereal day?
+print 'DelT=', DelT, 'radians'
 EQUIV = (SEP == SEPD)
 ###################################################
 random.seed(0)
@@ -154,11 +155,16 @@ if not WINDOW == 'none': window.shape=(nchan,1)
 B = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW] # normalization. See above.
 etas = n.fft.fftshift(capo.pspec.f2eta(afreqs)) #create etas (fourier dual to frequency)
 kpl = etas * capo.pspec.dk_deta(z) #111
+########################################################################################################
+bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 # correction for beam^2
+scalar = capo.pspec.X2Y(z) * bm * B
+DicOpp = {'sep0,1_sep-1,1':-0.44}
+simOpp = {'sep0,1_sep-1,1':(-0.233718549682-0.359916945796j),'sep0,1_sep1,1':(-0.411004454476-0.0481656235344j)}
+if not EQUIV:
+    #scalar /= DicOpp[SEP+'_'+SEPD]
+    scalar /= simOpp[SEP+'_'+SEPD]
 
-if True:
-    bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 # correction for beam^2
-    scalar = capo.pspec.X2Y(z) * bm * B
-else: scalar = 1
+########################################################################################################
 if not DELAY:
     # XXX this is a hack
     if WINDOW == 'hamming': scalar /= 3.67
@@ -387,7 +393,7 @@ for boot in xrange(opts.nboot):
                 if EQUIV:
                     if k1 == k2 or bl1 == bl2: continue
                 else:
-                    print 'Non-equivalent baselines, cross multiply all groups!'
+                    #print 'Non-equivalent baselines, cross multiply all groups!'
                     if k1 == k2: continue
                 #if bl1 == bl2: continue # also a significant noise bias
                 #################################################################
@@ -466,6 +472,9 @@ for boot in xrange(opts.nboot):
     norm  = WC.sum(axis=-1); norm.shape += (1,)
     #norm  = WC.max(axis=-1); norm.shape += (1,) # XXX
     MC /= norm; WC = n.dot(MC, FC)
+
+    #require each row of W sum to unity (so pC is weighted average of p)
+    #pC = MC*qC = WC*p = MC*FC*p
 
     print 'Generating ps'
     pC = n.dot(MC, qC) * scalar
