@@ -31,6 +31,7 @@ simT = {'sep0,1_sep-1,1':0.034233, 'sep0,1_sep1,1':-0.03099, 'sep0,1_sep0,1':0.,
 DelT = simT[SEP+'_'+SEPD]*2*n.pi*(24*3600./a.const.sidereal_day)   #sidereal day?
 print 'DelT=', DelT, 'radians'
 EQUIV = (SEP == SEPD)
+NOGROUP = True
 ###################################################
 random.seed(0)
 POL = 'I'
@@ -302,6 +303,10 @@ for boot in xrange(opts.nboot):
         gps1 = [[random.choice(gp) for bl in gp] for gp in gps1]; gps2 = [[random.choice(gp) for bl in gp] for gp in gps2]
     ############################################################
     if EQUIV: gps2 = gps1 #for test against v002
+    else:
+        if NOGROUP:
+            gps1, gps2 = [bls1], [bls2]
+            import IPython; IPython.embed()
     #print gps1
     #print gps2
     ############################################################
