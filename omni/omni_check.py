@@ -23,7 +23,7 @@ o.set_description(__doc__)
 opts,args = o.parse_args(sys.argv[1:])
 
 ### Save Options ###
-pol = 'xx' #XXX shouldn't be hard-coded in the future
+pol = args[0].split('.')[3] #XXX shouldn't be hard-coded in the future
 
 
 ### Plot ChiSq ####
@@ -53,14 +53,13 @@ if opts.gains == True:
         print 'Reading',file
         file = numpy.load(file)
         for key in file.keys(): #loop over antennas
-            if key[0] != '<' and key[0] != '(' and key[0] != 'c':
+            if key[0] != '<' and key[0] != '(' and key[0].isalpha() != True:
                 gain = file[key]
                 antnum = key[:-1]
                 try: gains[antnum].append(gain)
                 except: gains[antnum] = [gain]
     for key in gains.keys():
         gains[key] = numpy.vstack(gains[key]) #cool thing to stack 2D arrays that only match in 1 dimension
-        print numpy.array(gains[key]).shape
 
     subplotnum = 1
     plotnum = 1

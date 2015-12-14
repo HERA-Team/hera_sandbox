@@ -22,7 +22,7 @@ for f,filename in enumerate(args):
         print newfile, 'exists.  Skipping...'
         continue
     print '    Getting omnical solutions from', opts.omnipath+filename.split('/')[-1]+'.npz'
-    _,gains,_,xtalk = capo.omni.from_npz(opts.omnipath+filename.split('/')[-1]+'.npz') #save gains and xtalk
+    _,gains,_,xtalk,_,_,_ = capo.omni.from_npz(opts.omnipath+filename.split('/')[-1]+'.npz') #save gains and xtalk
     times = []
     
     def mfunc(uv,p,d,f): #loops over time and baseline
