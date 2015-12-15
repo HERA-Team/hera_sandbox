@@ -25,7 +25,7 @@ def compute_xtalk(res, wgts):
         xtalk[key] = (r.sum(axis=0) / w).astype(res[key].dtype) # avg over time
     return xtalk
 
-def to_npz(filename, meta, gains, vismdl, xtalk):
+def to_npz(filename, meta, gains, vismdl, xtalk, jds, lsts, freqs):
     '''Write results from omnical.calib.redcal (meta,gains,vismdl) to npz file.
     Each of these is assumed to be a dict keyed by pol, and then by bl/ant/keyword'''
     d = {}
@@ -43,9 +43,12 @@ def to_npz(filename, meta, gains, vismdl, xtalk):
     for pol in xtalk:
         for bl in xtalk[pol]: 
             d['(%d,%d) %s' % (bl[0],bl[1],pol)] = xtalk[pol][bl]
+    d['jds'] =  jds
+    d['lsts'] = lsts
+    d['freqs'] = freqs
     n.savez(filename,**d)
 
-def from_npz(filename, meta={}, gains={}, vismdl={}, xtalk={}):
+def from_npz(filename, meta={}, gains={}, vismdl={}, xtalk={}, jds=[], lsts=[], freqs=[]):
     '''Reconstitute results from to_npz, returns meta, gains, vismdl, xtalk, each
     keyed first by polarization, and then by bl/ant/keyword.'''
     npz = n.load(filename)
@@ -65,8 +68,14 @@ def from_npz(filename, meta={}, gains={}, vismdl={}, xtalk={}):
         pol,ant = k[-1:],int(k[:-1])
         if not gains.has_key(pol): gains[pol] = {}
         gains[pol][ant] = npz[k]
-    for k in [f for f in npz.files if f[0].isalpha()]:
+    for k in [f for f in npz.files if f.startswith('c')]: #[0].isalpha()]:
         key,pol = k.split()
         if not meta.has_key(pol): meta[pol] = {}
         meta[pol][k.split()[0]] = npz[k]
-    return meta, gains, vismdl, xtalk
+    for k in [f for f in npz.files if f.startswith('j')]: 
+        jds = npz[k] 
+    for k in [f for f in npz.files if f.startswith('l')]: 
+        lsts = npz[k]
+    for k in [f for f in npz.files if f.startswith('f')]:
+        freqs = npz[k]
+    return meta, gains, vismdl, xtalk, jds, lsts, freqs
