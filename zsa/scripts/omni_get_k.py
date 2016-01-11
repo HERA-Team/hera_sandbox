@@ -87,20 +87,20 @@ for fl in args:
             data[b] = n.concatenate((data[b],_d), axis=0)
 
 
-    reddata = {}
-    for i,d in enumerate(fdict):
-        for ch1,ch2 in d.keys():
-            b1,b2 = d[(ch1,ch2)][0]
-            #getting rid of partially flagged channels
-            w1 = data[b1][:,ch1] != 0
-            w2 = data[b2][:,ch2] != 0
-            w = n.logical_and(w1,w2)
-            if n.all(n.logical_not(w)): continue
-            avis = n.average(data[b1][:,ch1]*n.conj(data[b2][:,ch2]), weights=w)
-    #        if not avis: continue
-            reddata[str((ch1,ch2))] = [ (b1,b2), i,  avis ]
-    print 'writing file ' + fl[:-3] + 'ucal.npz'
-    n.savez(fl[:-3] + 'ucal.npz',**reddata)
+reddata = {}
+for i,d in enumerate(fdict):
+    for ch1,ch2 in d.keys():
+        b1,b2 = d[(ch1,ch2)][0]
+        #getting rid of partially flagged channels
+        w1 = data[b1][:,ch1] != 0
+        w2 = data[b2][:,ch2] != 0
+        w = n.logical_and(w1,w2)
+        if n.all(n.logical_not(w)): continue
+        avis = n.average(data[b1][:,ch1]*n.conj(data[b2][:,ch2]), weights=w)
+#        if not avis: continue
+        reddata[str((ch1,ch2))] = [ (b1,b2), i,  avis ]
+print 'writing file ' + fl[:-3] + 'ucal.npz'
+n.savez(fl[:-3] + 'ucal.npz',**reddata)
 
 print len(reddata)
 
