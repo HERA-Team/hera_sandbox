@@ -9,20 +9,20 @@ o.set_usage('omni_apply.py [options] *uvcRRE')
 o.set_description(__doc__)
 o.add_option('--xtalk',dest='xtalk',default=False,action='store_true',
             help='Apply xtalk solutions to data.')
-o.add_option('--omnipath',dest='omnipath',default='',type='string',
-            help='Path to save .npz files. Include final / in path.')
+o.add_option('--omnipath',dest='omnipath',default='%s.npz',type='string',
+            help='Format string (e.g. "path/%s.npz") which converts the input file name to the omnical npz path/file.')
 opts,args = o.parse_args(sys.argv[1:])
 
 ### Read Data and Solutions ###
 for f,filename in enumerate(args):
     print 'Reading', filename
-    newfile = opts.omnipath+filename.split('/')[-1]+'O'
-    print os.path
+    newfile = filename+'O'
+    omnifile = opts.omnipath % filename
     if os.path.exists(newfile):
-        print newfile, 'exists.  Skipping...'
+        print '    %s exists.  Skipping...' % newfile
         continue
-    print '    Getting omnical solutions from', opts.omnipath+filename.split('/')[-1]+'.npz'
-    _,gains,_,xtalk,_,_,_ = capo.omni.from_npz(opts.omnipath+filename.split('/')[-1]+'.npz') #save gains and xtalk
+    print '    Omnical npz:', omnifile
+    _,gains,_,xtalk,_,_,_ = capo.omni.from_npz(omnifile) #save gains and xtalk
     times = []
     
     def mfunc(uv,p,d,f): #loops over time and baseline
