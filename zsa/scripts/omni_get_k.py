@@ -30,7 +30,7 @@ for ij in mdl['xx'].keys():
 print bls
 conjugate = [(0,101), (0,62), (0,100), (0,97), (12,43), (57,64)]
 
-kmodes = n.einsum('j,i', freqs, seps) #these are all the kmodes measured. Need to align them.
+#kmodes = n.einsum('j,i', freqs, seps) #these are all the kmodes measured. Need to align them.
 
 fdict = [{} for i in range(400)] #for a frequency, the seps and frequency that are redundant.
 du = 15*15*(freqs[2]-freqs[1])/3e8 * 1e9
@@ -87,25 +87,25 @@ for fl in args:
             data[b] = n.concatenate((data[b],_d), axis=0)
 
 
-reddata = {}
-for i,d in enumerate(fdict):
-    for ch1,ch2 in d.keys():
-        b1,b2 = d[(ch1,ch2)][0]
-        #getting rid of partially flagged channels
-        w1 = data[b1][:,ch1] != 0
-        w2 = data[b2][:,ch2] != 0
-        w = n.logical_and(w1,w2)
-        if n.all(n.logical_not(w)): continue
-        avis = n.average(data[b1][:,ch1]*n.conj(data[b2][:,ch2]), weights=w)
-#        if not avis: continue
-        reddata[str((ch1,ch2))] = [ (b1,b2), i,  avis ]
+    reddata = {}
+    for i,d in enumerate(fdict):
+        for ch1,ch2 in d.keys():
+            b1,b2 = d[(ch1,ch2)][0]
+            #getting rid of partially flagged channels
+            w1 = data[b1][:,ch1] != 0
+            w2 = data[b2][:,ch2] != 0
+            w = n.logical_and(w1,w2)
+            if n.all(n.logical_not(w)): continue
+            avis = n.average(data[b1][:,ch1]*n.conj(data[b2][:,ch2]), weights=w)
+    #        if not avis: continue
+            reddata[str((ch1,ch2))] = [ (b1,b2), i,  avis ]
+    print 'writing file ' + fl[:-3] + 'ucal.npz'
+    n.savez(fl[:-3] + 'ucal.npz',**reddata)
 
 print len(reddata)
 
 #import IPython
 #IPython.embed()
-print 'writing file'
-n.savez('ucal.npz',**reddata)
 
 x,y = n.meshgrid(freqs, seps)
 z = x*y
