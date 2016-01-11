@@ -39,7 +39,7 @@ def to_npz(filename, meta, gains, vismdl, xtalk, jds, lsts, freqs):
             d['%d%s' % (ant,pol)] = gains[pol][ant].conj() # conj to miriad 
     for pol in vismdl:
         for bl in vismdl[pol]:
-            d['<%d,%d> %s' % (bl[0],bl[1],pol)] = vismdl[pol][bl].conj() 
+            d['<%d,%d> %s' % (bl[0],bl[1],pol)] = vismdl[pol][bl] 
     for pol in xtalk:
         for bl in xtalk[pol]: 
             d['(%d,%d) %s' % (bl[0],bl[1],pol)] = xtalk[pol][bl]
