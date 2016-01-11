@@ -13,7 +13,7 @@ LSTS=`python -c "import numpy as n; hr = 1.0; print ' '.join(['%f_%f' % (d,d+hr/
 #LSTS=9.250000_9.500000
 MY_LSTS=`~/src/capo/dcj/scripts/pull_args.py $LSTS`
 CALFILE=psa6622_v002
-PREFIX=lstbin_June22_v2
+PREFIX=lstbin_Sept29_v1
 
 echo $MY_LSTS
 echo mkdir ${PREFIX}
