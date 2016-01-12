@@ -33,6 +33,8 @@ def to_npz(filename, meta, gains, vismdl, xtalk, jds, lsts, freqs):
         for k in meta[pol]:
             if k.startswith('chisq'):
                 d[k + ' %s' % pol] = meta[pol][k]
+            if k.startswith('history'):
+                d['history' + ' %s' % pol] = meta[pol][k]
         # XXX chisq after xtalk removal
     for pol in gains:
         for ant in gains[pol]:
@@ -69,6 +71,10 @@ def from_npz(filename, meta={}, gains={}, vismdl={}, xtalk={}, jds=[], lsts=[], 
         if not gains.has_key(pol): gains[pol] = {}
         gains[pol][ant] = npz[k]
     for k in [f for f in npz.files if f.startswith('c')]: #[0].isalpha()]:
+        key,pol = k.split()
+        if not meta.has_key(pol): meta[pol] = {}
+        meta[pol][k.split()[0]] = npz[k]
+    for k in [f for f in npz.files if f.startswith('h')]:
         key,pol = k.split()
         if not meta.has_key(pol): meta[pol] = {}
         meta[pol][k.split()[0]] = npz[k]
