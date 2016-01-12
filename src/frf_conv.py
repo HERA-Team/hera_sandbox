@@ -4,10 +4,9 @@ Implements a Fringe Rate Filter useing and FIR filter.
 '''
 import aipy as a
 import capo
-import numpy as n, pylab as p
+import numpy as n
 from numpy.fft import ifft, fftshift, ifftshift, fftfreq, fft
 import scipy.interpolate
-import optparse,sys
 
 DEFAULT_FRBINS = n.arange(-.01+5e-5/2,.01,5e-5) # Hz
 DEFAULT_WGT = lambda bm: bm**2
@@ -18,8 +17,10 @@ def mk_fng(bl, eq):
     return -2*n.pi/a.const.sidereal_day * n.dot(n.cross(n.array([0,0,1.]),bl), eq)
 
 #fringe used in ali et.al to degrade optimal fringe rate filter.
-#def mk_fng_alietal(bl, ex, ey, ez):
-#    return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
+def mk_fng(bl, eq):
+    '''Return distorted fringe rates for given eq coordinates and a baseline vector (measured in wavelengths) in eq coords. This was the version used in ali et.al'''
+    ey, ex, ez = eq#yes, ex and ey are flipped.
+    return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
 
 def fr_profile(bm, fng, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT):
     '''Return the fringe-rate profiel (binning the beam by fringe rate).'''
@@ -44,12 +45,14 @@ def fit_mdl(frp, bins, maxfr, mdl=gauss, maxfun=1000, ftol=1e-6, xtol=1e-6, star
 
 # XXX wgt and iwgt seem icky
 def hmap_to_fr_profile(bm_hmap, bl, lat, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT):
-    '''For a healpix map of the beam (in topocentric coords), a bl (in wavelengths, eq coords), 
+    '''For a healpix map of the beam (in topocentric coords, not squared), a bl (in wavelengths, eq coords), 
     and a latitude (in radians), return the fringe-rate profile.'''
     eq = bm_hmap.px2crd(n.arange(bm_hmap.npix()), ncrd=3) # equatorial coordinates
     eq2zen = a.coord.eq2top_m(0., lat)
     top = n.dot(eq2zen, eq)
-    bm = bm_hmap[(top[0], top[1], top[2])]
+    _bm = bm_hmap[(top[0], top[1], top[2])]
+    _bm = n.where(top[2] > 0, _bm, 0)
+    bm = _bm
     fng = mk_fng(bl,eq)
     return fr_profile(bm, fng, bins=bins, wgt=wgt, iwgt=iwgt)
     
@@ -60,6 +63,7 @@ def aa_to_fr_profile(aa, (i,j), ch, pol='I', bins=DEFAULT_FRBINS, wgt=DEFAULT_WG
     eq = h.px2crd(n.arange(h.npix()), ncrd=3)
     top = n.dot(aa._eq2zen, eq)
     fng = mk_fng(aa.get_baseline(i,j,'r')*fq*frpad, eq)
+    print 'Max fng', fng.max()
     # XXX computing bm at all freqs, but only taking one
     _bmx = aa[0].bm_response((top), pol='x')[ch]; _bmx = n.where(top[2] > 0, _bmx, 0)
     _bmy = aa[0].bm_response((top), pol='y')[ch]; _bmy = n.where(top[2] > 0, _bmy, 0)
@@ -98,10 +102,13 @@ def frp_to_fir(frp, fbins=None):
     fir = fftshift(fir, axes=-1)
     if fbins is not None: return fir, fftshift(fftfreq(fbins.size, fbins[1] - fbins[0]))
     else: return fir
+
+def normalize(fx):
+    return fx / n.sqrt(n.sum(n.abs(fx)**2,axis=-1))
     
 
 def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, fr_xtalk=.00035, maxfr=None,
-        mdl=gauss, maxfun=1000, ftol=1e-6, xtol=1e-6, startprms=(.001,.0001), window='blackman-harris', verbose=False):
+        mdl=gauss, maxfun=1000, ftol=1e-6, xtol=1e-6, startprms=(.001,.0001), window='blackman-harris', alietal=False, verbose=False):
     ''' Take a fringe rate profile at one frequency, fit an analytic function and extend 
         to other frequencies. 
         frp0: fringe rate profile at a single frequency. 
@@ -112,6 +119,7 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
         fr_xtalk: Threshold for removing crosstalk. 
         mdl: a function to fit the fringe rate profile too. gaussian for default.
     '''
+    #print bins
     if maxfr is None: maxfr = bins[n.argwhere(frp0 != 0).max()] # XXX check this
     prms0 = fit_mdl(frp0, bins, maxfr, mdl=mdl,maxfun=maxfun,ftol=ftol,xtol=xtol,startprms=startprms,verbose=verbose)
     prms0 = n.array(prms0)
@@ -128,5 +136,8 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
     #firs = ifft(frps, axis=-1)
     #firs = fftshift(firs, axes=-1)
     firs *= a.dsp.gen_window(bins.size, window)
-    firs /= n.sum(n.abs(firs),axis=1).reshape(-1,1) # normalize so that n.sum(abs(fir)) = 1
+    if alietal:
+        firs /= n.sum(n.abs(firs),axis=1).reshape(-1,1) # normalize so that n.sum(abs(fir)) = 1
+    else:
+        firs /= n.sqrt(n.sum(n.abs(firs)**2,axis=1).reshape(-1,1)) # normalize so that n.sum(abs(fir)**2) = 1
     return tbins, firs

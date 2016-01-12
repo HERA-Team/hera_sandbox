@@ -58,21 +58,41 @@ if opts.pagenum == 1:
 if opts.pagenum == 2:
     wkst = gc.open(opts.wkst).worksheet("Antennas")
     ants = wkst.range('A2:A133')
-    epoch2 = wkst.range('G2:G133')
-    epoch3 = wkst.range('J2:J133')
+    epoch2 = wkst.range('H2:H133')
+    epoch3 = wkst.range('M2:M133')
+    all = wkst.range('B2:B133')
 
     bad_2 = []
     bad_3 = []
+    good_2 = []
+    good_3 = []
+    bad_all = []
+    good_all = []
     for a in range(len(epoch2)):
         val2 = epoch2[a].value
         val3 = epoch3[a].value
+        valall = all[a].value
         if val2 == '1':
             bad_2.append(ants[a].value)
+        elif val2 == '0':
+            good_2.append(ants[a].value)
         if val3 == '1':
             bad_3.append(ants[a].value)
+        elif val3 == '0':
+            good_3.append(ants[a].value)
+        if valall == '1':
+            bad_all.append(ants[a].value)
+        if valall == '0':
+            good_all.append(ants[a].value)
+    print 'Epoch 2 Good Antennas:'
+    print '   ['+','.join(good_2)+']'
     print 'Epoch 2 Bad Antennas:'
     print '   ['+','.join(bad_2)+']' 
+    print 'Epoch 3 Good Antennas:'
+    print '   ['+','.join(good_3)+']'
     print 'Epoch 3 Bad Antennas:'
-    print '   ['+','.join(bad_3)+']' 
-
- 
+    print '   ['+','.join(bad_3)+']'  
+    print 'Cumulative Good Antennas:'
+    print '   ['+','.join(good_all)+']'
+    print 'Cumulative Bad Antennas:'
+    print '   ['+','.join(bad_all)+']'

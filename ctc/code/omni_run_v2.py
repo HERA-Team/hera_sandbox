@@ -53,6 +53,8 @@ for k in calpar.keys(): #loop over pol
     g0[k] = {}
     for i in xrange(calpar[k].shape[1]): #loop over antennas
         g0[k][i] = calpar[k][:,i] / numpy.abs(calpar[k][:,i]) #gains have len(nfreq)
+#XXX g0 pol should eventually be just 'x' or 'y' instead of 'xx'/'yy'
+
 
 ### Loop Through Compressed Files ###
 for f,filename in enumerate(args):
