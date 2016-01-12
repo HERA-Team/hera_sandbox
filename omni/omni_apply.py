@@ -16,8 +16,8 @@ opts,args = o.parse_args(sys.argv[1:])
 ### Read Data and Solutions ###
 for f,filename in enumerate(args):
     print 'Reading', filename
-    newfile = filename+'O'
-    omnifile = opts.omnipath % filename
+    newfile = filename.split('/')[-1]+'O' #saves in cwd 
+    omnifile = opts.omnipath % filename.split('/')[-1]
     if os.path.exists(newfile):
         print '    %s exists.  Skipping...' % newfile
         continue
