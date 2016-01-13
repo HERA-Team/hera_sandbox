@@ -92,20 +92,23 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,
         mk_ap = lambda a: Antpol(a,NUMPOL[ant / info.nant], info.nant)
         
         for key in _meta.keys():
-        	if key == 'iter': meta[iter] = _meta[iter]
+        	if key == 'iter': 
+        		meta[key] = _meta[iter]
+        		continue
         	ant = int(key.split('chisq')[1])
         	ap = mk_ap(ant)
-        	meta[ap] = _meta[key]
+        	meta[ap.pol()] = {}
+        	['chisq'+str(ap.ant())] = _meta[key]
         
         for ant in _gain.keys():
         	ap = mk_ap(ant)
-        	gains[ap] = _gain[ant]
+        	gains[ap.pol()][ap.ant()] = _gain[ant] 
         
         for bl in _vis.keys():
         	i,j = bl
         	api = mk_ap(i)
         	apj = mk_ap(j)
-        	vis[(api,apj)] = vis[bl]
+        	vis[api.pol()+apj.pol()][(api.ant(),apj.ant())] = vis[bl]
         
         #return _meta, _gains, _vis
 		return meta, gains, vis
