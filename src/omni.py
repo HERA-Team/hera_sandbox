@@ -97,20 +97,18 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,
         		continue
         	ant = int(key.split('chisq')[1])
         	ap = mk_ap(ant)
-        	meta[ap.pol()] = {}
-        	['chisq'+str(ap.ant())] = _meta[key]
+        	meta[ap] = _meta[key]
         
         for ant in _gain.keys():
         	ap = mk_ap(ant)
-        	gains[ap.pol()][ap.ant()] = _gain[ant] 
+        	gains[ap] = _gain[ant]
         
         for bl in _vis.keys():
         	i,j = bl
         	api = mk_ap(i)
         	apj = mk_ap(j)
-        	vis[api.pol()+apj.pol()][(api.ant(),apj.ant())] = vis[bl]
-        
-        #return _meta, _gains, _vis
+        	vis[(api,apj)] = vis[bl]
+		
 		return meta, gains, vis
 
 
