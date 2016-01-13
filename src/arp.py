@@ -17,7 +17,8 @@ def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose
                 info['times'].append(t)
                 info['lsts'].append(uv['lst'])
                 ts[t] = None
-            bl = a.miriad.ij2bl(i,j)
+            #bl = a.miriad.ij2bl(i,j)
+            bl = (i,j)
             if not dat.has_key(bl): dat[bl],flg[bl] = {},{}
             pol = a.miriad.pol2str[uv['pol']]
             if not dat[bl].has_key(pol):
