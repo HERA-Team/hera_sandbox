@@ -1,4 +1,4 @@
-import numpy as n, omnical
+import numpy as np, omnical
 
 POLNUM = {
     'x':0, # factor to multiply ant index for internal ordering
@@ -65,8 +65,8 @@ def aa_to_info(aa, pols=['x'], **kwargs):
     The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
     layout = aa.ant_layout
     nant = len(aa)
-    antpos = -n.ones((nant*len(pols),3)) # -1 to flag unused antennas
-    xs,ys = n.indices(layout.shape)
+    antpos = -np.ones((nant*len(pols),3)) # -1 to flag unused antennas
+    xs,ys = np.indices(layout.shape)
     for ant,x,y in zip(layout.flatten(), xs.flatten(), ys.flatten()):
         for z,pol in enumerate(pols):
             z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
@@ -85,8 +85,8 @@ def compute_xtalk(res, wgts):
     '''Estimate xtalk as time-average of omnical residuals.'''
     xtalk = {}
     for key in res:
-        r,w = n.where(wgts[key] > 0, res[key], 0), wgts[key].sum(axis=0)
-        w = n.where(w == 0, 1, w)
+        r,w = np.where(wgts[key] > 0, res[key], 0), wgts[key].sum(axis=0)
+        w = np.where(w == 0, 1, w)
         xtalk[key] = (r.sum(axis=0) / w).astype(res[key].dtype) # avg over time
     return xtalk
 
@@ -114,12 +114,12 @@ def to_npz(filename, meta, gains, vismdl, xtalk, jds, lsts, freqs, conj=True):
     d['jds'] =  jds
     d['lsts'] = lsts
     d['freqs'] = freqs
-    n.savez(filename,**d)
+    np.savez(filename,**d)
 
 def from_npz(filename, meta={}, gains={}, vismdl={}, xtalk={}, jds=[], lsts=[], freqs=[]):
     '''Reconstitute results from to_npz, returns meta, gains, vismdl, xtalk, each
     keyed first by polarization, and then by bl/ant/keyword.'''
-    npz = n.load(filename)
+    npz = np.load(filename)
     def parse_key(k):
         bl,pol = k.split()
         bl = tuple(map(int,bl[1:-1].split(',')))
