@@ -59,7 +59,8 @@ class RedundantInfo(omnical.info.RedundantInfo):
 def compute_reds(nant, *args, **kwargs):
     reds = omnical.arrayinfo.compute_reds(*args, **kwargs)
     return [map(lambda bl: (Antpol(bl[0],nant),Antpol(bl[1],nant)), gp) for gp in reds]
-        
+
+    
 def aa_to_info(aa, pols=['x'], **kwargs):
     '''Use aa.ant_layout to generate redundances based on ideal placement.
     The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
@@ -80,6 +81,35 @@ def aa_to_info(aa, pols=['x'], **kwargs):
     info = RedundantInfo(nant)
     info.init_from_reds(reds,antpos)
     return info
+
+
+def redcal(data, info, xtalk=None, gains=None, vis=None,
+        removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
+        
+        _meta, _gain, _vis = omnical.calib.redcal(data, info, xtalk=None, gains=None, vis=None, removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1)
+        
+        meta, gains, vis = {}, {}, {}
+        mk_ap = lambda a: Antpol(a,NUMPOL[ant / info.nant], info.nant)
+        
+        for key in _meta.keys():
+        	if key == 'iter': meta[iter] = _meta[iter]
+        	ant = int(key.split('chisq')[1])
+        	ap = mk_ap(ant)
+        	meta[ap] = _meta[key]
+        
+        for ant in _gain.keys():
+        	ap = mk_ap(ant)
+        	gains[ap] = _gain[ant]
+        
+        for bl in _vis.keys():
+        	i,j = bl
+        	api = mk_ap(i)
+        	apj = mk_ap(j)
+        	vis[(api,apj)] = vis[bl]
+        
+        #return _meta, _gains, _vis
+		return meta, gains, vis
+
 
 def compute_xtalk(res, wgts):
     '''Estimate xtalk as time-average of omnical residuals.'''
