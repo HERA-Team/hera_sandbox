@@ -39,11 +39,12 @@ for filename in sys.argv[1:]:
         if not use_bls.has_key((i,j)): continue
         mdl = vismdl[DPOL][use_bls[(i,j)]][ti] # get the redunant model for this int
         if good_ants.has_key(i): i,j,d,mdl = j,i,d.conj(),mdl.conj() # flip to put bad ant in front
-        gmdl = gains[POL][j][ti].conj() * mdl.conj()
+        gmdl = gains[POL][j][ti].conj() * mdl.conj() # XXX this means mdl is backward in npz files
         gsum[i] = gsum.get(i,0) + np.where(f, 0, d * gmdl.conj())
         gwgt[i] = gwgt.get(i,0) + np.where(f, 0, np.abs(gmdl)**2)
     bad_ants = gsols[-1][0].keys()
-    for i in bad_ants:
-        gains[POL][i] = np.array([np.where(gwgt[i] > 0, gsum[i]/gwgt[i], 0) for gsum,gwgt in gsols])
+    print bad_ants
+    #for i in bad_ants:
+    #    gains[POL][i] = np.array([np.where(gwgt[i] > 0, gsum[i]/gwgt[i], 0) for gsum,gwgt in gsols])
     # XXX haven't filled in xtalk at all
-    capo.omni.to_npz(outfile, meta, gains, vismdl, xtalk, jds, lsts, freqs)
+    capo.omni.to_npz(outfile, meta, gains, vismdl, xtalk, jds, lsts, freqs, conj=False)

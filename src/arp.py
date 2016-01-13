@@ -212,9 +212,9 @@ def plot_hmap_ortho(h, cmap='jet', mode='log', mx=None, drng=None,
         mn = data.min()
     #    if min < (max - 10): min = max-10
     else: mn = mx - drng
-    step = (mx - mn) / 10
-    levels = n.arange(mn-step, mx+step, step)
     return m.imshow(data, vmax=mx, vmin=mn, cmap=cmap)
+    #step = (mx - mn) / 10
+    #levels = n.arange(mn-step, mx+step, step)
     #map.contourf(cx,cy,data,levels,linewidth=0,cmap=cmap)
     
 
