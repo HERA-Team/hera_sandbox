@@ -11,77 +11,73 @@ POLNUM = {
 
 NUMPOL = dict(zip(POLNUM.values(), POLNUM.keys()))
     
+class Antpol:
+    def __init__(self, *args):
+        try:
+            ant,pol,nant = args
+            self.val, self.nant = POLNUM[pol] * nant + ant, nant
+        except(ValueError): self.val, self.nant = args
+    def antpol(self): return self.val % self.nant, NUMPOL[self.val / self.nant]
+    def ant(self): return self.antpol()[0]
+    def pol(self): return self.antpol()[1]
+    def __int__(self): return self.val
+    def __hash__(self): return self.ant()
+    def __str__(self): return ''.join(map(str, self.antpol()))
+    def __eq__(self, v): return self.ant() == v
+    def __repr__(self): return str(self)
+        
+## XXX filter_reds w/ pol support should probably be in omnical
+def filter_reds(reds, bls=None, ex_bls=None, ants=None, ex_ants=None, ubls=None, ex_ubls=None, crosspols=None, ex_crosspols=None):
+    '''Filter redundancies to include/exclude the specified bls, antennas, and unique bl groups and polarizations.
+    Assumes reds indices are Antpol objects.'''
+    def pol(bl): return bl[0].pol() + bl[1].pol()
+    if crosspols: reds = [r for r in reds if pol(r[0]) in crosspols]
+    if ex_crosspols: reds = [r for r in reds if not pol(r[0]) in ex_crosspols]
+    return omnical.arrayinfo.filter_reds(reds, bls=bls, ex_bls=ex_bls, ants=ants, ex_ants=ex_ants, ubls=ubls, ex_ubls=ex_ubls)
 
-def antpol2ind(ant, pol, nant):
-    return POLNUM[pol] * nant + ant
+class RedundantInfo(omnical.info.RedundantInfo):
+    def __init__(self, nant, filename=None):
+        omnical.info.RedundantInfo.__init__(self, filename=filename)
+        self.nant = nant
+    def bl_order(self):
+        '''Return (i,j) baseline tuples in the order that they should appear in data.  Antenna indicies
+        are in real-world order (as opposed to the internal ordering used in subsetant).'''
+        return [(Antpol(self.subsetant[i],self.nant),Antpol(self.subsetant[j],self.nant)) for (i,j) in self.bl2d]
+    def order_data(self, dd):
+        '''Create a data array ordered for use in _omnical.redcal.  'dd' is
+        a dict whose keys are (i,j) antenna tuples; antennas i,j should be ordered to reflect
+        the conjugation convention of the provided data.  'dd' values are 2D arrays
+        of (time,freq) data.'''
+        d = []
+        for i,j in self.bl_order():
+            bl = (i.ant(),j.ant())
+            pol = i.pol() + j.pol()
+            try: d.append(dd[bl][pol])
+            except(KeyError): d.append(dd[bl[::-1]][pol[::-1]].conj())
+        return np.array(d).transpose((1,2,0))
 
-def ind2antpol(i, nant):
-    return i % nant, NUMPOL[i / nant]
-
-# XXX filter_reds w/ pol support should probably be in omnical
-def filter_reds(nant, reds, bls=None, ex_bls=None, ants=None, ex_ants=None, ubls=None, ex_ubls=None, crosspols=None, ex_crosspols=None):
-    '''Filter redundancies to include/exclude the specified bls, antennas, and unique bl groups and polarizations.'''
-    def m(i): return i % nant
-    pols = [NUMPOL[r[0][0]/nant]+NUMPOL[r[0][1]/nant] for r in reds]
-    if crosspols:
-        reds = [r for r,p in zip(reds,pols) if p in crosspols]
-        pols = [p for p in pols if p in crosspols]
-    if ex_crosspols:
-        reds = [r for r,p in zip(reds,pols) if not p in ex_crosspols]
-        pols = [p for p in pols if not p in ex_crosspols]
-    upols = {}
-    for p in pols: upols[p] = None
-    upols = upols.keys()
-    if ubls or ex_ubls:
-        bl2gp = {}
-        for i,gp in enumerate(reds):
-            for bl in gp:
-                blmod = m(bl[0]), m(bl[1])
-                bl2gp[blmod] = bl2gp[blmod[::-1]] = bl2gp.get(blmod,[]) + [i]
-        if ubls:
-            ubls = [bl2gp[bl] for bl in ubls if bl2gp.has_key(bl)]
-            ubls = reduce(lambda x,y: x+y, ubls)
-        else: ubls = range(len(reds))
-        if ex_ubls:
-            ex_ubls = [bl2gp[bl] for bl in ex_ubls if bl2gp.has_key(bl)]
-            ex_ubls = reduce(lambda x,y: x+y, ex_ubls)
-        else: ex_ubls = []
-        reds = [gp for i,gp in enumerate(reds) if i in ubls and i not in ex_ubls]
-    if bls is None: bls = [bl for gp in reds for bl in gp]
-    else:
-        _bls = []
-        for pi,pj in upols:
-            di,dj = POLNUM[pi]*nant, POLNUM[pj]*nant
-            _bls += [(i+di,j+dj) for i,j in bls]
-        bls = _bls
-    if ex_bls: bls = [(i,j) for i,j in bls 
-            if (m(i),m(j)) not in ex_bls and (m(j),m(i)) not in ex_bls]
-    if ants: bls = [(i,j) for i,j in bls if m(i) in ants and m(j) in ants]
-    if ex_ants: bls = [(i,j) for i,j in bls 
-            if m(i) not in ex_ants and m(j) not in ex_ants]
-    bld = {}
-    for bl in bls: bld[bl] = bld[bl[::-1]] = None
-    reds = [[bl for bl in gp if bld.has_key(bl)] for gp in reds]
-    return [gp for gp in reds if len(gp) > 1]
+def compute_reds(nant, *args, **kwargs):
+    reds = omnical.arrayinfo.compute_reds(*args, **kwargs)
+    return [map(lambda bl: (Antpol(bl[0],nant),Antpol(bl[1],nant)), gp) for gp in reds]
         
 def aa_to_info(aa, pols=['x'], **kwargs):
     '''Use aa.ant_layout to generate redundances based on ideal placement.
     The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
     layout = aa.ant_layout
-    antpos = -n.ones((len(aa)*len(pols),3)) # -1 to flag unused antennas
+    nant = len(aa)
+    antpos = -n.ones((nant*len(pols),3)) # -1 to flag unused antennas
     xs,ys = n.indices(layout.shape)
     for ant,x,y in zip(layout.flatten(), xs.flatten(), ys.flatten()):
         for z,pol in enumerate(pols):
             z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
-            ind = antpol2ind(ant,pol,len(aa))
-            antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
-    reds = omnical.arrayinfo.compute_reds(antpos,tol=.1)
+            i = Antpol(ant,pol,len(aa))
+            antpos[int(i),0],antpos[int(i),1],antpos[int(i),2] = x,y,z
+    reds = compute_reds(nant, antpos,tol=.1)
     # XXX haven't enforced xy = yx yet.  need to conjoin red groups for that
-    ex_ants = [i for i in range(antpos.shape[0]) if antpos[i,0] < 0]
+    ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] < 0]
     kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
-    #reds = omnical.arrayinfo.filter_reds(reds, **kwargs)
     reds = filter_reds(reds, **kwargs)
-    info = omnical.info.RedundantInfo()
+    info = RedundantInfo(nant)
     info.init_from_reds(reds,antpos)
     return info
 
