@@ -75,8 +75,8 @@ for f,filename in enumerate(args):
     #import IPython;IPython.embed()
     print '   Lincal-ing'
     m2[pol],g2[pol[0]],v2[pol] = omnical.calib.redcal(data, info, gains=g1, vis=v1, uselogcal=False, removedegen=True)
-    #import IPython;IPython.embed()
     xtalk[pol] = capo.omni.compute_xtalk(m2[pol]['res'], wgts) #xtalk is time-average of residual
     print '   Saving '+opts.omnipath+filename.split('/')[-1]+'.npz'
+    m2[pol]['history'] = 'OMNI_RUN: ' + ' '.join(sys.argv) + '\n'
     capo.omni.to_npz(opts.omnipath+filename.split('/')[-1]+'.npz', m2, g2, v2, xtalk,t_jd,t_lst,freqs)
     
