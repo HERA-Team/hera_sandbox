@@ -87,7 +87,7 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselo
     _meta, _gain, _vis = omnical.calib.redcal(data, info, xtalk=None, gains=None, vis=None, removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1)    
     meta, gains, vis, res = {}, {}, {}, {}
     mk_ap = lambda a: Antpol(a,NUMPOL[ant / info.nant], info.nant)
-	for key in _meta.keys():
+    for key in _meta.keys():
 		if key == 'iter': 
 			meta[key] = _meta[key]
 			continue
@@ -103,14 +103,16 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselo
 		except(ValueError): meta[key] = _meta[key] #XXX this is due to a single array with key "chisq" i.e. no antnum associated
 		ap = mk_ap(ant)
 		meta['chisq'+str(ap)] = _meta[key] #XXX it might be worth making chisq a nested dictionary, with individual antpol keys
-    for ant in _gain.keys():
-	    ap = mk_ap(ant)
-		gains[ap] = _gain[ant]
+    
+    for ant in _gain.keys(): 
+	    gains[mk_ap(ant)] = _gain[ant]
+	    
 	for bl in _vis.keys():
 		i,j = bl
 		api = mk_ap(i)
 		apj = mk_ap(j)
 		vis[(api,apj)] = _vis[bl]		
+    
     return meta, gains, vis
 
 
