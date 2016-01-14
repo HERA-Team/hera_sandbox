@@ -118,7 +118,7 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,
         	i,j = bl
         	api = mk_ap(i)
         	apj = mk_ap(j)
-        	vis[(api,apj)] = vis[bl]
+        	vis[(api,apj)] = _vis[bl]
 		
 		return meta, gains, vis
 
