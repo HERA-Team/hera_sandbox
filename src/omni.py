@@ -61,7 +61,7 @@ def compute_reds(nant, *args, **kwargs):
     return [map(lambda bl: (Antpol(bl[0],nant),Antpol(bl[1],nant)), gp) for gp in reds]
 
     
-def aa_to_info(aa, pols=['y'], **kwargs): #XXX 'x' to 'y' for testing !!!
+def aa_to_info(aa, pols=['x'], **kwargs):
     '''Use aa.ant_layout to generate redundances based on ideal placement.
     The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
     layout = aa.ant_layout
