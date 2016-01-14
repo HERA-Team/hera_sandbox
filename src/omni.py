@@ -47,7 +47,7 @@ class RedundantInfo(omnical.info.RedundantInfo):
     def bl_order(self):
         '''Return (i,j) baseline tuples in the order that they should appear in data.  Antenna indicies
         are in real-world order (as opposed to the internal ordering used in subsetant).'''
-        return [(Antpol(self.subsetant[i],self.nant),Antpol(self.subsetant[j],self.nant)) for (i,j) in self.bl2d]
+        return [(Antpol(self.subsetant[i],'y',self.nant),Antpol(self.subsetant[j],'y',self.nant)) for (i,j) in self.bl2d] #HACK HACK HACK need to find a way to input pols
     def order_data(self, dd):
         '''Create a data array ordered for use in _omnical.redcal.  'dd' is
         a dict whose keys are (i,j) antenna tuples; antennas i,j should be ordered to reflect
