@@ -59,14 +59,18 @@ class RedundantInfo(omnical.info.RedundantInfo):
     def ant_index(self, i):
         try: return self._ant2ind[i]
         except(AttributeError):
+        	print i
             self._ant2ind = {}
             for x,ant in enumerate(self.subsetant): self._ant2ind[ant] = x
-            return self._ant2ind[i.ant()]
+            return self._ant2ind[i]
     
 
 def compute_reds(nant, *args, **kwargs):
     reds = omnical.arrayinfo.compute_reds(*args, **kwargs)
-    return [map(lambda bl: (Antpol(bl[0],'y',nant),Antpol(bl[1],'y',nant)), gp) for gp in reds]#XXX HACK HACK HACK need to pass a pol in here
+    #a2p = lambda a: NUMPOL[a%nant]
+    #return [map(lambda bl: (Antpol(bl[0],a2p(bl[0]),nant),Antpol(bl[1],a2p(bl[1]),nant)), gp) for gp in reds]#XXX HACK HACK HACK need to pass a pol in here
+    return [map(lambda bl: (Antpol(bl[0],'x',nant),Antpol(bl[1],'x',nant)), gp) for gp in reds]#XXX HACK HACK HACK need to pass a pol in here
+    
 
     
 def aa_to_info(aa, pols=['x'], **kwargs):
