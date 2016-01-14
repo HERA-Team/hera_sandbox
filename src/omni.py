@@ -47,7 +47,8 @@ class RedundantInfo(omnical.info.RedundantInfo):
     def bl_order(self):
         '''Return (i,j) baseline tuples in the order that they should appear in data.  Antenna indicies
         are in real-world order (as opposed to the internal ordering used in subsetant).'''
-        return [(Antpol(self.subsetant[i],'y',self.nant),Antpol(self.subsetant[j],'y',self.nant)) for (i,j) in self.bl2d] #HACK HACK HACK need to find a way to input pols
+        return [(Antpol(self.subsetant[i],'x',self.nant),Antpol(self.subsetant[j],'x',self.nant)) for (i,j) in self.bl2d] #HACK HACK HACK need to find a way to input pols
+    
     def order_data(self, dd):
         '''Create a data array ordered for use in _omnical.redcal.  'dd' is
         a dict whose keys are (i,j) antenna tuples; antennas i,j should be ordered to reflect
@@ -108,7 +109,7 @@ def compute_reds(nant, *args, **kwargs):
     reds = omnical.arrayinfo.compute_reds(*args, **kwargs)
     #a2p = lambda a: NUMPOL[a%nant]
     #return [map(lambda bl: (Antpol(bl[0],a2p(bl[0]),nant),Antpol(bl[1],a2p(bl[1]),nant)), gp) for gp in reds]#XXX HACK HACK HACK need to pass a pol in here
-    return [map(lambda bl: (Antpol(bl[0],'y',nant),Antpol(bl[1],'y',nant)), gp) for gp in reds]#XXX HACK HACK HACK need to pass a pol in here
+    return [map(lambda bl: (Antpol(bl[0],'x',nant),Antpol(bl[1],'x',nant)), gp) for gp in reds]#XXX HACK HACK HACK need to pass a pol in here
     
 
     
