@@ -58,7 +58,7 @@ class RedundantInfo(omnical.info.RedundantInfo):
 
 def compute_reds(nant, *args, **kwargs):
     reds = omnical.arrayinfo.compute_reds(*args, **kwargs)
-    return [map(lambda bl: (Antpol(bl[0],NUMPOL[bl[0]/nant],nant),Antpol(bl[1],NUMPOL[bl[1]/nant],nant)), gp) for gp in reds]
+    return [map(lambda bl: (Antpol(bl[0],'y',nant),Antpol(bl[1],'y',nant)), gp) for gp in reds]#XXX HACK HACK HACK need to pass a pol in here
 
     
 def aa_to_info(aa, pols=['x'], **kwargs):
