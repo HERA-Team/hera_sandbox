@@ -94,7 +94,7 @@ class RedundantInfo(omnical.info.RedundantInfo):
         # XXX nothing up to this point requires antloc; in principle, degenM can be deduced
         # from reds alone, removing need for antpos.  So that'd be nice, someday
         self.antloc = antpos.take(self.subsetant, axis=0).astype(np.float32)
-        self.ubl = np.array([np.mean([antpos[j]-antpos[i] for i,j in ublgp],axis=0) for ublgp in reds], dtype=np.float32)
+        self.ubl = np.array([np.mean([antpos[j.ant()]-antpos[i.ant()] for i,j in ublgp],axis=0) for ublgp in reds], dtype=np.float32)
         # XXX why are 1,0 appended to positions/ubls?
         a = np.array([np.append(ai,1) for ai in self.antloc], dtype=np.float32)
         d = np.array([np.append(ubli,0) for ubli in self.ubl], dtype=np.float32)
