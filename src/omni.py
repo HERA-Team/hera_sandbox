@@ -56,16 +56,6 @@ class RedundantInfo(omnical.info.RedundantInfo):
             except(KeyError): d.append(dd[bl[::-1]][pol[::-1]].conj())
         return np.array(d).transpose((1,2,0))
     
-    def ant_index(self, i):
-        try: 
-        	print i
-        	return self._ant2ind[int(i)]
-        except(AttributeError):
-        	print 'Attribute error',i
-        	self._ant2ind = {}
-        	for x,ant in enumerate(self.subsetant): self._ant2ind[ant] = x
-        	#print self._ant2ind
-        	return self._ant2ind[int(i)]
     def init_from_reds(self, reds, antpos):
         '''Initialize RedundantInfo from a list where each entry is a group of redundant baselines.
         Each baseline is a (i,j) tuple, where i,j are antenna indices.  To ensure baselines are
@@ -78,34 +68,6 @@ class RedundantInfo(omnical.info.RedundantInfo):
                 ants[j] = ants.get(j,0) + 1
         self.subsetant = np.array([a.ant() for a in ants.keys()], dtype=np.int32)
         #XXX ^this^ is the only changed line so far
-        self.nAntenna = self.subsetant.size
-        nUBL = len(reds)
-        bl2d = np.array([(self.ant_index(i),self.ant_index(j),u) for u,ubl_gp in enumerate(reds) for i,j in ubl_gp], dtype=np.int32)
-        self.bl2d = bl2d[:,:2]
-        self.nBaseline = bl2d.shape[0]
-        self.bltoubl = bl2d[:,2]
-        self.ublcount = np.array([len(ubl_gp) for ubl_gp in reds], dtype=np.int32)
-        self.ublindex = np.arange(self.nBaseline, dtype=np.int32)
-        bl1dmatrix = (2**31-1) * np.ones((self.nAntenna,self.nAntenna),dtype=np.int32)
-        for n,(i,j) in enumerate(self.bl2d): bl1dmatrix[i,j], bl1dmatrix[j,i] = n,n
-        self.bl1dmatrix = bl1dmatrix
-        self.blperant = np.array([ants[a] for a in sorted(ants.keys())], dtype=int)
-        #A: A matrix for logcal amplitude
-        A,B = np.zeros((self.nBaseline,self.nAntenna+nUBL)), np.zeros((self.nBaseline,self.nAntenna+nUBL))
-        for n,(i,j) in enumerate(self.bl2d):
-            A[n,i], A[n,j], A[n,self.nAntenna+self.bltoubl[n]] = 1,1,1
-            B[n,i], B[n,j], B[n,self.nAntenna+self.bltoubl[n]] = -1,1,1
-        self.At, self.Bt = sps.csr_matrix(A).T, sps.csr_matrix(B).T
-        # XXX nothing up to this point requires antloc; in principle, degenM can be deduced
-        # from reds alone, removing need for antpos.  So that'd be nice, someday
-        self.antloc = antpos.take(self.subsetant, axis=0).astype(np.float32)
-        self.ubl = np.array([np.mean([antpos[j]-antpos[i] for i,j in ublgp],axis=0) for ublgp in reds], dtype=np.float32)
-        # XXX why are 1,0 appended to positions/ubls?
-        a = np.array([np.append(ai,1) for ai in self.antloc], dtype=np.float32)
-        d = np.array([np.append(ubli,0) for ubli in self.ubl], dtype=np.float32)
-        m1 = -a.dot(la.pinv(a.T.dot(a))).dot(a.T)
-        m2 = d.dot(la.pinv(a.T.dot(a))).dot(a.T)
-        self.degenM = np.append(m1,m2,axis=0)
         self.update()
     
 
