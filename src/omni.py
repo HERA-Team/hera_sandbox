@@ -105,10 +105,8 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,
         		meta['res'] = res
         		continue
         	
-        	print key
-        	print key.split('chisq')[1]
-        	
-        	ant = int(key.split('chisq')[1])
+        	try: ant = int(key.split('chisq')[1])
+        	except(ValueError): meta[key] = _meta[key] #XXX this is due to a single array with key "chisq" i.e. no antnum associated
         	ap = mk_ap(ant)
         	meta[ap] = _meta[key]
         
