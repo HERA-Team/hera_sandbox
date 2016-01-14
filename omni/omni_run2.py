@@ -40,7 +40,7 @@ else: #generate reds from calfile
     #ex_ants = [72,53] + [48,82,83,37] + [107,15,16] + [92,7] + [27,50,54] + [26,38,110,46]
     #ex_ants += [29,24,28,55] + [68,17,69,13] + [76,5,77,32] + [84,40,85,14] # are all these bad?
     #ex_ants += [57,63,8,74]
-    info = capo.omni.aa_to_info(aa, ex_ants=ex_ants)
+    info = capo.omni.aa_to_info(aa, pols=['y'], ex_ants=ex_ants)
 
 reds = info.get_reds()
 reds_02 = omnical.arrayinfo.filter_reds(reds, ubls=[(64,10)]) #30m E/W baselines
@@ -75,7 +75,7 @@ for f,filename in enumerate(args):
         data = d
         #data[(i,j)] = d[bl][pol]
         wgts[(j,i)] = wgts[(i,j)] = numpy.logical_not(f[bl][pol]).astype(numpy.int)
-    #import IPython;IPython.embed()
+    import IPython;IPython.embed()
     print '   Logcal-ing'
     #import IPython;IPython.embed() 
     m1,g1,v1 = capo.omni.redcal(data,info,gains=g0[pol])
@@ -85,7 +85,7 @@ for f,filename in enumerate(args):
         # ultimately returns m,g,v indexed by pol and then ant
     print '   Lincal-ing'
     m2[pol],g2[pol[0]],v2[pol] = omnical.calib.redcal(data, info, gains=g1, vis=v1, uselogcal=False, removedegen=True)
-    import IPython;IPython.embed()
+    #import IPython;IPython.embed()
     xtalk[pol] = capo.omni.compute_xtalk(m2[pol]['res'], wgts) #xtalk is time-average of residual
     print '   Saving '+opts.omnipath+filename.split('/')[-1]+'2.npz'
     m2[pol]['history'] = 'OMNI_RUN: ' + ' '.join(sys.argv) + '\n'
