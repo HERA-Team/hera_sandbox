@@ -83,8 +83,8 @@ def aa_to_info(aa, pols=['x'], **kwargs):
     return info
 
 
-def redcal_Apkeys(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
-    _meta, _gain, _vis = omnical.calib.redcal(data, info, xtalk=None, gains=None, vis=None, removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1)    
+def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
+    _meta, _gain, _vis = omnical.calib.redcal(data, info, xtalk=xtalk, gains=gains, vis=vis, removedegen=removedegen, uselogcal=uselogcal, maxiter=maxiter, conv=conv, stepsize=stepsize, computeUBLFit=computeUBLFit, trust_period=trust_period)    
     meta, gain, vis, res = {}, {}, {}, {}
     mk_ap = lambda a: Antpol(a,NUMPOL[ant / info.nant], info.nant)
     for key in _meta.keys():
@@ -111,7 +111,7 @@ def redcal_Apkeys(data, info, xtalk=None, gains=None, vis=None,removedegen=False
         vis[(api,apj)] = _vis[bl]
     return meta, gain, vis
 
-def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
+def redcal_polkeys(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
     _meta, _gain, _vis = omnical.calib.redcal(data, info, xtalk=None, gains=None, vis=None, removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1)    
     meta, gain, vis, res = {}, {}, {}, {}
     mk_ap = lambda a: Antpol(a,NUMPOL[ant / info.nant], info.nant)
