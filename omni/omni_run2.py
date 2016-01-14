@@ -51,32 +51,43 @@ print 'Getting gains from calpar'
 g0 = {} 
 for k in calpar.keys(): #loop over pol
     g0[k] = {}
+    #g0['yy'] = {}
     for i in xrange(calpar[k].shape[1]): #loop over antennas
-        g0[k][i] = calpar[k][:,i] / numpy.abs(calpar[k][:,i]) #gains have len(nfreq)
+        #g0['yy'][i] = calpar[k][:,i] / numpy.abs(calpar[k][:,i]) #gains have len(nfreq)
+        g0[k][i] = calpar[k][:,i] / numpy.abs(calpar[k][:,i])
 #XXX g0 pol should eventually be just 'x' or 'y' instead of 'xx'/'yy'
 
 ### Loop Through Compressed Files ###
 for f,filename in enumerate(args):
     print 'Reading', filename
     pol = filename.split('.')[-2] #XXX assumes 1 pol per file
-    t_lst,d,f = capo.arp.get_dict_of_uv_data([filename],antstr='cross',polstr=pol,return_lsts=True) #XXX could try reading only bls in reds
-    t_jd,d,f = capo.arp.get_dict_of_uv_data([filename],antstr='cross',polstr=pol) #XXX could try reading only bls in reds
+    timeinfo,d,f = capo.arp.get_dict_of_uv_data([filename],antstr='cross',polstr=pol) #XXX could try reading only bls in reds
+    t_jd = timeinfo['times']
+    t_lst = timeinfo['lsts']
     freqs = numpy.linspace(.1,.2,len(d[d.keys()[0]][pol][0]))
     SH = d.values()[0].values()[0].shape #shape of file data (ex: (19,203))
     data,wgts,xtalk = {}, {}, {}
     m2,g2,v2 = {}, {}, {}
     for i in g0[pol]: g0[pol][i] = numpy.resize(g0[pol][i],SH) #resize gains like data
     for bl in d: 
-        i,j = aipy.miriad.bl2ij(bl)
-        data[(i,j)] = d[bl][pol]
+        i,j = bl
+        #i,j = aipy.miriad.bl2ij(bl)
+        data = d
+        #data[(i,j)] = d[bl][pol]
         wgts[(j,i)] = wgts[(i,j)] = numpy.logical_not(f[bl][pol]).astype(numpy.int)
-    print '   Logcal-ing' 
-    m1,g1,v1 = omnical.calib.redcal(data,info,gains=g0[pol])
     #import IPython;IPython.embed()
+    print '   Logcal-ing'
+    #import IPython;IPython.embed() 
+    m1,g1,v1 = capo.omni.redcal(data,info,gains=g0[pol])
+    #m1,g1,v1 = omnical.calib.redcal(data,info,gains=g0[pol])
+    # write redcal function in omni.py that wraps omnical.calib.redcal... 
+        # create Antpols 
+        # ultimately returns m,g,v indexed by pol and then ant
+    import IPython;IPython.embed()
     print '   Lincal-ing'
     m2[pol],g2[pol[0]],v2[pol] = omnical.calib.redcal(data, info, gains=g1, vis=v1, uselogcal=False, removedegen=True)
     xtalk[pol] = capo.omni.compute_xtalk(m2[pol]['res'], wgts) #xtalk is time-average of residual
-    print '   Saving '+opts.omnipath+filename.split('/')[-1]+'.npz'
+    print '   Saving '+opts.omnipath+filename.split('/')[-1]+'2.npz'
     m2[pol]['history'] = 'OMNI_RUN: ' + ' '.join(sys.argv) + '\n'
-    capo.omni.to_npz(opts.omnipath+filename.split('/')[-1]+'.npz', m2, g2, v2, xtalk,t_jd,t_lst,freqs)
+    capo.omni.to_npz(opts.omnipath+filename.split('/')[-1]+'2.npz', m2, g2, v2, xtalk,t_jd,t_lst,freqs)
     
