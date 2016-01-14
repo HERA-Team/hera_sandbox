@@ -108,7 +108,7 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,
         	try: ant = int(key.split('chisq')[1])
         	except(ValueError): meta[key] = _meta[key] #XXX this is due to a single array with key "chisq" i.e. no antnum associated
         	ap = mk_ap(ant)
-        	meta['chisq'+ap] = _meta[key]
+        	meta['chisq'+str(ap)] = _meta[key] #XXX it might be worth making chisq a nested dictionary, with individual antpol keys
         
         for ant in _gain.keys():
         	ap = mk_ap(ant)
