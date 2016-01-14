@@ -60,9 +60,9 @@ class RedundantInfo(omnical.info.RedundantInfo):
         try: return self._ant2ind[i]
         except(AttributeError):
         	print i
-            self._ant2ind = {}
-            for x,ant in enumerate(self.subsetant): self._ant2ind[ant] = x
-            return self._ant2ind[i]
+        	self._ant2ind = {}
+        	for x,ant in enumerate(self.subsetant): self._ant2ind[ant] = x
+        	return self._ant2ind[i]
     
 
 def compute_reds(nant, *args, **kwargs):
