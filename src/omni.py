@@ -1,5 +1,5 @@
 import numpy as np, omnical
-import np.linalg as la
+import numpy.linalg as la
 import warnings
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore",category=DeprecationWarning)
