@@ -57,9 +57,11 @@ class RedundantInfo(omnical.info.RedundantInfo):
         return np.array(d).transpose((1,2,0))
     
     def ant_index(self, i):
-        try: return self._ant2ind[i]
-        except(AttributeError):
+        try: 
         	print i
+        	return self._ant2ind[i]
+        except(AttributeError):
+        	print 'Attribute error',i
         	self._ant2ind = {}
         	for x,ant in enumerate(self.subsetant): self._ant2ind[ant] = x
         	return self._ant2ind[i]
