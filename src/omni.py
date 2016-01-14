@@ -47,7 +47,7 @@ class RedundantInfo(omnical.info.RedundantInfo):
     def bl_order(self):
         '''Return (i,j) baseline tuples in the order that they should appear in data.  Antenna indicies
         are in real-world order (as opposed to the internal ordering used in subsetant).'''
-        return [(Antpol(self.subsetant[i],'x',self.nant),Antpol(self.subsetant[j],'x',self.nant)) for (i,j) in self.bl2d] #HACK HACK HACK need to find a way to input pols
+        return [(Antpol(self.subsetant[i],self.nant),Antpol(self.subsetant[j],self.nant)) for (i,j) in self.bl2d] #HACK HACK HACK need to find a way to input pols
     
     def order_data(self, dd):
         '''Create a data array ordered for use in _omnical.redcal.  'dd' is
@@ -61,7 +61,7 @@ class RedundantInfo(omnical.info.RedundantInfo):
             try: d.append(dd[bl][pol])
             except(KeyError): d.append(dd[bl[::-1]][pol[::-1]].conj())
         return np.array(d).transpose((1,2,0))
-    
+    """
     def init_from_reds(self, reds, antpos):
         '''Initialize RedundantInfo from a list where each entry is a group of redundant baselines.
         Each baseline is a (i,j) tuple, where i,j are antenna indices.  To ensure baselines are
@@ -103,13 +103,13 @@ class RedundantInfo(omnical.info.RedundantInfo):
         m2 = d.dot(la.pinv(a.T.dot(a))).dot(a.T)
         self.degenM = np.append(m1,m2,axis=0)
         self.update()
-    
+    """
 
 def compute_reds(nant, *args, **kwargs):
     reds = omnical.arrayinfo.compute_reds(*args, **kwargs)
     #a2p = lambda a: NUMPOL[a%nant]
     #return [map(lambda bl: (Antpol(bl[0],a2p(bl[0]),nant),Antpol(bl[1],a2p(bl[1]),nant)), gp) for gp in reds]#XXX HACK HACK HACK need to pass a pol in here
-    return [map(lambda bl: (Antpol(bl[0],'x',nant),Antpol(bl[1],'x',nant)), gp) for gp in reds]#XXX HACK HACK HACK need to pass a pol in here
+    return [map(lambda bl: (Antpol(bl[0],nant),Antpol(bl[1],nant)), gp) for gp in reds]#XXX HACK HACK HACK need to pass a pol in here
     
 
     
@@ -118,13 +118,14 @@ def aa_to_info(aa, pols=['x'], **kwargs):
     The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
     layout = aa.ant_layout
     nant = len(aa)
-    antpos = -np.ones((nant*len(pols),3)) # -1 to flag unused antennas
+    antpos = -np.ones((nant*len(pols)*2,3)) # -1 to flag unused antennas
     xs,ys = np.indices(layout.shape)
     for ant,x,y in zip(layout.flatten(), xs.flatten(), ys.flatten()):
         for z,pol in enumerate(pols):
             z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
             i = Antpol(ant,pol,len(aa))
-            antpos[i.ant(),0],antpos[i.ant(),1],antpos[i.ant(),2] = x,y,z
+            #antpos[i.ant(),0],antpos[i.ant(),1],antpos[i.ant(),2] = x,y,z
+            antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
     reds = compute_reds(nant, antpos,tol=.1)
     # XXX haven't enforced xy = yx yet.  need to conjoin red groups for that
     ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] < 0]
