@@ -104,7 +104,10 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,
         			res[(api,apj)] = _meta[key][bl]
         		meta['res'] = res
         		continue
-        		
+        	
+        	print key
+        	print key.split('chisq')[1]
+        	
         	ant = int(key.split('chisq')[1])
         	ap = mk_ap(ant)
         	meta[ap] = _meta[key]
