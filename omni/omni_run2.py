@@ -83,9 +83,9 @@ for f,filename in enumerate(args):
     # write redcal function in omni.py that wraps omnical.calib.redcal... 
         # create Antpols 
         # ultimately returns m,g,v indexed by pol and then ant
-    import IPython;IPython.embed()
     print '   Lincal-ing'
     m2[pol],g2[pol[0]],v2[pol] = omnical.calib.redcal(data, info, gains=g1, vis=v1, uselogcal=False, removedegen=True)
+    import IPython;IPython.embed()
     xtalk[pol] = capo.omni.compute_xtalk(m2[pol]['res'], wgts) #xtalk is time-average of residual
     print '   Saving '+opts.omnipath+filename.split('/')[-1]+'2.npz'
     m2[pol]['history'] = 'OMNI_RUN: ' + ' '.join(sys.argv) + '\n'
