@@ -84,8 +84,8 @@ def aa_to_info(aa, pols=['x'], **kwargs):
 
 
 def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
-    _meta, _gain, _vis = omnical.calib.redcal(data, info, xtalk=None, gains=None, vis=None, removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1)    
-    meta, gains, vis, res = {}, {}, {}, {}
+    _meta, _gain, _vis = omnical.calib.redcal(data, info, xtalk=xtalk, gains=gains, vis=vis, removedegen=removedegen, uselogcal=uselogcal, maxiter=maxiter, conv=conv, stepsize=stepsize, computeUBLFit=computeUBLFit, trust_period=trust_period)    
+    meta, gain, vis, res = {}, {}, {}, {}
     mk_ap = lambda a: Antpol(a,NUMPOL[ant / info.nant], info.nant)
     for key in _meta.keys():
 		if key == 'iter': 
@@ -103,13 +103,48 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselo
 		except(ValueError): meta[key] = _meta[key] #XXX this is due to a single array with key "chisq" i.e. no antnum associated
 		ap = mk_ap(ant)
 		meta['chisq'+str(ap)] = _meta[key] #XXX it might be worth making chisq a nested dictionary, with individual antpol keys
-    for ant in _gain.keys(): gains[mk_ap(ant)] = _gain[ant]
+    for ant in _gain.keys(): gain[mk_ap(ant)] = _gain[ant]
     for bl in _vis.keys():
         i,j = bl
         api = mk_ap(i)
         apj = mk_ap(j)
         vis[(api,apj)] = _vis[bl]
-    return meta, gains, vis
+    return meta, gain, vis
+
+def redcal_polkeys(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
+    _meta, _gain, _vis = omnical.calib.redcal(data, info, xtalk=None, gains=None, vis=None, removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1)    
+    meta, gain, vis, res = {}, {}, {}, {}
+    mk_ap = lambda a: Antpol(a,NUMPOL[ant / info.nant], info.nant)
+    Npols = info.nant/max(_gain.keys())
+    for pi in range(Npols): #gains and chisqare per Antpol
+    	gains[NUMPOL[pi]] = {} 
+    	meta[NUMPOL[pi]] = {}
+    	for pj in range(Npols): #res and vis per Antpol pair
+    		vis[NUMPOL[pi]+NUMPOL[pj]] = {}
+    		res[NUMPOL[pi]+NUMPOL[pj]] = {} 
+    for key in _meta.keys():
+    	if key=='iter': #XXX what is iter there for?
+    		meta[key] = _meta[key]
+    		continue
+    	if key=='chisq': #XXX what is this there for (no ant index)?
+    		meta[key] = _meta[key]
+    		continue
+    	if key=='res':
+    		for i,j in _meta[key].keys():
+    			api,apj = mk_ap(i),mk_ap(j)
+    			res[api.pol()+apj.pol()][(api.ant(),apj.ant())] = _meta[key][(i,j)]
+    		meta['res'] = res
+    		continue
+    	ant = int(key.split('chisq')[1])
+    	ap = mk_ap(ant)
+    	meta[ap.pol()]['chisq'+str(ap.ant())] = _meta[key]
+    for ant in _gain.keys():
+    	ap = mk_ap(ant)
+    	gain[ap.pol()][ap.ant()] = _gain[key]
+    for i,j in _vis.keys(): #XXX this could happen in the "res" loop above
+    	api,apj = mk_ap(i),mk_ap(j)
+    	vis[api.pol()+apj.pol()][(api.ant(),apj.ant())] = _vis[(i,j)]
+    return meta, gain, vis
 
 def compute_xtalk(res, wgts):
     '''Estimate xtalk as time-average of omnical residuals.'''
