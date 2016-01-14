@@ -64,6 +64,7 @@ class RedundantInfo(omnical.info.RedundantInfo):
         	print 'Attribute error',i
         	self._ant2ind = {}
         	for x,ant in enumerate(self.subsetant): self._ant2ind[ant] = x
+        	print self._ant2ind
         	return self._ant2ind[i]
     
 
