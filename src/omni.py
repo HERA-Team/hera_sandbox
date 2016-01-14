@@ -83,46 +83,43 @@ def aa_to_info(aa, pols=['x'], **kwargs):
     return info
 
 
-def redcal(data, info, xtalk=None, gains=None, vis=None,
-        removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
+def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
         
-        _meta, _gain, _vis = omnical.calib.redcal(data, info, xtalk=None, gains=None, vis=None, removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1)
+	_meta, _gain, _vis = omnical.calib.redcal(data, info, xtalk=None, gains=None, vis=None, removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1)
         
-        meta, gains, vis, res = {}, {}, {}, {}
-        mk_ap = lambda a: Antpol(a,NUMPOL[ant / info.nant], info.nant)
-        
-        for key in _meta.keys():
-        	if key == 'iter': 
-        		meta[key] = _meta[key]
-        		continue
-        	
-        	if key == 'res':
-        		for bl in _meta[key].keys():
-        			i,j = bl
-        			api = mk_ap(i)
-        			apj = mk_ap(j)
-        			res[(api,apj)] = _meta[key][bl]
-        		meta['res'] = res
-        		continue
-        	
-        	try: ant = int(key.split('chisq')[1])
-        	except(ValueError): meta[key] = _meta[key] #XXX this is due to a single array with key "chisq" i.e. no antnum associated
-        	ap = mk_ap(ant)
-        	meta['chisq'+str(ap)] = _meta[key] #XXX it might be worth making chisq a nested dictionary, with individual antpol keys
-        
-        for ant in _gain.keys():
-        	ap = mk_ap(ant)
-        	gains[ap] = _gain[ant]
-        
-        for bl in _vis.keys():
-        	print bl
-        	i,j = bl
-        	api = mk_ap(i)
-        	apj = mk_ap(j)
-        	print i,j,api,apj
-        	vis[(api,apj)] = _vis[bl]
+    meta, gains, vis, res = {}, {}, {}, {}
+    mk_ap = lambda a: Antpol(a,NUMPOL[ant / info.nant], info.nant)
+	
+	for key in _meta.keys():
+		if key == 'iter': 
+			meta[key] = _meta[key]
+			continue
 		
-		return meta, gains, vis
+		if key == 'res':
+			for bl in _meta[key].keys():
+				i,j = bl
+				api = mk_ap(i)
+				apj = mk_ap(j)
+				res[(api,apj)] = _meta[key][bl]
+			meta['res'] = res
+			continue
+		
+		try: ant = int(key.split('chisq')[1])
+		except(ValueError): meta[key] = _meta[key] #XXX this is due to a single array with key "chisq" i.e. no antnum associated
+		ap = mk_ap(ant)
+		meta['chisq'+str(ap)] = _meta[key] #XXX it might be worth making chisq a nested dictionary, with individual antpol keys
+	
+	for ant in _gain.keys():
+		ap = mk_ap(ant)
+		gains[ap] = _gain[ant]
+	
+	for bl in _vis.keys():
+		i,j = bl
+		api = mk_ap(i)
+		apj = mk_ap(j)
+		vis[(api,apj)] = _vis[bl]
+		
+	return meta, gains, vis
 
 
 def compute_xtalk(res, wgts):
