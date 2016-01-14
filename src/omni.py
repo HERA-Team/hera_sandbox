@@ -88,13 +88,23 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,
         
         _meta, _gain, _vis = omnical.calib.redcal(data, info, xtalk=None, gains=None, vis=None, removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1)
         
-        meta, gains, vis = {}, {}, {}
+        meta, gains, vis, res = {}, {}, {}, {}
         mk_ap = lambda a: Antpol(a,NUMPOL[ant / info.nant], info.nant)
         
         for key in _meta.keys():
         	if key == 'iter': 
-        		meta[key] = _meta[iter]
+        		meta[key] = _meta[key]
         		continue
+        	
+        	if key == 'res':
+        		for bl in _meta[key].keys():
+        			i,j = bl
+        			api = mk_ap(i)
+        			apj = mk_ap(j)
+        			res[(api,apj)] = _meta[key][bl]
+        		meta['res'] = res
+        		continue
+        		
         	ant = int(key.split('chisq')[1])
         	ap = mk_ap(ant)
         	meta[ap] = _meta[key]
