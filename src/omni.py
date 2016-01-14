@@ -72,7 +72,7 @@ def aa_to_info(aa, pols=['x'], **kwargs):
         for z,pol in enumerate(pols):
             z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
             i = Antpol(ant,pol,len(aa))
-            antpos[int(i),0],antpos[int(i),1],antpos[int(i),2] = x,y,z
+            antpos[i.ant(),0],antpos[i.ant(),1],antpos[i.ant(),2] = x,y,z
     reds = compute_reds(nant, antpos,tol=.1)
     # XXX haven't enforced xy = yx yet.  need to conjoin red groups for that
     ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] < 0]
