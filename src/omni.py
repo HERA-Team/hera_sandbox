@@ -55,6 +55,14 @@ class RedundantInfo(omnical.info.RedundantInfo):
             try: d.append(dd[bl][pol])
             except(KeyError): d.append(dd[bl[::-1]][pol[::-1]].conj())
         return np.array(d).transpose((1,2,0))
+    
+    def ant_index(self, i):
+        try: return self._ant2ind[i]
+        except(AttributeError):
+            self._ant2ind = {}
+            for x,ant in enumerate(self.subsetant): self._ant2ind[ant] = x
+            return self._ant2ind[i.ant()]
+    
 
 def compute_reds(nant, *args, **kwargs):
     reds = omnical.arrayinfo.compute_reds(*args, **kwargs)
