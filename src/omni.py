@@ -206,7 +206,7 @@ def from_npz(filename, meta={}, gains={}, vismdl={}, xtalk={}):
     
     kws = ['chi','hist','j','l','f']
     for kw in kws:
-        for k in [f for f in npz.files if any(f.startswith(kw))]: meta[k] = npz[k]
+        for k in [f for f in npz.files if f.startswith(kw)]: meta[k] = npz[k]
     """
     for k in [f for f in npz.files if f.startswith('chi')]: #[0].isalpha()]:
         meta[k] = npz[k]
