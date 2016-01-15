@@ -102,7 +102,7 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselo
         for pol in gains:
             for i in gains[pol]:
                 ai = Antpol(i,pol,info.nant)
-                _gains[int(ai)] = gains[pol][i]
+                _gains[int(ai)] = gains[pol][i].conj()
     else: _gains = gains
     if vis:
         _vis = {}
@@ -129,7 +129,7 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselo
     for i in gains.keys():
         ap = mk_ap(i)
         if not gains.has_key(ap.pol()): gains[ap.pol()] = {}
-        gains[ap.pol()][ap.ant()] = gains.pop(i)
+        gains[ap.pol()][ap.ant()] = gains.pop(i).conj()
     for i,j in vis.keys():
         api,apj = mk_ap(i),mk_ap(j)
         pol = api.pol() + apj.pol()
