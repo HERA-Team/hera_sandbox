@@ -96,18 +96,30 @@ def aa_to_info(aa, pols=['x'], **kwargs):
 def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
     # XXX add layer to support new gains format
     meta, gain, vis = omnical.calib.redcal(data, info, xtalk=xtalk, gains=gains, vis=vis, removedegen=removedegen, uselogcal=uselogcal, maxiter=maxiter, conv=conv, stepsize=stepsize, computeUBLFit=computeUBLFit, trust_period=trust_period)    
-    # XXX rewrap to new format
+    # rewrap to new format
     def mk_ap(a): return Antpol(a, info.nant)
     for i,j in meta['res']:
-        meta['res'][(mk_ap(i),mk_ap(j))] = meta['res'].pop((i,j))
-    #XXX it might be worth making chisq a nested dictionary, with individual antpol keys
+        api,apj = mk_ap(i),mk_ap(j)
+        pol = api.pol() + apj.pol()
+        bl = (api.ant(), apj.ant())
+        if not meta['res'].has_key(pol): meta['res'][pol] = {}
+        meta['res'][pol][bl] = meta['res'].pop((i,j))
+    #XXX make chisq a nested dict, with individual antpol keys?
     for k in [k for k in meta.keys() if k.startswith('chisq')]:
-		try:
+        try:
             ant = int(k.split('chisq')[1])
             meta['chisq'+str(mk_ap(ant))] = meta.pop(k)
-		except(ValueError): pass
-    for ant in gain.keys(): gain[mk_ap(ant)] = gain.pop(ant)
-    for i,j in vis.keys(): vis[(mk_ap(i),mk_ap(j))] = vis.pop((i,j))
+        except(ValueError): pass
+    for i in gain.keys():
+        ap = mk_ap(i)
+        if not gain.has_key(ap.pol()): gain[ap.pol()] = {}
+        gain[ap.pol()][ap.ant()] = gain.pop(i)
+    for i,j in vis.keys():
+        api,apj = mk_ap(i),mk_ap(j)
+        pol = api.pol() + apj.pol()
+        bl = (api.ant(), apj.ant())
+        if not vis.has_key(pol): vis[pol] = {}
+        vis[pol][bl] = vis.pop((i,j))
     return meta, gain, vis
 
 def redcal_polkeys(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
@@ -116,33 +128,33 @@ def redcal_polkeys(data, info, xtalk=None, gains=None, vis=None,removedegen=Fals
     mk_ap = lambda a: Antpol(a,NUMPOL[ant / info.nant], info.nant)
     Npols = info.nant/max(_gain.keys())
     for pi in range(Npols): #gains and chisqare per Antpol
-    	gains[NUMPOL[pi]] = {} 
-    	meta[NUMPOL[pi]] = {}
-    	for pj in range(Npols): #res and vis per Antpol pair
-    		vis[NUMPOL[pi]+NUMPOL[pj]] = {}
-    		res[NUMPOL[pi]+NUMPOL[pj]] = {} 
+        gains[NUMPOL[pi]] = {} 
+        meta[NUMPOL[pi]] = {}
+        for pj in range(Npols): #res and vis per Antpol pair
+            vis[NUMPOL[pi]+NUMPOL[pj]] = {}
+            res[NUMPOL[pi]+NUMPOL[pj]] = {} 
     for key in _meta.keys():
-    	if key=='iter': #XXX what is iter there for?
-    		meta[key] = _meta[key]
-    		continue
-    	if key=='chisq': #XXX what is this there for (no ant index)?
-    		meta[key] = _meta[key]
-    		continue
-    	if key=='res':
-    		for i,j in _meta[key].keys():
-    			api,apj = mk_ap(i),mk_ap(j)
-    			res[api.pol()+apj.pol()][(api.ant(),apj.ant())] = _meta[key][(i,j)]
-    		meta['res'] = res
-    		continue
-    	ant = int(key.split('chisq')[1])
-    	ap = mk_ap(ant)
-    	meta[ap.pol()]['chisq'+str(ap.ant())] = _meta[key]
+        if key=='iter': #XXX what is iter there for?
+            meta[key] = _meta[key]
+            continue
+        if key=='chisq': #XXX what is this there for (no ant index)?
+            meta[key] = _meta[key]
+            continue
+        if key=='res':
+            for i,j in _meta[key].keys():
+                api,apj = mk_ap(i),mk_ap(j)
+                res[api.pol()+apj.pol()][(api.ant(),apj.ant())] = _meta[key][(i,j)]
+            meta['res'] = res
+            continue
+        ant = int(key.split('chisq')[1])
+        ap = mk_ap(ant)
+        meta[ap.pol()]['chisq'+str(ap.ant())] = _meta[key]
     for ant in _gain.keys():
-    	ap = mk_ap(ant)
-    	gain[ap.pol()][ap.ant()] = _gain[key]
+        ap = mk_ap(ant)
+        gain[ap.pol()][ap.ant()] = _gain[key]
     for i,j in _vis.keys(): #XXX this could happen in the "res" loop above
-    	api,apj = mk_ap(i),mk_ap(j)
-    	vis[api.pol()+apj.pol()][(api.ant(),apj.ant())] = _vis[(i,j)]
+        api,apj = mk_ap(i),mk_ap(j)
+        vis[api.pol()+apj.pol()][(api.ant(),apj.ant())] = _vis[(i,j)]
     return meta, gain, vis
 
 def compute_xtalk(res, wgts):
