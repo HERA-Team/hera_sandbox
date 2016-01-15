@@ -203,6 +203,11 @@ def from_npz(filename, meta={}, gains={}, vismdl={}, xtalk={}):
         pol,ant = k[-1:],int(k[:-1])
         if not gains.has_key(pol): gains[pol] = {}
         gains[pol][ant] = npz[k]
+    
+    kws = ['chi','hist','j','l','f']
+    for kw in kws:
+        for k in [f for f in npz.files if any(f.startswith(kw))]: meta[k] = npz[k]
+    """
     for k in [f for f in npz.files if f.startswith('chi')]: #[0].isalpha()]:
         meta[k] = npz[k]
         #key,pol = k.split()
@@ -222,4 +227,5 @@ def from_npz(filename, meta={}, gains={}, vismdl={}, xtalk={}):
     for k in [f for f in npz.files if f.startswith('f')]:
         meta[k] = npz[k]
         #freqs = npz[k]
+    """
     return meta, gains, vismdl, xtalk
