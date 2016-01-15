@@ -5,6 +5,7 @@ with warnings.catch_warnings():
     warnings.filterwarnings("ignore",category=DeprecationWarning)
     import scipy.sparse as sps
     
+POL_TYPES = 'xylrab'
 #XXX this can't support restarts or changing # pols between runs
 POLNUM = {} # factor to multiply ant index for internal ordering, 
 NUMPOL = {}
@@ -18,6 +19,7 @@ NUMPOL = {}
 
 def add_pol(p):
     global NUMPOL
+    assert(p in POL_TYPES)
     POLNUM[p] = len(POLNUM)
     NUMPOL = dict(zip(POLNUM.values(), POLNUM.keys()))
     
