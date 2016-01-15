@@ -147,7 +147,7 @@ def compute_xtalk(res, wgts):
         xtalk[key] = (r.sum(axis=0) / w).astype(res[key].dtype) # avg over time
     return xtalk
 
-def to_npz(filename, meta, gains, vismdl, xtalk, jds, lsts, freqs, conj=True):
+def to_npz(filename, meta, gains, vismdl, xtalk, jds, lsts, freqs):
     '''Write results from omnical.calib.redcal (meta,gains,vismdl) to npz file.
     Each of these is assumed to be a dict keyed by pol, and then by bl/ant/keyword'''
     d = {}
@@ -160,8 +160,7 @@ def to_npz(filename, meta, gains, vismdl, xtalk, jds, lsts, freqs, conj=True):
         # XXX chisq after xtalk removal
     for pol in gains:
         for ant in gains[pol]:
-            if conj: d['%d%s' % (ant,pol)] = gains[pol][ant].conj() # conj to miriad 
-            else: d['%d%s' % (ant,pol)] = gains[pol][ant]
+            d['%d%s' % (ant,pol)] = gains[pol][ant] 
     for pol in vismdl:
         for bl in vismdl[pol]:
             d['<%d,%d> %s' % (bl[0],bl[1],pol)] = vismdl[pol][bl]
