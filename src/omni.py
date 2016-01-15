@@ -146,10 +146,12 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselo
 def compute_xtalk(res, wgts):
     '''Estimate xtalk as time-average of omnical residuals.'''
     xtalk = {}
-    for key in res:
-        r,w = np.where(wgts[key] > 0, res[key], 0), wgts[key].sum(axis=0)
-        w = np.where(w == 0, 1, w)
-        xtalk[key] = (r.sum(axis=0) / w).astype(res[key].dtype) # avg over time
+    for pol in res.keys():
+        xtalk[pol] = {}
+        for key in res[pol] 
+            r,w = np.where(wgts[pol][key] > 0, res[pol][key], 0), wgts[pol][key].sum(axis=0)
+            w = np.where(w == 0, 1, w)
+        xtalk[pol][key] = (r.sum(axis=0) / w).astype(res[pol][key].dtype) # avg over time
     return xtalk
 
 def to_npz(filename, meta, gains, vismdl, xtalk, jds, lsts, freqs):
