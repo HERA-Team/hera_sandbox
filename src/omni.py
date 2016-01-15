@@ -106,9 +106,9 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselo
     else: _gains = gains
     if vis:
         _vis = {}
-        for pi,pj in vis:
+        for pol in vis:
             for i,j in vis[pol]:
-                ai,aj = Antpol(i,pi,info.nant), Antpol(j,pj,info.nant)
+                ai,aj = Antpol(i,pol[0],info.nant), Antpol(j,pol[1],info.nant)
                 _vis[(int(ai),int(aj))] = vis[pol][(i,j)]
     else: _vis = vis
     meta, gains, vis = omnical.calib.redcal(data, info, xtalk=xtalk, gains=_gains, vis=_vis, removedegen=removedegen, uselogcal=uselogcal, maxiter=maxiter, conv=conv, stepsize=stepsize, computeUBLFit=computeUBLFit, trust_period=trust_period)    
