@@ -69,9 +69,14 @@ class RedundantInfo(omnical.info.RedundantInfo):
             except(KeyError): d.append(dd[bl[::-1]][pol[::-1]].conj())
         return np.array(d).transpose((1,2,0))
 
-def compute_reds(nant, *args, **kwargs):
-    reds = omnical.arrayinfo.compute_reds(*args, **kwargs)
-    return [map(lambda bl: (Antpol(bl[0],nant),Antpol(bl[1],nant)), gp) for gp in reds]
+def compute_reds(nant, pols, *args, **kwargs):
+    _reds = omnical.arrayinfo.compute_reds(*args, **kwargs)
+    reds = []
+    for pi in pols:
+        for pj in pols:
+            reds += [[(Antpol(i,pi,nant),Antpol(j,pj,nant)) for i,j in gp] for gp in _reds]
+    return reds
+    #return [map(lambda bl: (Antpol(bl[0],nant),Antpol(bl[1],nant)), gp) for gp in reds]
     
 def aa_to_info(aa, pols=['x'], **kwargs):
     '''Use aa.ant_layout to generate redundances based on ideal placement.
@@ -85,7 +90,7 @@ def aa_to_info(aa, pols=['x'], **kwargs):
             z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
             i = Antpol(ant,pol,len(aa)) # creates index in POLNUM/NUMPOL for pol
             antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
-    reds = compute_reds(nant, antpos,tol=.1)
+    reds = compute_reds(nant, pols, antpos[:nant],tol=.1) # only first nant b/c compute_reds treats pol redundancy separately
     # XXX haven't enforced xy = yx yet.  need to conjoin red groups for that
     ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] < 0]
     kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
