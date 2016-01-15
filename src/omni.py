@@ -5,21 +5,27 @@ with warnings.catch_warnings():
     warnings.filterwarnings("ignore",category=DeprecationWarning)
     import scipy.sparse as sps
     
-POLNUM = {
-    'x':0, # factor to multiply ant index for internal ordering
-    'y':1,
-    'l':2,
-    'r':3,
-    'a':4,
-    'b':5,
-}
+#XXX this can't support restarts or changing # pols between runs
+POLNUM = {} # factor to multiply ant index for internal ordering, 
+NUMPOL = {}
+#    'x':0, 
+#    'y':1,
+#    'l':2,
+#    'r':3,
+#    'a':4,
+#    'b':5,
+#}
 
-NUMPOL = dict(zip(POLNUM.values(), POLNUM.keys()))
+def add_pol(p):
+    global NUMPOL
+    POLNUM[p] = len(POLNUM)
+    NUMPOL = dict(zip(POLNUM.values(), POLNUM.keys()))
     
 class Antpol:
     def __init__(self, *args):
         try:
             ant,pol,nant = args
+            if not POLNUM.has_key(pol): add_pol(pol)
             self.val, self.nant = POLNUM[pol] * nant + ant, nant
         except(ValueError): self.val, self.nant = args
     def antpol(self): return self.val % self.nant, NUMPOL[self.val / self.nant]
@@ -47,8 +53,7 @@ class RedundantInfo(omnical.info.RedundantInfo):
     def bl_order(self):
         '''Return (i,j) baseline tuples in the order that they should appear in data.  Antenna indicies
         are in real-world order (as opposed to the internal ordering used in subsetant).'''
-        return [(Antpol(self.subsetant[i],self.nant),Antpol(self.subsetant[j],self.nant)) for (i,j) in self.bl2d] #HACK HACK HACK need to find a way to input pols
-    
+        return [(Antpol(self.subsetant[i],self.nant),Antpol(self.subsetant[j],self.nant)) for (i,j) in self.bl2d]
     def order_data(self, dd):
         '''Create a data array ordered for use in _omnical.redcal.  'dd' is
         a dict whose keys are (i,j) antenna tuples; antennas i,j should be ordered to reflect
@@ -61,70 +66,22 @@ class RedundantInfo(omnical.info.RedundantInfo):
             try: d.append(dd[bl][pol])
             except(KeyError): d.append(dd[bl[::-1]][pol[::-1]].conj())
         return np.array(d).transpose((1,2,0))
-    """
-    def init_from_reds(self, reds, antpos):
-        '''Initialize RedundantInfo from a list where each entry is a group of redundant baselines.
-        Each baseline is a (i,j) tuple, where i,j are antenna indices.  To ensure baselines are
-        oriented to be redundant, it may be necessary to have i > j.  If this is the case, then
-        when calibrating visibilities listed as j,i data will have to be conjugated.'''
-        ants = {}
-        for ubl_gp in reds:
-            for (i,j) in ubl_gp:
-                ants[i] = ants.get(i,0) + 1
-                ants[j] = ants.get(j,0) + 1
-        self.subsetant = np.array([a.ant() for a in ants.keys()], dtype=np.int32)
-        #XXX ^this^ is the only changed line so far
-        self.nAntenna = self.subsetant.size
-        nUBL = len(reds)
-        bl2d = np.array([(self.ant_index(i),self.ant_index(j),u) for u,ubl_gp in enumerate(reds) for i,j in ubl_gp], dtype=np.int32)
-        self.bl2d = bl2d[:,:2]
-        self.nBaseline = bl2d.shape[0]
-        self.bltoubl = bl2d[:,2]
-        self.ublcount = np.array([len(ubl_gp) for ubl_gp in reds], dtype=np.int32)
-        self.ublindex = np.arange(self.nBaseline, dtype=np.int32)
-        bl1dmatrix = (2**31-1) * np.ones((self.nAntenna,self.nAntenna),dtype=np.int32)
-        for n,(i,j) in enumerate(self.bl2d): bl1dmatrix[i,j], bl1dmatrix[j,i] = n,n
-        self.bl1dmatrix = bl1dmatrix
-        self.blperant = np.array([ants[a] for a in sorted(ants.keys())], dtype=int)
-        #A: A matrix for logcal amplitude
-        A,B = np.zeros((self.nBaseline,self.nAntenna+nUBL)), np.zeros((self.nBaseline,self.nAntenna+nUBL))
-        for n,(i,j) in enumerate(self.bl2d):
-            A[n,i], A[n,j], A[n,self.nAntenna+self.bltoubl[n]] = 1,1,1
-            B[n,i], B[n,j], B[n,self.nAntenna+self.bltoubl[n]] = -1,1,1
-        self.At, self.Bt = sps.csr_matrix(A).T, sps.csr_matrix(B).T
-        # XXX nothing up to this point requires antloc; in principle, degenM can be deduced
-        # from reds alone, removing need for antpos.  So that'd be nice, someday
-        self.antloc = antpos.take(self.subsetant, axis=0).astype(np.float32)
-        self.ubl = np.array([np.mean([antpos[j.ant()]-antpos[i.ant()] for i,j in ublgp],axis=0) for ublgp in reds], dtype=np.float32)
-        # XXX why are 1,0 appended to positions/ubls?
-        a = np.array([np.append(ai,1) for ai in self.antloc], dtype=np.float32)
-        d = np.array([np.append(ubli,0) for ubli in self.ubl], dtype=np.float32)
-        m1 = -a.dot(la.pinv(a.T.dot(a))).dot(a.T)
-        m2 = d.dot(la.pinv(a.T.dot(a))).dot(a.T)
-        self.degenM = np.append(m1,m2,axis=0)
-        self.update()
-    """
 
 def compute_reds(nant, *args, **kwargs):
     reds = omnical.arrayinfo.compute_reds(*args, **kwargs)
-    #a2p = lambda a: NUMPOL[a%nant]
-    #return [map(lambda bl: (Antpol(bl[0],a2p(bl[0]),nant),Antpol(bl[1],a2p(bl[1]),nant)), gp) for gp in reds]#XXX HACK HACK HACK need to pass a pol in here
-    return [map(lambda bl: (Antpol(bl[0],nant),Antpol(bl[1],nant)), gp) for gp in reds]#XXX HACK HACK HACK need to pass a pol in here
-    
-
+    return [map(lambda bl: (Antpol(bl[0],nant),Antpol(bl[1],nant)), gp) for gp in reds]
     
 def aa_to_info(aa, pols=['x'], **kwargs):
     '''Use aa.ant_layout to generate redundances based on ideal placement.
     The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
     layout = aa.ant_layout
     nant = len(aa)
-    antpos = -np.ones((nant*len(pols)*2,3)) # -1 to flag unused antennas
+    antpos = -np.ones((nant*len(pols),3)) # -1 to flag unused antennas
     xs,ys = np.indices(layout.shape)
     for ant,x,y in zip(layout.flatten(), xs.flatten(), ys.flatten()):
         for z,pol in enumerate(pols):
             z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
-            i = Antpol(ant,pol,len(aa))
-            #antpos[i.ant(),0],antpos[i.ant(),1],antpos[i.ant(),2] = x,y,z
+            i = Antpol(ant,pol,len(aa)) # creates index in POLNUM/NUMPOL for pol
             antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
     reds = compute_reds(nant, antpos,tol=.1)
     # XXX haven't enforced xy = yx yet.  need to conjoin red groups for that
@@ -137,7 +94,9 @@ def aa_to_info(aa, pols=['x'], **kwargs):
 
 
 def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
+    # XXX add layer to support new gains format
     _meta, _gain, _vis = omnical.calib.redcal(data, info, xtalk=xtalk, gains=gains, vis=vis, removedegen=removedegen, uselogcal=uselogcal, maxiter=maxiter, conv=conv, stepsize=stepsize, computeUBLFit=computeUBLFit, trust_period=trust_period)    
+    # XXX rewrap to new format
     meta, gain, vis, res = {}, {}, {}, {}
     mk_ap = lambda a: Antpol(a,NUMPOL[ant / info.nant], info.nant)
     for key in _meta.keys():
