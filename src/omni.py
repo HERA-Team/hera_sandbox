@@ -222,4 +222,4 @@ def from_npz(filename, meta={}, gains={}, vismdl={}, xtalk={}):
     for k in [f for f in npz.files if f.startswith('f')]:
         meta[k] = npz[k]
         #freqs = npz[k]
-    return meta, gains, vismdl, xtalk, jds, lsts, freqs
+    return meta, gains, vismdl, xtalk
