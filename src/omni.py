@@ -95,32 +95,19 @@ def aa_to_info(aa, pols=['x'], **kwargs):
 
 def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
     # XXX add layer to support new gains format
-    _meta, _gain, _vis = omnical.calib.redcal(data, info, xtalk=xtalk, gains=gains, vis=vis, removedegen=removedegen, uselogcal=uselogcal, maxiter=maxiter, conv=conv, stepsize=stepsize, computeUBLFit=computeUBLFit, trust_period=trust_period)    
+    meta, gain, vis = omnical.calib.redcal(data, info, xtalk=xtalk, gains=gains, vis=vis, removedegen=removedegen, uselogcal=uselogcal, maxiter=maxiter, conv=conv, stepsize=stepsize, computeUBLFit=computeUBLFit, trust_period=trust_period)    
     # XXX rewrap to new format
-    meta, gain, vis, res = {}, {}, {}, {}
-    mk_ap = lambda a: Antpol(a,NUMPOL[ant / info.nant], info.nant)
-    for key in _meta.keys():
-		if key == 'iter': 
-			meta[key] = _meta[key]
-			continue
-		if key == 'res':
-			for bl in _meta[key].keys():
-				i,j = bl
-				api = mk_ap(i)
-				apj = mk_ap(j)
-				res[(api,apj)] = _meta[key][bl]
-			meta['res'] = res
-			continue
-		try: ant = int(key.split('chisq')[1])
-		except(ValueError): meta[key] = _meta[key] #XXX this is due to a single array with key "chisq" i.e. no antnum associated
-		ap = mk_ap(ant)
-		meta['chisq'+str(ap)] = _meta[key] #XXX it might be worth making chisq a nested dictionary, with individual antpol keys
-    for ant in _gain.keys(): gain[mk_ap(ant)] = _gain[ant]
-    for bl in _vis.keys():
-        i,j = bl
-        api = mk_ap(i)
-        apj = mk_ap(j)
-        vis[(api,apj)] = _vis[bl]
+    def mk_ap(a): return Antpol(a, info.nant)
+    for i,j in meta['res']:
+        meta['res'][(mk_ap(i),mk_ap(j))] = meta['res'].pop((i,j))
+    #XXX it might be worth making chisq a nested dictionary, with individual antpol keys
+    for k in [k for k in meta.keys() if k.startswith('chisq')]:
+		try:
+            ant = int(k.split('chisq')[1])
+            meta['chisq'+str(mk_ap(ant))] = meta.pop(k)
+		except(ValueError): pass
+    for ant in gain.keys(): gain[mk_ap(ant)] = gain.pop(ant)
+    for i,j in vis.keys(): vis[(mk_ap(i),mk_ap(j))] = vis.pop((i,j))
     return meta, gain, vis
 
 def redcal_polkeys(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
