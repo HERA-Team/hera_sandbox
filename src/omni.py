@@ -103,16 +103,18 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselo
             for i in gains[pol]:
                 ai = Antpol(i,pol,info.nant)
                 _gains[int(ai)] = gains[pol][i]
+    else: _gains = gains
     if vis:
         _vis = {}
         for pol in vis:
             for i,j in vis[pol]:
                 ai,aj = Antpol(i,pol,info.nant), Antpol(j,pol,info.nant)
                 _vis[(int(ai),int(aj))] = vis[pol][(i,j)]
+    else: _vis = vis
     meta, gains, vis = omnical.calib.redcal(data, info, xtalk=xtalk, gains=_gains, vis=_vis, removedegen=removedegen, uselogcal=uselogcal, maxiter=maxiter, conv=conv, stepsize=stepsize, computeUBLFit=computeUBLFit, trust_period=trust_period)    
     # rewrap to new format
     def mk_ap(a): return Antpol(a, info.nant)
-    for i,j in meta['res']:
+    for i,j in meta['res'].keys():
         api,apj = mk_ap(i),mk_ap(j)
         pol = api.pol() + apj.pol()
         bl = (api.ant(), apj.ant())
