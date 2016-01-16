@@ -35,12 +35,13 @@ print "array parameters imported"
 
 # fill sky map with GSM
 # create array of GSM files for simulation of multiple frequencies
+# MODIFY TO INCLUDE MULTIPLE GSM FILES AT DIFFERENT FREQUENCIES
 gsm_dir = '/home/kara/capo/kmk/gsm/gsm_raw/gsm'
-gsm_files = [1001, 1002, 1003, 1004, 1005]
+gsm_files = [1001, 1002]
 g = a.healpix.HealpixMap(nside=512)
 gsm = a.healpix.HealpixMap(nside=64)
 print "gsm size = " + str(gsm.map.shape)
-d = np.loadtxt(gsm_dir + str(gsm_files[0]) + '.dat')
+d = np.loadtxt(gsm_dir + str(gsm_files[1]) + '.dat')
 g.map = d
 gsm.from_hpm(g) # hack to lower resolution to prevent memory overload
 gsm.map = gsm.map*4*np.pi/gsm.npix() # convert to Jy to make summable
@@ -61,7 +62,8 @@ i, j, k = ijk = np.dot(ga2eq2top,gsm.px2crd(np.arange(gsm.npix()))) #topocentric
 # X = constant temperature value for global signal
 # N = noise
 
-ants = '(64,10,65,9,72,22,80,20,88,43,96,53,104,31)_(64,10,65,9,72,22,80,20,88,43,96,53,104,31)'
+#ants = '(64,10,65,9,72,22,80,20,88,43,96,53,104,31)_(64,10,65,9,72,22,80,20,88,43,96,53,104,31)'
+ants = '(64)_(51,57)'
 
 time = []
 f = {} # dictionary of flags
@@ -76,6 +78,7 @@ for (uvw, t, (m, n)), data, flag in uv.all(raw='True'):
     d[bl].append(data)
     time.append(t)
 print "data collected"
+print time
 
 # simulate visibilities for each baseline
 response = {}
@@ -91,17 +94,20 @@ for bl in d.keys():
         if not bl in response.keys(): response[bl] = []; vis[bl] = []
         response[bl].append(np.sum(np.where(z>0, ant_res*phs, 0)))
         vis[bl].append(np.sum(np.where(z>0, obs_sky*phs, 0)))
-        i += 1
 print "visibilities simulated"
 
 A = np.array([response[bl][0] for bl in response.keys()])
 A.shape = (A.size,1)
 # create Y using GSM, create loop for attenuate GSM by PAPER observing 
 # parameters
-Y = np.array([response[bl][0] for bl in response.keys()])
+Y = np.array([vis[bl][0] for bl in response.keys()])
 Y.shape = (Y.size,1)
+print Y.shape
 #Y = A*temps[0] + np.random.normal(size=A.shape) + 1j*np.random.normal(size=A.shape) # simulated data + complex noise
 #Y = np.array([d[bl][0][N/2-1] for bl in d.keys()]) # PAPER data
+
+#print "150 MHz vis, baseline 1:", Y[0]
+print "160 MHz vis, baseline 2 scaled:", (16.0 / 15) * Y[0]
 
 # find value of X from cleverly factoring out A in a way which properly weights 
 # the measurements
