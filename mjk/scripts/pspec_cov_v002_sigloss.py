@@ -238,9 +238,11 @@ for boot in xrange(opts.nboot):
         C[k],_C[k],_Cx[k] = {},{},{}
         for bl in x[k]:
             C[k][bl] = cov(x[k][bl])
+            #C[k][bl] = n.identity(C[k][bl].shape[0])
             I[k][bl] = n.identity(C[k][bl].shape[0])
             U,S,V = n.linalg.svd(C[k][bl].conj())
             _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
+            #_C[k][bl] = n.identity(_C[k][bl].shape[0])
             _I[k][bl] = n.identity(_C[k][bl].shape[0])
             #_Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
             #_Ix[k][bl] = x[k][bl].copy()

@@ -1,8 +1,10 @@
+#!/usr/bin/env python
 import numpy as n
 import capo as C
 import aipy as a
 import pylab as p
 import scipy
+import capo.frf_conv as fringe
 
 
 def beam_area(hmap):
@@ -20,12 +22,12 @@ bmI = 0.5 * (_bmx**2 + _bmy**2)
 bmI = n.where(tz > 0, bmI, 0) # only use beam values above the horizon.
 
 bl = aa.get_baseline(0,26,'r') * .151 #baseline length in frequency.
-fng = C.frf_conv.mk_fng(bl, *xyz)
+fng = C.frf_conv.mk_fng(bl, xyz)
 
 #get the fringe rate filter in frf_conv. aa only has one channel in it.
 frp, bins = fringe.aa_to_fr_profile(aa, (0,26), 0)
 tbins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[0])
-frp = fringe.firs_to_frp(firs)
+frp = fringe.fir_to_frp(firs)
 #frf,bins,wgt,(cen,wid) = C.frf_conv.get_optimal_kernel_at_ref(aa, 0, (0,26)) 
 #bwfrs = C.frf_conv.get_beam_w_fr(aa, (0,26), ref_chan=0) 
 #tbins,firs,frbins,frfs = C.frf_conv.get_fringe_rate_kernels(bwfrs,42.9,403)
@@ -34,16 +36,16 @@ frp = fringe.firs_to_frp(firs)
 #firs = firs[0]
 #frfs = n.fft.fftshift(n.fft.fft(n.fft.ifftshift(firs), axis=-1))
 #get weights.
-wgts = scipy.interpolate.interp1d(frbins, frfs.real, kind='linear')
+wgts = scipy.interpolate.interp1d(bins, frp, kind='linear')
 fng_wgt = wgts(fng) #gets weightings at fringes on the sky.
 fng_bm = bmI * fng_wgt
 #flat weighting determined by the maximum possible fringe rate for a baseline 
 #and 0.
-skypass = n.where(n.abs(frbins) < n.max(n.abs(fng)), 1., 0)
+skypass = n.where(n.abs(bins) < n.max(n.abs(fng)), 1., 0)
 # This is the noise level after being filtered and averaged by the application of this filter.
-crit_noise_lev = n.sum(skypass**2) / frbins.size
+crit_noise_lev = n.sum(skypass**2) / bins.size
 #ditto for the optimal weights.
-fng_noise_lev = n.sum(n.abs(frfs)**2)/ frbins.size
+fng_noise_lev = n.sum(n.abs(frp)**2)/ bins.size
 
 print 'integration times', 42.9*(1/crit_noise_lev), 42.9*(1/fng_noise_lev)
 print 'beams (flat) (optimal) [power]', beam_area(bmI), beam_area(fng_bm)

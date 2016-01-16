@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random
 
@@ -333,14 +333,16 @@ for k in days:
         I[k][bl] = n.identity(C[k][bl].shape[0])
         U,S,V = n.linalg.svd(C[k][bl].conj())
         _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
+        _C[k][bl] = n.identity(_C[k][bl].shape[0])
         _I[k][bl] = n.identity(_C[k][bl].shape[0])
         _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
         _Ix[k][bl] = x[k][bl].copy()
-        if PLOT and True:
+        if PLOT and False:
             #p.plot(S); p.show()
             p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
-            p.subplot(323); capo.arp.waterfall(C[k][bl])
-            p.subplot(324); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
+            p.subplot(334); capo.arp.waterfall(C[k][bl])
+            p.subplot(335); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
+            p.subplot(336); capo.arp.waterfall(_C[k][bl])
             p.subplot(313); capo.arp.waterfall(_Cx[k][bl], mode='real')
             p.suptitle('%d_%d'%a.miriad.bl2ij(bl))
 #            p.figure(2); p.plot(n.diag(S))
@@ -368,14 +370,17 @@ for boot in xrange(opts.nboot):
     print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps])
     _Iz,_Isum,_IsumQ = {},{},{}
     _Cz,_Csum,_CsumQ = {},{},{}
+    Csum = {}
     for k in days:
         _Iz[k],_Isum[k],_IsumQ[k] = {},{},{}
         _Cz[k],_Csum[k],_CsumQ[k] = {},{},{}
+        Csum[k]={}
         for i,gp in enumerate(gps):
             _Iz[k][i] = sum([_Ix[k][bl] for bl in gp])
             _Cz[k][i] = sum([_Cx[k][bl] for bl in gp])
             _Isum[k][i] = sum([_I[k][bl] for bl in gp])
             _Csum[k][i] = sum([_C[k][bl] for bl in gp])
+            Csum[k][i] = sum([C[k][bl] for bl in gp])
             _IsumQ[k][i] = {}
             _CsumQ[k][i] = {}
             if DELAY: # this is much faster
@@ -388,19 +393,36 @@ for boot in xrange(opts.nboot):
         if PLOT:
             NGPS = len(gps)
             _Csumk = n.zeros((NGPS,nchan,NGPS,nchan), dtype=n.complex)
+            Csumk = n.zeros((NGPS,nchan,NGPS,nchan), dtype=n.complex)
             _Isumk = n.zeros((NGPS,nchan,NGPS,nchan), dtype=n.complex)
             for i in xrange(len(gps)): _Isumk[i,:,i,:] = _Isum[k][i]
             _Isumk.shape = (NGPS*nchan, NGPS*nchan)
             #_Isum[k] = _Isumk
-            for i in xrange(len(gps)): _Csumk[i,:,i,:] = _Csum[k][i]
+            for i in xrange(len(gps)):
+                     _Csumk[i,:,i,:] = _Csum[k][i]
+                     Csumk[i,:,i,:] = Csum[k][i] 
             _Csumk.shape = (NGPS*nchan, NGPS*nchan)
+            Csumk.shape = (NGPS*nchan, NGPS*nchan)
             #_Csum[k] = _Csumk
             _Czk = n.array([_Cz[k][i] for i in _Cz[k]])
+            _Izk = n.array([_Iz[k][i] for i in _Iz[k]])
             _Czk = n.reshape(_Czk, (_Czk.shape[0]*_Czk.shape[1], _Czk.shape[2]))
-            p.subplot(211); capo.arp.waterfall(_Czk, mode='real')
-            p.subplot(223); capo.arp.waterfall(_Csumk)
-            p.subplot(224); capo.arp.waterfall(cov(_Czk))
-            p.show()
+            _Izk = n.reshape(_Izk, (_Izk.shape[0]*_Izk.shape[1], _Izk.shape[2]))
+            C_I=cov(_Izk)
+            I_U,I_S,I_V=n.linalg.svd(C_I)
+            _C_I=n.einsum('ij,j,jk',I_V.T,1./I_S,I_U.T)
+            p.subplot(411); capo.arp.waterfall(_Izk, mode='real')
+            p.subplot(423); capo.arp.waterfall(Csumk)
+            p.subplot(424); capo.arp.waterfall(_Csumk)
+            p.subplot(425); capo.arp.waterfall(C_I)
+            p.subplot(426); capo.arp.waterfall(_C_I)
+            #p.subplot(426); capo.arp.waterfall(cov(_Czk))
+            p.subplot(414); capo.arp.waterfall(_Czk, mode='real')
+            fig_file='Data_Covariance_boot{0:0>4d}'.format(boot) 
+            if not opts.output == '':
+                fig_file= opts.output + '/' + fig_file
+            p.savefig(fig_file)
+            p.close()
 
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex)
@@ -452,9 +474,16 @@ for boot in xrange(opts.nboot):
                                 FC[i,j] += n.einsum('ij,ji', _CsumQ[k1][bl1][i], _CsumQ[k2][bl2][j])
 
     if PLOT:
-        p.subplot(121); capo.arp.waterfall(FC, drng=4)
-        p.subplot(122); capo.arp.waterfall(FI, drng=4)
+        p.subplot(141); capo.arp.waterfall(FC, drng=4)
+        p.subplot(142); capo.arp.waterfall(FI, drng=4)
+        p.subplot(143); capo.arp.waterfall(qC, mode='real')
+        p.subplot(144); capo.arp.waterfall(qI, mode='real')
+        fig_file = 'FC_FI_qC_qI_boot{0:0>4d}'.format(boot)
         p.show()
+        if not opts.output == '':
+            fig_file= opts.output + '/' + fig_file
+        p.savefig(fig_file)
+        p.close()
 
     print 'Psuedoinverse of FC'
     

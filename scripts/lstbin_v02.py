@@ -25,6 +25,8 @@ o.add_option('--median', action='store_true', dest='median', default=False,
     help="Use a median filter to remove outliers from each lst bin.")
 o.add_option('--nsig', type='float', default=3.,
     help="Number of sigma outlier to flag in median filter.")
+o.add_option('--outpath', action='store', default='', 
+    help="Add output path")
 opts, args = o.parse_args(sys.argv[1:])
 
 # ---- Functions for lst binning ----
@@ -103,6 +105,7 @@ for f in args:
     if src is None or (src_alt_start < opts.altmax or src_alt_end < opts.altmax):
         nargs.append(f)
 # Places the data into lst bins, but does not actually combine or average.
+print "binning ",len(nargs),"files"
 jds = {}
 files = {}
 for filename in nargs:
@@ -173,11 +176,11 @@ filename=os.path.basename(args[0])
 if filename.split('.')[-1].startswith('bm'):
     filename='lst.%7.5f.uv.%s' % (jd_start,filename.split('.')[-1])
 else: filename = 'lst.%7.5f.uv' % jd_start
-print 'Writing to', filename
-if os.path.exists(filename):
-    print filename,"exists"
+print 'Writing to', opts.outpath+'/'+filename
+if os.path.exists(opts.outpath+'/'+filename):
+    print opts.outpath+'/'+filename,"exists"
     sys.exit(1)
-uvo = a.miriad.UV(filename, status='new')
+uvo = a.miriad.UV(opts.outpath+'/'+filename, status='new')
 uvo.init_from_uv(uvi)
 
 # What to write in the case of zero data in an lst bin

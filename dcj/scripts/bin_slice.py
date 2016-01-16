@@ -24,14 +24,21 @@ jds = []
 for filename in sys.argv[1:]:
     jd = int(n.round(file2jd(filename)))
     t = file2jd(filename)
-    if jd<jdjump:continue  #focus on my epoch
+#    if jd<jdjump:continue  #focus on my epoch
 #    print 'Reading', filename
     try:
         npz = n.load(filename)
     except:
         print "    failed to load"
     try:
+        npz[mybl]
+
+    except(KeyError):
+        print "baseline {i}_{j} not found in {f}, skipping".format(i=i,j=j,f=filename)
+        continue
+    try:
         ntimes = len(npz[mybl])
+        print npz['t'+mybl]
         dt = n.diff(npz['t'+mybl])[0]/n.pi #convert radians to fraction of a day
         data[jd].append(npz[mybl])
         time[jd].append(npz['t'+mybl])
@@ -44,6 +51,9 @@ for filename in sys.argv[1:]:
             jd_times[jd] = [n.arange(0,ntimes)*dt + file2jd(filename)]
         except(KeyError):
             continue
+if len(data)==0:
+    print "ERROR: no data found"
+    sys.exit()
 for jd in data:
     data[jd] = n.concatenate(data[jd])#turna list of arrays into a single array
     time[jd] = n.concatenate(time[jd])
