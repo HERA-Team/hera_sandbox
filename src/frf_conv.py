@@ -4,10 +4,9 @@ Implements a Fringe Rate Filter useing and FIR filter.
 '''
 import aipy as a
 import capo
-import numpy as n, pylab as p
+import numpy as n
 from numpy.fft import ifft, fftshift, ifftshift, fftfreq, fft
 import scipy.interpolate
-import optparse,sys
 
 DEFAULT_FRBINS = n.arange(-.01+5e-5/2,.01,5e-5) # Hz
 DEFAULT_WGT = lambda bm: bm**2
@@ -20,7 +19,7 @@ def mk_fng(bl, eq):
 #fringe used in ali et.al to degrade optimal fringe rate filter.
 def mk_fng_alietal(bl, eq):
     '''Return distorted fringe rates for given eq coordinates and a baseline vector (measured in wavelengths) in eq coords. This was the version used in ali et.al'''
-    ey, ex, ez = eq
+    ey, ex, ez = eq#yes, ex and ey are flipped.
     return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
 
 def fr_profile(bm, fng, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT):
@@ -119,6 +118,7 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
         fr_xtalk: Threshold for removing crosstalk. 
         mdl: a function to fit the fringe rate profile too. gaussian for default.
     '''
+    #print bins
     if maxfr is None: maxfr = bins[n.argwhere(frp0 != 0).max()] # XXX check this
     prms0 = fit_mdl(frp0, bins, maxfr, mdl=mdl,maxfun=maxfun,ftol=ftol,xtol=xtol,startprms=startprms,verbose=verbose)
     prms0 = n.array(prms0)
