@@ -1,5 +1,23 @@
 import numpy as n,os
+import glob
 #measurements
+
+def PAPER_32_all():
+    '''
+    Results from  PAPER 32  Jacobs et.al 2014
+
+    outputs results[z] = n.array([k, Delta^2, 2-sigma upper, 2-sigma lower])
+    '''
+
+    PAPER_RESULTS_FILES = glob.glob(os.path.dirname(__file__)+'/data/psa32_apj/pspec_*.npz')
+    PAPER_RESULTS_FILES.sort()
+    zs = n.array([10.883,8.33,7.75,7.48,7.36])
+    results = {}
+    for files,z in zip(PAPER_RESULTS_FILES,zs):
+        f=n.load(files)
+        results[z] = n.array([f['k'],f['k3pk'],f['k3pk']+f['k3err'],f['k3pk']-f['k3err']])
+
+    return results
 
 def MWA_32T_all():
     """

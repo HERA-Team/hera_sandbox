@@ -1,7 +1,7 @@
 """
 Calfile for data taken from 2456240. - 2456378.
 """
-import aipy as a, numpy as n
+import aipy as a, numpy as n, os
 
 class AntennaArray(a.pol.AntennaArray):
     def __init__(self, *args, **kwargs):
@@ -15,6 +15,7 @@ class AntennaArray(a.pol.AntennaArray):
         self.tau_ew = kwargs.pop('tau_ew')
         self.tau_ns = kwargs.pop('tau_ns')
         self.update_delays()
+        self.array_params = {}
     def update_gains(self):
         gains = self.gain * self.amp_coeffs
         for i,gain in zip(self.ant_layout.flatten(), gains.flatten()):
@@ -80,9 +81,22 @@ class AntennaArray(a.pol.AntennaArray):
         except(KeyError): pass
         if changed: self.update()
         return changed
-
+    def get_arr_params(self):
+        return self.array_params
+    def set_arr_params(self,prms):
+        for param in prms:
+            self.array_params[param] = prms[param]
+            if param == 'dish_size_in_lambda':
+                FWHM = 2.35*(0.45/prms[param])
+                self.array_params['obs_duration'] = 60.* FWHM /(15.*a.const.deg)
+            #if param == 'antpos':
+                #bl_lens = n.sum(n.array(prms[param])**2,axis=1)**.5
+        return self.array_params
 prms = {
+    'name': os.path.basename(__file__)[:-3], #remove .py from filename
     'loc': ('-30:43:17.5', '21:25:41.9'), # KAT, SA (GPS)
+    'dish_size_in_lambda' : 2, #in units of wavelengths at 150 MHz = 2 meters
+    'Trx' : 2e5, #receiver temp in mK
     'antpos': {
         49: {'top_x':    0.0,  'top_y':    0.0,  'top_z':    0.0},
         41: {'top_x': 3000.7,  'top_y':    6.5,  'top_z':    0.6},
@@ -276,6 +290,7 @@ def get_aa(freqs):
         pos = prms['antpos'][i]
         i = str(i)
         aa.set_params({i:pos})
+        aa.set_arr_params(prms)
     return aa
 
 src_prms = {
