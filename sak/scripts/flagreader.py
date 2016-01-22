@@ -14,9 +14,10 @@ o = optparse.OptionParser()
 o.set_usage('flagreader.py [options] *.uv')
 o.set_description(__doc__)
 aipy.scripting.add_standard_options(o, ant=True, pol=True)
-o.add_option('--verbose','-v',dest='verb',action='store_true',help='print intermediate info and show image')
+o.add_option('--verbose','-v',dest='verb',action='store_true',help='print intermediate info')
 o.add_option('--npz','-N',dest='npz',default=None,help='Name of output .npz (neglecting the ".npz" ending) with flag grid and percentage info. Default will be <JD>_<ant>_<pol>_RFI.npz')
 o.add_option('--img','-I',dest='save_img',action='store_true',help='Save .png file? Same naming convention as default .npz file.')
+o.add_option('--show','-S',dest='show',action='store_true',help='Show image.')
 opts, args = o.parse_args(sys.argv[1:])
 
 t_arr, flg_arr = [], []
@@ -59,7 +60,7 @@ else: npzname='%s_%s_%s_RFI.npz'%(jd,opts.ant,opts.pol)
 np.savez(npzname,grid=flg_arr,dJDs=t_arr,percent_f=pcnt_f,percent_t=pcnt_t)
 
 #If you don't want plots, let's save everyone a smidgen of time and quit now
-if not opts.verb and not opts.save_img: sys.exit()
+if not opts.show and not opts.save_img: sys.exit()
 
 
 ##Plotting
@@ -100,5 +101,5 @@ axImshow.set_ylabel(r'Integration',size=15)
 axHisty.set_title('JD'+jd+'\n\n\n',size=18)
 
 if opts.save_img: pylab.savefig('%s_%s_%s_RFI.png'%(jd,opts.ant,opts.pol))
-if opts.verb: pylab.show()
+if opts.show: pylab.show()
 pylab.close()

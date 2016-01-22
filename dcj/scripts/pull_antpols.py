@@ -13,8 +13,9 @@ for filename in args:
     if os.path.exists(outfile):
         print '    File exists... skipping.'
         continue
-    a.scripting.uv_selector(uvi, ants=opts.ant)
-    if not opts.pol is None: a.scripting.uv_selector(uvi, pol_str=opts.pol)
+   
+    if not opts.pol is None: a.scripting.uv_selector(uvi, ants=opts.ant,pol_str=opts.pol)
+    else:  a.scripting.uv_selector(uvi, ants=opts.ant)
     uvo = a.miriad.UV(outfile,status='new')
     uvo.init_from_uv(uvi)
     uvo.pipe(uvi,append2hist='PULL ANTPOLS:'+' '.join(sys.argv)+'\n')
