@@ -44,16 +44,18 @@ for ch1,fq1 in enumerate(freqs):
         if ch1 == ch2: continue
         err = []
         blp = []
-        found_one = 0
+        bestsofar = 100000.
+        #found_one = 0
         for s1 in n.arange(15,0,-1):
-            if found_one : break
+        #    if found_one : break
             for s2 in n.arange(s1-1,0,-1):
                 if s1==s2: continue
-                if n.abs(fq1*s1 - fq2*s2)*15*1e9/3e8 < cut:
+                if n.abs(fq1*s1 - fq2*s2)*15*1e9/3e8 < min(cut,bestsofar):
                     u = (fq1*s1 + fq2*s2)*15/2.*1e9/3e8
                     fdict[int(n.floor(u/du))][(ch1,ch2)] = [(bls[s1-1],bls[s2-1]),  n.abs(fq1*s1 - fq2*s2)*15*1e9/3e8]
-                    found_one = 1
-                    break
+                    bestsofar = n.abs(fq1*s1 - fq2*s2)*15*1e9/3e8 
+                    #found_one = 1
+                    #break
 for i,d in enumerate(fdict):
     if len(d) <= 1 : fdict[i] = {}
 #                err.append(n.abs(fq1*s1 - fq2*s2))
