@@ -37,7 +37,7 @@ for pp,p in enumerate(pols):
 for filename in args:
     files[filename] = {}
     for p in pols:
-        fn = filename.split('.')
+        fn = filename.split('/')[-1].split('.')
         fn[3] = p
         files[filename][p] = '.'.join(fn) 
 
