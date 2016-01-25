@@ -9,13 +9,6 @@ POL_TYPES = 'xylrab'
 #XXX this can't support restarts or changing # pols between runs
 POLNUM = {} # factor to multiply ant index for internal ordering, 
 NUMPOL = {}
-#    'x':0, 
-#    'y':1,
-#    'l':2,
-#    'r':3,
-#    'a':4,
-#    'b':5,
-#}
 
 def add_pol(p):
     global NUMPOL
@@ -76,8 +69,7 @@ def compute_reds(nant, pols, *args, **kwargs):
         for pj in pols:
             reds += [[(Antpol(i,pi,nant),Antpol(j,pj,nant)) for i,j in gp] for gp in _reds]
     return reds
-    #return [map(lambda bl: (Antpol(bl[0],nant),Antpol(bl[1],nant)), gp) for gp in reds]
-    
+ 
 def aa_to_info(aa, pols=['x'], **kwargs):
     '''Use aa.ant_layout to generate redundances based on ideal placement.
     The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
@@ -101,7 +93,7 @@ def aa_to_info(aa, pols=['x'], **kwargs):
 
 
 def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
-    # XXX add layer to support new gains format
+    #add layer to support new gains format
     if gains:
         _gains = {}
         for pol in gains:
@@ -158,20 +150,11 @@ def to_npz(filename, meta, gains, vismdl, xtalk):
     '''Write results from omnical.calib.redcal (meta,gains,vismdl) to npz file.
     Each of these is assumed to be a dict keyed by pol, and then by bl/ant/keyword'''
     d = {}
-    
+    metakeys = ['jds','lsts','freqs','history']#,chisq]
     for key in meta:
-        if key.startswith('chisq'): d[key] = meta[key] #separate ifs pending changes to chisqs
-        if key.startswith('jds') or key.startswith('lsts') or key.startswith('freqs') or key.startswith('history'): d[key] = meta[key] 
-    
-    """
-    for pol in meta:
-        for k in meta[pol]:
-            if k.startswith('chisq'):
-                d[k + ' %s' % pol] = meta[pol][k]
-            if k.startswith('history'):
-                d['history' + ' %s' % pol] = meta[pol][k]
-        # XXX chisq after xtalk removal
-    """
+        if key.startswith('chisq'): d[key] = meta[key] #separate if statements  pending changes to chisqs
+        for k in metakeys: 
+            if key.startswith(k): d[key] = meta[key]
     for pol in gains:
         for ant in gains[pol]:
             d['%d%s' % (ant,pol)] = gains[pol][ant] 
