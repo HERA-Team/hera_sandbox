@@ -28,7 +28,7 @@ def mkuv(filename,data):
     uv.add_var('epoch' ,'r'); uv['epoch'] = 2000.
     uv.add_var('source'  ,'a'); uv['source'] = 'zenith'
     uv.add_var('nchan' ,'i'); uv['nchan'] = 203
-    uv.add_var('sdf' ,'d'); uv['sdf'] = numpy.linspace(0.1,0.2,203,endpoint=False)
+    uv.add_var('sdf' ,'d'); uv['sdf'] = (0.2-0.1)/203
     uv.add_var('sfreq' ,'d'); uv['sfreq'] = 0.1
     uv.add_var('freq' ,'d'); uv['freq'] = 0.1
     uv.add_var('restfreq' ,'d'); uv['restfreq'] = 0.1
