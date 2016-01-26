@@ -5,18 +5,17 @@ import aipy as a, numpy as n, capo as C, pylab as p
 #fqs = n.linspace(.1,.2,203)
 fq = .15
 bl1, bl2 = (0,26),(0,38)
-N = 5
+N = 1
 #REDNORM = 0.187547831706
 #REDNORM = 5.04923
-REDNORM = 0.1174
+REDNORM = 0.112
 #REDNORM = 1.
-#REDNORM = 0.03151 #nside=128
 #Peakheight = {26_26: 0.200, 26_38: 0.088}
 #peak with Jacobian factor: 26_26: 5.04923
 
 aa = a.cal.get_aa('psa6240_v003', n.array([fq]))
+#h = a.healpix.HealpixMap(nside=128)
 h = a.healpix.HealpixMap(nside=64)
-#h = a.healpix.HealpixMap(nside=64)
 tx,ty,tz = h.px2crd(n.arange(h.map.size), ncrd=3)
 bl1x, bl1y, bl1z = aa.get_baseline(bl1[0],bl1[1],'z')
 bl2x, bl2y, bl2z = aa.get_baseline(bl2[0],bl2[1],'z')
@@ -39,33 +38,33 @@ top = n.array([tx,ty,tz], dtype=tx.dtype)
 #for lst in n.arange(0,2*n.pi,2*n.pi/a.const.sidereal_day*42.9):
 #plt = None
 corr = []
-TT = n.arange(2455700,2455701,1/a.const.sidereal_day*42.9*0.5) #*5 for speed
+TT = n.arange(2455700,2455701,1/a.const.sidereal_day*42.9*1.) #*5 for speed
 NORM = float(TT.size)/1000.
 for i in xrange(N):
     print i
     sky = n.random.normal(size=h.map.size)
     h.map = sky # assume sky is in eq coord
-    #import IPython; IPython.embed()
-    vis1,vis2 = [],[]
+    import IPython; IPython.embed()
+    Tk = []
     #aa.set_jultime(2455701)
     #m = n.linalg.inv(aa.eq2top_m)
     #ex,ey,ez = n.dot(m, top)
     #ky_prj1 = h[ex,ey,ez]
-    for jd in TT:
-        # convert tx,ty,tz to ex,ey,ez (time dependent)
-        #print jd
-        aa.set_jultime(jd)
-        m = n.linalg.inv(aa.eq2top_m)
-        ex,ey,ez = n.dot(m, top)
-        sky_prj = h[ex,ey,ez]
-        #sky_prj.shape = SH
-        #if plt is None: plt = p.imshow(sky_prj, vmax=2, vmin=-2)
-        #else:
-        #    plt.set_data(sky_prj)
-        #    p.draw()
-        vis1.append(n.sum(sky_prj * bm_fng1))
-        vis2.append(n.sum(sky_prj * bm_fng2))
-        #note top is a dome already, so no need for the jacobian factor
+    jd = TT[0]
+
+    aa.set_jultime(jd)
+    m = n.linalg.inv(aa.eq2top_m)
+    ex,ey,ez = n.dot(m, top)
+    sky_prj = h[ex,ey,ez]
+    #sky_prj.shape = SH
+    #if plt is None: plt = p.imshow(sky_prj, vmax=2, vmin=-2)
+    #else:
+    #    plt.set_data(sky_prj)
+    #    p.draw()
+    #Tk.append(n.sum(sky_prj * bm_fng1))
+    Cl = 
+
+    #note top is a dome already, so no need for the jacobian factor
     #just built data for the tw
     # da2
     vis1,vis2 = n.array(vis1), n.array(vis2)
