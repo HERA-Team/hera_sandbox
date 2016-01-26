@@ -6,50 +6,48 @@ import matplotlib.pylab as pl
 
 data_dir = '/home/kara/capo/kmk/data/'
 data_file = 'zen.2456895.51490.xx.uvcRRE'
+calfile = 'psa6622_v001'
 uv = a.miriad.UV(data_dir + data_file)
-N = uv.__getitem__('nchan')
-print uv.__getitem__('nchan')
-
-# NOTE: optimal baseline length formula given in Presley et al 2015 eq. 9
-# fill sky map with flat temperature across whole sky (DC signal)
-h = a.healpix.HealpixMap(nside=64)
-h.map = np.ones(shape = h.map.shape)
-print "h size = " + str(h.map.shape)
-h.map = h.map*4*np.pi/h.npix() # convert to Jy to make summable
-x, y, z = xyz = h.px2crd(np.arange(h.npix())) #topocentric
-
-temps = np.ones(1) # temperature of sky signal
 
 # rest frequency: 150 MHz
-freq = uv.__getitem__('restfreq')*np.ones(1)
-c = 3e10 # in cm/s
-wvlen = c / freq # observed wavelength
+freq = uv.__getitem__('restfreq')*1e9 #Hz
 
-# import array parameters
-aa = a.cal.get_aa('psa6622_v001', uv['sdf'], uv['sfreq'], uv['nchan'])
-# select freq = 150 MHz
-aa.select_chans([N/2])
-beam = aa[0].bm_response(xyz, pol='x')**2
-beam = beam[0]
-print "array parameters imported"
+def makeFlatMap(nside=64, Tsky=1.0, freq=freq):
+    # NOTE: optimal baseline length formula given in Presley et al 2015 eq. 9
+    # fill sky map with flat temperature across whole sky (DC signal)
+    h = a.healpix.HealpixMap(nside=nside)
+    h.map = Tsky*np.ones(shape = h.map.shape)
+    print "flat map size = " + str(h.map.shape)
+    return hpm_TtoJy(h, freq)
+
+def hpm_TtoJy(hpm, freq=freq):
+    wvlen = a.const.c / freq
+    hpm.map *= (4*np.pi/hpm.npix())*2*a.const.k/wvlen**2 # convert to Jy to make summable
+    return hpm
+
 
 # fill sky map with GSM
 # create array of GSM files for simulation of multiple frequencies
 # MODIFY TO INCLUDE MULTIPLE GSM FILES AT DIFFERENT FREQUENCIES
 gsm_dir = '/home/kara/capo/kmk/gsm/gsm_raw/gsm'
-gsm_files = [1001, 1002]
-g = a.healpix.HealpixMap(nside=512)
-gsm = a.healpix.HealpixMap(nside=64)
-print "gsm size = " + str(gsm.map.shape)
-d = np.loadtxt(gsm_dir + str(gsm_files[1]) + '.dat')
-g.map = d
-gsm.from_hpm(g) # hack to lower resolution to prevent memory overload
-gsm.map = gsm.map*4*np.pi/gsm.npix() # convert to Jy to make summable
-# convert to topocentric coordinates
-ga2eq = a.coord.convert_m('eq', 'ga', oepoch=aa.epoch) #conversion matrix
-eq2top = a.coord.eq2top_m(aa.sidereal_time(),aa.lat) #conversion matrix
-ga2eq2top = np.dot(eq2top, ga2eq)
-i, j, k = ijk = np.dot(ga2eq2top,gsm.px2crd(np.arange(gsm.npix()))) #topocentric
+gsm_files = np.array([1001, 1002])
+
+# NOTE: the gsm file is associated with a particular frequency map --
+# check to ensure filename matches input frequency
+def makeGSMMap(array, gsm_dir = '/home/kara/capo/kmk/gsm/gsm_raw/', filename = 'gsm1001', freq = freq):
+    g = a.healpix.HealpixMap(nside=512)
+    gsm = a.healpix.HealpixMap(nside=64)
+    print "GSM map size = " + str(gsm.map.shape)
+    d = np.loadtxt(gsm_dir + str(filename) + '.dat')
+    g.map = d
+    g = hpm_TtoJy(g, freq)
+    gsm.from_hpm(g) # hack to lower resolution to prevent memory overload
+    # convert to topocentric coordinates
+    ga2eq = a.coord.convert_m('eq', 'ga', oepoch=array.epoch) #conversion matrix
+    eq2top = a.coord.eq2top_m(array.sidereal_time(),array.lat) #conversion matrix
+    ga2eq2top = np.dot(eq2top, ga2eq)
+    i, j, k = ijk = np.dot(ga2eq2top,gsm.px2crd(np.arange(gsm.npix()))) #topocentric
+    return gsm
 
 # create arrays for visibilities for each baseline
 # single timestep, single polarization
@@ -62,60 +60,53 @@ i, j, k = ijk = np.dot(ga2eq2top,gsm.px2crd(np.arange(gsm.npix()))) #topocentric
 # X = constant temperature value for global signal
 # N = noise
 
-#ants = '(64,10,65,9,72,22,80,20,88,43,96,53,104,31)_(64,10,65,9,72,22,80,20,88,43,96,53,104,31)'
-ants = '(64)_(51,57)'
-
-time = []
-f = {} # dictionary of flags
-d = {} # dictionary of spectra information
-a.scripting.uv_selector(uv, ants, 'xx')
-print "antennae selected"
-for (uvw, t, (m, n)), data, flag in uv.all(raw='True'):
-    # get visibility information for rest frequency
-    bl = a.miriad.ij2bl(m, n)
-    if not bl in d.keys(): f[bl] = []; d[bl] = []
-    f[bl].append(flag)
-    d[bl].append(data)
-    time.append(t)
-print "data collected"
-print time
+def extractData(uv = uv):
+    time = []
+    f = {} # dictionary of flags
+    d = {} # dictionary of spectra information
+    for (uvw, t, (m, n)), data, flag in uv.all(raw='True'):
+        # get visibility information for rest frequency
+        bl = a.miriad.ij2bl(m, n)
+        if not bl in d.keys(): f[bl] = []; d[bl] = []
+        f[bl].append(flag)
+        d[bl].append(data)
+        time.append(t)
+    print "data collected"
+    return d
 
 # simulate visibilities for each baseline
-response = {}
-vis = {}
-for bl in d.keys():
+def calcVis(hpm, beam, bl, coord, freq = freq):
+    x,y,z = coord
     n, m = a.miriad.bl2ij(bl)
     bx, by, bz = aa.get_baseline(n, m)
-    for l in range(len(freq)):
-        # attenuate sky signal and visibility by primary beam
-        ant_res = beam * h.map
-        obs_sky = beam * gsm.map
-        phs = np.exp(-2j*np.pi*freq[l]*(bx*x + by*y + bz*z))
-        if not bl in response.keys(): response[bl] = []; vis[bl] = []
-        response[bl].append(np.sum(np.where(z>0, ant_res*phs, 0)))
-        vis[bl].append(np.sum(np.where(z>0, obs_sky*phs, 0)))
-print "visibilities simulated"
+    # attenuate sky signal and visibility by primary beam
+    obs_sky = beam * hpm.map
+    phs = np.exp(-2j*np.pi*freq*(bx*x + by*y + bz*z))
+    vis = np.sum(np.where(z>0, obs_sky*phs, 0))
+    return vis
 
-A = np.array([response[bl][0] for bl in response.keys()])
-A.shape = (A.size,1)
-# create Y using GSM, create loop for attenuate GSM by PAPER observing 
-# parameters
-Y = np.array([vis[bl][0] for bl in response.keys()])
-Y.shape = (Y.size,1)
-print Y.shape
-#Y = A*temps[0] + np.random.normal(size=A.shape) + 1j*np.random.normal(size=A.shape) # simulated data + complex noise
-#Y = np.array([d[bl][0][N/2-1] for bl in d.keys()]) # PAPER data
+flatSky = makeFlatMap(nside=64, Tsky = 1.0, freq = freq)
+xyz = flatSky.px2crd(np.arange(flatSky.npix())) #topocentric
 
-#print "150 MHz vis, baseline 1:", Y[0]
-print "160 MHz vis, baseline 2 scaled:", (16.0 / 15) * Y[0]
+# import array parameters
+aa = a.cal.get_aa(calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+# select freq = 150 MHz
+aa_freqs = aa.get_afreqs()
+beam = aa[0].bm_response(xyz, pol='x')**2
+beam = beam[0]
+print "array parameters imported"
 
-# find value of X from cleverly factoring out A in a way which properly weights 
-# the measurements
-transjugateA = np.conjugate(np.transpose(A))
-normalization = np.linalg.inv(np.dot(transjugateA, A))
-invA = normalization*transjugateA
+test_ants = '(64)_(51,57)'
+bl = []
+bl.append(a.miriad.ij2bl(64,51))
+bl.append(a.miriad.ij2bl(64,57))
+# select 150 MHz and 160 MHz for u-mode calibration test
+test_freqs = 1e9*np.array([aa_freqs[102], aa_freqs[122]])
+test_scaling = np.array([1.0, 16.0/15])
+a.scripting.uv_selector(uv, test_ants, 'xx')
+print "antennae selected"
 
-X = np.dot(invA,Y)
-
-# print the estimate of the global signal
-print X
+for i in xrange(len(gsm_files)):
+    gsmMap = makeGSMMap(gsm_dir = gsm_dir, filename = gsm_files[i], freq = test_freqs[i], array = aa)
+    gsm_vis = calcVis(hpm = gsmMap, beam = beam, bl = bl[i], coord = xyz, freq = test_freqs[i])
+    print gsm_vis*test_scaling[i]
