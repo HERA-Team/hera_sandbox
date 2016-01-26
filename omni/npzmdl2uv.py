@@ -91,7 +91,10 @@ for file in args:
             data[bl] = {}
             for t in range(len(vis)):
                 data[bl][jds[t]] = vis[t] #data saved by bl and time
-    name = file.split('npz')[0]+opts.pol+'.uvcRRE'
+    if len(file.split('.')) == 4:
+        name = file.split('npz')[0]+opts.pol+'.uvcRRE'
+    else:
+        name = file.split('npz')[0][:-1]
     print file, '->', name+'M'
     if os.path.exists(name+'M'):
         print '    File exists... skipping.'
