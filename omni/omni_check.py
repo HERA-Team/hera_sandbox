@@ -13,6 +13,7 @@ import os, sys
 ### Options ###
 o = optparse.OptionParser()
 o.set_usage('omni_check.py [options] *.npz')
+aipy.scripting.add_standard_options(o,pol=True)
 o.add_option('--chisq',dest='chisq',default=False,action="store_true",
             help='Plot chisq.')
 o.add_option('--gains',dest='gains',default=False,action="store_true",
@@ -22,20 +23,23 @@ o.set_description(__doc__)
 #            help='Path and name of calfile.')
 opts,args = o.parse_args(sys.argv[1:])
 
-### Save Options ###
-pol = args[0].split('.')[3] #XXX shouldn't be hard-coded in the future
-
 
 ### Plot ChiSq ####
 if opts.chisq == True:
+    if opts.pol == -1:
+        pol = args[0].split('.')[3] #XXX hard-coded for *pol.npz files
     chisqs = []
     for i,file in enumerate(args):
         print 'Reading',file
         file = numpy.load(file)
-        chisq = file['chisq '+str(pol)] #shape is (#times, #freqs)
+        try: #reads *pol.npz files
+            chisq = file['chisq '+str(pol)] #shape is (#times, #freqs)
+        except: #reads .npz files
+            chisq = file['chisq']
         for t in range(len(chisq)):
             chisqs.append(chisq[t])
-        #chisq is sum of square of (model-data) on all visibilities per time/freq snapshot
+            #chisq is sum of square of (model-data) on all visibilities per time/freq snapshot
+
     cs = numpy.array(chisqs)
     plt.imshow(numpy.log(cs),aspect='auto',interpolation='nearest',vmax=7,vmin=-6)
     plt.xlabel('Freq Channel',fontsize=10)
