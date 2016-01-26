@@ -14,6 +14,7 @@ import optparse
 ### Options ###
 o = optparse.OptionParser()
 o.set_usage('npzmdl2uv.py *npz')
+aipy.scripting.add_standard_options(o,pol=True)
 o.set_description(__doc__)
 opts,args = o.parse_args(sys.argv[1:])
 
@@ -66,7 +67,7 @@ def mkuv(filename,data):
             uv['lst'] = aa.sidereal_time()
             uv['ra'] = aa.sidereal_time()
             uv['obsra'] = aa.sidereal_time()
-            uv['pol'] = aipy.miriad.str2pol[filename.split('.')[3]]
+            uv['pol'] = aipy.miriad.str2pol[opts.pol]
             uv['coord'] = bsln
             uv['baseline'] = float(aipy.miriad.ij2bl(i,j))
             flags = numpy.ma.masked_where(data[bl][time]==0,data[bl][time]).mask
@@ -82,7 +83,7 @@ for file in args:
     npz = numpy.load(file)
     jds = npz['jds']
     for key in npz.keys():
-        if key[0] == '<':
+        if key[0] == '<' and key[-2:] == opts.pol:
             vis = npz[key] 
             a1 = key.split(' ')[0].split(',')[0].split('<')[1]
             a2 = key.split(' ')[0].split(',')[1].split('>')[0]
@@ -90,7 +91,7 @@ for file in args:
             data[bl] = {}
             for t in range(len(vis)):
                 data[bl][jds[t]] = vis[t] #data saved by bl and time
-    name = file.split('npz')[0][:-1]
+    name = file.split('npz')[0]+opts.pol+'.uvcRRE'
     print file, '->', name+'M'
     if os.path.exists(name+'M'):
         print '    File exists... skipping.'
