@@ -60,6 +60,7 @@ if opts.gains == True or opts.chisqant == True:
         file = numpy.load(file)
         for key in file.keys(): #loop over antennas
             if key[0] != '<' and key[0] != '(' and key[0].isalpha() != True and opts.gains == True:
+                gain = file[key]
                 antnum = key[:-1]
                 try: gains[antnum].append(gain)
                 except: gains[antnum] = [gain]
