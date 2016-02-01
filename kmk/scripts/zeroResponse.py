@@ -6,7 +6,7 @@ import matplotlib.pylab as pl
 
 data_dir = '/home/kara/capo/kmk/data/'
 data_file = 'zen.2456895.51490.xx.uvcRRE'
-calfile = 'psa6622_v001'
+calfile = 'test'
 uv = a.miriad.UV(data_dir + data_file)
 
 # rest frequency: 150 MHz
@@ -15,16 +15,15 @@ freq = uv.__getitem__('restfreq')*1e9 #Hz
 def makeFlatMap(nside=64, Tsky=1.0, freq=freq):
     # NOTE: optimal baseline length formula given in Presley et al 2015 eq. 9
     # fill sky map with flat temperature across whole sky (DC signal)
-    h = a.healpix.HealpixMap(nside=nside)
-    h.map = Tsky*np.ones(shape = h.map.shape)
-    print "flat map size = " + str(h.map.shape)
-    return hpm_TtoJy(h, freq)
+    hpm = a.healpix.HealpixMap(nside=nside)
+    hpm.map = Tsky*np.ones(shape = hpm.map.shape)
+    print "flat map size = " + str(hpm.map.shape)
+    return hpm_TtoJy(hpm, freq)
 
 def hpm_TtoJy(hpm, freq=freq):
     wvlen = a.const.c / freq
     hpm.map *= (4*np.pi/hpm.npix())*2*a.const.k/wvlen**2 # convert to Jy to make summable
     return hpm
-
 
 # fill sky map with GSM
 # create array of GSM files for simulation of multiple frequencies
@@ -34,9 +33,9 @@ gsm_files = np.array([1001, 1002])
 
 # NOTE: the gsm file is associated with a particular frequency map --
 # check to ensure filename matches input frequency
-def makeGSMMap(array, gsm_dir = '/home/kara/capo/kmk/gsm/gsm_raw/', filename = 'gsm1001', freq = freq):
+def makeGSMMap(array, nside = 64, gsm_dir = '/home/kara/capo/kmk/gsm/gsm_raw/', filename = 'gsm1001', freq = freq):
     g = a.healpix.HealpixMap(nside=512)
-    gsm = a.healpix.HealpixMap(nside=64)
+    gsm = a.healpix.HealpixMap(nside=nside)
     print "GSM map size = " + str(gsm.map.shape)
     d = np.loadtxt(gsm_dir + str(filename) + '.dat')
     g.map = d
@@ -78,35 +77,48 @@ def extractData(uv = uv):
 def calcVis(hpm, beam, bl, coord, freq = freq):
     x,y,z = coord
     n, m = a.miriad.bl2ij(bl)
+    print n, m
     bx, by, bz = aa.get_baseline(n, m)
     # attenuate sky signal and visibility by primary beam
-    obs_sky = beam * hpm.map
+    obs_sky = hpm.map
+    #obs_sky = beam * hpm.map
     phs = np.exp(-2j*np.pi*freq*(bx*x + by*y + bz*z))
+    print 'phase = ' + str(phs)
+    print 'baseline = ' + str(bx)
+    #print (phs*hpm.get_map()).max()
+    #print (phs*hpm.get_map()).min()
     vis = np.sum(np.where(z>0, obs_sky*phs, 0))
     return vis
+
+freqs = np.array([0.100, 0.200])
 
 flatSky = makeFlatMap(nside=64, Tsky = 1.0, freq = freq)
 xyz = flatSky.px2crd(np.arange(flatSky.npix())) #topocentric
 
 # import array parameters
-aa = a.cal.get_aa(calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+#aa = a.cal.get_aa(calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+aa = a.cal.get_aa(calfile, freqs)
 # select freq = 150 MHz
-aa_freqs = aa.get_afreqs()
+aa_freqs = aa.get_freqs()
 beam = aa[0].bm_response(xyz, pol='x')**2
-beam = beam[0]
+#beam = beam[0]
 print "array parameters imported"
 
-test_ants = '(64)_(51,57)'
+test_ants = '(64)_(49,10)'
 bl = []
-bl.append(a.miriad.ij2bl(64,51))
-bl.append(a.miriad.ij2bl(64,57))
+bl.append(a.miriad.ij2bl(64,49))
+bl.append(a.miriad.ij2bl(64,10))
 # select 150 MHz and 160 MHz for u-mode calibration test
-test_freqs = 1e9*np.array([aa_freqs[102], aa_freqs[122]])
-test_scaling = np.array([1.0, 16.0/15])
+#test_freqs = 1e9*np.array([aa_freqs[102], aa_freqs[122]])
+test_freqs = 1e9*freqs
+#test_scaling = np.array([0.0, 1.0])
+#test_scaling = np.exp(-2j*np.pi*test_scaling)
 a.scripting.uv_selector(uv, test_ants, 'xx')
 print "antennae selected"
 
 for i in xrange(len(gsm_files)):
-    gsmMap = makeGSMMap(gsm_dir = gsm_dir, filename = gsm_files[i], freq = test_freqs[i], array = aa)
-    gsm_vis = calcVis(hpm = gsmMap, beam = beam, bl = bl[i], coord = xyz, freq = test_freqs[i])
-    print gsm_vis*test_scaling[i]
+    flatMap = makeFlatMap(nside=64, Tsky = 1.0, freq = test_freqs[i])
+    #gsmMap = makeGSMMap(gsm_dir = gsm_dir, filename = gsm_files[i], nside = 64, freq = test_freqs[i], array = aa)
+    gsm_vis = calcVis(hpm = flatSky, beam = beam[i], bl = bl[i], coord = xyz, freq = test_freqs[i])
+    #print np.abs(gsm_vis*test_scaling[i])
+    print gsm_vis
