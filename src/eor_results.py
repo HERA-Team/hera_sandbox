@@ -15,7 +15,25 @@ def PAPER_32_all():
     results = {}
     for files,z in zip(PAPER_RESULTS_FILES,zs):
         f=n.load(files)
-        results[z] = n.array([f['k'],f['k3pk'],f['k3pk']+f['k3err'],f['k3pk']-f['k3err']])
+        results[z] = n.array([f['k'],f['k3pk'],f['k3pk']+f['k3err'],f['k3pk']-f['k3err']]).T
+
+    return results
+
+def PAPER_64_all():
+    '''
+    Results from  PAPER 64  Ali et.al 2015
+
+    outputs results[z] = n.array([k, Delta^2, 2-sigma upper, 2-sigma lower])
+    '''
+
+    PAPER_RESULTS_FILES = glob.glob(os.path.dirname(__file__)+'/data/psa64_apj/pspec_*.npz')
+    PAPER_RESULTS_FILES.sort()
+
+    zs = n.array([8.31])
+    results = {}
+    for files,z in zip(PAPER_RESULTS_FILES,zs):
+        f=n.load(files)
+        results[z] = n.array([f['k'],f['k3pk'],f['k3pk']+f['k3err'],f['k3pk']-f['k3err']]).T
 
     return results
 
