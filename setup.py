@@ -11,7 +11,8 @@ setup_args = {
     'packages' : ['capo'],
     'scripts': glob.glob('scripts/*'),
     'version': __version__,
-    'package_data' : {'capo':['data/*.txt','data/psa32_apj/*.npz']}
+    'package_data' : {'capo':['data/*.txt','data/psa32_apj/*.npz',\
+           'data/psa64_apj/*.npz' ]}
 }
 
 if __name__ == '__main__':
