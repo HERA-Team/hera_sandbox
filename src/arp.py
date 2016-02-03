@@ -3,7 +3,9 @@ import sys, scipy
 from mpl_toolkits.basemap import Basemap
 
 def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose=False, recast_as_array=True):
-    times, dat, flg = [], {}, {}
+    info = {'lsts':[], 'times':[]}
+    ts = {}
+    dat, flg = {}, {}
     if type(filenames) == 'str': filenames = [filenames]
     for filename in filenames:
         if verbose: print '   Reading', filename
@@ -11,8 +13,12 @@ def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose
         a.scripting.uv_selector(uv, antstr, polstr)
         if decimate > 1: uv.select('decimate', decimate, decphs)
         for (crd,t,(i,j)),d,f in uv.all(raw=True):
-            if len(times) == 0 or t != times[-1]: times.append(t)
-            bl = a.miriad.ij2bl(i,j)
+            if not ts.has_key(t):
+                info['times'].append(t)
+                info['lsts'].append(uv['lst'])
+                ts[t] = None
+            #bl = a.miriad.ij2bl(i,j)
+            bl = (i,j)
             if not dat.has_key(bl): dat[bl],flg[bl] = {},{}
             pol = a.miriad.pol2str[uv['pol']]
             if not dat[bl].has_key(pol):
@@ -27,7 +33,9 @@ def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose
           for pol in dat[bl].keys():
             dat[bl][pol] = n.array(dat[bl][pol])
             flg[bl][pol] = n.array(flg[bl][pol])
-    return n.array(times), dat, flg
+        info['lsts'] = n.array(info['lsts'])
+        info['times'] = n.array(info['times'])
+    return info, dat, flg
 
 def clean_transform(d, w=None, f=None, clean=1e-3, window='blackman-harris'):
     #d = d.swapaxes(0, axis)
@@ -78,7 +86,7 @@ def data_mode(data, mode='abs'):
     if mode.startswith('phs'): data = n.angle(data)
     elif mode.startswith('lin'):
         data = n.absolute(data)
-        data = n.masked_less_equal(data, 0)
+        #data = n.masked_less_equal(data, 0)
     elif mode.startswith('real'): data = data.real
     elif mode.startswith('imag'): data = data.imag
     elif mode.startswith('log'):
@@ -209,9 +217,9 @@ def plot_hmap_ortho(h, cmap='jet', mode='log', mx=None, drng=None,
         mn = data.min()
     #    if min < (max - 10): min = max-10
     else: mn = mx - drng
-    step = (mx - mn) / 10
-    levels = n.arange(mn-step, mx+step, step)
     return m.imshow(data, vmax=mx, vmin=mn, cmap=cmap)
+    #step = (mx - mn) / 10
+    #levels = n.arange(mn-step, mx+step, step)
     #map.contourf(cx,cy,data,levels,linewidth=0,cmap=cmap)
     
 

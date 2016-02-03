@@ -37,23 +37,23 @@ import datetime
 
 #GLOBAL VARIABLES                                ### to be updated each time ###
 
-NCHAN = 5 #number of frequency channels
-SFREQ = 0.1 #starting frequency [GHz]
-SDF = 0.001 #spacing between frequencies [GHz]
+NCHAN = 1#203 #number of frequency channels
+SFREQ = 0.408 #starting frequency [GHz]
+SDF = 0.00049261 #spacing between frequencies [GHz]
 
-INTTIME = 20000 #integration time [s]
-STARTJD = 2454500 #starting julian date
-ENDJD = 2454501 #ending julian date
+INTTIME = 42.9 #integration time [s]
+STARTJD = 2456843 #starting julian date
+ENDJD = 2456844 #ending julian date
 
-FILEPATH = '/home/cacheng/capo/ctc/simpawz_test/' #path to save all outputs (either where your maps are or where you want them to be created)
+FILEPATH = '/home/cacheng/capo/ctc/images/gsm/' #path to save all outputs (either where your maps are or where you want them to be created) #INCLUDE FINAL SLASH
 
-LMAX = 100 #maximum l to simulate PSPEC maps up to (if opts.pspec == True)
+LMAX = 250 #maximum l to simulate PSPEC maps up to (if opts.pspec == True)
 K_VALS = numpy.arange(0.001,0.5,0.01) #k-values to make maps for (if opts.pspec == True)
 PK_VALS = 0.000505*(2*numpy.pi**2)/(K_VALS**3) #Pk-values to make maps for (if opts.pspec == True)
 
-ANT = '0_16' #antenna numbers for baseline simulated (if opts.vis == True)
-CAL = 'psa898_v003' #calfile path (if opts.vis == True)
-NJOBS = 3 #number of jobs on Folio to run (if opts.vis == True)
+ANT = '64_49' #antenna numbers for baseline simulated (if opts.vis == True)
+CAL = 'psa6622_v000' #calfile path (if opts.vis == True)
+NJOBS = 50 #number of jobs on Folio to run (if opts.vis == True)
 
 
 #OPTIONS
@@ -73,13 +73,13 @@ os.chdir(FILEPATH)
 
 if opts.gsm == True:
 
-    proc = subprocess.Popen(["which gsmmf.sh"], stdout=subprocess.PIPE, shell=True)
-    (out, err) = proc.communicate()
-    os.chdir(out[:-9])
-    gsmargs = open('args.dat','w')
-    gsmargs.write(' '.join(['gsm',str(SFREQ*1000),str(SDF*1000),str(NCHAN)]))
-    gsmargs.close()
-    os.chdir(FILEPATH)
+    #proc = subprocess.Popen(["which gsmmf.sh"], stdout=subprocess.PIPE, shell=True)
+    #(out, err) = proc.communicate()
+    #os.chdir(out[:-9])
+    #gsmargs = open('args.dat','w')
+    #gsmargs.write(' '.join(['gsm',str(SFREQ*1000),str(SDF*1000),str(NCHAN)]))
+    #gsmargs.close()
+    #os.chdir(FILEPATH)
        
     if os.path.exists('gsm1001.fits') == True:
         if opts.vis == False:
@@ -87,8 +87,17 @@ if opts.gsm == True:
         if opts.vis == True:
             ans = raw_input('GSM .fits files already exist. Delete and re-make the maps [y] or go straight to simulating visibilities [n]? ')
         if ans == 'y':
+            proc = subprocess.Popen(["which gsmmf.sh"], stdout=subprocess.PIPE, shell=True)
+            (out, err) = proc.communicate()
+            os.chdir(out[:-9])
+            gsmargs = open('args.dat','w')
+            gsmargs.write(' '.join(['gsm',str(SFREQ*1000),str(SDF*1000),str(NCHAN)]))
+            gsmargs.close()
+            os.chdir(FILEPATH)
+            
             print 'Deleting GSM .fits files...'
             os.system("rm -r gsm*fits")
+            
             print 'Making GSM maps...'
             os.chdir(out[:-9])
             os.system(out) #makes maps
@@ -101,10 +110,19 @@ if opts.gsm == True:
                 h.map = d
                 h.to_fits(name.replace('.dat','.fits')) #converts to fits files
                 print name + ' -> ' + name.replace('.dat','.fits')
-        print 'GSM maps have been made!'
+        
+            print 'GSM maps have been made!'
  
-    if os.path.exists('gsm1001.dat') == False:
+    if os.path.exists('gsm1001.fits') == False:
 
+        proc = subprocess.Popen(["which gsmmf.sh"], stdout=subprocess.PIPE, shell=True)
+        (out, err) = proc.communicate()
+        os.chdir(out[:-9])
+        gsmargs = open('args.dat','w')
+        gsmargs.write(' '.join(['gsm',str(SFREQ*1000),str(SDF*1000),str(NCHAN)]))
+        gsmargs.close()
+        os.chdir(FILEPATH)
+ 
         print 'Making GSM maps...'
         os.chdir(out[:-9])
         os.system(out) #makes maps
@@ -156,7 +174,7 @@ if opts.vis == True:
 
     if opts.gsm == True:
 
-        print 'Simulation GSM visibility...'
+        print 'Simulating GSM visibility...'
  
         shellscript = open('batch_sim.sh','w')
         shellscript.write('#$ -S /bin/bash'+'\n'+'#$ -V'+'\n'+'#$ -cwd'+'\n'+'#$ -l h_vmem=16G'+'\n'+'#$ -l paper'+'\n'+'#$ -o /data2/home/cacheng/capo/ctc/code/gridoutput'+'\n'+'#$ -e /data2/home/cacheng/capo/ctc/code/gridoutput')
@@ -204,6 +222,8 @@ if opts.vis == True:
    
     if opts.pspec == True:
          
+        print 'Simulating PSPEC visibility...'
+
         shellscript = open('batch_sim.sh','w')
         shellscript.write('#$ -S /bin/bash'+'\n'+'#$ -V'+'\n'+'#$ -cwd'+'\n'+'#$ -l h_vmem=16G'+'\n'+'#$ -l paper'+'\n'+'#$ -o /data2/home/cacheng/capo/ctc/code/gridoutput'+'\n'+'#$ -e /data2/home/cacheng/capo/ctc/code/gridoutput')
         shellscript.write('\n\n')

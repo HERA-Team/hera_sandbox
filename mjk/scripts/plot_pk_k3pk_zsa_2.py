@@ -250,8 +250,8 @@ if False: # put in raw delay spec
         for cnt,k in enumerate(kpl):
             k = '%6.3f' % k
             if not FG_VS_KPL.has_key(k): continue
-            pk[cnt] += FG_VS_KPL[k]
-            err[cnt] = 2*n.sqrt(FG_VS_KPL_NOS*FG_VS_KPL[k])
+            #pk[cnt] += FG_VS_KPL[k]
+           # err[cnt] = 2*n.sqrt(FG_VS_KPL_NOS*FG_VS_KPL[k])
 #    pk *= .76 # psa747 calibration of Pic A = 370.6 Jy @ 160 MHz (which includes resolution effects)
 #    err *= .76
     #pk *= 2.35 # Use power**2 beam, which is a 1.69/0.72=2.35 penalty factor
@@ -399,7 +399,7 @@ for sep in RS_VS_KPL:
     '''
     if d_fold.size == 0: d_fold,nos_fold = None, None
     #dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS)#,f0=freq) # 2-sigma error bars
-    dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS,f0=.151) # 2-sigma error bars
+    dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS,f0=freq) # 2-sigma error bars
     #dual_plot(kpl, d, nos, color=colors[0], bins=BINS) # 2-sigma error bars
     colors = colors[1:] + colors[0]
 
@@ -595,7 +595,7 @@ def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,theo_no
     #p.show()
 
 #posterior(f['kpl'], f['pk'], f['err'], f['pk_fold'], f['err_fold'])
-posterior(kpl, d, 2*nos, d_fold, nos_fold,theo_noise=noise_line)
+posterior(kpl, d, 2*nos, d_fold, nos_fold,theo_noise=noise_line,f0=freq)
 
 
 
