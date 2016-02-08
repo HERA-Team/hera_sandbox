@@ -25,7 +25,7 @@ o.add_option('--median', action='store_true', dest='median', default=False,
     help="Use a median filter to remove outliers from each lst bin.")
 o.add_option('--nsig', type='float', default=3.,
     help="Number of sigma outlier to flag in median filter.")
-o.add_option('--outpath', action='store', default='', 
+o.add_option('--outpath', action='store', default='.', 
     help="Add output path")
 opts, args = o.parse_args(sys.argv[1:])
 

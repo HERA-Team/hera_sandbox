@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 import aipy as a, numpy as n, pylab as p
 import capo as C
 import sys, optparse, re, os
@@ -250,8 +250,8 @@ if False: # put in raw delay spec
         for cnt,k in enumerate(kpl):
             k = '%6.3f' % k
             if not FG_VS_KPL.has_key(k): continue
-            pk[cnt] += FG_VS_KPL[k]
-            err[cnt] = 2*n.sqrt(FG_VS_KPL_NOS*FG_VS_KPL[k])
+            #pk[cnt] += FG_VS_KPL[k]
+           # err[cnt] = 2*n.sqrt(FG_VS_KPL_NOS*FG_VS_KPL[k])
 #    pk *= .76 # psa747 calibration of Pic A = 370.6 Jy @ 160 MHz (which includes resolution effects)
 #    err *= .76
     #pk *= 2.35 # Use power**2 beam, which is a 1.69/0.72=2.35 penalty factor
