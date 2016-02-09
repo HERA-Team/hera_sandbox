@@ -4,12 +4,12 @@ import aipy as a, numpy as n, capo as C, pylab as p
 #@p.ion()
 #fqs = n.linspace(.1,.2,203)
 fq = .15
-bl1, bl2 = (0,26),(0,38)
-N = 5
+bl1, bl2 = (0,26),(0,26)
+N = 5   #number of universes to average over
 #REDNORM = 0.187547831706
 #REDNORM = 5.04923
-REDNORM = 0.1174
-#REDNORM = 1.
+#REDNORM = 0.1174
+REDNORM = 1.
 #REDNORM = 0.03151 #nside=128
 #Peakheight = {26_26: 0.200, 26_38: 0.088}
 #peak with Jacobian factor: 26_26: 5.04923
@@ -24,7 +24,8 @@ bl1_prj = tx*bl1x + ty*bl1y + tz*bl1z
 bl2_prj = tx*bl2x + ty*bl2y + tz*bl2z
 fng1 = n.exp(-2j*n.pi*bl1_prj*fq)
 fng2 = n.exp(-2j*n.pi*bl2_prj*fq)
-bm = aa[0].bm_response((tx,ty,tz),pol='x')[0]**2/n.abs(tz)  #baseline beam is antenna beam squared.
+bm = n.ones_like(tx)
+#bm = aa[0].bm_response((tx,ty,tz),pol='x')[0]**2#/n.abs(tz)  #baseline beam is antenna beam squared.
 bm = n.where(tz > 0.001, bm, 0); bm /= bm.sum()   #avoiding the monopole
 bm_fng1 = bm * fng1
 bm_fng2 = bm * fng2
@@ -84,11 +85,12 @@ cuedict = {'26_26':0.,'26_38': 0.032557,'26_50':0.073557,'13_32':0.030557,'13_14
 try: ver = cuedict[str(bl1[1])+'_'+str(bl2[1])]
 except(KeyError): ver = 0.
 meancorr = n.mean(corr,axis=0)
-meancorr = meancorr/REDNORM
+#meancorr = meancorr/REDNORMm
 maxind = n.argmax(n.abs(meancorr))
+absmax = n.abs(meancorr[maxind])
 print '############## baseline_toff RESULT for', bl1, bl2, '#####################'
-print "Peak: ", meancorr[maxind], 'abs=',n.abs(meancorr[maxind]), 'at dT = ', TT[n.argmax(n.abs(meancorr))]-2455700.5
-
+print "Peak: ", meancorr[maxind], 'abs=',absmax, 'at dT = ', TT[n.argmax(n.abs(meancorr))]-2455700.5
+meancorr = meancorr/absmax
 #import IPython; IPython.embed()
 blstr = str(bl1[0])+'_'+str(bl1[1])+'_'+str(bl2[0])+'_'+str(bl2[1])
 n.savez('blout_'+blstr, TT-2455700.5,meancorr)

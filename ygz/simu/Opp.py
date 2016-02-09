@@ -9,10 +9,10 @@ bl1, bl2 = (0,26),(0,26)
 #cuedict = {'26_23':0.125, '26_38': 0.042, '26_50': 0.083,'26_26':0., '50_57':0.122}
 cuedict = {'26_26':0.,'26_38': 0.032557,'26_46': -0.034, '26_50':0.073557,'13_32':0.030557,'13_14':0.066557,'50_59':0.071557}
 #REDNORM = 0.000150070063408  #peak of bl1=bl2
-REDNORM = 9.57901606414e-05 #nside=64
+REDNORM = 9.E-05 #nside=64
 #REDNORM = 1.  #to compute REDNORM
 #REDNORM = 2.51664842232e-05 #nside=128
-BLUENORM=0.1174
+BLUENORM=0.18755
 COMPARE = True
 try: ver = cuedict[str(bl1[1])+'_'+str(bl2[1])]
 except(KeyError): ver = 0.
@@ -33,6 +33,8 @@ if COMPARE:
     except: pass 
 #############################################################################
 aa = a.cal.get_aa('psa6240_v003', n.array([fq]))
+aa.set_jultime(T0)
+
 h = a.healpix.HealpixMap(nside=64)
 #h = a.healpix.HealpixMap(nside=64)
 tx,ty,tz = h.px2crd(n.arange(h.map.size), ncrd=3)
@@ -41,7 +43,8 @@ bl2x, bl2y, bl2z = aa.get_baseline(bl2[0],bl2[1],'z')
 
 bl1_prj = tx*bl1x + ty*bl1y + tz*bl1z
 fng1 = n.exp(-2j*n.pi*bl1_prj*fq)
-bm = aa[0].bm_response((tx,ty,tz),pol='x')[0]**2/n.abs(tz)   #tz is the Jacobian
+#bm = aa[0].bm_response((tx,ty,tz),pol='x')[0]**2#/n.abs(tz)   #tz is the Jacobian
+bm = n.ones_like(tx)
 tzsave = tz
 #bm = n.where(tz > 0, bm, 0)
 bm = n.where(tz > 0.001, bm, 0)
@@ -69,7 +72,8 @@ for t1 in T1:
 
     bl2_prj = tx*bl2x + ty*bl2y + tz*bl2z
     fng2 = n.exp(-2j*n.pi*bl2_prj*fq)
-    bm = aa[0].bm_response((tx,ty,tz),pol='x')[0]**2/n.abs(tz)#*n.abs(tzsave)
+    #bm = aa[0].bm_response((tx,ty,tz),pol='x')[0]**2#/n.abs(tz)#*n.abs(tzsave)
+    bm = n.ones_like(tx)
     #bm = n.where(tz > 0, bm, 0)
     bm = n.where(tz > 0.001, bm, 0)
     #print bm.sum()
