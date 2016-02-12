@@ -85,22 +85,23 @@ def calcVis(hpm, beam, bl, coord, freq = freq):
     #obs_sky = beam * hpm.map
     freq = freq / 1.0e9
     lifeismeaningless = np.complex128(-2j*np.pi*1e9*np.round(freq*(bx*x + by*y + bz*z),decimals=8))
-    #np.save('pre-exponential-phase', lifeismeaningless)
+    np.save('pre-exponential-phase'+str(bl), lifeismeaningless)
     phs = np.exp(lifeismeaningless)
-    #np.save('post-exponential-phase', phs)
+    np.save('post-exponential-phase'+str(bl), phs)
     #print 'phase = ' + str(phs)
-    print 'baseline = ' + str(bx)
-    print 'phs = ' + str(np.exp(-2j*np.pi*freq*(bx*x + by*y + bz*z)))
+    print 'baseline = ' + str(bx*x + by*y + bz*z)
+    print 'phs = ' + str(freq*(bx*x + by*y + bz*z))
     vis = np.sum(np.where(z>0, obs_sky*phs, 0))
+    #vis = np.sum(np.where(z>0, obs_sky, 0))
     return vis
 
 # select 150 MHz and 160 MHz for u-mode calibration test
-freqs = np.array([0.150, 0.140])
+freqs = np.array([15.0/13 * 0.140, 0.150, 0.140])
 #freqs = np.array([0.200, 0.100])
 #test_freqs = 1e9*np.array([aa_freqs[102], aa_freqs[122]])
 test_freqs = 1e9*freqs
 
-flatSky = makeFlatMap(nside=64, Tsky = 1.0, freq = freq)
+flatSky = makeFlatMap(nside=16, Tsky = 1.0, freq = freq)
 xyz = flatSky.px2crd(np.arange(flatSky.npix())) #topocentric
 
 # import array parameters
@@ -110,7 +111,8 @@ aa_freqs = aa.get_freqs()
 beam = aa[0].bm_response(xyz, pol='x')**2
 print "array parameters imported"
 
-test_ants = '(64)_(51,57)'
+test_ants = '(64)_(27,51,57)'
+num_bl = 3
 #test_ants = '(64)_(29,24,28,55,34,27,51,57)'
 #test_ants = '(64)_(10,49,3,41,25,19,48,29,24,28,55,34,27,51,57)'
 parsed_ants = a.scripting.parse_ants(test_ants,3)
@@ -122,7 +124,7 @@ for i in xrange(len(parsed_ants)):
 a.scripting.uv_selector(uv, test_ants, 'xx')
 print "antennae selected"
 
-for i in xrange(len(gsm_files)):
+for i in xrange(num_bl):
     flatMap = makeFlatMap(nside=64, Tsky = 1.0, freq = test_freqs[i])
     #gsmMap = makeGSMMap(gsm_dir = gsm_dir, filename = gsm_files[i], nside = 64, freq = test_freqs[i], array = aa)
     gsm_vis = calcVis(hpm = flatSky, beam = beam[i], bl = bl[i], coord = xyz, freq = test_freqs[i])
