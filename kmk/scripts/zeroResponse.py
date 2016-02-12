@@ -3,6 +3,7 @@ import aipy as a
 import capo
 import numpy as np
 import matplotlib.pylab as pl
+import optparse, sys
 
 data_dir = '/home/kara/capo/kmk/data/'
 data_file = 'zen.2456895.51490.xx.uvcRRE'
@@ -82,35 +83,40 @@ def calcVis(hpm, beam, bl, coord, freq = freq):
     # attenuate sky signal and visibility by primary beam
     obs_sky = hpm.map
     #obs_sky = beam * hpm.map
-    phs = np.exp(-2j*np.pi*freq*(bx*x + by*y + bz*z))
-    print 'phase = ' + str(phs)
+    freq = freq / 1.0e9
+    lifeismeaningless = np.complex128(-2j*np.pi*1e9*np.round(freq*(bx*x + by*y + bz*z),decimals=8))
+    #np.save('pre-exponential-phase', lifeismeaningless)
+    phs = np.exp(lifeismeaningless)
+    #np.save('post-exponential-phase', phs)
+    #print 'phase = ' + str(phs)
     print 'baseline = ' + str(bx)
-    #print (phs*hpm.get_map()).max()
-    #print (phs*hpm.get_map()).min()
+    print 'phs = ' + str(np.exp(-2j*np.pi*freq*(bx*x + by*y + bz*z)))
     vis = np.sum(np.where(z>0, obs_sky*phs, 0))
     return vis
 
-freqs = np.array([0.100, 0.200])
+# select 150 MHz and 160 MHz for u-mode calibration test
+freqs = np.array([0.150, 0.140])
+#freqs = np.array([0.200, 0.100])
+#test_freqs = 1e9*np.array([aa_freqs[102], aa_freqs[122]])
+test_freqs = 1e9*freqs
 
 flatSky = makeFlatMap(nside=64, Tsky = 1.0, freq = freq)
 xyz = flatSky.px2crd(np.arange(flatSky.npix())) #topocentric
 
 # import array parameters
-#aa = a.cal.get_aa(calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
 aa = a.cal.get_aa(calfile, freqs)
 # select freq = 150 MHz
 aa_freqs = aa.get_freqs()
 beam = aa[0].bm_response(xyz, pol='x')**2
-#beam = beam[0]
 print "array parameters imported"
 
-test_ants = '(64)_(49,10)'
+test_ants = '(64)_(51,57)'
+#test_ants = '(64)_(29,24,28,55,34,27,51,57)'
+#test_ants = '(64)_(10,49,3,41,25,19,48,29,24,28,55,34,27,51,57)'
+parsed_ants = a.scripting.parse_ants(test_ants,3)
 bl = []
-bl.append(a.miriad.ij2bl(64,49))
-bl.append(a.miriad.ij2bl(64,10))
-# select 150 MHz and 160 MHz for u-mode calibration test
-#test_freqs = 1e9*np.array([aa_freqs[102], aa_freqs[122]])
-test_freqs = 1e9*freqs
+for i in xrange(len(parsed_ants)):
+    bl.append(parsed_ants[i][0])
 #test_scaling = np.array([0.0, 1.0])
 #test_scaling = np.exp(-2j*np.pi*test_scaling)
 a.scripting.uv_selector(uv, test_ants, 'xx')
