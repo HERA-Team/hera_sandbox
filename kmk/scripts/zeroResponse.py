@@ -88,21 +88,23 @@ def calcVis(hpm, beam, bl, coord, freq = freq):
     np.save('pre-exponential-phase'+str(bl), lifeismeaningless)
     phs = np.exp(lifeismeaningless)
     np.save('post-exponential-phase'+str(bl), phs)
+    print 'bx = ' + str(bx)
     #print 'phase = ' + str(phs)
-    print 'baseline = ' + str(bx*x + by*y + bz*z)
-    print 'phs = ' + str(freq*(bx*x + by*y + bz*z))
     vis = np.sum(np.where(z>0, obs_sky*phs, 0))
     #vis = np.sum(np.where(z>0, obs_sky, 0))
     return vis
 
 # select 150 MHz and 160 MHz for u-mode calibration test
-freqs = np.array([15.0/13 * 0.140, 0.150, 0.140])
+freq = 0.100
+freqs = freq*np.array([15.0/8, 15.0/9, 15.0/10, 15.0/11, 15.0/12, 15.0/13, 15.0/14, 1.0])
+num_bl = len(freqs)
 #freqs = np.array([0.200, 0.100])
 #test_freqs = 1e9*np.array([aa_freqs[102], aa_freqs[122]])
 test_freqs = 1e9*freqs
 
 flatSky = makeFlatMap(nside=16, Tsky = 1.0, freq = freq)
 xyz = flatSky.px2crd(np.arange(flatSky.npix())) #topocentric
+np.save('xyz', xyz)
 
 # import array parameters
 aa = a.cal.get_aa(calfile, freqs)
@@ -111,17 +113,16 @@ aa_freqs = aa.get_freqs()
 beam = aa[0].bm_response(xyz, pol='x')**2
 print "array parameters imported"
 
-test_ants = '(64)_(27,51,57)'
-num_bl = 3
-#test_ants = '(64)_(29,24,28,55,34,27,51,57)'
+#test_ants = '(64)_(27,51,57)'
+test_ants = '(64)_(29,24,28,55,34,27,51,57)'
 #test_ants = '(64)_(10,49,3,41,25,19,48,29,24,28,55,34,27,51,57)'
-parsed_ants = a.scripting.parse_ants(test_ants,3)
+parsed_ants = a.scripting.parse_ants(test_ants,num_bl)
 bl = []
 for i in xrange(len(parsed_ants)):
     bl.append(parsed_ants[i][0])
 #test_scaling = np.array([0.0, 1.0])
 #test_scaling = np.exp(-2j*np.pi*test_scaling)
-a.scripting.uv_selector(uv, test_ants, 'xx')
+#a.scripting.uv_selector(uv, test_ants, 'xx')
 print "antennae selected"
 
 for i in xrange(num_bl):
