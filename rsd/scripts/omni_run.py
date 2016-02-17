@@ -95,16 +95,6 @@ for f in range(len(args)):
             data_with_flags = data[(i,j)]
         #XXX data should be 0 when g_ij is 0? Right now it becomes nan's
     print '   logcal-ing'
-    import matplotlib.pyplot as plt
-    #plt.plot(numpy.abs(data[(32,54)][10]))
-    #plt.imshow(numpy.abs(data[(32,54)]))
-    plt.imshow(numpy.angle(data[(32,54)]))
-    plt.show()
-    for derp in data[(32,54)][10]:
-        print derp
-    print data[(32,54)].shape
-    print numpy.min(data[(32,54)]), numpy.max(data[(32,54)])
-    sys.exit()
     m,g,v = omnical.calib.redcal(data,info) #logcal
     print '   lincal-ing'
     if opts.xtalk == True:
@@ -121,7 +111,8 @@ for f in range(len(args)):
         #XXX with this new xtalk dictionary, it's giving different chi-square results than before !!!
     #import IPython;IPython.embed()
     m2['chisq'][data_with_flags==0] = 0 #flag chisq
-    m2['antchisq'][data_with_flags==0] = 0 #flag chisq
+    for a in info.subsetant: # flag chisq for all antennas
+        m2['chisq%d'%a][data_with_flags==0] = 0 #flag chisq
     ### Save Outputs ###
     out = tag + '.omni_output'+opts.omniruntag
     print '   saving '+out+'.npz'
@@ -130,7 +121,9 @@ for f in range(len(args)):
         for bl in xtalk_flat.keys(): #save xtalk
             d_npz['%s,%s,%s' % (pol,'xtalk',bl)] = xtalk_flat[bl]
     d_npz['%s,%s' % (pol,'chisq')] = m2['chisq'] #save chisq
-    d_npz['%s,%s' % (pol,'antchisq')] = m2['antchisq'] #save chisq for all antennas
+    for a in info.subsetant: # save chisq for all antennas
+        d_npz['%s,%s' % (pol,'chisq%d'%a)] = m2['chisq%d'%a]
+    #d_npz['%s,%s' % (pol,'antchisq')] = m2['antchisq'] #save chisq for all antennas
     #for vv in v.keys(): #save vis models
         #d_npz['%s,%s,%s' % (pol,'v_log',vv)] = v[vv]
         #d_npz['%s,%s,%s' % (pol,'v_lin',vv)] = v2[vv]

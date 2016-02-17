@@ -15,6 +15,8 @@ a.scripting.add_standard_options(o, cal=True, ant=True, pol=True)
 o.add_option('--outpath', action='store',
     help='Output path to write to.')
 o.add_option('--frpad',default=1.0,type=float,help='make the fringe rate convolution longer by this factor (default 1.0)')
+o.add_option('--alietal', action='store_true',
+        help='Uses normalization for alietal frf,(default=False)')
 opts,args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
@@ -26,6 +28,7 @@ del(uv)
 
 #Get only the antennas of interest
 sep2ij, blconj, bl2sep = zsa.grid2ij(aa.ant_layout)
+print "Using normalization for old FRF: ", opts.alietal
 
 print "Looking for baselines matching ", opts.ant
 ants = [ b[0] for b in a.scripting.parse_ants(opts.ant, nants) ]
@@ -42,8 +45,10 @@ for sep in seps:
         bl = a.miriad.ij2bl(*ij)
         if blconj[bl]: c+=1
         else: break
-    frp, bins = fringe.aa_to_fr_profile(aa, ij, 100,frpad=1.0)
-    timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[100],mdl=skew,startprms=(.001,.001,-50),frpad=opts.frpad)
+    frp, bins = fringe.aa_to_fr_profile(aa, ij, 100)
+    #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[100],mdl=skew,startprms=(.001,.001,-50),frpad=opts.frpad)
+    timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[100])
+    #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[160],frpad=opts.frpad, alietal=opts.alietal )
     
 baselines = ''.join(sep2ij[sep] for sep in seps)
 times, data, flags = arp.get_dict_of_uv_data(args, baselines, pol, verbose=True)

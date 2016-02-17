@@ -62,7 +62,7 @@ for chan in $chans; do
                 ODD_FILES=${ODD_DATAPATH}${sep}/*243.[3456]*uvGAL
                 test -e ${sepdir} || mkdir ${sepdir}
                 LOGFILE=`pwd`/${PREFIX}/${chan}_${pol}_${sep}.log
-                echo this is mk_psa64_pspec.sh with  |tee  ${LOGFILE}
+                echo this is mk_psa64_pspec_new_frf.sh with  |tee  ${LOGFILE}
                 echo experiment: ${PREFIX}|tee -a ${LOGFILE}
                 echo channels: ${chan}|tee -a ${LOGFILE}
                 echo polarization: ${pol}|tee -a ${LOGFILE}

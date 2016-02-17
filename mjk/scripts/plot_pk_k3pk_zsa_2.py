@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 import aipy as a, numpy as n, pylab as p
 import capo as C
 import sys, optparse, re, os
@@ -16,7 +16,7 @@ o.add_option('--afrf', action='store_true',
                 help='scale data by factor from aggresive fringe rate filtering.')
 o.add_option('-a', dest='afrf_factor', action='store', type='float', default=1.9,
             help='scaling factor for aggressive fring rate filtering.')
-o.add_option('--cov', action='store_true',
+o.add_option('--cov', action='store', type='float', default=None,
             help='scale factor for signal loss in covariance removal')
 o.add_option('--med', action='store_true',
             help='correction factor for using median statistics instead of the mean')
@@ -250,8 +250,8 @@ if False: # put in raw delay spec
         for cnt,k in enumerate(kpl):
             k = '%6.3f' % k
             if not FG_VS_KPL.has_key(k): continue
-            pk[cnt] += FG_VS_KPL[k]
-            err[cnt] = 2*n.sqrt(FG_VS_KPL_NOS*FG_VS_KPL[k])
+            #pk[cnt] += FG_VS_KPL[k]
+           # err[cnt] = 2*n.sqrt(FG_VS_KPL_NOS*FG_VS_KPL[k])
 #    pk *= .76 # psa747 calibration of Pic A = 370.6 Jy @ 160 MHz (which includes resolution effects)
 #    err *= .76
     #pk *= 2.35 # Use power**2 beam, which is a 1.69/0.72=2.35 penalty factor
@@ -350,9 +350,11 @@ for sep in RS_VS_KPL:
         d_fold *= f
         nos_fold *= f
     if True: # extra penalty for signal loss in covariance diagonalization
-        #f = 1.2
-#        f = 1.15 # this is the conservative number, for the biggest modes outside the of the wedge. Get ~1.03 correction at k=.2
-        f = 1.02 # this is the conservative number, for the biggest modes outside the of the wedge. Get ~1.03 correction at k=.2
+        if not opts.cov is None:
+            f =  opts.cov
+        else:
+#           f = 1.15 # this is the conservative number, for the biggest modes outside the of the wedge. Get ~1.03 correction at k=.2
+            f = 1.02 # this is the conservative number, for the biggest modes outside the of the wedge. Get ~1.03 correction at k=.2
         print 'Scaling data and noise by %f for signal loss from empirically estimating covariances.' % f
         d *= f
         nos *= f
@@ -592,6 +594,12 @@ def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,theo_no
     p.grid(1)
     p.subplots_adjust(left=.15, top=.95, bottom=.15, right=.95)
     p.savefig('posterior.png')
+    f=open('posterior.txt', 'w')
+    f.write('Posterior: Mean,\t(1siglo,1sighi),\t(2siglo,2sighi)\n')
+    f.write('Posterior: {0:.4f},\t({1:.4f},{2:.4f}),\t({3:.4f},{4:.4f})\n'.format( mean, s1lo,s1hi, s2lo,s2hi))
+    f.write( 'Posterior (omit): {0:.4f}, ({1:.4f},{2:.4f}),\t({3:.4f},{4:.4f})\n'.format( mean_o, s1lo_o,s1hi_o, s2lo_o,s2hi_o))
+    f.write( 'Noise level: {0:0>5.3f} mk^2\n'.format(s2l_theo**2) )
+    f.close()
     #p.show()
 
 #posterior(f['kpl'], f['pk'], f['err'], f['pk_fold'], f['err_fold'])
