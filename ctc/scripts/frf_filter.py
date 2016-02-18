@@ -23,7 +23,6 @@ del(uv)
 
 #Get only the antennas of interest
 sep2ij, blconj, bl2sep = zsa.grid2ij(aa.ant_layout)
-
 print "Looking for baselines matching ", opts.ant
 ants = [ b[0] for b in a.scripting.parse_ants(opts.ant, nants) ]
 seps = [ bl2sep[b] for b in ants ]
@@ -51,10 +50,11 @@ _w = {}
 for bl in data.keys():
     if not _d.has_key(bl): _d[bl],_w[bl] = {}, {}
     #get filter which is baseline dependent.
-    sep = bl2sep[bl]
+    m_bl = a.miriad.ij2bl(bl[0],bl[1]) #miriad bl
+    sep = bl2sep[m_bl]
     fir = firs[sep]
-    if blconj[bl]: fir = n.conj(fir)
-    print map(int, a.miriad.bl2ij(bl)), sep, blconj[bl]
+    if blconj[m_bl]: fir = n.conj(fir)
+    print map(int, a.miriad.bl2ij(m_bl)), sep, blconj[m_bl]
     for pol in data[bl].keys():
         if not _d[bl].has_key(pol): _d[bl][pol], _w[bl][pol] = {}, {}
         _d[bl][pol] = n.zeros_like(data[bl][pol])
