@@ -1,14 +1,9 @@
 #! /usr/bin/env python
 """
 
-Creates waterfall plot of T_RMS from Miriad UV files. 
+Creates waterfall plot of T_RMS from Simulated White Noise.
 
-    Here is some info the help with the legend:  \n
-    avg: Data is averaged AFTER  multiplying x.conj * x \n
-    blavg: Data averaged over baseling BEFORE x.conj * x \n
-    e-0: Even - Odd subtraction of data \n
-    var: T_RMS constructed from using the var and cnt info from uv files \n
-    GSM: Global Sky Moden \n
+
 """
 
 
@@ -25,17 +20,15 @@ o.add_option('--vline',default=False,action='store_true',\
     help='Emphasizes chosen channel range')
 o.add_option('--band', default='0_202', action='store',
     help='Channels from which to Calculate full band Covariance')
-o.add_option('--inttime', default=None, action='store',type=float,
-    help="Specify inttime for data, else use uv['inttime']")
-o.add_option('--Tsky',default=180,type=float,help='rough estimate of the sky temperature in this data @ 180MHz.  \
-[default 180K]')
-o.add_option('--Trcvr',default=100,type=float,help='receiver termp [default 100K]')
-o.add_option('--rmbls',type=str,help='list of baselines to NOT use, comma delim, integers output by a.miriad.ij2bl')
-o.add_option('--varinttime',type=float,help='integration time of the variances (s, default=inttime)')
+o.add_option('--noise',  type="float", default=0,
+    help='Creates White Noise spectrum. Input is rms in mk')
 opts,args=o.parse_args(sys.argv[1:])
 
 
-POL = opts.pol
+POL = 'I'
+FRF_WIDTH=401
+NOISE= opts.noise
+
 try:
     rmbls = map(int, opts.rmbls.split(','))
 except:
@@ -70,6 +63,9 @@ def get_data(filenames, antstr, polstr, rmbls, verbose=False):
             #flg[bl][pol].append(f)
     return n.array(lsts),cnt,var, dat, flg
 
+def noise(size):
+    return n.random.normal(size=size) * n.exp(1j*n.random.uniform(0,2*n.pi,size=size))
+
 aa = a.cal.get_aa(opts.cal,.1,.1,1)
 #dsets=glob.glob('/data3/PAPER/psa64/lstbin_omnical_2/lstbinX0/sep0,1/*.uvAL')
 #dsets = n.sort(dsets)
@@ -84,27 +80,17 @@ dsets = {
 
 print 'Number of even data sets: {0:d}'.format(len(dsets['even']))
 print 'Number of odd data sets: {0:d}'.format(len(dsets['odd']))
-#for even_count in xrange(len(dsets['even'])):
-#        print dsets['even'][dset_count].split('/')[-1], dsets['odd'][dset_count].split('/')[-1]
+for dset_count in xrange(len(dsets['even'])):
+        print dsets['even'][dset_count].split('/')[-1], dsets['odd'][dset_count].split('/')[-1]
 
 uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 band_chans = a.scripting.parse_chans(opts.band, uv['nchan'])
-
-if not opts.inttime is None:
-    inttime = opts.inttime
-else:
-    inttime = uv['inttime'] * 4 / (8.*60.) # XXX hack for *E files that have inttime set incorrectly
-    opts.inttime = inttime
+inttime = uv['inttime'] * 4 # XXX hack for *E files that have inttime set incorrectly
+#inttime= 8*60.
 print 'inttime', inttime
-
-if opts.varinttime is None:
-    if opts.inttime is not None:
-        opts.varinttime=opts.inttime
-    else: opts.varinttime = inttime
-
 del(uv)
 
 afreqs = freqs.take(chans)
@@ -154,105 +140,104 @@ lsts=lsts.values()[0]
 if len(lsts) ==0:
         print('No data to plot.')
         sys.exit(0)
-nlst=len(lsts)
-#dlst= n.ceil(nlst/13.)
-dlst=1
-x ={}
-cnt_o, var_o = {},{},
-cnt_e, var_e = {},{},
 
-#collect count and vars from UV files to create TRMS model
+x, cnt, var = {},{},{}
 if set(['even','odd']) == set(days):
     for bl in data['even']:
         d = n.copy(data['even'][bl][:,band_chans]-data['odd'][bl][:,band_chans])* jy2T
-        c_e = n.copy(n.array(cnt1['even'][bl])[:,band_chans]) 
-        v_e = n.copy(n.array(var1['even'][bl])[:,band_chans])
-        c_o = n.copy(n.array(cnt1['odd'][bl])[:,band_chans]) 
-        v_o = n.copy(n.array(var1['odd'][bl])[:,band_chans])
+        c = n.copy(n.array(cnt1['even'][bl])[:,band_chans]) 
+        v = n.copy(n.array(var1['even'][bl])[:,band_chans])
         if conj[bl]: d=n.conj(d)        
-        x[bl] = n.transpose(d,[1,0])[band_chans,::dlst]
-        v_e = n.ma.masked_where(c_e<1,v_e)
-        v_o = n.ma.masked_where(c_o<1,v_o)
-        c_e = n.ma.masked_where(c_e<1,c_e)
-        c_o = n.ma.masked_where(c_o<1,c_o)
-        cnt_e[bl] = n.transpose(c_e,[1,0])[:,::dlst]
-        var_e[bl] = n.transpose(v_e, [1,0])[:,::dlst]# * (inttime*sdf*1e9)
-        cnt_o[bl] = n.transpose(c_o,[1,0])[:,::dlst]
-        var_o[bl] = n.transpose(v_o, [1,0])[:,::dlst] #* (inttime*sdf*1e9)
+        x[bl] = n.transpose(d,[1,0])
+        cnt[bl] = n.transpose(c,[1,0])
+        var[bl] = n.transpose(v, [1,0])*(inttime/(8*60.)) ## Fix inttime for new FRF
 bls_master=x.keys()
 nbls = len(bls_master)
 bls_master.sort()
 
-trms_data, trms_o_the,trms_e_the = {}, {}, {}
+wnx={}
+if NOISE > 0:
+        print 'Creating white noise at {0} mk rms'.format(NOISE)
+        tmp_nx = {}
+        bl1 = a.miriad.bl2ij(bls_master[0])
+        beam_w_fr = capo.frf_conv.get_beam_w_fr(aa,bl1,ref_chan=0)
+        t, firs, frbins, frspace = capo.frf_conv.get_fringe_rate_kernels(beam_w_fr, inttime, FRF_WIDTH)
+        for k in days:
+            wnx[k]={}
+            tmp_nx[k] = {}
+            for bl in bls_master:
+                noise1 = noise(n.transpose(data[days[0]][bls_master[0]], [1,0]).shape)*6.6408 * NOISE ### mk 
+                for count, ch in enumerate(band_chans):
+                    noise1[count] = n.convolve(noise1[count], firs[count], mode='same')
+
+                tmp_nx[k][bl] = noise1.copy() 
+                wnx[k][bl]=noise1.copy()
+    
+        sub_noise={}
+        for bl in bls_master:
+                sub_noise[bl] = n.copy( wnx['even'][bl] - wnx['odd'][bl])
+   
+trms_data, trms_the = {}, {}
 theo_temp= {}
+noise_rms = {}
+wnoise_rms = {}
 
+nlst=len(lsts)
+dlst= n.ceil(nlst/13.)
 
-print opts.inttime/opts.varinttime
-#print inttime/opts.varinttime
 for bl in bls_master:
-    trms_data[bl] = n.sqrt( n.mean(x[bl].conj() * x[bl],axis=1)/2. ).real
-    trms_e_the[bl] = n.sqrt( n.ma.mean(var_e[bl]/cnt_e[bl]/(opts.inttime/opts.varinttime),axis=1) ) * jy2T[band_chans]
-    trms_o_the[bl] = n.sqrt( n.ma.mean(var_o[bl]/cnt_o[bl]/(opts.inttime/opts.varinttime),axis=1) ) * jy2T[band_chans]
+    trms_data[bl] = n.sqrt( n.mean(x[bl][band_chans,::dlst].conj() * x[bl][band_chans,::dlst],axis=1)/2. ).real
+    noise_rms[bl] = n.sqrt( n.mean(sub_noise[bl][band_chans,::dlst].conj() * sub_noise[bl][band_chans,::dlst] ,axis=1)/2. ).real
+ #   wnoise_rms[bl] =n.sqrt( n.mean(wnx['even'][bl][band_chans,::dlst].conj()*wnx['odd'][bl][band_chans,::dlst]  ,axis=1)).real
+    trms_the[bl] = n.sqrt( n.mean(var[bl][band_chans,::dlst]/cnt[bl][band_chans,::dlst].clip(1,n.Inf)**2,axis=1) ) * jy2T[band_chans]
 ##GSM emission + antenna temp / sqrt(df*dt*cnt)
-    theo_temp[bl]= (opts.Tsky*1e3*(allfreqs/.18)**(-2.8)+opts.Trcvr*1e3)/(n.sqrt( inttime *sdf*1e9))* n.mean(1./n.sqrt(cnt_e[bl]),axis=1)
-#bl_avgeraged counts and vars
-var_o_blavg = n.mean( [var_o[bl] for bl in bls_master],axis=0)
-cnt_o_blavg = n.mean( [cnt_o[bl] for bl in bls_master],axis=0)
+    theo_temp[bl]= (1.2e5*(allfreqs/.15)**(-2.8)+400)/(n.sqrt( 8*60. *100/203. *1e6))* n.mean(1./n.sqrt(cnt[bl][band_chans,::dlst].clip(1,n.Inf)),axis=1)
 
-var_e_blavg = n.mean( [var_e[bl] for bl in bls_master],axis=0)
-cnt_e_blavg = n.mean( [cnt_e[bl] for bl in bls_master],axis=0)
-print "nbls = ",nbls
-#Creating models from bl averaged data
-trms_e_the_blavg=n.sqrt( n.mean(var_e_blavg/(cnt_e_blavg*nbls),axis=1)) * jy2T[band_chans]
-trms_o_the_blavg=n.sqrt( n.mean(var_o_blavg/(cnt_o_blavg*nbls),axis=1)) * jy2T[band_chans]
+
+var_blavg = n.mean( [var[bl] for bl in bls_master],axis=0)
+cnt_blavg = n.mean( [cnt[bl] for bl in bls_master],axis=0)
+
+trms_the_blavg=n.sqrt( n.mean(var_blavg[band_chans,::dlst]/(cnt_blavg[band_chans,::dlst].clip(1,n.Inf)**2*nbls),axis=1)) * jy2T[band_chans]
 
 diff_blavg = n.mean( [x[bl] for bl in bls_master],axis=0)
-trms_blavg= n.sqrt( n.mean(diff_blavg.conj()*diff_blavg ,axis=1)/2.)
+trms_blavg= n.sqrt( n.mean(diff_blavg.conj()[band_chans,::dlst]*diff_blavg[band_chans,::dlst] ,axis=1)/2.)
+
+n_blavg = n.mean( [sub_noise[bl] for bl in bls_master],axis=0)
+#e_blavg = n.mean( [wnx['even'][bl] for bl in bls_master],axis=0)
+#o_blavg = n.mean( [wnx['odd'][bl] for bl in bls_master],axis=0)
+noise_blavg= n.sqrt( n.mean(n_blavg.conj()[band_chans,::dlst]*n_blavg[band_chans,::dlst],axis=1)/2.)
+#wnoise_blavg = n.sqrt(n.mean( e_blavg[band_chans,::dlst].conj()*o_blavg[band_chans, ::dlst],axis=1))
  
 avg_trms= n.mean([ trms_data[bl] for bl in bls_master], axis=0)
 gsm_data={}
 
-#for bl in bls_master:
-#    gsm_data[bl] = n.ma.masked_invalid(theo_temp[bl]/avg_trms)
-    #print 'baseline:', bl, 'mean, median, std ratio', n.mean(gsm_data[bl]), n.median(gsm_data[bl]), n.std(gsm_data[bl])
+for bl in bls_master:
+    gsm_data[bl] = n.ma.masked_invalid(theo_temp[bl]/avg_trms)
+    print 'baseline:', bl, 'mean, median, std ratio', n.mean(gsm_data[bl]), n.median(gsm_data[bl]), n.std(gsm_data[bl])
 
-#blavg_ratio=n.ma.masked_invalid(trms_blavg/trms_o_the_blavg)
-#print 'BL Averaged Trms/Tvar:','meam', n.mean(blavg_ratio),'meadian', n.median(blavg_ratio)
-
-mychan=110
-T_vs_bl = n.zeros((len(bls_master),len(band_chans)))
-for i,bl in enumerate(bls_master):
-    T_vs_bl[i] = trms_data[bl]
-p.subplot(121)
-p.plot(bls_master,n.mean(T_vs_bl[:,110:150],axis=1))
-p.subplot(122)
-p.imshow(n.log(T_vs_bl),aspect='auto',interpolation='nearest')
-T_vs_bl_mean = n.mean(T_vs_bl[:,110:150],axis=1)
-print "hottest baseline = ",bls_master[n.argwhere(T_vs_bl_mean==T_vs_bl_mean.max()).squeeze()]
-p.show()
-for i,bl in enumerate(bls_master):
+for bl in bls_master:
     print 'Ploting Trms for %d_%d'%a.miriad.bl2ij(bl)
     p.plot(band_chans, trms_data[bl], label='$T_{e-o}$')
-    p.plot(band_chans, avg_trms, 'm--', label='$T_{e-o,avg}$')
-    p.plot(band_chans, trms_o_the[bl], label='$T_{odd,var}$')
-    p.plot(band_chans, trms_e_the[bl], label='$T_{even,var}$')
-    p.plot(band_chans, trms_blavg, label='$T_{blavg,e-o}$')
-    #p.plot(band_chans, trms_o_the_blavg, label='$T_{blavg,odd,var}$')
-    #p.plot(band_chans, trms_e_the_blavg, label='$T_{blavg,even,var}$')
-    p.plot(band_chans, theo_temp[bl],'k--',label='GSM')
-    p.plot(band_chans, theo_temp[bl]/n.sqrt(nbls),'k--')
+    #p.plot(band_chans, noise_rms[bl],'-.', label='$T_{noise}$')
+    #p.plot(band_chans, wnoise_rms[bl],':', label='$T_{wnoise}$')
+    p.plot(band_chans, avg_trms, 'm--', label='$T_{avg,e-o}$')
+    p.plot(band_chans, trms_the[bl],'--', label='$T_{RMS}$')
+    p.plot(band_chans, trms_blavg, label='$T_{e-o,blavg}$')
+    #p.plot(band_chans, noise_blavg,'-.', label='$T_{noise,blavg}$')
+    #p.axhline(6.6408 *NOISE,color='k',linestyle=':')
+    #p.plot(band_chans, wnoise_blavg,':', label='$T_{wnoise,blavg}$')
+    p.plot(band_chans, trms_the_blavg,'--', label='$T_{RMS,blavg}$')
+    p.plot(band_chans, theo_temp[bl],'k--')
     p.yscale('log')
     p.xlim([band_chans[0]-1,band_chans[-1]+1])
-    p.xlabel('chan')
-    p.ylabel('$T_{rms}\ [mK]$')
-    p.legend(loc='lower center',ncol=4, bbox_to_anchor=(.5,-.35))
-    p.subplots_adjust(bottom=.25)
+    p.legend(loc='upper right',ncol=3)
     p.title('%d_%d'%a.miriad.bl2ij(bl))
+    #p.ylim([1e-2,1e4])
     if opts.plot:
         p.show()
 
     outfile = 'Trms_%d_%d.png'%a.miriad.bl2ij(bl)
     if not opts.output == '':
         outfile =opts.output+'/'+outfile
-    p.savefig(outfile,format='png', bbox_inches='tight')
+    p.savefig(outfile,format='png')
     p.clf()

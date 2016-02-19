@@ -41,14 +41,14 @@ for chan in $chans; do
                    
                echo python ${SCRIPTSDIR}/pspec_cov_full_band.py \
                     --window=${WINDOW} -p ${pol} -c ${chan} --band=${band}\
-                     -b ${NBOOT} -C ${cal} \
-                     -a ${ANTS} --output=${sepdir} --auto \
+                     -b ${NBOOT} -C ${cal} --auto\
+                     -a ${ANTS} --output=${sepdir} \
                      ${EVEN_FILES} ${ODD_FILES}
 
                python ${SCRIPTSDIR}/pspec_cov_full_band.py \
                     --window=${WINDOW} -p ${pol} -c ${chan} --band=${band}\
-                     -b ${NBOOT} -C ${cal} \
-                     -a ${ANTS} --output=${sepdir} --auto \
+                     -b ${NBOOT} -C ${cal} --auto\
+                     -a ${ANTS} --output=${sepdir} \
                      ${EVEN_FILES} ${ODD_FILES} \
                      |tee -a ${LOGFILE}
                 

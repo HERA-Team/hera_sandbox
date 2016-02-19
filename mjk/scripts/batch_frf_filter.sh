@@ -2,7 +2,9 @@
 
 seps='sep0,1 sep1,1 sep-1,1'
 cal=psa6240_v003
-frpad='2.0'
+frpad='1.0'
+#alietal='--alietal'
+alietal=''
 declare -A ants
 ants[sep0,1]=0_44
 ants[sep1,1]=1_3
@@ -36,8 +38,19 @@ for path in $paths; do
             fi
         fi
         printf 'Filtering %s by selecting ant %s \n' $sep ${ants[$sep]}
-        printf '/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py -C %s -a %s --frpad %s '  $cal ${ants[$sep]} $frpad
-        printf '%s\n' $path/$sep
-        "/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py" -C $cal -a ${ants[$sep]} -C $cal --frpad $frpad $path/$sep/lst*.uvGA 
+        if [[ $path == 'even' ]]
+        then
+            printf '/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py -C %s  %s -a %s --frpad %s '  $cal $alietal ${ants[$sep]} $frpad
+            printf '%s\n' $path/$sep
+            #files=$(ls -d $path/$sep/lst.*242.[3456]*.uvGA)
+            files=$(ls -d $path/$sep/*.uvGA)
+            "/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py" -C $cal -a ${ants[$sep]} -C $cal $alietal --frpad $frpad $files
+        else
+            printf '/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py -C %s  %s -a %s --frpad %s '  $cal $alietal ${ants[$sep]} $frpad
+            printf '%s\n' $path/$sep
+            #files=$(ls -d $path/$sep/lst.*243.[3456]*.uvGA)
+            files=$(ls -d $path/$sep/*.uvGA)
+            "/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py" -C $cal -a ${ants[$sep]} -C $cal $alietal --frpad $frpad $files
+        fi
     done
 done
