@@ -71,7 +71,7 @@ tx,ty,tz = t3[0],t3[1],t3[2]
 g3 = numpy.asarray(crd)
 
 aa.set_jultime(times[0])
-txi,tyi,tzi = 1,0,0
+txi,tyi,tzi = 0,0,1
 top2eq = aipy.coord.top2eq_m(-aa.sidereal_time(), aa.lat) #note the minus sign
 exi,eyi,ezi = numpy.dot(top2eq,(txi,tyi,tzi)) #equatorial coordinates
 #exi,eyi,ezi = 0,0,-1 #south pole

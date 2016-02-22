@@ -1,5 +1,7 @@
 import numpy as n,os
+from capo import pspec
 import glob
+import ipdb
 #measurements
 
 def PAPER_32_all():
@@ -11,11 +13,51 @@ def PAPER_32_all():
 
     PAPER_RESULTS_FILES = glob.glob(os.path.dirname(__file__)+'/data/psa32_apj/pspec_*.npz')
     PAPER_RESULTS_FILES.sort()
-    zs = n.array([10.883,8.33,7.75,7.48,7.36])
+    freqs= []
+    for filename in PAPER_RESULTS_FILES:
+        try:
+            freqs.append(n.load(filename)['freq']*1e3)
+        except(KeyError):
+            try:
+                dchan = int(filename.split('/')[-1].split('.')[0].split('_')[2])-int(filename.split('/')[-1].split('.')[0].split('_')[1])
+                chan = int(filename.split('/')[-1].split('.')[0].split('_')[1]) + dchan/2.
+                freqs.append(chan/2. + 100) #a pretty good apprximation of chan 2 freq for 500kHz channels
+            except: continue
+    freqs = n.array(freqs)
+    zs = pspec.f2z(freqs*1e-3)
     results = {}
     for files,z in zip(PAPER_RESULTS_FILES,zs):
         f=n.load(files)
-        results[z] = n.array([f['k'],f['k3pk'],f['k3pk']+f['k3err'],f['k3pk']-f['k3err']])
+        results[z] = n.array([f['k'],f['k3pk'],f['k3pk']+f['k3err'],f['k3pk']-f['k3err']]).T
+
+    return results
+
+def PAPER_64_all():
+    '''
+    Results from  PAPER 64  Ali et.al 2015
+
+    outputs results[z] = n.array([k, Delta^2, 2-sigma upper, 2-sigma lower])
+    '''
+
+    PAPER_RESULTS_FILES = glob.glob(os.path.dirname(__file__)+'/data/psa64_apj/pspec_*.npz')
+    PAPER_RESULTS_FILES.sort()
+    freqs = []
+    for filename in PAPER_RESULTS_FILES:
+        try:
+            freqs.append(n.load(filename)['freq']*1e3)
+        except(KeyError):
+            try:
+                dchan = int(filename.split('/')[-1].split('.')[0].split('_')[2])-int(filename.split('.')[0].split('_')[1])
+                chan = int(filename.split('/')[-1].split('.')[0].split('_')[1]) + dchan/2.
+                freqs.append(chan/2. + 100) #a pretty good apprximation of chan 2 freq for 500kHz channels
+            except: continue
+    freqs = n.array(freqs)
+    zs = pspec.f2z(freqs*1e-3)
+    #zs = n.array([8.31])
+    results = {}
+    for files,z in zip(PAPER_RESULTS_FILES,zs):
+        f=n.load(files)
+        results[z] = n.array([f['k'],f['k3pk'],f['k3pk']+f['k3err'],f['k3pk']-f['k3err']]).T
 
     return results
 
@@ -65,6 +107,24 @@ def MWA_32T_all():
     for z in result.keys():
         result[z] = n.array(result[z])
     return result
+
+def MWA_128_all():
+    '''
+    MWSA_128 data from dillion 2015
+    return format will be dict[z] = n.array([[k,Delta^2,top,bottom]]) all in mK^2
+    '''
+    MWA_RESULTS_FILE=glob.glob(os.path.dirname(__file__)+'/data/mwa128/*.dat')
+    zs= []
+    results = {}
+    for files in MWA_RESULTS_FILE:
+        name = files.split('/')[-1]
+        nums = name.split('=')[1].split('.')[:2]
+        z= float(nums[0]+'.'+nums[1])
+
+        data = n.genfromtxt(files, delimiter=' ')
+        results[z] = data[:,[0,1,5,4]]
+
+    return results
 def z_slice(redshift,pspec_data):
     """
     input a power spectrum data dict output of MWA_32T_all() or GMRT_2014_all()

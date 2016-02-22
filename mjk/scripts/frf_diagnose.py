@@ -7,9 +7,10 @@ import numpy as n, pylab as p
 import sys, os, optparse
 import matplotlib.cm as cmx
 import matplotlib.colors as colors
-from IPython import embed
 from scipy.special import erf
 import scipy.stats as stats
+
+import pickle
 
 def skew(cenwid, bins):
         return n.exp(-(bins-cenwid[0])**2/(2*cenwid[1]**2))*(1+erf(cenwid[2]*(bins-cenwid[0])/(n.sqrt(2)*cenwid[1]))) 
@@ -25,6 +26,8 @@ o.add_option('--seps',type=str,
     help='list of seperations to use, ex 0,1;-1,1')
 o.add_option('--plot',action='store_true',
         help='Plot the Fringe Rate Width')
+o.add_option('--maxfr',type='float', default='1.2',
+        help='max fringe rate for filter')
 opts,args = o.parse_args(sys.argv[1:])
 
 def get_colors(N):
@@ -72,10 +75,10 @@ for cnt,pad in enumerate(frpads):
             else: break
         frp, bins = fringe.aa_to_fr_profile(aa, ij, mychan)
 
-        timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True,mdl=skew,startprms=(.001,.001,-5))
-        #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True)
-       # timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True,alietal=True)
-        print 'current sum of n.abs(firs)**2: ', n.sum(n.abs(firs[sep][mychan])**2)
+        #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True,mdl=skew,startprms=(.001,.001,-5))
+        timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True)
+        #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True,alietal=True)
+        #print 'current sum of n.abs(firs)**2: ', n.sum(n.abs(firs[sep][mychan])**2)
         
         if False and pad ==1:
             delta=prms0[-1]/n.sqrt(1+prms0[-1]**2)
@@ -118,3 +121,12 @@ if PLOT:
     ax_firs.set_title('Fringe Rates Filter Widths')
     ax_firs.legend(loc='best')
     p.show()
+
+f= open('frf_diagnose_optimal_frf.pkl','w')
+
+frps['freqs'] = frp_freqs
+frps['frp'] = frp
+
+pickle.dump(frps,f)
+
+f.close()
