@@ -38,7 +38,7 @@ import datetime
 #GLOBAL VARIABLES                                ### to be updated each time ###
 
 NCHAN = 1#203 #number of frequency channels
-SFREQ = 0.408 #starting frequency [GHz]
+SFREQ = .045#0.1 #starting frequency [GHz]
 SDF = 0.00049261 #spacing between frequencies [GHz]
 
 INTTIME = 42.9 #integration time [s]

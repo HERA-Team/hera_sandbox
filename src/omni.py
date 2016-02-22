@@ -146,16 +146,24 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselo
 def compute_xtalk(res, wgts):
     '''Estimate xtalk as time-average of omnical residuals.'''
     xtalk = {}
-    for key in res:
-        r,w = np.where(wgts[key] > 0, res[key], 0), wgts[key].sum(axis=0)
-        w = np.where(w == 0, 1, w)
-        xtalk[key] = (r.sum(axis=0) / w).astype(res[key].dtype) # avg over time
+    for pol in res.keys():
+        xtalk[pol] = {}
+        for key in res[pol]: 
+            r,w = np.where(wgts[pol][key] > 0, res[pol][key], 0), wgts[pol][key].sum(axis=0)
+            w = np.where(w == 0, 1, w)
+        xtalk[pol][key] = (r.sum(axis=0) / w).astype(res[pol][key].dtype) # avg over time
     return xtalk
 
-def to_npz(filename, meta, gains, vismdl, xtalk, jds, lsts, freqs):
+def to_npz(filename, meta, gains, vismdl, xtalk):
     '''Write results from omnical.calib.redcal (meta,gains,vismdl) to npz file.
     Each of these is assumed to be a dict keyed by pol, and then by bl/ant/keyword'''
     d = {}
+    
+    for key in meta:
+        if key.startswith('chisq'): d[key] = meta[key] #separate ifs pending changes to chisqs
+        if key.startswith('jds') or key.startswith('lsts') or key.startswith('freqs') or key.startswith('history'): d[key] = meta[key] 
+    
+    """
     for pol in meta:
         for k in meta[pol]:
             if k.startswith('chisq'):
@@ -163,6 +171,7 @@ def to_npz(filename, meta, gains, vismdl, xtalk, jds, lsts, freqs):
             if k.startswith('history'):
                 d['history' + ' %s' % pol] = meta[pol][k]
         # XXX chisq after xtalk removal
+    """
     for pol in gains:
         for ant in gains[pol]:
             d['%d%s' % (ant,pol)] = gains[pol][ant] 
@@ -172,12 +181,9 @@ def to_npz(filename, meta, gains, vismdl, xtalk, jds, lsts, freqs):
     for pol in xtalk:
         for bl in xtalk[pol]: 
             d['(%d,%d) %s' % (bl[0],bl[1],pol)] = xtalk[pol][bl]
-    d['jds'] =  jds
-    d['lsts'] = lsts
-    d['freqs'] = freqs
     np.savez(filename,**d)
 
-def from_npz(filename, meta={}, gains={}, vismdl={}, xtalk={}, jds=[], lsts=[], freqs=[]):
+def from_npz(filename, meta={}, gains={}, vismdl={}, xtalk={}):
     '''Reconstitute results from to_npz, returns meta, gains, vismdl, xtalk, each
     keyed first by polarization, and then by bl/ant/keyword.'''
     npz = np.load(filename)
@@ -197,18 +203,8 @@ def from_npz(filename, meta={}, gains={}, vismdl={}, xtalk={}, jds=[], lsts=[], 
         pol,ant = k[-1:],int(k[:-1])
         if not gains.has_key(pol): gains[pol] = {}
         gains[pol][ant] = npz[k]
-    for k in [f for f in npz.files if f.startswith('c')]: #[0].isalpha()]:
-        key,pol = k.split()
-        if not meta.has_key(pol): meta[pol] = {}
-        meta[pol][k.split()[0]] = npz[k]
-    for k in [f for f in npz.files if f.startswith('h')]:
-        key,pol = k.split()
-        if not meta.has_key(pol): meta[pol] = {}
-        meta[pol][k.split()[0]] = npz[k]
-    for k in [f for f in npz.files if f.startswith('j')]: 
-        jds = npz[k] 
-    for k in [f for f in npz.files if f.startswith('l')]: 
-        lsts = npz[k]
-    for k in [f for f in npz.files if f.startswith('f')]:
-        freqs = npz[k]
-    return meta, gains, vismdl, xtalk, jds, lsts, freqs
+    
+    kws = ['chi','hist','j','l','f']
+    for kw in kws:
+        for k in [f for f in npz.files if f.startswith(kw)]: meta[k] = npz[k]
+    return meta, gains, vismdl, xtalk
