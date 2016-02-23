@@ -8,12 +8,8 @@ import optparse, sys
 data_dir = '/home/kara/capo/kmk/data/'
 data_file = 'zen.2456895.51490.xx.uvcRRE'
 calfile = 'test'
-uv = a.miriad.UV(data_dir + data_file)
 
-# rest frequency: 150 MHz
-freq = uv.__getitem__('restfreq')*1e9 #Hz
-
-def makeFlatMap(nside=64, Tsky=1.0, freq=freq):
+def makeFlatMap(nside, freq, Tsky=1.0):
     # NOTE: optimal baseline length formula given in Presley et al 2015 eq. 9
     # fill sky map with flat temperature across whole sky (DC signal)
     hpm = a.healpix.HealpixMap(nside=nside)
@@ -21,7 +17,7 @@ def makeFlatMap(nside=64, Tsky=1.0, freq=freq):
     print "flat map size = " + str(hpm.map.shape)
     return hpm_TtoJy(hpm, freq)
 
-def hpm_TtoJy(hpm, freq=freq):
+def hpm_TtoJy(hpm, freq):
     wvlen = a.const.c / freq
     hpm.map *= (4*np.pi/hpm.npix())*2*a.const.k/wvlen**2 # convert to Jy to make summable
     return hpm
@@ -34,7 +30,7 @@ gsm_files = np.array([1001, 1002])
 
 # NOTE: the gsm file is associated with a particular frequency map --
 # check to ensure filename matches input frequency
-def makeGSMMap(array, nside = 64, gsm_dir = '/home/kara/capo/kmk/gsm/gsm_raw/', filename = 'gsm1001', freq = freq):
+def makeGSMMap(array, nside, filename, freq, gsm_dir='/home/kara/capo/kmk/gsm/gsm_raw/'):
     g = a.healpix.HealpixMap(nside=512)
     gsm = a.healpix.HealpixMap(nside=nside)
     print "GSM map size = " + str(gsm.map.shape)
@@ -60,7 +56,7 @@ def makeGSMMap(array, nside = 64, gsm_dir = '/home/kara/capo/kmk/gsm/gsm_raw/', 
 # X = constant temperature value for global signal
 # N = noise
 
-def extractData(uv = uv):
+def extractData(uv):
     time = []
     f = {} # dictionary of flags
     d = {} # dictionary of spectra information
@@ -75,59 +71,46 @@ def extractData(uv = uv):
     return d
 
 # simulate visibilities for each baseline
-def calcVis(hpm, beam, bl, coord, freq = freq):
+def calcVis(hpm, beam, bl, coord, freq):
     x,y,z = coord
-    n, m = a.miriad.bl2ij(bl)
-    print n, m
-    bx, by, bz = aa.get_baseline(n, m)
+    i, j = a.miriad.bl2ij(bl)
+    print i, j
+    bx, by, bz = aa.get_baseline(i, j)
     # attenuate sky signal and visibility by primary beam
     obs_sky = hpm.map
     #obs_sky = beam * hpm.map
-    freq = freq / 1.0e9
-    lifeismeaningless = np.complex128(-2j*np.pi*1e9*np.round(freq*(bx*x + by*y + bz*z),decimals=8))
-    np.save('pre-exponential-phase'+str(bl), lifeismeaningless)
-    phs = np.exp(lifeismeaningless)
-    np.save('post-exponential-phase'+str(bl), phs)
+    phs = np.exp(np.complex128(-2j*np.pi*freq*(bx*x + by*y + bz*z)))
     print 'bx = ' + str(bx)
-    #print 'phase = ' + str(phs)
+    print 'phase = ' + str(phs)
     vis = np.sum(np.where(z>0, obs_sky*phs, 0))
     #vis = np.sum(np.where(z>0, obs_sky, 0))
     return vis
 
 # select 150 MHz and 160 MHz for u-mode calibration test
 freq = 0.100
+#freqs = freq*np.array([2.0, 1.0])
 freqs = freq*np.array([15.0/8, 15.0/9, 15.0/10, 15.0/11, 15.0/12, 15.0/13, 15.0/14, 1.0])
-num_bl = len(freqs)
-#freqs = np.array([0.200, 0.100])
 #test_freqs = 1e9*np.array([aa_freqs[102], aa_freqs[122]])
-test_freqs = 1e9*freqs
 
-flatSky = makeFlatMap(nside=16, Tsky = 1.0, freq = freq)
+flatSky = makeFlatMap(nside=64, Tsky=1.0, freq=freq)
 xyz = flatSky.px2crd(np.arange(flatSky.npix())) #topocentric
-np.save('xyz', xyz)
 
 # import array parameters
 aa = a.cal.get_aa(calfile, freqs)
 # select freq = 150 MHz
 aa_freqs = aa.get_freqs()
-beam = aa[0].bm_response(xyz, pol='x')**2
+beam = aa[0].bm_response(xyz, pol = 'x')**2
 print "array parameters imported"
 
-#test_ants = '(64)_(27,51,57)'
+#test_ants = '(64)_(10,49)'
 test_ants = '(64)_(29,24,28,55,34,27,51,57)'
-#test_ants = '(64)_(10,49,3,41,25,19,48,29,24,28,55,34,27,51,57)'
-parsed_ants = a.scripting.parse_ants(test_ants,num_bl)
+parsed_ants = a.scripting.parse_ants(test_ants,len(freqs))
 bl = []
 for i in xrange(len(parsed_ants)):
     bl.append(parsed_ants[i][0])
-#test_scaling = np.array([0.0, 1.0])
-#test_scaling = np.exp(-2j*np.pi*test_scaling)
-#a.scripting.uv_selector(uv, test_ants, 'xx')
-print "antennae selected"
 
-for i in xrange(num_bl):
-    flatMap = makeFlatMap(nside=64, Tsky = 1.0, freq = test_freqs[i])
-    #gsmMap = makeGSMMap(gsm_dir = gsm_dir, filename = gsm_files[i], nside = 64, freq = test_freqs[i], array = aa)
-    gsm_vis = calcVis(hpm = flatSky, beam = beam[i], bl = bl[i], coord = xyz, freq = test_freqs[i])
-    #print np.abs(gsm_vis*test_scaling[i])
+for i in xrange(len(bl)):
+    #flatMap = makeFlatMap(nside=64, Tsky=1.0, freq=test_freqs[i])
+    #gsmMap = makeGSMMap(gsm_dir=gsm_dir, filename=gsm_files[i], nside=64, freq=test_freqs[i], array=aa)
+    gsm_vis = calcVis(hpm=flatSky, beam=beam[i], bl=bl[i], coord=xyz, freq=freqs[i])
     print gsm_vis
