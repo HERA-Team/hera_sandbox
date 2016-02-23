@@ -129,6 +129,7 @@ for files in triplets(args):
         print ants
         #times, dat, flg = C.arp.get_dict_of_uv_data(files, ants, -1, verbose=False)
         times, dat, flg = C.arp.get_dict_of_uv_data(files, ants, -1, verbose=False, recast_as_array=False)
+        times = n.asarray(times['times'])
 
         if len(match_tdec) == 0:
             uv1 = a.miriad.UV(files[1]); uv2 = a.miriad.UV(files[2])
@@ -307,7 +308,7 @@ for files in triplets(args):
     def mfunc_dly(uv, p, d, f):
         uvw,t,(i,j) = p
         p = uvw,t,(i,j)
-        bl = a.miriad.ij2bl(i,j)
+        bl = i,j
         pol = a.miriad.pol2str[uv['pol']]
         try:
             d_,w = data_dly[bl][pol][t], wgts_dly[bl][pol][t]
@@ -322,7 +323,7 @@ for files in triplets(args):
         try: t = match_tdec[t]
         except(KeyError): return p, None, None
         p = uvw,t,(i,j)
-        bl = a.miriad.ij2bl(i,j)
+        bl = i,j
         pol = a.miriad.pol2str[uv['pol']]
         try:
             d_,w = data_fng[bl][pol][t], wgts_fng[bl][pol][t]
@@ -337,7 +338,7 @@ for files in triplets(args):
         try: t = match_tdec[t]
         except(KeyError): return p, None, None
         p = uvw,t,(i,j)
-        bl = a.miriad.ij2bl(i,j)
+        bl = i,j
         pol = a.miriad.pol2str[uv['pol']]
         try:
             d_,w = data_ddr[bl][pol][t], wgts_ddr[bl][pol][t]
