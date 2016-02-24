@@ -9,6 +9,18 @@ data_dir = '/home/kara/capo/kmk/data/'
 data_file = 'zen.2456895.51490.xx.uvcRRE'
 calfile = 'test'
 
+def bl2delay(array, bl):
+    i, j = a.miriad.bl2ij(bl)
+    bx, by, bz = aa.get_baseline(i, j)
+    return np.sqrt(bx**2 + by**2 + bz**2)
+
+def calcFreq(array, bl, ref_bl, ref_freq, min_freq, max_freq):
+    f = ref_freq * (ref_bl / baseline)
+    if max_freq >= f >= min_freq:
+        return f
+    else:
+        raise ValueError("invalid frequency in baseline %d,%d" % (i,j))
+
 def makeFlatMap(nside, freq, Tsky=1.0):
     # NOTE: optimal baseline length formula given in Presley et al 2015 eq. 9
     # fill sky map with flat temperature across whole sky (DC signal)
@@ -24,7 +36,6 @@ def hpm_TtoJy(hpm, freq):
 
 # fill sky map with GSM
 # create array of GSM files for simulation of multiple frequencies
-# MODIFY TO INCLUDE MULTIPLE GSM FILES AT DIFFERENT FREQUENCIES
 gsm_dir = '/home/kara/capo/kmk/gsm/gsm_raw/gsm'
 gsm_files = np.array([1001, 1002])
 
@@ -80,34 +91,36 @@ def calcVis(hpm, beam, bl, coord, freq):
     obs_sky = hpm.map
     #obs_sky = beam * hpm.map
     phs = np.exp(np.complex128(-2j*np.pi*freq*(bx*x + by*y + bz*z)))
-    print 'bx = ' + str(bx)
-    print 'phase = ' + str(phs)
     vis = np.sum(np.where(z>0, obs_sky*phs, 0))
-    #vis = np.sum(np.where(z>0, obs_sky, 0))
     return vis
 
 # select 150 MHz and 160 MHz for u-mode calibration test
 freq = 0.100
-#freqs = freq*np.array([2.0, 1.0])
-freqs = freq*np.array([15.0/8, 15.0/9, 15.0/10, 15.0/11, 15.0/12, 15.0/13, 15.0/14, 1.0])
-#test_freqs = 1e9*np.array([aa_freqs[102], aa_freqs[122]])
 
 flatSky = makeFlatMap(nside=64, Tsky=1.0, freq=freq)
 xyz = flatSky.px2crd(np.arange(flatSky.npix())) #topocentric
 
-# import array parameters
-aa = a.cal.get_aa(calfile, freqs)
-# select freq = 150 MHz
-aa_freqs = aa.get_freqs()
-beam = aa[0].bm_response(xyz, pol = 'x')**2
-print "array parameters imported"
-
-#test_ants = '(64)_(10,49)'
+# create array of baselines
 test_ants = '(64)_(29,24,28,55,34,27,51,57)'
-parsed_ants = a.scripting.parse_ants(test_ants,len(freqs))
+parsed_ants = a.scripting.parse_ants(test_ants,8)
 bl = []
 for i in xrange(len(parsed_ants)):
     bl.append(parsed_ants[i][0])
+bl = np.array(bl)
+
+aa = a.cal.get_aa(calfile, np.array([freq]))
+ref_bl = bl2delay(aa, bl.max())
+freqs = []
+for i in xrange(len(bl)):
+    baseline = bl2delay(array=aa, bl=bl[i])
+    freqs.append(calcFreq(array=aa, bl=baseline, ref_bl=ref_bl, ref_freq=freq, min_freq=0.100, max_freq=0.200))
+freqs = np.array(freqs)
+
+# import array parameters
+aa = a.cal.get_aa(calfile, freqs)
+aa_freqs = aa.get_freqs()
+beam = aa[0].bm_response(xyz, pol = 'x')**2
+print "array parameters imported"
 
 for i in xrange(len(bl)):
     #flatMap = makeFlatMap(nside=64, Tsky=1.0, freq=test_freqs[i])
