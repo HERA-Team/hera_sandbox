@@ -13,11 +13,15 @@ calfile = 'test'
 gsm_dir = '/home/kara/capo/kmk/gsm/gsm_raw/'
 
 def bl2delay(array, bl):
+    """ converts unique baseline numbers into nanosecond delays """
     i, j = a.miriad.bl2ij(bl)
     bx, by, bz = aa.get_baseline(i, j)
     return np.sqrt(bx**2 + by**2 + bz**2)
 
 def calcFreq(array, bl, ref_bl, ref_freq, min_freq, max_freq):
+    """ calculates nuCal frequencies based on an initial frequency, reference baseline, 
+        and input baseline. must include min and max frequencies for array in order to
+        ensure that calculated frequencies are legal. """
     f = ref_freq * (ref_bl / baseline)
     if max_freq >= f >= min_freq:
         return f
@@ -25,19 +29,32 @@ def calcFreq(array, bl, ref_bl, ref_freq, min_freq, max_freq):
         raise ValueError("invalid frequency in baseline %d,%d" % (i,j))
 
 def makeFlatMap(nside, freq, Tsky=1.0):
-    # NOTE: optimal baseline length formula given in Presley et al 2015 eq. 9
-    # fill sky map with flat temperature across whole sky (DC signal)
+    """ fill sky map of given size and frequency with flat temperature across whole sky,
+        returns map in Janskys. """
     hpm = a.healpix.HealpixMap(nside=nside)
     hpm.map = Tsky*np.ones(shape = hpm.map.shape)
     print "flat map size = " + str(hpm.map.shape)
     return hpm_TtoJy(hpm, freq)
 
 def hpm_TtoJy(hpm, freq):
+    """ converts given Healpix map from brightness temperature to Janskys, provided map
+        frequency """
     wvlen = a.const.c / freq
     hpm.map *= (4*np.pi/hpm.npix())*2*a.const.k/wvlen**2 # convert to Jy to make summable
     return hpm
 
 def makeGSM(path, filename, sfreq, sdf, num):
+    """ runs the MIT multi-frequency global sky model simulation at given frequencies 
+
+        required input variables:
+        path: provides pathname to gsmmf.sh -- need to be in this directory to run sim
+        filename: desired output filenames for GSM maps
+        sfreq: desired starting frequency for your GSM maps
+        sdf: desired frequency spacings of maps
+        num: desired number of maps produced 
+        
+        GSM simulator can be downloaded at 
+        <<http://space.mit.edu/~angelica/gsm/index.html>> """
     os.chdir(path)
     os.system('rm -rf args.dat')
     f = open('args.dat', 'w')
@@ -47,15 +64,14 @@ def makeGSM(path, filename, sfreq, sdf, num):
     f.close()
     os.system(path+'gsmmf.sh')
 
-# fill sky map with GSM
-# NOTE: the gsm file is associated with a particular frequency map --
-# check to ensure filename matches input frequency
-def makeGSMMap(array, nside, filename, freq, gsm_dir='/home/kara/capo/kmk/gsm/gsm_raw/'):
-    makeGSM(path=gsm_dir, filename=filename, sfreq=freq, sdf=10, num=1)
+def makeGSMMap(array, nside, filename, freq, path='/home/kara/capo/kmk/gsm/gsm_raw/'):
+    """ create a Healpix map of a given size filled with a simulated global sky model
+        at a given frequency """
+    makeGSM(path=path, filename=filename, sfreq=freq, sdf=10, num=1)
     g = a.healpix.HealpixMap(nside=512)
     gsm = a.healpix.HealpixMap(nside=nside)
     print "GSM map size = " + str(gsm.map.shape)
-    d = np.loadtxt(gsm_dir + filename + str(1001) + '.dat')
+    d = np.loadtxt(path + filename + str(1001) + '.dat')
     g.map = d
     g = hpm_TtoJy(g, freq)
     gsm.from_hpm(g) # hack to lower resolution to prevent memory overload
@@ -66,18 +82,20 @@ def makeGSMMap(array, nside, filename, freq, gsm_dir='/home/kara/capo/kmk/gsm/gs
     i, j, k = ijk = np.dot(ga2eq2top,gsm.px2crd(np.arange(gsm.npix()))) #topocentric
     return gsm
 
-# create arrays for visibilities for each baseline
-# single timestep, single polarization
-# final index is frequency (to be implemented in the future)
-
-# define our observation equation in the Tegmark 1997 form
-# Y = AX + N
-# Y = observed visibility
-# A = theoretical visibility
-# X = constant temperature value for global signal
-# N = noise
 
 def extractData(uv):
+    """ create arrays for visibilities for each baseline in uv data file for 
+        single timestep, single polarization
+
+        define our observation equation in the Tegmark 1997 form
+        Y = AX + N
+        Y = observed visibility
+        A = theoretical visibility
+        X = constant temperature value for global signal
+        N = noise 
+
+        NOTE: final index in data directory is frequency 
+        (to be implemented in the future) """
     time = []
     f = {} # dictionary of flags
     d = {} # dictionary of spectra information
@@ -91,8 +109,9 @@ def extractData(uv):
     print "data collected"
     return d
 
-# simulate visibilities for each baseline
 def calcVis(hpm, beam, bl, coord, freq):
+    """ simulate sky visibilities for a given baseline and primary beam, 
+        provided with a sky map at a known frequency and its coordinate system """
     x,y,z = coord
     i, j = a.miriad.bl2ij(bl)
     print i, j
@@ -134,11 +153,10 @@ print "array parameters imported"
 
 sim_data = []
 for i in xrange(len(bl)):
-    gsmMap = makeGSMMap(gsm_dir=gsm_dir, filename='gsm', nside=64, freq=freqs[i], array=aa)
+    gsmMap = makeGSMMap(path=gsm_dir, filename='gsm', nside=64, freq=freqs[i], array=aa)
     gsm_vis = calcVis(hpm=gsmMap, beam=beam[i], bl=bl[i], coord=xyz, freq=freqs[i])
     vis_data = [a.miriad.bl2ij(bl[i]), freqs[i], gsm_vis]
     sim_data.append(vis_data)
-    #print gsm_vis
 
 np.array(sim_data)
 np.savez(sim_dir+'sim_output',sim_data)
