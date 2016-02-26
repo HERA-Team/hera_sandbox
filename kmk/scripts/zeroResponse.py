@@ -4,10 +4,13 @@ import capo
 import numpy as np
 import matplotlib.pylab as pl
 import optparse, sys
+import os
 
+sim_dir = '/home/kara/capo/kmk/scripts/'
 data_dir = '/home/kara/capo/kmk/data/'
 data_file = 'zen.2456895.51490.xx.uvcRRE'
 calfile = 'test'
+gsm_dir = '/home/kara/capo/kmk/gsm/gsm_raw/'
 
 def bl2delay(array, bl):
     i, j = a.miriad.bl2ij(bl)
@@ -34,18 +37,25 @@ def hpm_TtoJy(hpm, freq):
     hpm.map *= (4*np.pi/hpm.npix())*2*a.const.k/wvlen**2 # convert to Jy to make summable
     return hpm
 
-# fill sky map with GSM
-# create array of GSM files for simulation of multiple frequencies
-gsm_dir = '/home/kara/capo/kmk/gsm/gsm_raw/gsm'
-gsm_files = np.array([1001, 1002])
+def makeGSM(path, filename, sfreq, sdf, num):
+    os.chdir(path)
+    os.system('rm -rf args.dat')
+    f = open('args.dat', 'w')
+    s = "%s %f %f %d" % (filename, sfreq, sdf, num)
+    print s
+    f.write(s)
+    f.close()
+    os.system(path+'gsmmf.sh')
 
+# fill sky map with GSM
 # NOTE: the gsm file is associated with a particular frequency map --
 # check to ensure filename matches input frequency
 def makeGSMMap(array, nside, filename, freq, gsm_dir='/home/kara/capo/kmk/gsm/gsm_raw/'):
+    makeGSM(path=gsm_dir, filename=filename, sfreq=freq, sdf=10, num=1)
     g = a.healpix.HealpixMap(nside=512)
     gsm = a.healpix.HealpixMap(nside=nside)
     print "GSM map size = " + str(gsm.map.shape)
-    d = np.loadtxt(gsm_dir + str(filename) + '.dat')
+    d = np.loadtxt(gsm_dir + filename + str(1001) + '.dat')
     g.map = d
     g = hpm_TtoJy(g, freq)
     gsm.from_hpm(g) # hack to lower resolution to prevent memory overload
@@ -122,8 +132,14 @@ aa_freqs = aa.get_freqs()
 beam = aa[0].bm_response(xyz, pol = 'x')**2
 print "array parameters imported"
 
+sim_data = []
 for i in xrange(len(bl)):
-    #flatMap = makeFlatMap(nside=64, Tsky=1.0, freq=test_freqs[i])
-    #gsmMap = makeGSMMap(gsm_dir=gsm_dir, filename=gsm_files[i], nside=64, freq=test_freqs[i], array=aa)
-    gsm_vis = calcVis(hpm=flatSky, beam=beam[i], bl=bl[i], coord=xyz, freq=freqs[i])
-    print gsm_vis
+    gsmMap = makeGSMMap(gsm_dir=gsm_dir, filename='gsm', nside=64, freq=freqs[i], array=aa)
+    gsm_vis = calcVis(hpm=gsmMap, beam=beam[i], bl=bl[i], coord=xyz, freq=freqs[i])
+    vis_data = [a.miriad.bl2ij(bl[i]), freqs[i], gsm_vis]
+    sim_data.append(vis_data)
+    #print gsm_vis
+
+np.array(sim_data)
+np.savez(sim_dir+'sim_output',sim_data)
+print sim_data
