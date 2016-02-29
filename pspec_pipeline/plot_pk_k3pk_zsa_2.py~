@@ -33,7 +33,7 @@ def noise_level(freq=None):
     inttime = 1886. #seconds. XXX fix with new integration.
     nbls=51
     ndays = 84 #effectively this many days. days of operation = 135 :: =120->84 SK
-    nseps = 3
+    nseps = 1 #XXX SK testing on one sep CHANGE THIS BACK
     folding = 2
     #ndays = 60 #effectively this many days. days of operation = 135
     nmodes = (nseps*folding*8.5*60*60/inttime)**.5 # 3 for baseline types, 8.5=total lst time used.
