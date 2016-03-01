@@ -67,47 +67,102 @@ if opts.factor == None:
 
     ### FIND MATCHING LSTs and FACTORS ###
     factors = []
+    factors_complex = []
+    d64_all = []
+    d128_all = []
     for i2,t in enumerate(t2):
         i1 = numpy.argmin(numpy.abs(t1-t)) #XXX could interpolate here
+        d64_complex = d1[i1]
+        d64_complex[numpy.abs(d64_complex) == 0.] = numpy.nan
         d64 = numpy.abs(d1[i1])
         d64[d64 == 0.] = numpy.nan #make 0 values in PSA64 nan's
-        #d64[0:25] = numpy.nan
+        #d64[:30] = numpy.nan #chop off low band edge in polyfit
+        #d64[-25:] = numpy.nan #chop off high band edge in polyfit
+        d128_complex = d2[i2]
+        d128_complex[numpy.abs(d128_complex) == 0.] = numpy.nan
         d128 = numpy.abs(d2[i2])
+        d64_all.append(d64_complex)
+        d128_all.append(d128_complex)
         factors.append(d64/d128)
+        factors_complex.append(d64_complex/d128_complex)
     factors = numpy.ma.masked_invalid(factors) #mask inf and nan
+    factors_complex = numpy.ma.masked_invalid(factors_complex)
+    d64_all = numpy.ma.masked_invalid(d64_all)
+    d128_all = numpy.ma.masked_invalid(d128_all)
     if opts.poly == True:
         print "Fitting polynomial..."
         freqs = numpy.linspace(0,202,203)
+        capo.arp.waterfall(factors,drng=4)
+        plt.title('PSA64/PSA128 (Abs) Pre-Calibration')
+        plt.xlabel('freq')
+        plt.ylabel('time')
+        plt.colorbar()
+        if opts.plot == True:
+            plt.show()
+        plt.imshow(numpy.angle(factors_complex),aspect='auto')
+        plt.title('PSA64/PSA128 (Phase) Pre-Calibration')
+        plt.xlabel('freq')
+        plt.ylabel('time')
+        plt.colorbar()
+        if opts.plot == True:
+            plt.show()
         factors = numpy.median(factors,axis=0)
+        factors_complex = numpy.median(factors_complex,axis=0)
         freqs = numpy.ma.masked_where(factors.mask == True,freqs)
         factor = numpy.polyval(numpy.ma.polyfit(freqs,factors,8),freqs)
-        plt.plot(factors,'r-',label='PSA64/PSA128')
+        plt.plot(factors,'r-',label='PSA64/PSA128 (Abs)')
         plt.plot(factor,'k-',label='fit')
-        plt.title('polynomial fit')
+        plt.title('polynomial fit (abs)')
         plt.legend()
-        plt.show()
+        if opts.plot == True:
+            plt.show()
+        phase_factor = numpy.polyval(numpy.ma.polyfit(freqs,numpy.angle(factors_complex),1),freqs) #linear fit for phase term
+        plt.plot(numpy.angle(factors_complex),'r-',label='PSA64/PSA128 (Phase)')
+        plt.plot(phase_factor,'k-',label='fit')
+        plt.title('polynomial fit (phase)')
+        plt.legend()
+        if opts.plot == True:
+            plt.show()
+        plt.imshow(numpy.angle(d64_all/(d128_all*numpy.exp(1j*phase_factor))),aspect='auto')
+        plt.title('PSA64/PSA128 (Phase) After-Calibration')
+        plt.xlabel('freq')
+        plt.ylabel('time')
+        plt.colorbar()
+        if opts.plot == True:
+            plt.show()
+        factor = factor*numpy.exp(1j*phase_factor) #final correction factor
     else:
         factors = numpy.mean(factors,axis=1) #average over freq
         factor = numpy.median(factors) #median over time
         print "Factor =",factor
-
 ### PLOT ###
 if opts.plot == True:
-    plt.subplot(1,3,1)
+    plt.subplot(2,3,1)
     capo.arp.waterfall(d2,mx=0,drng=4,mode='log')
     plt.colorbar()
     plt.title('128 Data')
-    plt.subplot(1,3,2)
+    plt.subplot(2,3,2)
     t1_clip = [t for t in t1 if t > numpy.min(t2) and t < numpy.max(t2)]
-    capo.arp.waterfall([d for i,d in enumerate(d1) if t1[i] > numpy.min(t2) and t1[i] < numpy.max(t2)],mx=4,drng=4,mode='log')
+    d1 = [d for i,d in enumerate(d1) if t1[i] > numpy.min(t2) and t1[i] < numpy.max(t2)]
+    capo.arp.waterfall(d1,mx=4,drng=4,mode='log')
     plt.colorbar()
     plt.title('64 Data')
-    plt.subplot(1,3,3)
+    plt.subplot(2,3,3)
     capo.arp.waterfall(numpy.array(d2)*factor,mx=4,drng=4,mode='log')
     plt.colorbar()
     plt.title('Calibrated 128 Data')
+    plt.subplot(2,3,4)
+    plt.imshow(numpy.angle(d2),aspect='auto')
+    plt.colorbar()
+    plt.subplot(2,3,5)
+    plt.imshow(numpy.angle(d1),aspect='auto')
+    plt.colorbar()
+    plt.subplot(2,3,6)
+    plt.imshow(numpy.angle(numpy.array(d2)*factor),aspect='auto')
+    plt.colorbar()
     plt.tight_layout()
     plt.show()
+
 
 """
     good_files_128 = [] #read in 128 data
