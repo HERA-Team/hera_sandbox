@@ -1,25 +1,12 @@
 #! /bin/bash
 export PYTHONPATH='.':$PYTHONPATH
-#PREFIX="OneDayFG"
-#
-##chans=`python -c "print ' '.join(['%d_%d'%(i,i+39) for i in range(10,150,1)])"`
-#pols='I Q U V'
-#seps='0_16 1_16 0_17'
-#chans='110_149'
-#RA="1:01_9:00"
-#NBOOT=20
-#
-##DATAPATH=fringe_hor_v006
-#SCRIPTSDIR=~/src/capo/pspec_pipeline
-#cal="psa898_v003"
-#PWD=`pwd`
-#DATAPATH="${PWD}/typical_day/*FRXS"
+
 (
 echo using config $*
 . $*
 #set defaults to parameters which might not be set
 if [[ ! -n ${WINDOW} ]]; then export WINDOW="none"; fi
-#for posterity Print the cal file we are using
+#for posterity, print the cal file we are using
 
 pywhich $cal
 
@@ -64,7 +51,7 @@ for chan in $chans; do
                       --window=${WINDOW}  ${NOPROJ} --output=${sepdir} \
                        ${EVEN_FILES} ${ODD_FILES} ${OPTIONS}
                 
-                python ${SCRIPTSDIR}/pspec_cov_v002.py -C ${cal} -b ${NBOOT} \
+                python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} -b ${NBOOT} \
                     -a ${ANTS} -c ${chan} -p ${pol} --window=${WINDOW} \
                       ${NOPROJ} --output=${sepdir} \
                       ${EVEN_FILES} ${ODD_FILES} ${OPTIONS} #\
@@ -73,7 +60,6 @@ for chan in $chans; do
                 then
                 exit
                 fi
-                
                 echo beginning bootstrap: `date` | tee -a ${LOGFILE} 
                 ${SCRIPTSDIR}/pspec_cov_boot.py ${sepdir}/pspec_boot*npz | tee -a ${LOGFILE} 
                 echo complete! `date`| tee -a ${LOGFILE} 
@@ -88,11 +74,6 @@ echo waiting on `python -c "print len('${PIDS}'.split())"` power spectra threads
 wait $PIDS
 echo power spectrum complete
 
-
-
-
-
-
 echo averaging power spectra for pols/channels
 for chan in $chans; do
     chandir=${PREFIX}/${chan}
@@ -104,9 +85,10 @@ for chan in $chans; do
         mv pspec_pk_k3pk.npz pspec_${PREFIX}_${chan}_${pol}.npz
         mv pspec.png pspec_${PREFIX}_${chan}_${pol}.png
         mv posterior.png posterior_${PREFIX}_${chan}_${pol}.png
-        cp  pspec_${PREFIX}_${chan}_${pol}.png ${poldir}/
-        cp  posterior_${PREFIX}_${chan}_${pol}.png ${poldir}/
-        cp pspec_${PREFIX}_${chan}_${pol}.npz ${poldir}/
+        mv  pspec_${PREFIX}_${chan}_${pol}.png ${poldir}/
+        mv  posterior_${PREFIX}_${chan}_${pol}.png ${poldir}/
+        mv posterior.txt ${poldir}/
+        mv pspec_${PREFIX}_${chan}_${pol}.npz ${poldir}/
     done
 done
 )
