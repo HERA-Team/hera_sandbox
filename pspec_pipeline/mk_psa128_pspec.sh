@@ -2,13 +2,13 @@
 export PYTHONPATH='.':$PYTHONPATH
 
 (
-echo using config $*
+echo Using config $*
 . $*
 #set defaults to parameters which might not be set
 if [[ ! -n ${WINDOW} ]]; then export WINDOW="none"; fi
 #for posterity, print the cal file we are using
 
-pywhich $cal
+#pywhich $cal
 
 threadcount=`python -c "c=map(len,['${pols}'.split(),'${chans}'.split(),'${seps}'.split()]);print c[0]*c[1]*c[2]"`
 echo Running $threadcount pspecs
@@ -23,10 +23,12 @@ for chan in $chans; do
         echo "Starting work on ${pol}" 
         poldir=${chandir}/${pol}
         test -e ${poldir} || mkdir ${poldir}
-        if [ ! -e ${poldir}/pspec_${PREFIX}_${chan}_${pol}.png ]; then
+        #if [ ! -e ${poldir}/pspec_${PREFIX}_${chan}_${pol}.png ]; then
             for sep in $seps; do
                 sepdir=${poldir}/${sep}
                 #form up the path to the data use ()s for globing
+                
+                if [ $COV == True ]; then
                 EVEN_FILES=(${EVEN_DATAPATH}/${sep}/*${FILEAPPELLATION})
                 #convert from an array to a... list? ida know. bash stuff.
                 EVEN_FILES=`lst_select.py -C ${cal} --ra=${LST} ${EVEN_FILES[@]}`
@@ -34,47 +36,74 @@ for chan in $chans; do
                 ODD_FILES=`lst_select.py -C ${cal} --ra=${LST} ${ODD_FILES[@]}`
                 test -e ${sepdir} || mkdir ${sepdir}
                 LOGFILE=`pwd`/${PREFIX}/${chan}_${pol}_${sep}.log
-                echo this is mk_pspec.sh with  |tee -a  ${LOGFILE}
-                echo recording to ${LOGFILE} | tee -a ${LOGFILE}
-                echo experiment: ${PREFIX}|tee -a ${LOGFILE}
-                echo channels: ${chan}|tee -a ${LOGFILE}
-                echo polarization: ${pol}|tee -a ${LOGFILE}
-                echo separation: ${sep}|tee -a ${LOGFILE}
-                echo `date` | tee -a ${LOGFILE}
+                echo This is mk_pspec.sh:  |tee -a  ${LOGFILE}
+                echo -e '\t' recording to: ${LOGFILE} | tee -a ${LOGFILE}
+                echo -e '\t' experiment: ${PREFIX}|tee -a ${LOGFILE}
+                echo -e '\t' channels: ${chan}|tee -a ${LOGFILE}
+                echo -e '\t' polarization: ${pol}|tee -a ${LOGFILE}
+                echo -e '\t' separation: ${sep}|tee -a ${LOGFILE}
+                echo -e '\t' date: `date` | tee -a ${LOGFILE}
 
                 #ANTS=`grid2ant.py -C ${cal} --seps="${sep}"`
                 ANTS='cross'
                 echo Beginning pspec calculation | tee -a ${LOGFILE}
-                echo using ${#EVEN_FILES} even files and ${#ODD_FILES} odd files
-                echo python ${SCRIPTSDIR}/pspec_cov_v002.py -C ${cal} \
+                echo -e '\t' using ${#EVEN_FILES} even files and ${#ODD_FILES} odd files
+                
+                # If plotting covariances
+                if [ $PLOT == True ]; then 
+                echo python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} \
+                     -b ${NBOOT} -a ${ANTS} -c ${chan} -p ${pol}\
+                      --window=${WINDOW}  ${NOPROJ} --output=${sepdir} --plot \
+                       ${EVEN_FILES} ${ODD_FILES} ${OPTIONS}
+                python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} -b ${NBOOT} \
+                    -a ${ANTS} -c ${chan} -p ${pol} --window=${WINDOW} \
+                      ${NOPROJ} --output=${sepdir} --plot \
+                      ${EVEN_FILES} ${ODD_FILES} ${OPTIONS} #\
+                     #| tee -a ${LOGFILE}
+                fi
+                
+                # If not plotting covariances
+                if [ $PLOT == False ]; then
+                echo python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} \
                      -b ${NBOOT} -a ${ANTS} -c ${chan} -p ${pol}\
                       --window=${WINDOW}  ${NOPROJ} --output=${sepdir} \
                        ${EVEN_FILES} ${ODD_FILES} ${OPTIONS}
-                
                 python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} -b ${NBOOT} \
                     -a ${ANTS} -c ${chan} -p ${pol} --window=${WINDOW} \
                       ${NOPROJ} --output=${sepdir} \
                       ${EVEN_FILES} ${ODD_FILES} ${OPTIONS} #\
                      #| tee -a ${LOGFILE}
+                fi
+                
                 if [ $? -ne 0 ] 
                 then
                 exit
                 fi
-                echo beginning bootstrap: `date` | tee -a ${LOGFILE} 
-                ${SCRIPTSDIR}/pspec_cov_boot.py ${sepdir}/pspec_boot*npz | tee -a ${LOGFILE} 
-                echo complete! `date`| tee -a ${LOGFILE} 
+                fi
+                
+                if [ $BOOT == True ]; then
+                echo Beginning bootstrap: `date` | tee -a ${LOGFILE} 
+                if [ $PLOT == True ]; then
+                ${SCRIPTSDIR}/pspec_cov_boot_v002.py --plot ${sepdir}/pspec_boot*npz | tee -a ${LOGFILE} 
+                else
+                ${SCRIPTSDIR}/pspec_cov_boot_v002.py ${sepdir}/pspec_boot*npz | tee -a ${LOGFILE}
+                fi
+                echo Bootstrapping complete! `date`| tee -a ${LOGFILE} 
                 mv pspec.npz ${sepdir}/
+                fi
+                
                 PIDS="${PIDS} "$!
             done
-        fi
+        #fi
     done
 done
 
-echo waiting on `python -c "print len('${PIDS}'.split())"` power spectra threads ${PIDS} 
+echo Waiting on `python -c "print len('${PIDS}'.split())"` power spectra threads ${PIDS} 
 wait $PIDS
-echo power spectrum complete
+echo Power spectrum complete
 
-echo averaging power spectra for pols/channels
+if [ $KPKPLOT == True ]; then
+echo Averaging power spectra for pols/channels
 for chan in $chans; do
     chandir=${PREFIX}/${chan}
     for pol in $pols; do
@@ -82,6 +111,7 @@ for chan in $chans; do
         poldir=${chandir}/${pol}
         #PLOT
         ${SCRIPTSDIR}/plot_pk_k3pk_zsa_2.py ${poldir}/*/pspec.npz 
+        display pspec.png
         mv pspec_pk_k3pk.npz pspec_${PREFIX}_${chan}_${pol}.npz
         mv pspec.png pspec_${PREFIX}_${chan}_${pol}.png
         mv posterior.png posterior_${PREFIX}_${chan}_${pol}.png
@@ -91,4 +121,5 @@ for chan in $chans; do
         mv pspec_${PREFIX}_${chan}_${pol}.npz ${poldir}/
     done
 done
+fi
 )
