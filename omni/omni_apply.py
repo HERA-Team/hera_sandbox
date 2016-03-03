@@ -9,9 +9,9 @@ o.set_usage('omni_apply.py [options] *uvcRRE')
 o.set_description(__doc__)
 aipy.scripting.add_standard_options(o,pol=True)
 o.add_option('--xtalk',dest='xtalk',default=False,action='store_true',
-            help='Apply xtalk solutions to data.')
+            help='Toggle: apply xtalk solutions to data. Default=False')
 o.add_option('--omnipath',dest='omnipath',default='%s.npz',type='string',
-            help='Format string (e.g. "path/%s.npz") which converts the input file name to the omnical npz path/file.')
+            help='Format string (e.g. "path/%s.npz", where you actually type the "%s") which converts the input file name to the omnical npz path/file.')
 opts,args = o.parse_args(sys.argv[1:])
 
 
@@ -24,7 +24,6 @@ for filename in args:
         fn = filename.split('.')
         fn[3] = p
         files[filename][p] = '.'.join(fn)
-
 
 ### Read Data and Solutions ###
 for f,filename in enumerate(args):
