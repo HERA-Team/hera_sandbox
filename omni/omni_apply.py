@@ -32,7 +32,7 @@ for f,filename in enumerate(args):
     _,gains,_,xtalk = capo.omni.from_npz(omnifile) #saves npz outputs
     for p in pols:
         print 'Reading', files[filename][p]
-        newfile = files[filename][p].split('/')[-1]+'O2' #saves in cwd
+        newfile = files[filename][p].split('/')[-1]+'O' #saves in cwd
         omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:3])
         if os.path.exists(newfile):
             print '    %s exists.  Skipping...' % newfile
