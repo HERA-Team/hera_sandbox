@@ -21,6 +21,9 @@ pk_vs_t = {}
 err_vs_t = {}
 temp_noise_var = {}
 nocov_vs_t = {}
+chans = []
+afreqs = []
+
 for filename in args:
     print 'Reading', filename
     f = n.load(filename)
@@ -35,6 +38,8 @@ for filename in args:
         nocov_vs_t[path] = []
     pk_vs_t[path].append(f['pk_vs_t'])
     scalar = f['scalar']
+    afreqs = f['afreqs']
+    chans = f['chans']
     #err_vs_t[path].append(n.average(f['err_vs_t'][:,120:141], axis=1))
     #temp_noise_var[path].append(n.average(f['temp_noise_var'][:,120:141], axis=1))
     nocov_vs_t[path].append(f['nocov_vs_t'])
@@ -222,7 +227,7 @@ if PLOT:
     p.show()
 
 print 'Writing pspec.npz...'
-n.savez('pspec.npz', kpl=kpl, pk=pk, err=err, pk_fold=pk_fold, err_fold=err_fold, cmd=cmd)
+n.savez('pspec.npz', kpl=kpl, pk=pk, err=err, pk_fold=pk_fold, err_fold=err_fold, cmd=cmd,afreqs=afreqs,chans=chans)
     
 
 
