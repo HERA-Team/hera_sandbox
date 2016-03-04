@@ -18,8 +18,8 @@ o.add_option('--loss', action='store',
     help='Uses signal loss mode to measure the signal loss. Uses default data in my path. Give it the path to the simulated signal data.')
 o.add_option('--level', type='float', default=-1.0,
     help='Scalar by which to multiply the default signal level for simulation runs.')
-o.add_option('--rmbls', action='store', 
-    help='List of baselines, in miriad format, to remove from the power spectrum analysis.')
+o.add_option('--rmbls', dest='rmbls',type='string', 
+    help='List of baselines (ex:1_4,2_33) to remove from the power spectrum analysis.')
 o.add_option('--output', type='string', default='',
     help='Output directory for pspec_boot files (default "")')
 
@@ -38,7 +38,13 @@ PLOT = opts.plot
 
 #Remove baselines if specified
 try:
-    rmbls = map(int, opts.rmbls.split(','))
+    rmbls = []
+    rmbls_list = opts.rmbls.split(',')
+    for bl in rmbls_list:
+        i,j = bl.split('_')
+        rmbls.append(a.miriad.ij2bl(int(i),int(j)))   
+    print 'Removing baselines:',rmbls
+    #rmbls = map(int, opts.rmbls.split(','))
 except:
     rmbls = []
 
