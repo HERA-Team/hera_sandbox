@@ -53,11 +53,11 @@ for chan in $chans; do
                 if [ $PLOT == True ]; then 
                 echo python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} \
                      -b ${NBOOT} -a ${ANTS} -c ${chan} -p ${pol}\
-                      --window=${WINDOW}  ${NOPROJ} --output=${sepdir} --plot \
+                      --window=${WINDOW}  ${NOPROJ} --output=${sepdir} --rmbls=${RMBLS} --plot \
                        ${EVEN_FILES} ${ODD_FILES} ${OPTIONS}
                 python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} -b ${NBOOT} \
                     -a ${ANTS} -c ${chan} -p ${pol} --window=${WINDOW} \
-                      ${NOPROJ} --output=${sepdir} --plot \
+                      ${NOPROJ} --output=${sepdir} --rmbls=${RMBLS} --plot \
                       ${EVEN_FILES} ${ODD_FILES} ${OPTIONS} #\
                      #| tee -a ${LOGFILE}
                 fi
@@ -66,11 +66,11 @@ for chan in $chans; do
                 if [ $PLOT == False ]; then
                 echo python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} \
                      -b ${NBOOT} -a ${ANTS} -c ${chan} -p ${pol}\
-                      --window=${WINDOW}  ${NOPROJ} --output=${sepdir} \
+                      --window=${WINDOW}  ${NOPROJ} --output=${sepdir} --rmbls=${RMBLS} \
                        ${EVEN_FILES} ${ODD_FILES} ${OPTIONS}
                 python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} -b ${NBOOT} \
                     -a ${ANTS} -c ${chan} -p ${pol} --window=${WINDOW} \
-                      ${NOPROJ} --output=${sepdir} \
+                      ${NOPROJ} --output=${sepdir} --rmbls=${RMBLS} \
                       ${EVEN_FILES} ${ODD_FILES} ${OPTIONS} #\
                      #| tee -a ${LOGFILE}
                 fi
