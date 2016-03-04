@@ -22,18 +22,28 @@ pols = opts.pol.split(',')
 files = {}
 g0 = {} #firstcal gains
 for pp,p in enumerate(pols):
+    #dictionary of calpars per pol
     g0[p[0]] = {} #XXX indexing by one pol letter instead of two
-    if p in opts.calpar: #dictionary of calpars per pol
+    if p in opts.calpar: #your supplied calpar matches a pol
         print 'Reading', opts.calpar
         cp = pickle.load(open(opts.calpar,'rb'))
         for i in xrange(cp[p].shape[1]): #loop over antennas
             g0[p[0]][i] = numpy.conj(cp[p][:,i] / numpy.abs(cp[p][:,i]))
-    else: #XXX assumes calpar naming is *pol.p
-        new_cp = opts.calpar.split('.p')[0][:-2]+p+'.p'
-        print 'Reading', new_cp
-        cp = pickle.load(open(new_cp,'rb'))
-        for i in xrange(cp[p].shape[1]): #loop over antennas
-            g0[p[0]][i] = numpy.conj(cp[p][:,i] / numpy.abs(cp[p][:,i]))
+    else: #looks for a calpar you haven't stated in the call
+        new_cp = opts.calpar.split('.p')[0][:-2]+p+'.p' #XXX assumes calpar naming is *pol.p
+        if os.path.exists(new_cp): #if it exists, use it
+            print 'Reading', new_cp
+            cp = pickle.load(open(new_cp,'rb'))
+            for i in xrange(cp[p].shape[1]): #loop over antennas
+                g0[p[0]][i] = numpy.conj(cp[p][:,i] / numpy.abs(cp[p][:,i]))
+        elif len(list(set(p))) > 1: #if the crosspol first_cal is missing, don't worry
+            #print '%s not found, but that is OK'%new_cp
+            continue
+        else: #if the linpol first_cal is missing, do worry
+            raise IOError('Missing first_cal file %s'%new_cp)
+
+#import IPython; IPython.embed()
+        
 for filename in args:
     files[filename] = {}
     for p in pols:
@@ -58,8 +68,6 @@ else: #generate reds from calfile
     else: ex_ants = []
     info = capo.omni.aa_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, crosspols=pols)
 reds = info.get_reds()
-#reds_02 = omnical.arrayinfo.filter_reds(reds, ubls=[(64,10)]) #30m E/W baselines
-#print ','.join(['%d_%d' % (i,j) for i,j in reds_02[0]])
 
 ### Omnical-ing! Loop Through Compressed Files ###
 for f,filename in enumerate(args):
