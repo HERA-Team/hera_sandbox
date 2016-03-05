@@ -319,11 +319,15 @@ for k in days:
         if PLOT and True:
             #p.plot(S); p.show()
             p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
+            p.title('Data x')
             p.subplot(323); capo.arp.waterfall(C[k][bl])
+            p.title('C')
             p.subplot(324); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
             p.subplot(313); capo.arp.waterfall(_Cx[k][bl], mode='real')
-            p.suptitle('%d_%d'%a.miriad.bl2ij(bl))
+            p.title('C^-1 x')
+            p.suptitle('%d_%d'%a.miriad.bl2ij(bl)+' '+k)
             #p.figure(2); p.plot(n.diag(S))
+            p.tight_layout()
             p.show()
 
 #Make boots        
@@ -391,7 +395,8 @@ for boot in xrange(opts.nboot):
             if not Q_Cz.has_key(k2): Q_Cz[k2] = {}
             for bl1 in _Cz[k1]:
                 for bl2 in _Cz[k2]:
-                    if k1 == k2 and bl1 == bl2: continue #this results in a significant bias
+                    #if k1 == k2 and bl1 == bl2: continue #this results in a significant bias
+                    if k1 == k2 or bl1 == bl2: continue 
                     #print k1, k2, bl1, bl2
                     if PLOT and False:
                         p.subplot(231); capo.arp.waterfall(C[m], drng=3)
