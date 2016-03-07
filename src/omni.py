@@ -166,10 +166,11 @@ def to_npz(filename, meta, gains, vismdl, xtalk):
             d['(%d,%d) %s' % (bl[0],bl[1],pol)] = xtalk[pol][bl]
     np.savez(filename,**d)
 
-def from_npz(filename, meta={}, gains={}, vismdl={}, xtalk={}):
+def from_npz(filename):
     '''Reconstitute results from to_npz, returns meta, gains, vismdl, xtalk, each
     keyed first by polarization, and then by bl/ant/keyword.'''
     npz = np.load(filename)
+    meta, gains, vismdl, xtalk = {}, {}, {}, {}
     def parse_key(k):
         bl,pol = k.split()
         bl = tuple(map(int,bl[1:-1].split(',')))
@@ -190,8 +191,4 @@ def from_npz(filename, meta={}, gains={}, vismdl={}, xtalk={}):
     kws = ['chi','hist','j','l','f']
     for kw in kws:
         for k in [f for f in npz.files if f.startswith(kw)]: meta[k] = np.copy(npz[k])
-    del(npz)
-    #r = [meta,gains,vismdl,xtalk]
-    #del(meta);del(gains);del(vismdl);del(xtalk)
-    #return r[0],r[1],r[2],r[3]
     return meta, gains, vismdl, xtalk

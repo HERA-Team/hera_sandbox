@@ -63,5 +63,4 @@ for f,filename in enumerate(args):
         uvo.init_from_uv(uvi)
         print '    Saving', newfile
         uvo.pipe(uvi, mfunc=mfunc, raw=True, append2hist='OMNICAL: ' + ' '.join(sys.argv) + '\n')
-        del(omnifile);del(gains);del(xtalk)   
-
+        
