@@ -29,7 +29,7 @@ for filename in args:
 for f,filename in enumerate(args):
     omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:3])
     print '   Omnical npz:', omnifile
-    _,gains,_,xtalk = capo.omni.from_npz(omnifile) #saves npz outputs
+    _,gains,_,xtalk = capo.omni.from_npz(omnifile) #loads npz outputs from omni_run
     for p in pols:
         print 'Reading', files[filename][p]
         newfile = files[filename][p].split('/')[-1]+'O' #saves in cwd
@@ -63,5 +63,5 @@ for f,filename in enumerate(args):
         uvo.init_from_uv(uvi)
         print '    Saving', newfile
         uvo.pipe(uvi, mfunc=mfunc, raw=True, append2hist='OMNICAL: ' + ' '.join(sys.argv) + '\n')
-   
+        del(omnifile);del(gains);del(xtalk)   
 
