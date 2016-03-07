@@ -77,30 +77,6 @@ def compute_reds(nant, pols, *args, **kwargs):
             reds += [[(Antpol(i,pi,nant),Antpol(j,pj,nant)) for i,j in gp] for gp in _reds]
     return reds
     #return [map(lambda bl: (Antpol(bl[0],nant),Antpol(bl[1],nant)), gp) for gp in reds]
-
-def hex_to_info(hexnum, pols=['x'], **kwargs):
-    '''Given a hex number generate redundancies, assuming antenna
-       numbering starts at 0 in the bottom left of the hex.'''
-    nant = 3*hexnum**2 - 3*hexnum + 1
-    hindices = np.arange(1, nant+1)
-    positions = []
-    antpos = -np.ones((nant*len(pols),3))
-    ant=0
-    for row in range(hexnum-1, -(hexnum), -1):
-        for col in range(2*hexnum-abs(row)-1):
-            for z, pol in enumerate(pols):
-                x = ((-(2*hexnum-abs(row))+2)/2.0 + col)
-                y = row*-1*np.sqrt(3)/2
-                i = Antpol(ant,pol,nant)
-                antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
-            ant+=1
-    reds = compute_reds(nant, pols, antpos[:nant],tol=.1)
-    ex_ants = []
-    kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
-    reds = filter_reds(reds, **kwargs)
-    info = RedundantInfo(nant)
-    info.init_from_reds(reds,antpos)
-    return info
     
 def aa_to_info(aa, pols=['x'], **kwargs):
     '''Use aa.ant_layout to generate redundances based on ideal placement.
