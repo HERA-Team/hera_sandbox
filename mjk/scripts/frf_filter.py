@@ -51,7 +51,7 @@ for sep in seps:
     #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[160],frpad=opts.frpad, alietal=opts.alietal )
     
 baselines = ''.join(sep2ij[sep] for sep in seps)
-times, data, flags = arp.get_dict_of_uv_data(args, baselines, pol, verbose=True)
+times, data, flags = zsa.get_dict_of_uv_data(args, baselines, pol, verbose=True)
 lsts = [ aa.sidereal_time() for k in map(aa.set_jultime(), times) ]
 
 _d = {}
