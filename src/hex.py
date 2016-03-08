@@ -15,7 +15,7 @@ def hex_to_info(hexnum, pols=['x'], **kwargs):
             for z, pol in enumerate(pols):
                 x = ((-(2*hexnum-abs(row))+2)/2.0 + col)
                 y = row*-1*np.sqrt(3)/2
-                i = Antpol(ant,pol,nant)
+                i = omni.Antpol(ant,pol,nant)
                 antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
             ant+=1
     reds = omni.compute_reds(nant, pols, antpos[:nant],tol=.1)
@@ -26,4 +26,13 @@ def hex_to_info(hexnum, pols=['x'], **kwargs):
     info.init_from_reds(reds,antpos)
     return info
  
+def get_paper_ants(connection_file):
+    '''Get the PAPER antenna numbers for a hex grid.
+       Assumes that the antenna numbers are from 0-N
+       Uses a connections file'''
+    connections = np.recfromcsv(connection_file)
+    hex_stations = connections['station']
+    hex_stations_argsort = np.argsort(hex_stations)
+    paper_ants = connections['paper'][hex_stations_argsort]
+    return paper_ants
 
