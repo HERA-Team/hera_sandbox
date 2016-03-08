@@ -23,7 +23,7 @@ files = {}
 g0 = {} #firstcal gains
 for pp,p in enumerate(pols):
     #dictionary of calpars per pol
-    g0[p[0]] = {} #XXX indexing by one pol letter instead of two
+    g0[p[0]] = {} #indexing by one pol letter instead of two
     if p in opts.calpar: #your supplied calpar matches a pol
         print 'Reading', opts.calpar
         cp = pickle.load(open(opts.calpar,'rb'))
@@ -41,8 +41,6 @@ for pp,p in enumerate(pols):
             continue
         else: #if the linpol first_cal is missing, do worry
             raise IOError('Missing first_cal file %s'%new_cp)
-
-#import IPython; IPython.embed()
         
 for filename in args:
     files[filename] = {}
@@ -91,9 +89,7 @@ for f,filename in enumerate(args):
         for bl in f: 
             i,j = bl
             wgts[p][(j,i)] = wgts[p][(i,j)] = numpy.logical_not(f[bl][p]).astype(numpy.int)
-    #import IPython;IPython.embed()
-    print '   Logcal-ing'
-    #import IPython;IPython.embed() 
+    print '   Logcal-ing' 
     m1,g1,v1 = capo.omni.redcal(data,info,gains=g0)
     print '   Lincal-ing'
     m2,g2,v2 = capo.omni.redcal(data, info, gains=g1, vis=v1, uselogcal=False, removedegen=True)
