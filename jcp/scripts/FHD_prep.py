@@ -48,7 +48,7 @@ for filename in args:
         else: src = 'z'
     else: src = None
 
-    
+    uvi.rewind()
     D = {}
     for (uvw,t,(i,j)),d in uvi.all():
         aa.set_active_pol(a.miriad.pol2str[uvi['pol']])
