@@ -12,9 +12,9 @@ DEFAULT_FRBINS = n.arange(-.01+5e-5/2,.01,5e-5) # Hz
 DEFAULT_WGT = lambda bm: bm**2
 DEFAULT_IWGT = lambda h: n.sqrt(h)
 
-#def mk_fng(bl, eq):
-#    '''Return fringe rates given eq coords and a baseline vector (measured in wavelengths) in eq coords'''
-#    return -2*n.pi/a.const.sidereal_day * n.dot(n.cross(n.array([0,0,1.]),bl), eq)
+def mk_fng(bl, eq):
+    '''Return fringe rates given eq coords and a baseline vector (measured in wavelengths) in eq coords'''
+    return -2*n.pi/a.const.sidereal_day * n.dot(n.cross(n.array([0,0,1.]),bl), eq)
 
 #fringe used in ali et.al to degrade optimal fringe rate filter.
 def mk_fng_alietal(bl, eq):
