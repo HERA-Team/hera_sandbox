@@ -5,6 +5,7 @@ Tools for dealing with redundant array configurations.
 import numpy as n
 from aipy.miriad import ij2bl, bl2ij
 import aipy as a
+import ipdb as db
 
 def group_redundant_bls(antpos):
     '''Return 2 dicts: bls contains baselines grouped by separation ('drow,dcol'), conj indicates for each
@@ -96,12 +97,13 @@ def redundant_bl_cal_simple(d1, d2, fqs, window='blackman-harris', clean=1e-4, v
     if d12.ndim > 1: d12_sum = n.sum(d12,axis=0)
     else: d12_sum = d12
     #normalize data to maximum so that we minimize fft articats from RFI
-    d12_sum = d12_sum/n.abs(d12_sum)
+    d12_sum = d12_sum/n.max(n.abs(d12_sum))
     window = a.dsp.gen_window(d12_sum.size, window=window)
     dlys = n.fft.fftfreq(fqs.size, fqs[1]-fqs[0])
     # FFT and get the phase bin.
     _phs = n.fft.fft(window*d12_sum)
-    _phs,info = a.deconv.clean(_phs, _wgt, tol=clean)
+    _wgt = n.fft.fft(window)
+    #_phs,info = a.deconv.clean(_phs, _wgt, tol=clean)
     _phs = n.abs(_phs)
     #get bin of phase
     mx = n.argmax(_phs)
