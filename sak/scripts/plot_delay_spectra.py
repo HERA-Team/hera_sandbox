@@ -31,7 +31,7 @@ def get_delayfall(filenamearray,antstr,pol,blo=0,bhi=203):
     
     dtrans = np.array(dtrans)
     return {'waterfall':data, 'delayfall':dtrans, 'timeinfo':timeinfo,'delays':delays,'freqs':freqs}
-
+"""
 pol = 'I'
 
 old = sorted(glob.glob('Stokes%s/zen.2455819.5*P'%pol)+glob.glob('Stokes%s/zen.2455819.6*P'%pol))
@@ -50,5 +50,5 @@ cb = f.colorbar(figold, cax=cbar_ax)
 pylab.show()
 
 print np.nanmean(np.abs(old['delayfall'])),np.nanmean(np.abs(new['delayfall']))
-
+"""
 import IPython; IPython.embed()
