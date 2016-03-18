@@ -1,5 +1,6 @@
 import numpy as np
 import capo.omni as omni
+import omnical
 
 def hex_to_info(hexnum, pols=['x'], **kwargs):
     '''Given a hex number generate redundancies, assuming antenna
@@ -24,9 +25,10 @@ def hex_to_info(hexnum, pols=['x'], **kwargs):
     info.init_from_reds(reds,antpos)
     return info
 
-def hera_to_info(hexnum, nant, pols=['x'], connections=None, **kwargs):
-    '''Go from hera array to info. Use the fact that the 
-        hex < nant in ZA to get the reds and ordering correct.'''
+def hera_to_info(hexnum, nant, pols=['x'], connections=None, red_type=[], **kwargs):
+    '''Go from hera array to info.
+       connections is a txt file that has the hera ant numbers and paper antenna numbers.
+       red_type is a list of the baselines (in paper_ant format with (i,j), i<j) in the redundant groups you want.'''
     antpos = -np.ones((nant*len(pols),3))
     if connections:
         paper_ants = get_paper_ants(connections)
@@ -45,7 +47,7 @@ def hera_to_info(hexnum, nant, pols=['x'], connections=None, **kwargs):
     #import IPython; IPython.embed()
     kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
     reds = omni.filter_reds(reds, **kwargs)
-    info = omni.RedundantInfo(nant)
+    info = omni.FirstCalRedundantInfo(nant)
     info.init_from_reds(reds,antpos)
     return info
 
