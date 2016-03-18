@@ -27,7 +27,10 @@ for filename in args:
 
 ### Read Data and Solutions ###
 for f,filename in enumerate(args):
-    omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:3])
+    if len(pols)>1:
+        omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:3])
+    else:
+        omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:4])
     print '   Omnical npz:', omnifile
     _,gains,_,xtalk = capo.omni.from_npz(omnifile) #loads npz outputs from omni_run
     for p in pols:

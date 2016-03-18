@@ -90,7 +90,7 @@ for f,filename in enumerate(args):
             i,j = bl
             wgts[p][(j,i)] = wgts[p][(i,j)] = numpy.logical_not(f[bl][p]).astype(numpy.int)
     print '   Logcal-ing' 
-    m1,g1,v1 = capo.omni.redcal(data,info,gains=g0)
+    m1,g1,v1 = capo.omni.redcal(data,info,gains=g0, removedegen=True) #SAK CHANGE REMOVEDEGEN
     print '   Lincal-ing'
     m2,g2,v2 = capo.omni.redcal(data, info, gains=g1, vis=v1, uselogcal=False, removedegen=True)
     xtalk = capo.omni.compute_xtalk(m2['res'], wgts) #xtalk is time-average of residual
@@ -98,6 +98,12 @@ for f,filename in enumerate(args):
     m2['jds'] = t_jd
     m2['lsts'] = t_lst
     m2['freqs'] = freqs
-    print '   Saving '+opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:3])+'.npz'
-    capo.omni.to_npz(opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:3])+'.npz', m2, g2, v2, xtalk)
+    
+    if len(pols)>1: #zen.jd.npz
+        npzname = opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:3])+'.npz'
+    else: #zen.jd.pol.npz
+        npzname = opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:4])+'.npz'
+    
+    print '   Saving %s'%npzname
+    capo.omni.to_npz(npzname, m2, g2, v2, xtalk)
     
