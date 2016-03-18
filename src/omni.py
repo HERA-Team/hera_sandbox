@@ -185,19 +185,19 @@ def from_npz(filename):
     for k in [f for f in npz.files if f.startswith('(')]:
         pol,bl = parse_key(k)
         if not xtalk.has_key(pol): xtalk[pol] = {}
-        xtalk[pol][bl] = npz[k]
+        xtalk[pol][bl] = np.copy(npz[k])
     for k in [f for f in npz.files if f.startswith('<')]:
         pol,bl = parse_key(k)
         if not vismdl.has_key(pol): vismdl[pol] = {}
-        vismdl[pol][bl] = npz[k]
+        vismdl[pol][bl] = np.copy(npz[k])
     for k in [f for f in npz.files if f[0].isdigit()]:
         pol,ant = k[-1:],int(k[:-1])
         if not gains.has_key(pol): gains[pol] = {}
-        gains[pol][ant] = npz[k]
+        gains[pol][ant] = np.copy(npz[k])
     
     kws = ['chi','hist','j','l','f']
     for kw in kws:
-        for k in [f for f in npz.files if f.startswith(kw)]: meta[k] = npz[k]
+        for k in [f for f in npz.files if f.startswith(kw)]: meta[k] = np.copy(npz[k])
     return meta, gains, vismdl, xtalk
 
 class FirstCal(object):
