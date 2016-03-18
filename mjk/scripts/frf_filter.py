@@ -45,9 +45,9 @@ for sep in seps:
         bl = a.miriad.ij2bl(*ij)
         if blconj[bl]: c+=1
         else: break
-    frp, bins = fringe.aa_to_fr_profile(aa, ij, 100)
+    frp, bins = fringe.aa_to_fr_profile(aa, ij, 160)
     #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[100],mdl=skew,startprms=(.001,.001,-50),frpad=opts.frpad)
-    timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[100])
+    timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[105])
     #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[160],frpad=opts.frpad, alietal=opts.alietal )
     
 baselines = ''.join(sep2ij[sep] for sep in seps)

@@ -57,7 +57,7 @@ frpads = [ float(x) for x in opts.frpad.split(',')]
 npads=len(frpads)
 cmap= get_colors(int(1.5*npads))
 mychan = n.floor(nchan/2)
-#mychan = 150
+#mychan = 160
 print 'These are the separations that we are going to use ', seps
 print "calculating fringe profile at channel ",mychan
 #Get the fir filters for the separation used.
@@ -78,7 +78,7 @@ for cnt,pad in enumerate(frpads):
         #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True,mdl=skew,startprms=(.001,.001,-5))
         timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True)
         #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True,alietal=True)
-        #print 'current sum of n.abs(firs)**2: ', n.sum(n.abs(firs[sep][mychan])**2)
+        print 'current sum of n.abs(firs)**2: ', n.sum(n.abs(firs[sep][mychan])**2)
         
         if False and pad ==1:
             delta=prms0[-1]/n.sqrt(1+prms0[-1]**2)
