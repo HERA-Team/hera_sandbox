@@ -135,14 +135,19 @@ p.ylabel('lst')
 
 ind_min= n.where( flags['zero'] == n.amax(flags['zero']))[0]
 if True:
-    p.figure()
+    fig = p.figure()
+    ax = fig.add_subplot(111)
     mean_cnt= n.mean(cnt_plot,axis=0)
-    p.plot(freqs,mean_cnt/mean_cnt.max(),'-')
-    for i in lst_bins[ind_min]:
-        p.fill_between(freqs,cnt_plot[i,:]/n.max(cnt_plot[i,:]),alpha=.5)
-    p.ylim([0,1.1])
-    p.xlabel('Frequncy [MHz]')
-    p.ylabel('count')
+    ax.plot(freqs,mean_cnt/mean_cnt.max(),'k-')
+    #for i in lst_bins[ind_min]:
+    #    p.fill_between(freqs,cnt_plot[i,:]/n.max(cnt_plot[i,:]),alpha=.5)
+    ax.axvspan(115,125,alpha=0.5,color='black')
+    ax.axvspan(147.5,157.5,alpha=0.5,color='black')
+    ax.axvspan(167.5, 175.5, alpha=0.5,color='black')
+    ax.set_ylim([0,1.0])
+    ax.set_xlabel('Frequncy [MHz]')
+    ax.set_ylabel('count')
+
 else:
     p.figure()
     p.plot(lsts*12/n.pi,n.mean(cnt_plot,axis=1),'.')

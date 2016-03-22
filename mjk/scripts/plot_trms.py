@@ -33,8 +33,6 @@ o.add_option('--Trcvr',default=100,type=float,help='receiver termp [default 100K
 o.add_option('--rmbls',type=str,help='list of baselines to NOT use, comma delim, integers output by a.miriad.ij2bl')
 o.add_option('--varinttime',type=float,help='integration time of the variances (s, default=inttime)')
 opts,args=o.parse_args(sys.argv[1:])
-if opts.varinttime is None:
-    opts.varinttime=opts.inttime
 
 
 POL = opts.pol
@@ -99,7 +97,14 @@ if not opts.inttime is None:
     inttime = opts.inttime
 else:
     inttime = uv['inttime'] * 4 / (8.*60.) # XXX hack for *E files that have inttime set incorrectly
+    opts.inttime = inttime
 print 'inttime', inttime
+
+if opts.varinttime is None:
+    if opts.inttime is not None:
+        opts.varinttime=opts.inttime
+    else: opts.varinttime = inttime
+
 del(uv)
 
 afreqs = freqs.take(chans)
@@ -183,6 +188,7 @@ theo_temp= {}
 
 
 print opts.inttime/opts.varinttime
+#print inttime/opts.varinttime
 for bl in bls_master:
     trms_data[bl] = n.sqrt( n.mean(x[bl].conj() * x[bl],axis=1)/2. ).real
     trms_e_the[bl] = n.sqrt( n.ma.mean(var_e[bl]/cnt_e[bl]/(opts.inttime/opts.varinttime),axis=1) ) * jy2T[band_chans]

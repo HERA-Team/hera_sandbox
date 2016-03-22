@@ -5,7 +5,10 @@ import capo.frf_conv as fringe
 import capo.zsa as zsa
 import numpy as n, pylab as p
 import sys, os, optparse
+from scipy.special import erf
 
+def skew(cenwid, bins):
+        return n.exp(-(bins-cenwid[0])**2/(2*cenwid[1]**2))*(1+erf(cenwid[2]*(bins-cenwid[0])/(n.sqrt(2)*cenwid[1]))) 
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, ant=True, pol=True)
@@ -39,8 +42,8 @@ for sep in seps:
         bl = a.miriad.ij2bl(*ij)
         if blconj[bl]: c+=1
         else: break
-    frp, bins = fringe.aa_to_fr_profile(aa, ij, 100,frpad=opts.frpad)
-    timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[100])
+    frp, bins = fringe.aa_to_fr_profile(aa, ij, 100,frpad=1.0)
+    timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[100],mdl=skew,startprms=(.001,.001,-50),frpad=opts.frpad)
     
 baselines = ''.join(sep2ij[sep] for sep in seps)
 times, data, flags = arp.get_dict_of_uv_data(args, baselines, pol, verbose=True)

@@ -14,14 +14,33 @@ export PYTHONPATH='.':$PYTHONPATH
 #cal="psa898_v003"
 #PWD=`pwd`
 #DATAPATH="${PWD}/typical_day/*FRXS"
+
 (
 echo using config $*
 . $*
+
 #set defaults to parameters which might not be set
 if [[ ! -n ${WINDOW} ]]; then export WINDOW="none"; fi
 #for posterity Print the cal file we are using
 
+cov_array=($covs)
+chan_array=($chans)
+if [ -z "$covs" ]
+then
+    declare -A scales
+    for (( i=0; i<${#chan_array[@]}; ++i )); do
+        scales[${chan_array[$i]}]=1
+    done
+else
+    declare -A scales
+    for (( i=0; i<${#chan_array[@]}; ++i )); do
+        scales[${chan_array[$i]}]=${cov_array[$i]}
+    done
+fi
+
+
 pywhich $cal
+
 
 threadcount=`python -c "c=map(len,['${pols}'.split(),'${chans}'.split(),'${seps}'.split()]);print c[0]*c[1]*c[2]"`
 echo Running $threadcount pspecs
@@ -39,11 +58,11 @@ for chan in $chans; do
         if [ ! -e ${poldir}/pspec_${PREFIX}_${chan}_${pol}.png ]; then
             for sep in $seps; do
                 sepdir=${poldir}/${sep}
-                EVEN_FILES=${EVEN_DATAPATH}${sep}/*242.[3456]*uvGL
-                ODD_FILES=${ODD_DATAPATH}${sep}/*243.[3456]*uvGL
+                EVEN_FILES=${EVEN_DATAPATH}${sep}/*242.[3456]*uvGAL
+                ODD_FILES=${ODD_DATAPATH}${sep}/*243.[3456]*uvGAL
                 test -e ${sepdir} || mkdir ${sepdir}
                 LOGFILE=`pwd`/${PREFIX}/${chan}_${pol}_${sep}.log
-                echo this is mk_pspec.sh with  |tee  ${LOGFILE}
+                echo this is mk_psa64_pspec.sh with  |tee  ${LOGFILE}
                 echo experiment: ${PREFIX}|tee -a ${LOGFILE}
                 echo channels: ${chan}|tee -a ${LOGFILE}
                 echo polarization: ${pol}|tee -a ${LOGFILE}
@@ -88,15 +107,18 @@ for chan in $chans; do
     chandir=${PREFIX}/${chan}
     for pol in $pols; do
         echo "Generating plots for ${chan}: ${pol}"
+        echo "Multiplying pspec by factor ${scales[${chan}]} for Cov"
         poldir=${chandir}/${pol}
         #PLOT
-        ${SCRIPTSDIR}/plot_pk_k3pk_zsa_2.py ${poldir}/*/pspec.npz 
+        ${SCRIPTSDIR}/plot_pk_k3pk_zsa_2.py ${poldir}/*/pspec.npz --cov=${scales[$chan]}
         mv pspec_pk_k3pk.npz pspec_${PREFIX}_${chan}_${pol}.npz
         mv pspec.png pspec_${PREFIX}_${chan}_${pol}.png
         mv posterior.png posterior_${PREFIX}_${chan}_${pol}.png
+        mv posterior.txt posterior_${PREFIX}_${chan}_${pol}.txt
         cp  pspec_${PREFIX}_${chan}_${pol}.png ${poldir}/
         cp  posterior_${PREFIX}_${chan}_${pol}.png ${poldir}/
-        cp pspec_${PREFIX}_${chan}_${pol}.npz ${poldir}/
+        cp  pspec_${PREFIX}_${chan}_${pol}.npz ${poldir}/
+        cp  posterior_${PREFIX}_${chan}_${pol}.txt ${poldir}/
     done
 done
 )
