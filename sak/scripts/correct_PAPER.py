@@ -26,7 +26,7 @@ rmants = map(int,opts.rmants.split(','))
 flipants = map(int,opts.flipants.split(','))
 #rewireants=map(int,opts.rewire.split(','))
 
-for filename in sys.argv[1:]:
+for filename in args:
     print filename, '->', filename+'c'
     if os.path.exists(filename+'c'):
         print '    File exists... skipping.'
@@ -40,7 +40,7 @@ for filename in sys.argv[1:]:
         crd,t,(i,j) = p
         p1,p2 = a.miriad.pol2str[uv['pol']]
         
-        if i in rmant or j in rmant: return p, None, None
+        if i in rmants or j in rmants: return p, None, None
         # prevent multiple entries arising from xy and yx on autocorrelations
         if i == j and (p1,p2) == ('y','x'): return p, None, None
         if opts.conj: #!!! CAUTION !!!
@@ -61,8 +61,8 @@ for filename in sys.argv[1:]:
         'dec': aa.lat,
         'obsdec': aa.lat,
         'longitu': aa.long,
-        'nants': uvi['nants']-len(rmant),
-        'ngains': uvi['nants']-len(rmant),
+        'nants': uvi['nants']-len(rmants),
+        'ngains': uvi['nants']-len(rmants),
         'telescop':'PAPER',
     }
     uvo.init_from_uv(uvi, override=override)
