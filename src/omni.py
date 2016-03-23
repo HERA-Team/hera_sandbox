@@ -1,4 +1,5 @@
 import numpy as np, omnical
+import capo.red as red
 import numpy.linalg as la
 import warnings
 with warnings.catch_warnings():
@@ -61,6 +62,12 @@ class RedundantInfo(omnical.info.RedundantInfo):
             try: d.append(dd[bl][pol])
             except(KeyError): d.append(dd[bl[::-1]][pol[::-1]].conj())
         return np.array(d).transpose((1,2,0))
+
+class FirstCalRedundantInfo(omnical.info.FirstCalRedundantInfo):
+    def __init__(self, nant):
+        omnical.info.FirstCalRedundantInfo.__init__(self)
+        self.nant = nant
+        print 'Loading FirstCalRedundantInfo class' 
 
 def compute_reds(nant, pols, *args, **kwargs):
     _reds = omnical.arrayinfo.compute_reds(*args, **kwargs)
@@ -181,19 +188,19 @@ def from_npz(filename, verbose=False):
         for k in [f for f in npz.files if f.startswith('(')]:
             pol,bl = parse_key(k)
             if not xtalk.has_key(pol): xtalk[pol] = {}
-            xtalk[pol][bl] = xtalk[pol].get(bl,[]) + [npz[k]]
+            xtalk[pol][bl] = xtalk[pol].get(bl,[]) + [np.copy(npz[k])]
         for k in [f for f in npz.files if f.startswith('<')]:
             pol,bl = parse_key(k)
             if not vismdl.has_key(pol): vismdl[pol] = {}
-            vismdl[pol][bl] = vismdl[pol].get(bl,[]) + [npz[k]]
+            vismdl[pol][bl] = vismdl[pol].get(bl,[]) + [np.copy(npz[k])]
         for k in [f for f in npz.files if f[0].isdigit()]:
             pol,ant = k[-1:],int(k[:-1])
             if not gains.has_key(pol): gains[pol] = {}
-            gains[pol][ant] = gains[pol].get(bl,[]) + [npz[k]]
+            gains[pol][ant] = gains[pol].get(bl,[]) + [np.copy(npz[k])]
         kws = ['chi','hist','j','l','f']
         for kw in kws:
             for k in [f for f in npz.files if f.startswith(kw)]:
-                meta[k] = meta.get(k,[]) + [npz[k]]
+                meta[k] = meta.get(k,[]) + [np.copy(npz[k])]
     for pol in xtalk:
         for bl in xtalk[pol]: xtalk[pol][bl] = np.concatenate(xtalk[pol][bl])
     for pol in vismdl:
@@ -204,3 +211,54 @@ def from_npz(filename, verbose=False):
         try: meta[k] = np.concatenate(meta[k])
         except(ValueError): pass
     return meta, gains, vismdl, xtalk
+
+class FirstCal(object):
+    def __init__(self, data, fqs, info):
+        self.data = data
+        self.fqs = fqs
+        self.info = info
+    def data_to_delays(self):
+        '''data = dictionary of visibilities. 
+           info = FirstCalRedundantInfo class
+           Returns a dictionary with keys baseline pairs and values delays.'''
+        self.blpair2delay = {}
+        dd = self.info.order_data(self.data)
+        for (bl1,bl2) in self.info.bl_pairs:
+            d1 = dd[:,:,self.info.bl_index(bl1)]
+            d2 = dd[:,:,self.info.bl_index(bl2)]
+            delay = red.redundant_bl_cal_simple(d1,d2,self.fqs)
+            self.blpair2delay[(bl1,bl2)] = delay    
+        return self.blpair2delay
+    def get_N(self,nblpairs):
+        return np.identity(nblpairs) 
+    def get_M(self):
+        M = np.zeros((len(self.info.bl_pairs),1))
+        blpair2delay = self.data_to_delays()
+        for pair in blpair2delay:
+            M[self.info.blpair_index(pair)] = blpair2delay[pair]
+        return M
+    def run(self):
+        #make measurement matrix 
+        self.M = self.get_M()
+        #make noise matrix
+        N = self.get_N(len(self.info.bl_pairs)) 
+        self._N = np.linalg.inv(N)
+        #get coefficients matrix,A
+        self.A = self.info.A
+        #solve for delays
+        invert = np.dot(self.A.T,np.dot(self._N,self.A))
+        dontinvert = np.dot(self.A.T,np.dot(self._N,self.M))
+        self.xhat = np.dot(np.linalg.pinv(invert), dontinvert)
+        #turn solutions into dictionary
+        return dict(zip(self.info.subsetant,self.xhat))
+    def get_solved_delay(self):
+        solved_delays = []
+        for pair in self.info.bl_pairs:
+            ant_indexes = self.info.blpair2antind(pair)
+            dlys = self.xhat[ant_indexes]
+            solved_delays.append(dlys[0]-dlys[1]-dlys[2]+dlys[3])
+        self.solved_delays = np.array(solved_delays)
+
+
+def get_phase(fqs,tau):
+    return np.exp(-2j*np.pi*fqs*tau)

@@ -1,6 +1,4 @@
 #! /usr/bin/env python
-import matplotlib
-matplotlib.use('Agg')
 import aipy as a, numpy as n, pylab as p
 import capo as C
 import sys, optparse, re, os
@@ -16,7 +14,7 @@ o.add_option('--afrf', action='store_true',
                 help='scale data by factor from aggresive fringe rate filtering.')
 o.add_option('-a', dest='afrf_factor', action='store', type='float', default=1.9,
             help='scaling factor for aggressive fring rate filtering.')
-o.add_option('--cov', action='store', type='float', default=None,
+o.add_option('--cov', action='store_true',
             help='scale factor for signal loss in covariance removal')
 o.add_option('--med', action='store_true',
             help='correction factor for using median statistics instead of the mean')
@@ -25,31 +23,30 @@ o.add_option('--show', action='store_true',
 opts,args = o.parse_args(sys.argv[1:])
 print args
 
-#dspec='data/final_pspecs/v032/nocov_pspec.npz'
-#args=['data/final_pspecs/v050/pspec.npz']
+#dspec='/Users/JoshDillon/Desktop/PAPER/even/nocov_pspec.npz'
+args=['/Users/JoshDillon/Desktop/PAPER/even/pspec.npz']
 
-def noise_level(freq=None):
+def noise_level():
     tsys = 500e3 #mK
-    inttime = 2477. #seconds. XXX fix with new integration. get it from frfilter_numbers.py
-    nbls=59 #number of baselines used (if using multiple seps, average the numbers?)
-    ndays = 31 #effectively this many days
-    nseps = 1 #number of seps used
+    inttime = 1886. #seconds. XXX fix with new integration.
+    nbls=51
+    ndays = 120 #effectively this many days. days of operation = 135
+    nseps = 3
     folding = 2
-    nlsts = 6 #number of LST hours in time-range
-    nmodes = (nseps*folding*nlsts*60*60/inttime)**.5
+    #ndays = 60 #effectively this many days. days of operation = 135
+    nmodes = (nseps*folding*8.5*60*60/inttime)**.5 # 3 for baseline types, 8.5=total lst time used.
     pol = 2
     real = 2 #??? what is this again?
-    if freq is None:
-            freq = .159 #GHz
+    freq = .15117 #GHz
     z = C.pspec.f2z(freq)
     X2Y = C.pspec.X2Y(z)/1e9 #h^-3 Mpc^3 / str/ Hz
     sdf = .1/203
-    freqs = n.linspace(.1,.2,203)[110:130] #put in channel range
+    freqs = n.linspace(.1,.2,203)[95:115]
     B = sdf*freqs.size
-    bm = n.polyval(C.pspec.DEFAULT_BEAM_POLY, freq) * 2.35 #correction for beam^2
+    bm = n.polyval(C.pspec.DEFAULT_BEAM_POLY, freq) * 2.35 # correction for beam^2
     scalar = X2Y * bm 
 
-    fr_correct = 1.66 #get it from frfilter_numbers.py
+    fr_correct = 1.39
 
 
     print 'scalar:', scalar
@@ -75,7 +72,7 @@ def noise_level(freq=None):
 
 ONLY_POS_K = True
 
-def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.159, color='', bins=None, upperlimit=False):
+def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.164, color='', bins=None, upperlimit=False):
     z = C.pspec.f2z(f0)
     kpr = C.pspec.dk_du(z) * umag
     k = n.sqrt(kpl**2 + kpr**2)
@@ -200,13 +197,9 @@ RS_VS_KPL = {} # K^2
 RS_VS_KPL_FOLD = {} # K^2
 dsum, dwgt = {}, {}
 dsum_fold, dwgt_fold = {}, {}
-afreqs=[]
-chans=[]
 for filename in args:
     print 'Reading', filename
     f = n.load(filename)
-    afreqs=f['afreqs']
-    chans=f['chans']
     RS_VS_KPL[filename] = {}
     RS_VS_KPL_FOLD[filename] = {}
     kpl,pk,err = f['kpl'], f['pk'], f['err']
@@ -232,7 +225,6 @@ for filename in args:
             dsum_fold[_kpl] = dsum_fold.get(_kpl, 0) + _pk / _err**2
             dwgt_fold[_kpl] = dwgt_fold.get(_kpl, 0) + 1 / _err**2
 #freq = f['freq']
-freq=n.average(afreqs)
 #RS_VS_KPL = {}
 if True:
     RS_VS_KPL['total'] = {}
@@ -250,8 +242,8 @@ if False: # put in raw delay spec
         for cnt,k in enumerate(kpl):
             k = '%6.3f' % k
             if not FG_VS_KPL.has_key(k): continue
-            #pk[cnt] += FG_VS_KPL[k]
-           # err[cnt] = 2*n.sqrt(FG_VS_KPL_NOS*FG_VS_KPL[k])
+            pk[cnt] += FG_VS_KPL[k]
+            err[cnt] = 2*n.sqrt(FG_VS_KPL_NOS*FG_VS_KPL[k])
 #    pk *= .76 # psa747 calibration of Pic A = 370.6 Jy @ 160 MHz (which includes resolution effects)
 #    err *= .76
     #pk *= 2.35 # Use power**2 beam, which is a 1.69/0.72=2.35 penalty factor
@@ -350,11 +342,9 @@ for sep in RS_VS_KPL:
         d_fold *= f
         nos_fold *= f
     if True: # extra penalty for signal loss in covariance diagonalization
-        if not opts.cov is None:
-            f =  opts.cov
-        else:
-#           f = 1.15 # this is the conservative number, for the biggest modes outside the of the wedge. Get ~1.03 correction at k=.2
-            f = 1.02 # this is the conservative number, for the biggest modes outside the of the wedge. Get ~1.03 correction at k=.2
+        #f = 1.2
+#        f = 1.15 # this is the conservative number, for the biggest modes outside the of the wedge. Get ~1.03 correction at k=.2
+        f = 1.02 # this is the conservative number, for the biggest modes outside the of the wedge. Get ~1.03 correction at k=.2
         print 'Scaling data and noise by %f for signal loss from empirically estimating covariances.' % f
         d *= f
         nos *= f
@@ -401,7 +391,7 @@ for sep in RS_VS_KPL:
     '''
     if d_fold.size == 0: d_fold,nos_fold = None, None
     #dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS)#,f0=freq) # 2-sigma error bars
-    dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS,f0=freq) # 2-sigma error bars
+    dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS,f0=.151) # 2-sigma error bars
     #dual_plot(kpl, d, nos, color=colors[0], bins=BINS) # 2-sigma error bars
     colors = colors[1:] + colors[0]
 
@@ -450,7 +440,7 @@ p.plot([.2], 9.82e7 * .2**3/(2*n.pi**2), 'mv', label='Dillon2013')
 #Parsons2014 upper lmit 41mk at .27
 p.plot([.27], 41**2, 'gv', label='Parsons2014')
 
-theo_noise = noise_level(freq=freq)
+theo_noise = noise_level()
 #print k0
 #print kpl_pos[0], theo_noise[0]
 #2 for the 2 sigma
@@ -461,7 +451,6 @@ p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')
 p.ylim(1e0,1e5)
 p.xlim(0, 0.6)
 p.grid()
-p.show()
 p.savefig('pspec.png')
 
 #p.figure(2)
@@ -479,8 +468,7 @@ p.savefig('pspec.png')
 #p.grid()
 
 f = n.load(args[0])
-noise_line=2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2)
-def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,theo_noise=None):
+def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.):
     import scipy.interpolate as interp
     k0 = n.abs(kpl).argmin()
     kpl = kpl[k0:]
@@ -503,8 +491,6 @@ def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,theo_no
     k = k[ind]
     pkfold = pkfold[ind]
     errfold = errfold[ind]
-    #if not theo_noise is None:
-    #    theo_noise=theo_noise[ind]
 #    if True:
     if False:
         #remove k=.345 point
@@ -583,28 +569,16 @@ def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,theo_no
     p.vlines(s2hi,0,1,color=(1,128/255.,14/255.), linewidth=2)
     #p.vlines(s2lo_o,0,1,color=(1,128/255.,14/255.), linestyle='--', linewidth=2)
     #p.vlines(s2hi_o,0,1,color=(1,128/255.,14/255.), linestyle='--', linewidth=2)
-    if not theo_noise is None:
-        s2l_theo=n.sqrt(1./n.mean(1./theo_noise**2))
-        p.vlines(s2l_theo**2,0,1,color='black',linewidth=2)
-        print('Noise level: {0:0>5.3f} mk^2'.format(s2l_theo**2))
+
     p.xlabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')
     p.ylabel('Posterior Distribution', fontsize='large')
     p.xlim(0,700)
-    if s2lo > 700:
-        p.xlim(0,2000)
     p.grid(1)
     p.subplots_adjust(left=.15, top=.95, bottom=.15, right=.95)
-    p.savefig('posterior.png')
-    f=open('posterior.txt', 'w')
-    f.write('Posterior: Mean,\t(1siglo,1sighi),\t(2siglo,2sighi)\n')
-    f.write('Posterior: {0:.4f},\t({1:.4f},{2:.4f}),\t({3:.4f},{4:.4f})\n'.format( mean, s1lo,s1hi, s2lo,s2hi))
-    f.write( 'Posterior (omit): {0:.4f}, ({1:.4f},{2:.4f}),\t({3:.4f},{4:.4f})\n'.format( mean_o, s1lo_o,s1hi_o, s2lo_o,s2hi_o))
-    f.write( 'Noise level: {0:0>5.3f} mk^2\n'.format(s2l_theo**2) )
-    f.close()
-    #p.show()
+    p.show()
 
 #posterior(f['kpl'], f['pk'], f['err'], f['pk_fold'], f['err_fold'])
-posterior(kpl, d, 2*nos, d_fold, nos_fold,theo_noise=noise_line,f0=freq)
+posterior(kpl, d, 2*nos, d_fold, nos_fold)
 
 
 

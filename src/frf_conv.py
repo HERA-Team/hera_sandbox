@@ -141,3 +141,18 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
     else:
         firs /= n.sqrt(n.sum(n.abs(firs)**2,axis=1).reshape(-1,1)) # normalize so that n.sum(abs(fir)**2) = 1
     return tbins, firs
+
+def apply_frf(aa, data, wgts, i, j, pol='I', firs=None, **kwargs):
+    freqs, nchan = aa.get_freqs(), data.shape[-1]
+    ch0,fq0 = nchan/2, freqs[nchan/2]
+    if firs is None: firs = {}
+    if not firs.has_key((i,j,pol)):
+        frp,bins = aa_to_fr_profile(aa, (i,j), ch0, pol=pol, **kwargs)
+        tbins, firs[(i,j,pol)] = frp_to_firs(frp, bins, freqs, fq0=fq0, **kwargs)
+    datf,wgtf = n.zeros_like(data), n.zeros_like(data)
+    fir = firs[(i,j,pol)]
+    for ch in xrange(nchan):
+        datf[:,ch] = n.convolve(data[:,ch], n.conj(fir[ch,:]), mode='same')
+        wgtf[:,ch] = n.convolve(wgts[:,ch], n.abs(n.conj(fir[ch,:])), mode='same')
+    datf = n.where(wgtf > 0, datf/wgtf, 0)
+    return datf, wgtf, tbins, firs
