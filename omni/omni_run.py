@@ -62,7 +62,7 @@ else: #generate reds from calfile
         ex_ants = []
         for a in opts.ba.split(','):
             ex_ants.append(int(a))
-        print '   Excluding antennas:',ex_ants
+        print '   Excluding antennas:',sorted(ex_ants)
     else: ex_ants = []
     info = capo.omni.aa_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, crosspols=pols)
 reds = info.get_reds()
@@ -98,6 +98,12 @@ for f,filename in enumerate(args):
     m2['jds'] = t_jd
     m2['lsts'] = t_lst
     m2['freqs'] = freqs
-    print '   Saving '+opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:3])+'.npz'
-    capo.omni.to_npz(opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:3])+'.npz', m2, g2, v2, xtalk)
+    
+    if len(pols)>1: #zen.jd.npz
+        npzname = opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:3])+'.npz'
+    else: #zen.jd.pol.npz
+        npzname = opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:4])+'.npz'
+    
+    print '   Saving %s'%npzname
+    capo.omni.to_npz(npzname, m2, g2, v2, xtalk)
     
