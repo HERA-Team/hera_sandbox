@@ -166,29 +166,41 @@ def to_npz(filename, meta, gains, vismdl, xtalk):
             d['(%d,%d) %s' % (bl[0],bl[1],pol)] = xtalk[pol][bl]
     np.savez(filename,**d)
 
-def from_npz(filename):
+def from_npz(filename, verbose=False):
     '''Reconstitute results from to_npz, returns meta, gains, vismdl, xtalk, each
     keyed first by polarization, and then by bl/ant/keyword.'''
-    npz = np.load(filename)
+    if type(filename) is str: filename = [filename]
     meta, gains, vismdl, xtalk = {}, {}, {}, {}
     def parse_key(k):
         bl,pol = k.split()
         bl = tuple(map(int,bl[1:-1].split(',')))
         return pol,bl
-    for k in [f for f in npz.files if f.startswith('(')]:
-        pol,bl = parse_key(k)
-        if not xtalk.has_key(pol): xtalk[pol] = {}
-        xtalk[pol][bl] = npz[k]
-    for k in [f for f in npz.files if f.startswith('<')]:
-        pol,bl = parse_key(k)
-        if not vismdl.has_key(pol): vismdl[pol] = {}
-        vismdl[pol][bl] = npz[k]
-    for k in [f for f in npz.files if f[0].isdigit()]:
-        pol,ant = k[-1:],int(k[:-1])
-        if not gains.has_key(pol): gains[pol] = {}
-        gains[pol][ant] = npz[k]
-    
-    kws = ['chi','hist','j','l','f']
-    for kw in kws:
-        for k in [f for f in npz.files if f.startswith(kw)]: meta[k] = npz[k]
+    for f in filename:
+        if verbose: print 'Reading', f
+        npz = np.load(f)
+        for k in [f for f in npz.files if f.startswith('(')]:
+            pol,bl = parse_key(k)
+            if not xtalk.has_key(pol): xtalk[pol] = {}
+            xtalk[pol][bl] = xtalk[pol].get(bl,[]) + [npz[k]]
+        for k in [f for f in npz.files if f.startswith('<')]:
+            pol,bl = parse_key(k)
+            if not vismdl.has_key(pol): vismdl[pol] = {}
+            vismdl[pol][bl] = vismdl[pol].get(bl,[]) + [npz[k]]
+        for k in [f for f in npz.files if f[0].isdigit()]:
+            pol,ant = k[-1:],int(k[:-1])
+            if not gains.has_key(pol): gains[pol] = {}
+            gains[pol][ant] = gains[pol].get(bl,[]) + [npz[k]]
+        kws = ['chi','hist','j','l','f']
+        for kw in kws:
+            for k in [f for f in npz.files if f.startswith(kw)]:
+                meta[k] = meta.get(k,[]) + [npz[k]]
+    for pol in xtalk:
+        for bl in xtalk[pol]: xtalk[pol][bl] = np.concatenate(xtalk[pol][bl])
+    for pol in vismdl:
+        for bl in vismdl[pol]: vismdl[pol][bl] = np.concatenate(vismdl[pol][bl])
+    for pol in gains:
+        for bl in gains[pol]: gains[pol][bl] = np.concatenate(gains[pol][bl])
+    for k in meta:
+        try: meta[k] = np.concatenate(meta[k])
+        except(ValueError): pass
     return meta, gains, vismdl, xtalk
