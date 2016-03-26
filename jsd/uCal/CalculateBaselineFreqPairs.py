@@ -93,6 +93,7 @@ for (f1,f2,u), entry in baselineFreqPairs.items():
         baselineFreqPairs[(f1,f2,u)]['avgvis'] = np.average(visProds)
         baselineFreqPairs[(f1,f2,u)]['nIntegrations'] = len(visProds)
         baselineFreqPairs[(f1,f2,u)]['averageDeltaProd'] = np.average(np.abs(visProds[0:-2] - visProds[1:-1]))
+        baselineFreqPairs[(f1,f2,u)]['stdDeltaProd'] = np.std(visProds[0:-2] - visProds[1:-1])
 
 baselineFreqPairs['files'] = files
 print 'Now saving file ' + dataFiles[-1][:-3] + 'ucal' + prefix + '.p with ' + str(len(baselineFreqPairs)-1) + ' entries' #name is last file
