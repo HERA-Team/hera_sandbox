@@ -4,7 +4,7 @@ import sys
 
 pol = 'xx'
 for f in sys.argv[1:]:
-    meta,gains,vismdl,xtalk = C.omni.from_npz(f)
+    meta,gains,vismdl,xtalk,jds,lsts,freqs = C.omni.from_npz(f)
     p.subplot(131)
     nchan = meta[pol]['chisq'].shape[1]
     C.arp.waterfall(meta[pol]['chisq'], drng=3); p.colorbar()

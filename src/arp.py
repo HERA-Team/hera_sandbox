@@ -1,41 +1,7 @@
-import aipy as a, numpy as n, pylab as P
+import aipy as a, numpy as n, pylab as plt
 import sys, scipy
-from mpl_toolkits.basemap import Basemap
-
-def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose=False, recast_as_array=True):
-    info = {'lsts':[], 'times':[]}
-    ts = {}
-    dat, flg = {}, {}
-    if type(filenames) == 'str': filenames = [filenames]
-    for filename in filenames:
-        if verbose: print '   Reading', filename
-        uv = a.miriad.UV(filename)
-        a.scripting.uv_selector(uv, antstr, polstr)
-        if decimate > 1: uv.select('decimate', decimate, decphs)
-        for (crd,t,(i,j)),d,f in uv.all(raw=True):
-            if not ts.has_key(t):
-                info['times'].append(t)
-                info['lsts'].append(uv['lst'])
-                ts[t] = None
-            #bl = a.miriad.ij2bl(i,j)
-            bl = (i,j)
-            if not dat.has_key(bl): dat[bl],flg[bl] = {},{}
-            pol = a.miriad.pol2str[uv['pol']]
-            if not dat[bl].has_key(pol):
-                dat[bl][pol],flg[bl][pol] = [],[]
-            dat[bl][pol].append(d)
-            flg[bl][pol].append(f)
-    if recast_as_array:
-        # This option helps reduce memory footprint, but it shouldn't
-        # be necessary: the replace below should free RAM as quickly
-        # as it is allocated.  Unfortunately, it doesn't seem to...
-        for bl in dat.keys():
-          for pol in dat[bl].keys():
-            dat[bl][pol] = n.array(dat[bl][pol])
-            flg[bl][pol] = n.array(flg[bl][pol])
-        info['lsts'] = n.array(info['lsts'])
-        info['times'] = n.array(info['times'])
-    return info, dat, flg
+from plot import data_mode, waterfall, plot_hmap_ortho
+from miriad import read_files as get_dict_of_uv_data
 
 def clean_transform(d, w=None, f=None, clean=1e-3, window='blackman-harris'):
     #d = d.swapaxes(0, axis)
@@ -81,28 +47,6 @@ def gen_ddr_filter(shape, dw, drw, ratio=.25, invert=False):
 def rms(d,wgt=None):
     if wgt == None: return n.sqrt(n.average(n.abs(d)**2))
     else: return n.sqrt(n.sum(n.abs(d)**2) / n.sum(n.abs(wgt)**2))
-
-def data_mode(data, mode='abs'):
-    if mode.startswith('phs'): data = n.angle(data)
-    elif mode.startswith('lin'):
-        data = n.absolute(data)
-        #data = n.masked_less_equal(data, 0)
-    elif mode.startswith('real'): data = data.real
-    elif mode.startswith('imag'): data = data.imag
-    elif mode.startswith('log'):
-        data = n.absolute(data)
-        data = n.log10(data)
-    else: raise ValueError('Unrecognized plot mode.')
-    return data
-
-def waterfall(d, mode='log', mx=None, drng=None, recenter=False, **kwargs):
-    if n.ma.isMaskedArray(d): d = d.filled(0)
-    if recenter: d = a.img.recenter(d, n.array(d.shape)/2)
-    d = data_mode(d, mode=mode)
-    if mx is None: mx = d.max()
-    if drng is None: drng = mx - d.min()
-    mn = mx - drng
-    return P.imshow(d, vmax=mx, vmin=mn, aspect='auto', interpolation='nearest', **kwargs)
 
 def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='blackman-harris',
         clean=1e-4, verbose=False, tau=0., off=0.):
@@ -192,36 +136,6 @@ def selfcal_diff(m_bl, r_ant, r_wgt=1e6):
     Pinv = n.linalg.pinv(P) # this succeeds where lstsq fails, for some reason
     C = n.dot(Pinv, M)
     return dict(zip(ants,C))
-
-def plot_hmap_ortho(h, cmap='jet', mode='log', mx=None, drng=None, 
-        res=0.25, verbose=False):
-    m = Basemap(projection='ortho',lat_0=90,lon_0=180,rsphere=1.)
-    if verbose:
-        print 'SCHEME:', h.scheme()
-        print 'NSIDE:', h.nside()
-    lons,lats,x,y = m.makegrid(360/res,180/res, returnxy=True)
-    lons = 360 - lons
-    lats *= a.img.deg2rad; lons *= a.img.deg2rad
-    y,x,z = a.coord.radec2eq(n.array([lons.flatten(), lats.flatten()]))
-    ax,ay,az = a.coord.latlong2xyz(n.array([0,0]))
-    data = h[x,y,z]
-    data.shape = lats.shape
-    data /= h[0,0,1]
-    #data = data**2 # only if a voltage beam
-    data = data_mode(data, mode)
-    m.drawmapboundary()
-    m.drawmeridians(n.arange(0, 360, 30))
-    m.drawparallels(n.arange(0, 90, 10))
-    if mx is None: mx = data.max()
-    if drng is None:
-        mn = data.min()
-    #    if min < (max - 10): min = max-10
-    else: mn = mx - drng
-    return m.imshow(data, vmax=mx, vmin=mn, cmap=cmap)
-    #step = (mx - mn) / 10
-    #levels = n.arange(mn-step, mx+step, step)
-    #map.contourf(cx,cy,data,levels,linewidth=0,cmap=cmap)
-    
 
 def sinuspike(d, fqs, f=None, clean=1e-3, maxiter=100, nsig=3, window='blackman-harris'):
     d = d * (fqs/.150)**2.5 # Flatten noise assuming synchrotron spectral index
