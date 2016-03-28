@@ -153,6 +153,7 @@ def apply_frf(aa, data, wgts, i, j, pol='I', firs=None, **kwargs):
     freqs, nchan = aa.get_freqs(), data.shape[-1]
     ch0,fq0 = nchan/2, freqs[nchan/2]
     if firs is None: firs = {}
+    tbins = None
     if not firs.has_key((i,j,pol)):
         frp,bins = aa_to_fr_profile(aa, (i,j), ch0, pol=pol, **kwargs)
         del(kwargs['bins'])
