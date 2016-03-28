@@ -45,17 +45,18 @@ for ij in mdl['xx'].keys():
         continue
     if s in bls and s[0] == 0:
         bls[s[-1]-1] = ij
-bl2SepDict = {bl: np.asarray([sep,0.0,0.0]) for bl,sep in zip(bls,separations)}
-#bl2SepDict = {bl: sep for bl,sep in zip(bls,separations)} #1D version
+bl2SepDict = {bl: np.asarray([sep,0.0]) for bl,sep in zip(bls,separations)}
+#bl2SepDict = {bl: np.asarray([sep]) for bl,sep in zip(bls,separations)}
+
 
 #############################################
 #   uCal Core Classes
 #############################################
 
-#TODO needs testing on a 3D array. In particular, there's a question of whether the code that skips entries to make the loop fasterever misses a good pair
+#TODO needs testing on a 2D or 3D array. In particular, there's a question of whether the code that skips entries to make the loop fasterever misses a good pair
 class uCalReds():
     """This class takes a list of baselines and channels, and a way to convert them into physical quantities (freqs in GHz, 
-    baselines as scalars or numpy arrays in meters), and saves a dictionary that maps (ch1,bl1,ch2,bl2) to u and deltau. 
+    baselines as numpy arrays in meters), and saves a dictionary that maps (ch1,bl1,ch2,bl2) to u and deltau. 
     Physical separations must all have the same orentiation, otherwise this won't work.
     Only includes baselines-frequency pairs obeying the Deltau threshold (default 0.3)."""
     def __init__(self, bls, chans, bl2SepDict, chan2FreqDict, maxDeltau = .3):
@@ -63,7 +64,7 @@ class uCalReds():
         self.maxDeltau = maxDeltau
         self.blChanPairs = {}
         freqChanPairs = sorted([[chan2FreqDict[chan], chan] for chan in chans])
-        sepBLPairs = sorted([[bl2SepDict[bl], bl] for bl in bls], key=lambda pair: np.linalg.norm(pair[0])) #sorts by length
+        sepBLPairs = sorted([[np.asarray(bl2SepDict[bl]), bl] for bl in bls], key=lambda pair: np.linalg.norm(pair[0])) #sorts by length
         for i,(f1,ch1) in enumerate(freqChanPairs):
             for f2,ch2 in freqChanPairs[i+1:]:
                 for j,(sep2,bl2) in enumerate(sepBLPairs):
@@ -82,27 +83,32 @@ class uCalReds():
     def applyChannelFlagCut(self, flaggedChannels):
         print 'applyChannelFlagCut has not been implemented!!!'
 
-    def uBinBoundaries(self, uBinSize = .72**.5):
-        """Returns a list of bin edges, or a list of lists (one for each dimension of baselines/u). 
-        By convention, the lower boundary is inclusive, the upper boundary is exclusive."""
-        allus = np.asarray([value[0] for key,value in self.blChanPairs.items()])
-        uMin, uMax = np.min(allus, axis=0), np.max(allus, axis=0)
-        print uMin, uMax
-        #two versions of this allow baselines to be scalars or numpy arrays
-        try: return [[(lowerEdge,lowerEdge+uBinSize) for lowerEdge in np.arange(uMin[dim], uMax[dim]+1e-15, uBinSize)] for dim in range(len(uMin))]
-        except: return [(lowerEdge,lowerEdge+uBinSize) for lowerEdge in np.arange(uMin, uMax+1e-15, uBinSize)]
 
 
 class uCalibrator():
     """docstring for uCalibrator()"""
-    def __init__(self, uReds, uBinBoundaries):
-        self.blChanPairs = uReds.blChanPairs
+    def __init__(self, uReds, uBinSize = .72**.5, duBinSize = 5.0/203):
+        #Internal format for blChanPairs with relevant info about binning
+        self.blChanPairs = {key: {'u': u, 'du': du} for key,(u,du) in uReds.blChanPairs.items()}
         
+        #Determine binning: first assign integers to u and du
+        allus = np.asarray([value['u'] for key,value in self.blChanPairs.items()])
+        for key,value in self.blChanPairs.items():
+            self.blChanPairs[key]['uBin'] = tuple(np.floor(1.0*(value['u'])/uBinSize).astype(int).tolist())
+            self.blChanPairs[key]['duBin'] = np.floor(1.0*(value['du'])/duBinSize).astype(int)
+        #Now find and sort the unique values of those integers
+        self.uBins = sorted({value['uBin']: None for key,value in self.blChanPairs.items()}.keys(), key=lambda uBin: np.linalg.norm(np.asarray(uBin)))
+        self.duBins = sorted({value['duBin']: None for key,value in self.blChanPairs.items()}.keys())
+        #Now determine bin centers
+        self.uBinCenters = {uBin: [] for uBin in self.uBins}
+        self.duBinCenters = {duBin: [] for duBin in self.duBins}
+        for key,value in self.blChanPairs.items():
+            self.uBinCenters[value['uBin']].append(value['u'])
+            self.duBinCenters[value['duBin']].append(value['du'])
+        self.uBinCenters = [np.mean(np.asarray(self.uBinCenters[uBin]), axis = 0) for uBin in self.uBins]
+        self.duBinCenters = [np.mean(self.duBinCenters[duBin]) for duBin in self.duBins]
         
-
-
-#NOTE TO SELF: make the list of bins a list of lists of tuples (top and bottom), or a list of tuples (1D)
-
+        #Now create logcal matrices
 
 
 
@@ -114,8 +120,7 @@ class uCalibrator():
 uReds = uCalReds(bls, chans, bl2SepDict, chan2FreqDict, maxDeltau=.3)
 uReds.applyuCut(uMin=25, uMax=150)
 #uReds.applyChannelFlagCut(flaggedChannels) 
-uBinBoundaries = uReds.uBinBoundaries(uBinSize = .72**.5)
-print uBinBoundaries
 
-# calibrator = uCalibrator(uReds)
+
+uCal = uCalibrator(uReds)
 
