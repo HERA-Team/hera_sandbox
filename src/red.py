@@ -88,21 +88,21 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     if use_offset: return gain, (tau,off), info
     else: return gain, tau, info
 
-def redundant_bl_cal_simple(d1, w1, d2, w2, fqs, window='blackman-harris', clean=1e-4, verbose=False):
+def redundant_bl_cal_simple(d1,d2,fqs, window='blackman-harris', clean=1e-4, verbose=False):
     '''Given redundant measurements, get the phase difference between them.
        For use on raw data'''
     d12 = d2 * n.conj(d1)
     # For 2D arrays, assume first axis is time and integrate over it
-    if d12.ndim > 1: d12_sum,d12sum_wgt = n.sum(d12,axis=0),n.sum(w1*w2,axis=0)
-    else: d12_sum,d12_wgt = d12, w1*w2
+    if d12.ndim > 1: d12_sum= n.sum(d12,axis=0)
+    else: d12_sum = d12
     #normalize data to maximum so that we minimize fft articats from RFI
-    d12_sum = d12_sum/n.max(n.abs(d12_sum))
+    d12_sum = d12_sum/n.where(n.abs(d12_sum)==0., 1., n.abs(d12_sum)) 
     window = a.dsp.gen_window(d12_sum.size, window=window)
     dlys = n.fft.fftfreq(fqs.size, fqs[1]-fqs[0])
     # FFT and deconvolve the weights to get the phs
     _phs = n.fft.ifft(window*d12_sum)
-    _wgt = n.fft.ifft(window*d12_wgt)
-    _phs,info = a.deconv.clean(_phs, _wgt, tol=clean)
+#    _wgt = n.fft.ifft(window*d12_wgt)
+#    _phs,info = a.deconv.clean(_phs, _wgt, tol=clean)
     _phs = n.abs(_phs)
     #get bin of phase
     mx = n.argmax(_phs)

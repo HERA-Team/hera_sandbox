@@ -217,17 +217,21 @@ class FirstCal(object):
         self.data = data
         self.fqs = fqs
         self.info = info
-    def data_to_delays(self):
+    def data_to_delays(self,window='none'):
         '''data = dictionary of visibilities. 
            info = FirstCalRedundantInfo class
            Returns a dictionary with keys baseline pairs and values delays.'''
         self.blpair2delay = {}
         dd = self.info.order_data(self.data)
+#        ww = self.info.order_data(self.wgts)
         for (bl1,bl2) in self.info.bl_pairs:
             d1 = dd[:,:,self.info.bl_index(bl1)]
+#            w1 = ww[:,:,self.info.bl_index(bl1)]
             d2 = dd[:,:,self.info.bl_index(bl2)]
-            delay = red.redundant_bl_cal_simple(d1,d2,self.fqs)
-            self.blpair2delay[(bl1,bl2)] = delay    
+#            w2 = ww[:,:,self.info.bl_index(bl2)]
+            #delay = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs)
+            delay = red.redundant_bl_cal_simple(d1,d2,self.fqs,window=window)
+            self.blpair2delay[(bl1,bl2)] = delay
         return self.blpair2delay
     def get_N(self,nblpairs):
         return np.identity(nblpairs) 
