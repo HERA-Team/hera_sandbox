@@ -31,7 +31,9 @@ o.add_option('--verbose',dest='verb',default=False,action="store_true")
 opts,args = o.parse_args(sys.argv[1:])
 
 r2h = 12/n.pi #radians to hours (LST drifts by ~4 min each day, because of the difference between solar/sidereal days)
-i,j = 41,49 #30m E-W baseline
+#i,j = 41,49 #30m E-W baseline
+#i,j = 0,44
+i,j = 1,4
 mybl=str(a.miriad.ij2bl(i,j))
 #jdjump = 2456881 #2456942.
 
@@ -76,17 +78,25 @@ for filename in args:#sys.argv[1:]: #loop through files
 		if hms(sa.sidereal_time()) > np.pi: continue #the galaxy is up
 	
 	jd = int(n.floor(file2jd(filename))) #jd of file
-
-	#JDs that consistently exceed the rms=0.03 bound for EPOCH1:
-	#	2456648,2456662,2456670
-	if jd in [2456648,2456662,2456670]: continue
-	#EPOCH2:
-	if jd in [2456689,2456690,2456700,2456702,2456703]: continue
-	#EPOCH2+second RMS flagging
-	if jd in [2456692,2456704,2456717]: continue
-	#EPOCH2+second RMS flagging+no solar
-	if jd in [2456673,2456696]: continue
 	
+	#weird "start of season 2 but not really" stuff
+	if jd in range(2456725,2456735): continue
+	
+	#YY EPOCHS
+	#EPOCH 1 = 2456843 to 2456929
+	#EPOCH 2 = 2456942 to 2457009
+	#EPOCH 3 = 2457031 to 2457072
+	
+	#if jd > 2456929: continue #look at E1
+	if jd in 2456843+np.array([30,38,39,41,42,74,78,81]): continue
+	#print 'E1 YY BAD = ',2456843+np.array([30,38,39,41,42,74,78,81])
+	
+	#if jd < 2456942 or jd > 2457009: continue #look at E2
+	if jd in 2456942+np.array([15,16,22,23,28,31,42]): continue
+	#print 'E2 YY BAD = ', 2456942+np.array([15,16,22,23,28,31,42])
+	
+	#if jd < 2457031: continue #look at E3
+	if jd in 2457031+np.array([3,9,19,22,35]): continue
 	
 	t = file2jd(filename)
 	#if jd>jdjump:continue  #focus on my epoch
