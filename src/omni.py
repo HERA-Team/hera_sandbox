@@ -265,4 +265,4 @@ class FirstCal(object):
 
 
 def get_phase(fqs,tau):
-    return np.exp(-2j*np.pi*fqs*tau)
+    return np.exp(2j*np.pi*fqs*tau)
