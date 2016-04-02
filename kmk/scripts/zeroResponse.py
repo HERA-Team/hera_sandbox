@@ -36,6 +36,14 @@ def hpm_TtoJy(hpm, freq):
     hpm.map *= (4*np.pi/hpm.npix())*2*a.const.k/wvlen**2 # convert to Jy to make summable
     return hpm
 
+def makeGSM(path, nside, freq):
+        gsmMap = a.healpix.HealpixMap(nside=nside)
+        g = a.healpix.HealpixMap(nside=512)
+        g.map = GlobalSkyModel(freq=1000*freq, GSMlocation=path, GSMNSIDE=512).map # galactic
+        g = hpm_TtoJy(g, freq=freq)
+        gsmMap.from_hpm(g)
+        return gsmMap
+
 def extractData(uv):
     """ create arrays for visibilities for each baseline in uv data file for 
         single timestep, single polarization
@@ -62,15 +70,21 @@ def extractData(uv):
     print "data collected"
     return d
 
-def calcVis(aa, hpm, ij, beam, freq, txyz):
+def calcVis(aa, hpm, ij, freq, ha):
     # TODO: import array + GSMMap, calculate topocentric coordinates on the 
     # fly, generate PB on the fly, include time
     """ simulate sky visibilities for a given baseline and primary beam, 
         provided with a sky map at a known frequency and its coordinate system """
-    tx,ty,tz = txyz
+    gxyz = gx,gy,gz, = hpm.px2crd(np.arange(hpm.npix())) # galactic
+    ga2eq = a.coord.convert_m(isys='eq', osys='ga', oepoch=aa.epoch) 
+    # conversion matrix so the isys and osys are reversed
+    exyz = ex,ey,ez = np.dot(ga2eq, hpm.px2crd(np.arange(hpm.npix()))) # equatorial
+    txyz = tx,ty,tz = np.dot(a.coord.eq2top_m(ha, aa.lat), exyz) # topocentric
+    # generate proper PB
+    beam = aa[0].bm_response(txyz, pol='x')**2 # topocentric
     i,j = ij
     print i, j
-    bxyz = bx, by, bz = aa.get_baseline(i, j, src='z')
+    bxyz = bx,by,bz = aa.get_baseline(i, j, src='z')
     # attenuate sky signal and visibility by primary beam
     obs_sky = beam * hpm.map
     phs = np.exp(np.complex128(-2j*np.pi*freq*np.dot(bxyz, txyz)))
@@ -122,22 +136,10 @@ if __name__ == '__main__':
     t = np.array([-3.0,-2.0,-1.0,0.0,1.0,2.0,3.0])
     sim_data = []
     for i in xrange(len(ij)):
-        gsmMap = a.healpix.HealpixMap(nside=64)
-        gsmMap.map = GlobalSkyModel(freq=1000*freqs[i], GSMlocation=gsm_dir, GSMNSIDE=64).map # galactic
+        gsmMap = makeGSM(path=gsm_dir, nside=64, freq=freqs[i])
         print "GSM made at freq %f" % freqs[i]
-        # resample GSM into topocentric coords for each time step
         for n in xrange(len(t)): 
-            gxyz = gx,gy,gz, = gsmMap.px2crd(np.arange(gsmMap.npix())) # galactic
-            ga2eq = a.coord.convert_m(isys='eq', osys='ga', oepoch=aa.epoch) 
-            # conversion matrix so the isys and osys are reversed
-            exyz = ex,ey,ez = np.dot(ga2eq, gsmMap.px2crd(np.arange(gsmMap.npix()))) # equatorial
-            txyz = tx,ty,tz = np.dot(a.coord.eq2top_m(t[n], aa.lat), exyz) # topocentric
-            # generate proper PB for each time step
-            beam = aa[0].bm_response(txyz, pol='x')**2 # topocentric
-            #gsmMap.to_fits("gal_coord_map.fits")
-            gsmMap.map = gsmMap[tx,ty,tz] # topocentric
-            #gsmMap.to_fits("top_coord_map.fits")
-            gsm_vis = calcVis(aa=aa, hpm=gsmMap, ij=ij[i], beam=beam, freq=freqs[i], txyz=txyz)
+            gsm_vis = calcVis(aa=aa, hpm=gsmMap, ij=ij[i], freq=freqs[i], ha=t[n])
             vis_data = [ij[i], t[n], freqs[i], gsm_vis]
             sim_data.append(vis_data)
 
