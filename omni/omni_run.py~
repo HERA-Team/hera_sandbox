@@ -100,11 +100,9 @@ for f,filename in enumerate(args):
     m2['freqs'] = freqs
     
     if len(pols)>1: #zen.jd.npz
-        npzb = 3
+        npzname = opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:3])+'.npz'
     else: #zen.jd.pol.npz
-        npzb = 4
-    
-    npzname = opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:npzb])+'.npz'
+        npzname = opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:4])+'.npz'
     
     print '   Saving %s'%npzname
     capo.omni.to_npz(npzname, m2, g2, v2, xtalk)
