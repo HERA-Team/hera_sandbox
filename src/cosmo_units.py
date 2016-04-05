@@ -32,6 +32,8 @@ def E(z):
 
 def DM(z):
     return ckm/Ho*integrate.quad(lambda z: 1/E(z),0,z)[0]    
+def DA(z):
+    return DM(z)/(1+z)
 
 def r2df(r,z):
     return r*Ho*f21*E(z)/(ckm*(1+z)**2)
@@ -46,13 +48,13 @@ def eta2kparr(eta,z):
     return eta*(2*n.pi*Ho*f21*E(z))/(ckm*(1+z)**2)
 
 def kperp2u(kperp,z):
-    return kperp*DM(z)/(2*n.pi)
+    return kperp*DA(z)/(2*n.pi)
 
 def u2kperp(u,z):
-    return u*2*n.pi/DM(z)
+    return u*2*n.pi/DA(z)
 def r2theta(r,z):
-    return r/DM(z)
+    return r/DA(z)
 def theta2r(theta,z):
-    return theta*DM(z)
+    return theta*DA(z)
 def f212z(f):
     return f21/f-1
