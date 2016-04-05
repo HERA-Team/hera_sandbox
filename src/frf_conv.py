@@ -13,8 +13,10 @@ DEFAULT_WGT = lambda bm: bm**2
 DEFAULT_IWGT = lambda h: n.sqrt(h)
 
 def gen_frbins(inttime, fringe_res=5e-5):
-    '''Generate fringe-rate bins appropriate for use in fr_profile().
-    inttime is in seconds, returned bins in Hz.'''
+    """
+    Generate fringe-rate bins appropriate for use in fr_profile().
+    inttime is in seconds, returned bins in Hz.
+    """
     fmax = 0.5 / inttime
     return n.arange(-fmax, fmax+fringe_res/2, fringe_res)
 
@@ -29,7 +31,7 @@ def mk_fng_alietal(bl, eq):
     return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
 
 def fr_profile(bm, fng, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT):
-    '''Return the fringe-rate profiel (binning the beam by fringe rate).'''
+    '''Return the fringe-rate profile (binning the beam by fringe rate).'''
     h, _ = n.histogram(fng, bins=bins, weights=wgt(bm)) 
     h = iwgt(h)
     h /= h.max()
@@ -42,8 +44,10 @@ def tanh(x, p, w, C = 1.0, a=1.0): return (C/2.) * (1 + a*n.tanh( (x-p)/(2*w)))
 def mdl_wrap(prms, frp, bins, maxfr, mdl): return n.sum((frp - n.where(bins > maxfr,0,mdl(prms,bins)))**2)
 
 def fit_mdl(frp, bins, maxfr, mdl=gauss, maxfun=1000, ftol=1e-6, xtol=1e-6, startprms=(.001,.0001), verbose=False):
-    '''Fit a parametrized model to the fringe-rate profile frp.  h is weights for each fringe rate in bins,
-    maxfr is the maximum fringe rate (which is treated independently of bins).'''
+    """
+    Fit a parametrized model to the fringe-rate profile frp.  h is weights for each fringe rate in bins,
+    maxfr is the maximum fringe rate (which is treated independently of bins).
+    """
     bestargs, score = a.optimize.fmin(mdl_wrap, x0=startprms, args=(frp,bins,maxfr,mdl),
         full_output=1, disp=0, maxfun=maxfun, maxiter=n.Inf, ftol=ftol, xtol=xtol)[:2]
     if verbose: print 'Final prms:', bestargs, 'Score:', score
@@ -79,13 +83,8 @@ def aa_to_fr_profile(aa, (i,j), ch, pol='I', bins=DEFAULT_FRBINS, wgt=DEFAULT_WG
     elif pol ==  'I': bm = .5 * (_bmx*_bmx.conj() + _bmy*_bmy.conj())
     elif pol ==  'Q': bm = .5 * (_bmx*_bmx.conj() - _bmy*_bmy.conj())
     elif pol ==  'U': bm = .5 * (_bmx*_bmy.conj() + _bmy*_bmx.conj())
-    elif pol ==  'V': bm = .5 * (_bmx*_bmy.conj() - _bmy*_bmx.conj())
+    elif pol ==  'V': bm = .5 * (_bmx*_bmy.conj() - _bmy*_bmx.conj()) #SK - is this the correct way to treat V?
     return fr_profile(bm, fng, bins=bins, wgt=wgt, iwgt=iwgt)
-
-#wgt = scipy.interpolate.interp1d(bins, h_I, kind='linear')
-#max_fr = n.sqrt(n.dot(bl,bl)) * freqs[-1]*2*n.pi / a.const.sidereal_day
-#fr_bins = n.arange(-.5/42.8, .5/42.8-fr_bin_res, fr_bin_res) #in Hz!
-#fr_bins = n.fft.fftshift(n.fft.fftfreq(nbins, inttime))
 
 # XXX write a function that generates bins from inttime and time window for fir
 
@@ -138,9 +137,6 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
     frps = n.array([mdl(prms0*fq/fq0,bins) * limit_maxfr(fq) * limit_xtalk for i,fq in enumerate(fqs)])
     tbins = fftshift(fftfreq(bins.size, bins[1]-bins[0]))
     firs = frp_to_fir(frps) 
-    #frps = ifftshift(frps, axes=-1)
-    #firs = ifft(frps, axis=-1)
-    #firs = fftshift(firs, axes=-1)
     firs *= a.dsp.gen_window(bins.size, window)
     if alietal:
         firs /= n.sum(n.abs(firs),axis=1).reshape(-1,1) # normalize so that n.sum(abs(fir)) = 1
