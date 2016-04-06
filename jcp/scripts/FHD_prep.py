@@ -78,7 +78,7 @@ for filename in args:
     uvo = a.pol.UV(filename+'M',status='new')
     ra = src.get_params()['ra']
     uvo.init_from_uv(uvi,override={'antpos':antpos,'obsra':ra,'ra':ra,'epoch':epoch*2000/36525.})
-    uvo.add_var('resfreq','d')
+    uvo.add_var('restfreq','d')
     uvo['restfreq'] = uvi['sfreq']
     for t in D:
         for bl in D[t]:
