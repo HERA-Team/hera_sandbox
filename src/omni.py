@@ -178,7 +178,7 @@ def compute_xtalk(res, wgts):
         for key in res[pol]: 
             r,w = np.where(wgts[pol][key] > 0, res[pol][key], 0), wgts[pol][key].sum(axis=0)
             w = np.where(w == 0, 1, w)
-        xtalk[pol][key] = (r.sum(axis=0) / w).astype(res[pol][key].dtype) # avg over time
+            xtalk[pol][key] = (r.sum(axis=0) / w).astype(res[pol][key].dtype) # avg over time
     return xtalk
 
 def to_npz(filename, meta, gains, vismdl, xtalk):

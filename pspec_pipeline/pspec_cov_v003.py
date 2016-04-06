@@ -316,7 +316,7 @@ for k in days:
         _I[k][bl] = n.identity(_C[k][bl].shape[0])
         _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
         _Ix[k][bl] = x[k][bl].copy()
-        if PLOT and True:
+        if PLOT and False:
             #p.plot(S); p.show()
             p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
             p.title('Data x')
@@ -464,6 +464,8 @@ for boot in xrange(opts.nboot):
     norm  = WI.sum(axis=-1); norm.shape += (1,)
     #norm  = WI.max(axis=-1); norm.shape += (1,) # XXX
     MI /= norm; WI = n.dot(MI, FI)
+    capo.arp.waterfall(MI,mode='real');p.colorbar(shrink=.5)
+    p.show()
     WC = n.dot(MC, FC)
     norm  = WC.sum(axis=-1); norm.shape += (1,)
     #norm  = WC.max(axis=-1); norm.shape += (1,) # XXX
@@ -473,9 +475,10 @@ for boot in xrange(opts.nboot):
     pC = n.dot(MC, qC) * scalar
     #pC[m] *= 1.81 # signal loss, high-SNR XXX
     #pC[m] *= 1.25 # signal loss, low-SNR XXX
-    MI = fractional_matrix_power(FI,-0.5)
+    
+    #MI = fractional_matrix_power(FI,-0.5)
     pI = n.dot(MI, qI) * scalar
-
+    
     if PLOT:
         p.subplot(411); capo.arp.waterfall(qC, mode='real'); p.colorbar(shrink=.5)
         p.subplot(412); capo.arp.waterfall(pC, mode='real'); p.colorbar(shrink=.5)
