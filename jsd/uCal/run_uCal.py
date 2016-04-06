@@ -10,7 +10,7 @@ import time
 import aipy as a
 import optparse, sys, os
 import capo
-import uCal as uc
+import capo.uCal as uc
 
 #############################################
 #   Set-up script specific to PAPER 128. 
