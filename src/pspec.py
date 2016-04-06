@@ -1,10 +1,9 @@
 '''Units in mK, GHz, Mpc unless stated otherwise'''
 import numpy as n, aipy as a
 import pfb
+from binning import LST_RES, UV_RES, uv2bin, bin2uv, rebin_log
 
 F21 = 1.42040575177 # GHz
-LST_RES = 2*n.pi/24
-UV_RES = 1.5
 
 # Temperature conversion
 DEFAULT_BEAM_POLY = [ -1.55740671e+09,  1.14162351e+09, -2.80887022e+08,  9.86929340e+06, 7.80672834e+06, -1.55085596e+06,  1.20087809e+05, -3.47520109e+03]
@@ -78,22 +77,6 @@ def k3pk_sense_vs_t(t, k=.3, fq=.150, B=.001, bm_poly=DEFAULT_BEAM_POLY, Tsys=50
     return k3pk_from_Trms([Trms], [1.], k=k, fq=fq, B=B, bm_poly=bm_poly)[0]
 
 # Misc helper functions
-def uv2bin(u,v,lst,uv_res=UV_RES, lst_res=LST_RES):
-    return (int(n.around(u / uv_res) + 4096) * 8192 + int(n.around(v / uv_res) + 4096)) * 8192 + int(n.around(lst/lst_res))
-def bin2uv(bin, uv_res=UV_RES, lst_res=LST_RES):
-    bin = int(bin)
-    v = ((bin/8192) % 8192 - 4096) * float(uv_res)
-    u = (bin / 8192**2 - 4096) * float(uv_res)
-    lst = (bin % 8192) * float(lst_res)
-    return u,v, lst
-def rebin_log(x, y, bin=10):
-    '''For y=f(x), bin x into log_e bins, and average y over
-    these bin sizes.'''
-    logx = n.log(n.abs(x))
-    hist1,bins = n.histogram(logx, bins=bin, weights=y)
-    hist2,bins = n.histogram(logx, bins=bin)
-    logx = .5 * (bins[1:] + bins[:-1])
-    return n.e**logx, hist1 / n.where(hist2 == 0, 1., hist2)
 def f2eta(f):
     '''Convert an array of frequencies to an array of etas (freq^-1) 
     corresponding to the bins that an FFT generates.'''

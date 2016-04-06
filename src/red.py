@@ -5,7 +5,7 @@ Tools for dealing with redundant array configurations.
 import numpy as n
 from aipy.miriad import ij2bl, bl2ij
 import aipy as a
-import ipdb as db
+#import ipdb as db
 
 def group_redundant_bls(antpos):
     '''Return 2 dicts: bls contains baselines grouped by separation ('drow,dcol'), conj indicates for each

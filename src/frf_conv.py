@@ -12,6 +12,12 @@ DEFAULT_FRBINS = n.arange(-.01+5e-5/2,.01,5e-5) # Hz
 DEFAULT_WGT = lambda bm: bm**2
 DEFAULT_IWGT = lambda h: n.sqrt(h)
 
+def gen_frbins(inttime, fringe_res=5e-5):
+    '''Generate fringe-rate bins appropriate for use in fr_profile().
+    inttime is in seconds, returned bins in Hz.'''
+    fmax = 0.5 / inttime
+    return n.arange(-fmax, fmax+fringe_res/2, fringe_res)
+
 def mk_fng(bl, eq):
     '''Return fringe rates given eq coords and a baseline vector (measured in wavelengths) in eq coords'''
     return -2*n.pi/a.const.sidereal_day * n.dot(n.cross(n.array([0,0,1.]),bl), eq)
@@ -56,7 +62,7 @@ def hmap_to_fr_profile(bm_hmap, bl, lat, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, i
     fng = mk_fng(bl,eq)
     return fr_profile(bm, fng, bins=bins, wgt=wgt, iwgt=iwgt)
     
-def aa_to_fr_profile(aa, (i,j), ch, pol='I', bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT, nside=64):
+def aa_to_fr_profile(aa, (i,j), ch, pol='I', bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT, nside=64, **kwargs):
     '''For an AntennaArray, for a baseline indexed by i,j, at frequency fq, return the fringe-rate profile.'''
     fq = aa.get_afreqs()[ch]
     h = a.healpix.HealpixMap(nside=nside)
@@ -107,7 +113,7 @@ def normalize(fx):
     
 
 def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, fr_xtalk=.00035, maxfr=None,
-        mdl=gauss, maxfun=1000, ftol=1e-6, xtol=1e-6, startprms=(.001,.0001), window='blackman-harris', alietal=False, verbose=False ,frpad = 1.0):
+        mdl=gauss, maxfun=1000, ftol=1e-6, xtol=1e-6, startprms=(.001,.0001), window='blackman-harris', alietal=False, verbose=False ,frpad=1., **kwargs):
     ''' Take a fringe rate profile at one frequency, fit an analytic function and extend 
         to other frequencies. 
         frp0: fringe rate profile at a single frequency. 
@@ -141,3 +147,23 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
     else:
         firs /= n.sqrt(n.sum(n.abs(firs)**2,axis=1).reshape(-1,1)) # normalize so that n.sum(abs(fir)**2) = 1
     return tbins, firs
+
+def apply_frf(aa, data, wgts, i, j, pol='I', firs=None, **kwargs):
+    '''Generate & apply fringe-rate filter to data for baseline (i,j).'''
+    freqs, nchan = aa.get_freqs(), data.shape[-1]
+    ch0,fq0 = nchan/2, freqs[nchan/2]
+    if firs is None: firs = {}
+    tbins = None
+    if not firs.has_key((i,j,pol)):
+        frp,bins = aa_to_fr_profile(aa, (i,j), ch0, pol=pol, **kwargs)
+        del(kwargs['bins'])
+        tbins, firs[(i,j,pol)] = frp_to_firs(frp, bins, freqs, fq0=fq0, **kwargs)
+    datf,wgtf = n.zeros_like(data), n.zeros_like(data)
+    fir = firs[(i,j,pol)]
+    for ch in xrange(nchan):
+        #datf[:,ch] = n.convolve(data[:,ch], fir[ch,:], mode='same')
+        #wgtf[:,ch] = n.convolve(wgts[:,ch], n.abs(fir[ch,:]), mode='same')
+        datf[:,ch] = n.convolve(data[:,ch], n.conj(fir[ch,:]), mode='same')
+        wgtf[:,ch] = n.convolve(wgts[:,ch], n.abs(n.conj(fir[ch,:])), mode='same')
+    datf = n.where(wgtf > 0, datf/wgtf, 0)
+    return datf, wgtf, tbins, firs
