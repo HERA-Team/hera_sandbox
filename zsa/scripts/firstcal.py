@@ -4,9 +4,12 @@ import numpy as n, pylab as p, aipy as a
 import sys,optparse
 
 o = optparse.OptionParser()
-o.add_option('--cal', action='store',
-    help='File path for the connections.')
+a.scripting.add_standard_options(o,cal=True)
+#o.add_option('--cal', action='store',
+#    help='File path for the connections.')
 o.add_option('--plot', action='store_true', help='Plot things.')
+o.add_option('--pol', action='store', default='xx',
+    help='polarization')
 opts,args = o.parse_args(sys.argv[1:])
 connection_file=opts.cal
 PLOT=opts.plot
@@ -17,38 +20,53 @@ def flatten_reds(reds):
         freds += r
     return freds
 
-def save_sols(s):
+def save_gains(s,f,pol):
     s2 = {}
     for k,i in s.iteritems():
-        s2[str(k)] = i
-    n.savez('fcsols.npz',**s2)
+        s2[str(k)] = omni.get_phase(f,i)
+    s2['pol'] = pol
+    n.savez('fcgains.%s.npz'%pol,**s2)
 
+def normalize_data(datadict):
+    d = {}
+    for key in datadict.keys():
+        d[key] = datadict[key]/n.where(n.abs(datadict[key]) == 0., 1., n.abs(datadict[key]))
+    return d 
+
+    
 #hera info assuming a hex of 19 and 128 antennas
-info = hx.hera_to_info(3, 128, connections=connection_file)
-infotest = hx.hera_to_info(3, 128, connections=connection_file, ubls=[(80,104)])
+aa = a.cal.get_aa(opts.cal, n.array([.150]))
+info = omni.aa_to_info(aa, fcal=True, ex_ants=[81])
+infotest = omni.aa_to_info(aa, fcal=True, ubls=[(80,104),(9,22),(80,96)],ex_ants=[81])
+#info = hx.hera_to_info(3, 128, connections=connection_file, ex_ants=[81])
+#infotest = hx.hera_to_info(3, 128, connections=connection_file,  ex_ants=[81])
+#infotest = hx.hera_to_info(3, 128, connections=connection_file, ubls=[(80,104),(9,22),(80,96)], ex_ants=[81])
 reds = flatten_reds(info.get_reds())
 redstest = infotest.get_reds()#for plotting 
 
+print len(reds)
 #Read in data here.
 ant_string =','.join(map(str,info.subsetant))
 bl_string = ','.join(['_'.join(map(str,k)) for k in reds])
-times, data, flags = arp.get_dict_of_uv_data(args, bl_string, 'xx', verbose=True)
+times, data, flags = arp.get_dict_of_uv_data(args, bl_string, opts.pol, verbose=True)
 dataxx = {}
 for (i,j) in data.keys():
     dataxx[(i,j)] = data[(i,j)]['xx']
 fqs = n.linspace(.1,.2,1024)
+dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, fqs[1]-fqs[0]))
 
 #gets phase solutions per frequency.
 fc = omni.FirstCal(dataxx,fqs,info)
 sols = fc.run()
-save_sols(sols)
+#import IPython; IPython.embed()
+#save_gains(sols,fqs, opts.pol)
 #save solutions
 dataxx_c = {}
 for (a1,a2) in info.bl_order():
     if (a1,a2) in dataxx.keys():
         dataxx_c[(a1,a2)] = dataxx[(a1,a2)]*omni.get_phase(fqs,sols[a1])*n.conj(omni.get_phase(fqs,sols[a2]))
     else:
-        dataxx_c[(a1,a2)] = dataxx[(a2,a1)]*omni.get_phase(fqs,sols[a2])*n.conj(omni.get_phase(fqs,sols[a1]))
+        dataxx_c[(a1,a2)] = n.conj(dataxx[(a2,a1)]*omni.get_phase(fqs,sols[a2])*n.conj(omni.get_phase(fqs,sols[a1])))
 
 #def waterfall(d, ax, mode='log', mx=None, drng=None, recenter=False, **kwargs):
 #    if n.ma.isMaskedArray(d): d = d.filled(0)
@@ -85,15 +103,33 @@ if PLOT:
             #p.subplot(212); arp.waterfall(dataxx_c[bl], mode='log',mx=0,drng=3); p.colorbar(shrink=.5)
             p.subplot(211); arp.waterfall(dataxx[bl], mode='phs'); p.colorbar(shrink=.5)
             p.subplot(212); arp.waterfall(dataxx_c[bl], mode='phs'); p.colorbar(shrink=.5)
+            p.title('%d_%d'%bl)
             print sols[bl[0]] - sols[bl[1]]
             print bl
         except(KeyError):
             p.subplot(211); arp.waterfall(n.conj(dataxx[bl[::-1]]), mode='phs'); p.colorbar(shrink=.5)
             p.subplot(212); arp.waterfall(n.conj(dataxx_c[bl]), mode='phs'); p.colorbar(shrink=.5)
+            p.title('%d_%d'%bl)
             print bl
 
         p.show()
-import IPython; IPython.embed()
+
+
+data_norm = normalize_data(dataxx_c)
+
+if PLOT or True:
+    for bl in redbls:
+        bl = tuple(bl)
+        try:
+            print data_norm[bl].shape
+            p.subplot(111); arp.waterfall(n.fft.fftshift(arp.clean_transform(data_norm[bl]),axes=1),extent=(dlys[0],dlys[-1],0,len(redbls))); p.colorbar()
+            p.xlim(-50,50)
+            p.title('%d,%d'%bl)
+        except(KeyError):
+            print 'Key Error on', bl
+
+        p.show()
+        
    
 
 
