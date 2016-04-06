@@ -23,7 +23,7 @@ if regenerateEverything:
     #dataFiles = ["./Data/" + file for file in os.listdir("./Data") if file.endswith("2456943.57058.xx.uvcRRE.npz")] 
     pol='xx'
     alwaysFlaggedChannels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 169, 183, 185, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 75, 76, 77]
-    alsoFlagTheseChannels = [14, 55, 101, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186]
+    alsoFlagTheseChannels = [14, 15, 55, 101, 123, 179, 180, 181, 182, 184, 186]    
     flaggedChannels = sorted(list(set(alwaysFlaggedChannels).union(set(alsoFlagTheseChannels))))
 
     seps = np.arange(1,16) #* 15m  = baseline lengths
@@ -108,6 +108,7 @@ class uCalReds():
     Only includes baselines-frequency pairs obeying the Deltau threshold (default 0.3)."""
 
     def __init__(self, freqs, bls, bl2SepDict, maxDeltau = .3):
+        
         print 'Now finding all baseline/frequency pairs...'
         self.maxDeltau = maxDeltau
         chans = range(len(freqs))
@@ -142,19 +143,35 @@ class uCalibrator():
     It is intialized with a dictionary of baseline-channels pairs (see uCalReds class for details) 
     and optionally u and du bin sizes. The constructor figures out the relevant binning."""
 
-    #investigate uBinSize = .5 (nyquist sampling)
-    def __init__(self, blChanPairs, uBinSize = .72**-.5, duBinSize = 5.0/203):
-        print 'Now initializing uCalibrator binning and logcal matrices...' #TODO: add verbose option
-
-        #Internal format for blChanPairs with relevant info about binning
+    def __init__(self, blChanPairs):
+        self.lincalIterations = 0
+        #Internal format for blChanPairs that will be populated with data and binning info
         self.blChanPairs = {key: {'u': u, 'du': du} for key,(u,du) in blChanPairs.items()}
         self.nPairs = len(self.blChanPairs)
+        self.binningIsSetup = False
+        self.visibilitiesAreCorrelated = False
 
+    def getBlChanPairs(self): return self.blChanPairs
+
+    def computeVisibilityCorrelations(self, data, samples):
+        """This function computes visibility correlations from data dictionaries and samples dictionaries (which reflects flags and redundancies).
+        These dictionaries must be in the standard PAPER format. The results are stored inside self.blChanPairs with keys 'visCorr' and 'samples'."""
+        for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys():
+            w = np.logical_and(samples[bl1][:,ch1] != 0, samples[bl2][:,ch2] != 0)
+            if np.all(np.logical_not(w)):
+                self.blChanPairs[(ch1,bl1,ch2,bl2)]['visCorr'] = 0.0+0.0j
+                self.blChanPairs[(ch1,bl1,ch2,bl2)]['samples'] = 0
+            else: 
+                self.blChanPairs[(ch1,bl1,ch2,bl2)]['visCorr'] = np.average((data[bl1][:,ch1]*np.conj(data[bl2][:,ch2]))[w])
+                self.blChanPairs[(ch1,bl1,ch2,bl2)]['samples'] = np.sum((samples[bl1][:,ch1] * samples[bl2][:,ch2])[w])
+        self.visibilitiesAreCorrelated = True
+
+    def setupBinning(self, uBinSize = .72**-.5, duBinSize = 5.0/203):
+        """Given a size of each bin in u (in wavelengths) and each bin in Delta u (in wavelengths), this function initializes the proper """
         #Find unique chans and count chans.
         self.chans = sorted(np.unique([[ch1,ch2] for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]))
         self.nChans = len(self.chans)
         #Determine binning: first assign integers to u and du
-        allus = np.asarray([value['u'] for key,value in self.blChanPairs.items()])
         for key,value in self.blChanPairs.items():
             self.blChanPairs[key]['uBin'] = tuple(np.floor(1.0*(value['u'])/uBinSize).astype(int).tolist())
             self.blChanPairs[key]['duBin'] = np.floor(1.0*(value['du'])/duBinSize).astype(int)
@@ -171,25 +188,22 @@ class uCalibrator():
         self.nuBins = len(self.uBinCenters)
         self.duBinCenters = [np.mean(self.duBinCenters[duBin]) for duBin in self.duBins]
         self.nduBins = len(self.duBinCenters)
+        self.binningIsSetup = True
 
-
-    def getBlChanPairs(self): return self.blChanPairs
-
-    def computeVisibilityCorrelations(self, data, samples):
-        """This function computes visibility correlations from data dictionaries and samples dictionaries (which reflects flags and redundancies).
-        These dictionaries must be in the standard PAPER format. The results are stored inside self.blChanPairs with keys 'visCorr' and 'samples'."""
-        for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys():
-            w = np.logical_and(samples[bl1][:,ch1] != 0, samples[bl2][:,ch2] != 0)
-            if np.all(np.logical_not(w)):
-                self.blChanPairs[(ch1,bl1,ch2,bl2)]['visCorr'] = 0.0+0.0j
-                self.blChanPairs[(ch1,bl1,ch2,bl2)]['samples'] = 0
-            else: 
-                self.blChanPairs[(ch1,bl1,ch2,bl2)]['visCorr'] = np.average((data[bl1][:,ch1]*np.conj(data[bl2][:,ch2]))[w])
-                self.blChanPairs[(ch1,bl1,ch2,bl2)]['samples'] = np.sum((samples[bl1][:,ch1] * samples[bl2][:,ch2])[w])
+    def normalize(self, betas, Sigmas, Ds):
+        """This function normalizes betas, Sigmas, and Ds according to the following convention:\n
+            - Mean absolute value of betas = 1.0
+            - Sum of phases of beta = 0.0
+            - Max value of Ds = 1.0 """
+        bandpassMean = np.average(np.abs(betas))
+        bandpassAngleMean = np.average(np.angle(betas))
+        DsMax = np.max(np.abs(Ds))
+        return betas / bandpassMean * np.exp(-1.0j * bandpassAngleMean), Sigmas * bandpassMean**2 * DsMax, Ds / DsMax
 
     def performLogcal(self):
-        """This function returns the logcal result beta, Sigma, and D in the order specified.
-        TODO: make sure the user has actually loaded some data"""
+        """This function returns the logcal result beta, Sigma, and D in the order specified."""
+        if not self.binningIsSetup: raise RuntimeError('Binn')
+        if not self.visibilitiesAreCorrelated: raise RuntimeError('')
         #Construct logcal matrices
         chan2Col = {chan: col for col,chan in zip(range(0,self.nChans),self.chans)}
         uBin2Col = {uBin: col for col,uBin in zip(range(self.nChans,self.nChans+self.nuBins),self.uBins)}
@@ -212,19 +226,83 @@ class uCalibrator():
         xhatReal = np.linalg.pinv(self.logcalAtA).dot((self.logcalA.conjugate().T).dot(np.real(y)))
         xhatImag = np.linalg.pinv(self.logcalBtB).dot((self.logcalB.conjugate().T).dot(np.imag(y)))
         result = np.exp(xhatReal + 1.0j*xhatImag)
-        return result[0:self.nChans], result[self.nChans: self.nChans+self.nuBins], result[self.nChans+self.nuBins:self.nChans+self.nuBins+self.nduBins]
+        betas, Sigmas, Ds = self.normalize(result[0:self.nChans], result[self.nChans: self.nChans+self.nuBins], result[self.nChans+self.nuBins:self.nChans+self.nuBins+self.nduBins])
+        return betas, Sigmas, Ds
 
-        #return betas, Sigmas, Ds 
 
-    def normalize(self, betas, Sigmas, Ds):
-        print 'not implemented'
+    def generateNoiseCovariance(self, betas):
+        """Creates a noise covariance that is proportional to beta(ch1)**2 * beta(ch2)**2 / nSamples where
+        nSamples is nBaselines_1 * nBaselines_2 * nIntegrations. Overall scaling is arbitrary."""
+        betaAbsDict = {self.chans[n]: np.abs(betas[n]) for n in range(self.nChans)}
+        noiseCovDiag = np.asarray([(betaAbsDict[ch1]**2 * betaAbsDict[ch2]**2) / (1.0 * entry['samples']) for (ch1,bl1,ch2,bl2),entry in self.blChanPairs.items()])
+        noiseCovDiag = noiseCovDiag / np.median(noiseCovDiag) * 4e-10 #approximate renormalization
+        return noiseCovDiag
 
-    def generateNoiseCovariance(self):
-        print 'not implemented'
-        #return NoiseCovDiag
+    def uCalDicts(self, betas, Sigmas, Ds):
+        """This function turns beta, Sigma, and D into dictionaries indexed by their bin/channel number."""
+        betaDict = {self.chans[n]: betas[n] for n in range(self.nChans)}
+        SigmaDict = {self.uBins[n]: Sigmas[n] for n in range(self.nuBins)}
+        DDict = {self.duBins[n]: Ds[n] for n in range(self.nduBins)}
+        return betaDict, SigmaDict, DDict
 
-    def performLincalIteration(self):
-        print 'not implemented'
+    def computeErrors(self, betas, Sigmas, Ds):
+        """This function computes the difference between the measurements and the predicted visibility correlations (in the standard order of self.blChanPairs.items())."""
+        betaDict, SigmaDict, DDict = self.uCalDicts(betas, Sigmas, Ds)
+        return np.asarray([entry['visCorr'] - betaDict[ch1]*np.conj(betaDict[ch2])*SigmaDict[entry['uBin']]*DDict[entry['duBin']] for (ch1,bl1,ch2,bl2),entry in self.blChanPairs.items()])
+
+    def performLincalIteration(self, betas, Sigmas, Ds, noiseCovDiag, alpha = .5):
+        """This function performs lincal. It takes:\n
+            - A starting guess for beta (use logcal to initialize this the first them, then perform iteratively)
+            - A starting guess for Sigma (to be improved iteratively)
+            - A starting guess for D (to be improved iteratively)
+            - A model for the noise covariance diagonal (in the standard order of self.blChanPairs.items())
+            - Optionally, alpha, an amount by which to update guesses, between 0 and 1.
+                -Lower alpha converges slower.
+                -Larger alpha is more likely to diverge."""
+        self.lincalIterations += 1
+        chan2Col = {chan: col for col,chan in zip(range(0, 2*self.nChans, 2), self.chans)}
+        uBin2Col = {uBin: col for col,uBin in zip(range(2*self.nChans, 2*self.nChans+2*self.nuBins, 2), self.uBins)}
+        duBin2Col = {duBin: col for col,duBin in zip(range(2*self.nChans+2*self.nuBins, 2*self.nChans+2*self.nuBins+2*self.nduBins, 2), self.duBins)}
+        betaDict, SigmaDict, DDict = self.uCalDicts(betas, Sigmas, Ds)
+
+        coeffs, rowIndices, colIndices = np.zeros(self.nPairs*16), np.zeros(self.nPairs*16), np.zeros(self.nPairs*16)
+        for n,((ch1,bl1,ch2,bl2),entry) in enumerate(self.blChanPairs.items()):
+            bbstarSD = betaDict[ch1]*np.conj(betaDict[ch2])*SigmaDict[entry['uBin']]*DDict[entry['duBin']] #(beta)(beta^*)(Sigma)(D)
+            bbstarS = betaDict[ch1]*np.conj(betaDict[ch2])*SigmaDict[entry['uBin']] #(beta)(beta^*)(Sigma)
+            bbstarD = betaDict[ch1]*np.conj(betaDict[ch2])*DDict[entry['duBin']] #(beta)(beta^*)(D)
+            ch1Col, ch2Col, uCol, duCol = chan2Col[ch1], chan2Col[ch2], uBin2Col[entry['uBin']], duBin2Col[entry['duBin']]
+            rowIndices[16*n:18*n+6] = n #the first 8 terms are on this row
+            rowIndices[16*n+8:16*n+16] = n+self.nPairs #the next 8 terms are on the corresponding imaginary part row
+            for i,colIndex in enumerate([ch1Col,ch2Col,ch1Col+1,ch2Col+1,uCol,uCol+1,duCol,duCol+1,ch1Col,ch2Col,ch1Col+1,ch2Col+1,uCol,uCol+1,duCol,duCol+1]):
+                colIndices[16*n+i] = colIndex #these are eta1, eta2, phi1, phi2, sigma, psi, etc.
+            coeffList = [np.real(bbstarSD), np.real(bbstarSD), -np.imag(bbstarSD), np.imag(bbstarSD), np.real(bbstarD), -np.imag(bbstarD), np.real(bbstarS), -np.imag(bbstarS),
+                         np.imag(bbstarSD), np.imag(bbstarSD), np.real(bbstarSD), -np.real(bbstarSD), np.imag(bbstarD), np.real(bbstarD), np.imag(bbstarS), np.real(bbstarS)]
+            for i,coeff in enumerate(coeffList): 
+                coeffs[16*n+i] = coeff #these are the coefficients of those terms
+        
+        self.A = csr_matrix((coeffs,(rowIndices,colIndices)))
+        Ninv = csr_matrix((np.append((noiseCovDiag)**-1,(noiseCovDiag)**-1), (np.arange(2*self.nPairs), np.arange(2*self.nPairs))))
+        self.AtNinvA = (self.A.conjugate().transpose().dot(Ninv)).dot(self.A).toarray()
+        if self.lincalIterations == 1: 
+            lincalZeroEVs = len(self.AtNinvA) - np.linalg.matrix_rank(self.AtNinvA)
+            if not lincalZeroEVs == 4: print "    WARNING: Lincal's AtNinvA has " + str(lincalZeroEVs) + " zero eigenvalues. It should have 4."
+
+        deltas = self.computeErrors(betas, Sigmas, Ds)
+        xHat = np.linalg.pinv(self.AtNinvA).dot(self.A.T.conjugate().dot(Ninv.dot(np.append(np.real(deltas),np.imag(deltas)))))
+        newBetas = np.asarray([betaDict[chan]*(1+alpha*(xHat[chan2Col[chan]] + 1.0j*xHat[chan2Col[chan]+1])) for chan in self.chans])
+        newSigmas = np.asarray([SigmaDict[uBin] + alpha*(xHat[uBin2Col[uBin]] + 1.0j*xHat[uBin2Col[uBin]+1]) for uBin in self.uBins])
+        newDs = np.asarray([DDict[duBin] + alpha*(xHat[duBin2Col[duBin]] + 1.0j*xHat[duBin2Col[duBin]+1]) for duBin in self.duBins])
+        betas, Sigmas, Ds = self.normalize(newBetas, newSigmas, newDs)
+
+        errors = self.computeErrors(betas, Sigmas, Ds)
+        chiSqPerDoF = np.average(np.append(np.real(errors)**2, np.imag(errors)**2) * Ninv)
+        return betas, Sigmas, Ds, chiSqPerDoF
+
+    def renormalizeNoise(self, betas, Sigmas, Ds, noiseCovDiag):
+        """Returns a new noise covariance diagonal that has been renormalized such that the median observed error reflects the median noise covariance. """
+        errors = uCal.computeErrors(betas, Sigmas, Ds)
+        return noiseCovDiag * (np.median(np.real(errors)**2)+np.median(np.imag(errors)**2)) / (2*np.median(noiseCovDiag))
+
 
 #############################################
 #   uCal Script
@@ -236,27 +314,86 @@ if regenerateEverything: #regenerate uReds and data
     uReds = uCalReds(freqs, bls, bl2SepDict, maxDeltau=.3) #just pass in freqs
     uReds.applyuCut(uMin=25, uMax=150)
     uReds.applyChannelFlagCut(flaggedChannels) 
-    uCal = uCalibrator(uReds.getBlChanPairs(), uBinSize = .72**.5, duBinSize = 5.0/203)
+    uCal = uCalibrator(uReds.getBlChanPairs())
     uCal.computeVisibilityCorrelations(data, samples)
     pickle.dump([uReds, uCal], open('./Data/uCalData.p', 'wb'))
 else:
     uReds, uCal = pickle.load(open('./Data/uCalData.p','rb'))
 
+#uCal.setupBinning(uBinSize = .72**.5, duBinSize = 5.0/203) #TODO: investigate uBinSize = .5 (nyquist sampling)
+uCal.setupBinning(uBinSize = .5, duBinSize = 5.0/203)
+
+print 'Now performing logcal...'
 betasLogcal, SigmasLogcal, DsLogcal = uCal.performLogcal()
+noiseCovDiag = uCal.generateNoiseCovariance(betasLogcal)
+betas, Sigmas, Ds = betasLogcal.copy(), SigmasLogcal.copy(), DsLogcal.copy()
 
-#TODO: 
-#%
-plt.figure(); plt.clf()
-plt.close('all')
-plt.plot(np.abs(betasLogcal),'.')
-plt.xlabel('Frequency (GHz)')
-plt.ylabel('Logcal Bandpass')
-plt.show()
+print 'Now performing lincal...'
+previousChiSqPerDoF = 1e10
+for iteration in range(50): 
+    betas, Sigmas, Ds, chiSqPerDoF = uCal.performLincalIteration(betas, Sigmas, Ds, noiseCovDiag, alpha = .5)
+    print '    ' + str(iteration) + ') chi^2/dof = ' + str(chiSqPerDoF)
+    if np.abs(previousChiSqPerDoF - chiSqPerDoF)/chiSqPerDoF < 1e-4: break
+    previousChiSqPerDoF = chiSqPerDoF
+    noiseCovDiag = uCal.generateNoiseCovariance(betas) #updated each cycle based on improved result for beta
 
-#normalize
-#calculate noise covariance
-#iterate:
-    #perform lincal
-    #renormalize
-#renormalize noise
+noiseCovDiag = uCal.renormalizeNoise(betas, Sigmas, Ds, noiseCovDiag)
+betas, Sigmas, Ds, chiSqPerDoF = uCal.performLincalIteration(betas, Sigmas, Ds, noiseCovDiag, alpha = .5)    
+print 'Final, noise-median-renormalized chi^2/dof = ' + str(chiSqPerDoF)
 
+#TODO: add in polynomial fitting of final beta solution
+#TODO: take out sky part from final solution
+
+#############################################
+#   Diagnostic Plotting
+#############################################
+if False:
+    #%% Setup
+    def lincalScatter(x,y,color=None, figNum=100, xs='log', ys='log', title='', clear=True, xl='', yl=''):
+        plt.figure(figNum); 
+        if clear: plt.clf()
+        if color is not None: plt.scatter(x,y,c=color)
+        else: plt.scatter(x,y)
+        plt.yscale(ys); plt.xscale(xs)
+        plt.ylim([.9*np.min(y), 1.1*np.max(y)]); plt.xlim([.9*np.min(x), 1.1*np.max(x)])
+        plt.xlabel(xl); plt.ylabel(yl); plt.title(title)
+    duList = np.asarray([entry['du'] for entry in uCal.blChanPairs.values()])
+    ch1List = np.asarray([ch1 for (ch1,bl1,ch2,bl2) in uCal.blChanPairs.keys()])
+    ch2List = np.asarray([ch2 for (ch1,bl1,ch2,bl2) in uCal.blChanPairs.keys()])
+
+    #%%Bandpass
+    plt.figure(1); plt.clf()
+    inferredErrorsOnAbsBeta = np.abs(betas)*((np.diag(np.linalg.pinv(uCal.AtNinvA))[0:2*uCal.nChans:2]) + (np.diag(np.linalg.pinv(uCal.AtNinvA))[1:2*uCal.nChans:2]))**.5
+    plt.errorbar(np.arange(.1,.2,.1/203)[uCal.chans],np.abs(betas),yerr=inferredErrorsOnAbsBeta)
+
+    plt.xlabel('Frequency (GHz)'); plt.ylabel('Abs(Lincal Bandpass)');
+
+    #%%Predicted vs. Observed Scatter
+    plt.figure(2); plt.clf()
+    visCorrs = np.asarray([entry['visCorr'] for entry in uCal.blChanPairs.values()])
+    predictedCorrs = visCorrs - uCal.computeErrors(betas, Sigmas, Ds)
+    lincalScatter(np.abs(predictedCorrs), np.abs(visCorrs), color=duList, figNum=2, ys='log', xs='log', title = '')
+    plt.plot([0,1],[0,1],'k--')
+    plt.xlabel('Abs(Predicted Correlations)'); plt.ylabel('Abs(Observe Correlations)')
+
+    #%%Examine error correlations
+    plt.figure(3); plt.clf()
+    AtNinvAinv = np.linalg.pinv(uCal.AtNinvA)[0:2*uCal.nChans:2,0:2*uCal.nChans:2]
+    inverseSqrtDiag = np.diag(np.diag(AtNinvAinv)**-.5)
+    plt.imshow(inverseSqrtDiag.dot(AtNinvAinv.dot(inverseSqrtDiag)), interpolation='none', extent = [uCal.chans[0],uCal.chans[-1],uCal.chans[0],uCal.chans[-1]], vmin=0, vmax=1)
+    plt.title('Error Correlation Matrix for Real Part of Beta')
+    plt.xlabel('Channel'); plt.ylabel('Channel')
+    plt.colorbar()
+
+    #%%Identify bad channels
+    chanCompiledList = {chan: [] for chan in uCal.chans}
+    errorList = uCal.computeErrors(betas, Sigmas, Ds)
+    for f1,f2,error,Nii in zip(ch1List,ch2List,errorList,noiseCovDiag):
+        chanCompiledList[f1].append(error/(2*Nii**.5))
+        chanCompiledList[f2].append(error/(2*Nii**.5))
+    chanAvgErrors = np.asarray([np.mean(np.abs(np.asarray(chanCompiledList[chan]))) for chan in uCal.chans])
+    plt.figure(4); plt.clf()
+    plt.plot(uCal.chans, chanAvgErrors,'.')
+    plt.ylabel('Channel-Averaged, Noise Weighted Errors'); plt.xlabel('Channel')
+    badChans = np.asarray(uCal.chans)[chanAvgErrors > 3]
+    if len(badChans) > 0: print 'Channels with average sigma > 3: ', badChans
