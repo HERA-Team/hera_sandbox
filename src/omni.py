@@ -77,26 +77,54 @@ def compute_reds(nant, pols, *args, **kwargs):
             reds += [[(Antpol(i,pi,nant),Antpol(j,pj,nant)) for i,j in gp] for gp in _reds]
     return reds
  
-def aa_to_info(aa, pols=['x'], **kwargs):
-    '''Use aa.ant_layout to generate redundances based on ideal placement.
-    The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
-    layout = aa.ant_layout
+#def aa_to_info(aa, pols=['x'], **kwargs):
+#    '''Use aa.ant_layout to generate redundances based on ideal placement.
+#    The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
+#    layout = aa.ant_layout
+#    nant = len(aa)
+#    antpos = -np.ones((nant*len(pols),3)) # -1 to flag unused antennas
+#    xs,ys = np.indices(layout.shape)
+#    for ant,x,y in zip(layout.flatten(), xs.flatten(), ys.flatten()):
+#        for z,pol in enumerate(pols):
+#            z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
+#            i = Antpol(ant,pol,len(aa)) # creates index in POLNUM/NUMPOL for pol
+#            antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
+#    reds = compute_reds(nant, pols, antpos[:nant],tol=.1) # only first nant b/c compute_reds treats pol redundancy separately
+#    # XXX haven't enforced xy = yx yet.  need to conjoin red groups for that
+#    ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] < 0]
+#    kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
+#    reds = filter_reds(reds, **kwargs)
+#    info = RedundantInfo(nant)
+#    info.init_from_reds(reds,antpos)
+#    return info
+
+def aa_to_info(aa, pols=['x'], fcal=False, **kwargs):
     nant = len(aa)
-    antpos = -np.ones((nant*len(pols),3)) # -1 to flag unused antennas
-    xs,ys = np.indices(layout.shape)
+    try:
+        antpos_ideal = aa.antpos_ideal
+        xs,ys,zs = antpos_ideal.T
+        layout = np.arange(len(xs))
+        #antpos = np.concatenat([antpos_ideal for i in len(pols)])
+    except(AttributeError):
+        layout = aa.ant_layout
+        xs,ys = np.indices(layout.shape)
+    antpos = -np.ones((nant*len(pols),3)) #remake antpos with pol information. -1 to flag
     for ant,x,y in zip(layout.flatten(), xs.flatten(), ys.flatten()):
-        for z,pol in enumerate(pols):
-            z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
-            i = Antpol(ant,pol,len(aa)) # creates index in POLNUM/NUMPOL for pol
-            antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
-    reds = compute_reds(nant, pols, antpos[:nant],tol=.1) # only first nant b/c compute_reds treats pol redundancy separately
-    # XXX haven't enforced xy = yx yet.  need to conjoin red groups for that
-    ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] < 0]
+        for z, pol in enumerate(pols):
+            z = 2**z
+            i = Antpol(ant, pol, len(aa))
+            antpos[i,0], antpos[i,1], antpos[i,2] = x,y,z
+    reds = compute_reds(nant, pols, antpos[:nant], tol=.1)
+    ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] == -1]
     kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
     reds = filter_reds(reds, **kwargs)
-    info = RedundantInfo(nant)
+    if fcal:
+        info = FirstCalRedundantInfo(nant)
+    else:
+        info = RedundantInfo(nant)
     info.init_from_reds(reds,antpos)
     return info
+
 
 
 def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
@@ -217,10 +245,13 @@ class FirstCal(object):
         self.data = data
         self.fqs = fqs
         self.info = info
-    def data_to_delays(self,window='none'):
+    def data_to_delays(self,**kwargs):
         '''data = dictionary of visibilities. 
            info = FirstCalRedundantInfo class
+           can give it kwargs:
+                supports 'window': window function for fourier transform. default is none
            Returns a dictionary with keys baseline pairs and values delays.'''
+        window=kwargs.get('window','none')
         self.blpair2delay = {}
         dd = self.info.order_data(self.data)
 #        ww = self.info.order_data(self.wgts)
@@ -235,13 +266,13 @@ class FirstCal(object):
         return self.blpair2delay
     def get_N(self,nblpairs):
         return np.identity(nblpairs) 
-    def get_M(self):
+    def get_M(self,**kwargs):
         M = np.zeros((len(self.info.bl_pairs),1))
-        blpair2delay = self.data_to_delays()
+        blpair2delay = self.data_to_delays(**kwargs)
         for pair in blpair2delay:
             M[self.info.blpair_index(pair)] = blpair2delay[pair]
         return M
-    def run(self):
+    def run(self, **kwargs):
         #make measurement matrix 
         self.M = self.get_M()
         #make noise matrix
