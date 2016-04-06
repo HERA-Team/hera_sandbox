@@ -224,7 +224,7 @@ def from_npz(filename, verbose=False):
         for k in [f for f in npz.files if f[0].isdigit()]:
             pol,ant = k[-1:],int(k[:-1])
             if not gains.has_key(pol): gains[pol] = {}
-            gains[pol][ant] = gains[pol].get(bl,[]) + [np.copy(npz[k])]
+            gains[pol][ant] = gains[pol].get(ant,[]) + [np.copy(npz[k])]
         kws = ['chi','hist','j','l','f']
         for kw in kws:
             for k in [f for f in npz.files if f.startswith(kw)]:
