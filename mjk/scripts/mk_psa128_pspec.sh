@@ -77,11 +77,11 @@ for chan in $chans; do
                     echo using ${#EVEN_FILES} even files and ${#ODD_FILES} odd files
                     # If plotting covariances
                     if [ $PLOT == True ]; then 
-                    echo python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} \
+                    echo python ${SCRIPTSDIR}/pspec_cov_v002.py -C ${cal} \
                          -b ${NBOOT} -a ${ANTS} -c ${chan} -p ${pol}\
                           --window=${WINDOW}  ${NOPROJ} --output=${sepdir} --rmbls=${RMBLS} --plot \
                            ${EVEN_FILES} ${ODD_FILES} ${OPTIONS}
-                    python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} -b ${NBOOT} \
+                    python ${SCRIPTSDIR}/pspec_cov_v002.py -C ${cal} -b ${NBOOT} \
                         -a ${ANTS} -c ${chan} -p ${pol} --window=${WINDOW} \
                           ${NOPROJ} --output=${sepdir} --rmbls=${RMBLS} --plot \
                           ${EVEN_FILES} ${ODD_FILES} ${OPTIONS} \
@@ -90,11 +90,11 @@ for chan in $chans; do
                     
                     # If not plotting covariances
                     if [ $PLOT == False ]; then
-                    echo python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} \
+                    echo python ${SCRIPTSDIR}/pspec_cov_v002.py -C ${cal} \
                          -b ${NBOOT} -a ${ANTS} -c ${chan} -p ${pol}\
                           --window=${WINDOW}  ${NOPROJ} --output=${sepdir} --rmbls=${RMBLS} \
                            ${EVEN_FILES} ${ODD_FILES} ${OPTIONS}
-                    python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} -b ${NBOOT} \
+                    python ${SCRIPTSDIR}/pspec_cov_v002.py -C ${cal} -b ${NBOOT} \
                         -a ${ANTS} -c ${chan} -p ${pol} --window=${WINDOW} \
                           ${NOPROJ} --output=${sepdir} --rmbls=${RMBLS} \
                           ${EVEN_FILES} ${ODD_FILES} ${OPTIONS} \

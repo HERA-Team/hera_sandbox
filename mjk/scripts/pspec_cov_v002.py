@@ -3,7 +3,7 @@ import matplotlib
 #matplotlib.use('Agg')
 import aipy as a, numpy as n, pylab as p, capo
 import glob, optparse, sys, random
-
+import ipdb
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
 o.add_option('-b', '--nboot', type='int', default=20,
@@ -146,7 +146,7 @@ dsets = {
 
 print 'Number of even data sets: {0:d}'.format(len(dsets['even']))
 print 'Number of odd data sets: {0:d}'.format(len(dsets['odd']))
-for dset_count in xrange(len(dsets['even'])):
+for dset_count in xrange(len(min([dsets['even'],dsets['odd']]))):
         print dsets['even'][dset_count].split('/')[-1], dsets['odd'][dset_count].split('/')[-1]
 #sys.exit()
 if opts.loss:
@@ -205,8 +205,13 @@ antstr = 'cross'
 lsts,data,flgs = {},{},{}
 days = dsets.keys()
 for k in days:
-    lsts[k],data[k],flgs[k] = get_data(dsets[k], antstr=antstr, polstr=POL, rmbls=rmbls, verbose=True)
+    if False:
+        lsts[k],data[k],flgs[k] = get_data(dsets[k], antstr=antstr, polstr=POL, rmbls=rmbls, verbose=True)
+    else:
+        lsts[k],data[k],flgs[k] = capo.zsa.get_dict_of_uv_data(dsets[k], antstr=antstr, polstr=POL,  verbose=True,decimate=1,return_lsts=True,recast_as_array=False)
     print data[k].keys()
+
+
 
 if LST_STATS:
     # collect some metadata from the lst binning process
@@ -235,27 +240,27 @@ if True:
             if lsts[k][i] >= lstmax - .001: break
         lsts[k] = lsts[k][i:]
         for bl in data[k]:
-            data[k][bl],flgs[k][bl] = data[k][bl][i:],flgs[k][bl][i:]
+            data[k][bl][POL],flgs[k][bl][POL] = data[k][bl][POL][i:],flgs[k][bl][POL][i:]
     print [len(lsts[k]) for k in days]
     j = min([len(lsts[k]) for k in days])
     for k in days:
         lsts[k] = lsts[k][:j]
         for bl in data[k]:
-            data[k][bl],flgs[k][bl] = n.array(data[k][bl][:j]),n.array(flgs[k][bl][:j])
+            data[k][bl][POL],flgs[k][bl][POL] = n.array(data[k][bl][POL][:j]),n.array(flgs[k][bl][POL][:j])
 else:
     for k in days:
         for bl in data[k]:
-            data[k][bl], flgs[k][bl] = n.array(data[k][bl][:]), n.array(flgs[k][bl][:])
+            data[k][bl][POL], flgs[k][bl][POL] = n.array(data[k][bl][POL][:]), n.array(flgs[k][bl][POL][:])
 lsts = lsts.values()[0]
 
 x = {}
-print len(data[k][bl])
+print len(data[k][bl][POL])
 print type(chans)
 for k in days:
     x[k] = {}
     for bl in data[k]:
         print k, bl
-        d = data[k][bl][:,chans] * jy2T
+        d = data[k][bl][POL][:,chans] * jy2T
         if conj[bl]: d = n.conj(d)
         x[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
         
@@ -337,7 +342,7 @@ for k in days:
         _I[k][bl] = n.identity(_C[k][bl].shape[0])
         _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
         _Ix[k][bl] = x[k][bl].copy()
-        if PLOT and False:
+        if PLOT and True:
             #p.plot(S); p.show()
             p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
             p.subplot(334); capo.arp.waterfall(C[k][bl])

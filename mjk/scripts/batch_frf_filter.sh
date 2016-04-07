@@ -5,6 +5,7 @@ cal=psa6240_v003
 frpad='1.0'
 #alietal='--alietal'
 alietal=''
+out='/home/mkolopanis/psa64/lstbin_psa64_frbins_parsons_50_inttime'
 declare -A ants
 ants[sep0,1]=0_44
 ants[sep1,1]=1_3
@@ -19,7 +20,7 @@ sleep 1.5
 for path in $paths; do
     for sep in $seps; do
         printf 'Checking for Old FRF Data\n'
-        outpath='/home/mkolopanis/psa64/lstbin_psa64_ali_optimal/'$path
+        outpath=$out/$path
         if [[ $(ls -d $outpath/$sep/*.uvGAL) ]] ; then
             printf 'Found %s folders\n' $(ls -d $outpath/$sep/*.uvGAL| wc -l)
             printf 'First deleting old FRF Filtered Data \n'
@@ -40,21 +41,19 @@ for path in $paths; do
         fi
         if [[ -z ${alietal} ]]; then
         printf 'Filtering %s by selecting ant %s \n' $sep ${ants[$sep]}
-        outpath='/home/mkolopanis/psa64/lstbin_psa64_ali_optimal'
-        printf '/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py -C %s   -a %s --frpad %s --outpath=%s/'  $cal ${ants[$sep]} $frpad ${outpath}
+        printf '/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py -C %s   -a %s --frpad %s --outpath=%s/'  $cal ${ants[$sep]} $frpad ${out}
         printf '%s\n' $path/$sep
         #files=$(ls -d $path/$sep/lst.*242.[3456]*.uvGA)
         files=$(ls -d $path/$sep/*.uvGA)
-        "/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py" -C $cal -a ${ants[$sep]} -C $cal $alietal --frpad $frpad $files --outpath=${outpath}
+        "/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py" -C $cal -a ${ants[$sep]} -C $cal $alietal --frpad $frpad $files --outpath=${out}
 
         else
         printf 'Filtering %s by selecting ant %s \n' $sep ${ants[$sep]}
-        outpath='/home/mkolopanis/psa64/lstbin_psa64_ali_optimal'
-        printf '/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py -C %s  %s -a %s --frpad %s --outpath=%s/'  $cal $alietal  ${ants[$sep]} $frpad ${outpath}
+        printf '/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py -C %s  %s -a %s --frpad %s --outpath=%s/'  $cal $alietal  ${ants[$sep]} $frpad ${out}
         printf '%s\n' $path/$sep
         #files=$(ls -d $path/$sep/lst.*242.[3456]*.uvGA)
         files=$(ls -d $path/$sep/*.uvGA)
-        "/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py" -C $cal -a ${ants[$sep]} -C $cal $alietal --frpad $frpad $files --outpath=${outpath}
+        "/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py" -C $cal -a ${ants[$sep]} -C $cal $alietal --frpad $frpad $files --outpath=${out}
         fi
     done
 done
