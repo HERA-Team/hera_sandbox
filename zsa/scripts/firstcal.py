@@ -1,62 +1,138 @@
 #! /usr/bin/env python
-import capo.hex as hx, capo.arp as arp, capo.red as red
+import capo.hex as hx, capo.arp as arp, capo.red as red, capo.omni as omni
 import numpy as n, pylab as p, aipy as a
-import sys
+import sys,optparse
 
-args = sys.argv[1:]
+o = optparse.OptionParser()
+a.scripting.add_standard_options(o,cal=True)
+#o.add_option('--cal', action='store',
+#    help='File path for the connections.')
+o.add_option('--plot', action='store_true', help='Plot things.')
+o.add_option('--pol', action='store', default='xx',
+    help='polarization')
+opts,args = o.parse_args(sys.argv[1:])
+connection_file=opts.cal
+PLOT=opts.plot
 
-connection_file='/home/zakiali/src/mycapo/zsa/calfiles/HERA_connections.csv'
+def flatten_reds(reds):
+    freds = []
+    for r in reds:
+        freds += r
+    return freds
+
+def save_gains(s,f,pol):
+    s2 = {}
+    for k,i in s.iteritems():
+        s2[str(k)] = omni.get_phase(f,i)
+    s2['pol'] = pol
+    n.savez('fcgains.%s.npz'%pol,**s2)
+
+def normalize_data(datadict):
+    d = {}
+    for key in datadict.keys():
+        d[key] = datadict[key]/n.where(n.abs(datadict[key]) == 0., 1., n.abs(datadict[key]))
+    return d 
+
+    
 #hera info assuming a hex of 19 and 128 antennas
-info = hx.hera_to_info(3, 128, connections=connection_file, ex_ants=[9,22])
-reds = info.get_reds()
-#seps are the representative baseline for a given 
-#separation starting with the smallest antenna value.
-use_hbls = [(0,1), (0,4)]
+aa = a.cal.get_aa(opts.cal, n.array([.150]))
+info = omni.aa_to_info(aa, fcal=True, ex_ants=[81])
+infotest = omni.aa_to_info(aa, fcal=True, ubls=[(80,104),(9,22),(80,96)],ex_ants=[81])
+#info = hx.hera_to_info(3, 128, connections=connection_file, ex_ants=[81])
+#infotest = hx.hera_to_info(3, 128, connections=connection_file,  ex_ants=[81])
+#infotest = hx.hera_to_info(3, 128, connections=connection_file, ubls=[(80,104),(9,22),(80,96)], ex_ants=[81])
+reds = flatten_reds(info.get_reds())
+redstest = infotest.get_reds()#for plotting 
 
-reds_dict = {}
-paper_reds_dict = {}
-paper_reds_conj_dict = {} #to conjugate a baseline or no in the paper layout
-paper_to_string = []
-red_to_paper = {} #keeps track of the key mapping of reds_dict to paper_reds_dict
-for r in reds:
-    #have key be the first baseline of a given type. Should be in numerical order.
-    if not r[0] in use_hbls: continue
-    reds_dict[r[0]] = r
-    paper_bls = [ (paper_ants[bl[0]],paper_ants[bl[1]]) for bl in r ]
-    red_to_paper[r[0]] = paper_bls[0]
-    paper_reds_dict[paper_bls[0]] = paper_bls
-    paper_to_string += paper_bls
-    for bl in paper_bls:
-        
-        if bl[0] > bl[1]: 
-            paper_reds_conj_dict[a.miriad.ij2bl(*bl)] = True
-        else:
-            paper_reds_conj_dict[a.miriad.ij2bl(*bl)] = False    
-
+print len(reds)
 #Read in data here.
-#generate antenna string for data reader.
-#paper_to_string = [paper_reds_dict[r] for r in paper_reds_dict.keys()]
-print paper_to_string
-ants= ','.join(map(str,n.unique(n.array(paper_to_string).flatten())))
-ant_string = '('+ants+')_('+ants+')'
-info, data, flags = arp.get_dict_of_uv_data(args, ant_string, 'xx', verbose=True)
+ant_string =','.join(map(str,info.subsetant))
+bl_string = ','.join(['_'.join(map(str,k)) for k in reds])
+times, data, flags = arp.get_dict_of_uv_data(args, bl_string, opts.pol, verbose=True)
+dataxx = {}
+for (i,j) in data.keys():
+    dataxx[(i,j)] = data[(i,j)]['xx']
 fqs = n.linspace(.1,.2,1024)
+dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, fqs[1]-fqs[0]))
 
-#will hold delay for each pairing of antnnas
-d = {}
-NANTS = len(n.unique(n.array(paper_to_string).flatten()))
-print NANTS
-for bl in reds_dict.keys():
-    print reds_dict[bl]
-    print paper_reds_dict[red_to_paper[bl]]
+#gets phase solutions per frequency.
+fc = omni.FirstCal(dataxx,fqs,info)
+sols = fc.run()
+#import IPython; IPython.embed()
+#save_gains(sols,fqs, opts.pol)
+#save solutions
+dataxx_c = {}
+for (a1,a2) in info.bl_order():
+    if (a1,a2) in dataxx.keys():
+        dataxx_c[(a1,a2)] = dataxx[(a1,a2)]*omni.get_phase(fqs,sols[a1])*n.conj(omni.get_phase(fqs,sols[a2]))
+    else:
+        dataxx_c[(a1,a2)] = n.conj(dataxx[(a2,a1)]*omni.get_phase(fqs,sols[a2])*n.conj(omni.get_phase(fqs,sols[a1])))
 
-d1 = data[(80,104)]['xx']
-d2 = n.conj(data[(96,104)]['xx'])
-phase = red.redundant_bl_cal_simple(d1,d2,fqs,verbose=True)
+#def waterfall(d, ax, mode='log', mx=None, drng=None, recenter=False, **kwargs):
+#    if n.ma.isMaskedArray(d): d = d.filled(0)
+#    if recenter: d = a.img.recenter(d, n.array(d.shape)/2)
+#    d = arp.data_mode(d, mode=mode)
+#    if mx is None: mx = d.max()
+#    if drng is None: drng = mx - d.min()
+#    mn = mx - drng
+#    return ax.imshow(d, vmax=mx, vmin=mn, aspect='auto', interpolation='nearest', **kwargs)
+#
+#plotting data
+redbls = []
+for r in redstest: redbls += r
+redbls = n.array(redbls)
+#print redbls.shape
+#dm = divmod(len(redbls), n.round(n.sqrt(len(redbls))))
+#nr,nc = int(dm[0]),int(dm[0]+n.ceil(float(dm[1])/dm[0]))
+#fig,ax = p.subplots(nrows=nr,ncols=nc,figsize=(14,10))
+#for i,bl in enumerate(redbls):
+#    bl = (bl[0],bl[1])
+#    try: 
+#        waterfall(dataxx[bl], ax[divmod(i,nc)], mode='phs')
+#        ax[divmod(i,nc)].set_title('%d,%d'%(bl))
+#    except(KeyError):
+#        waterfall(dataxx[bl[::-1]], ax[divmod(i,nc)], mode='phs')
+#        ax[divmod(i,nc)].set_title('%d,%d'%(bl[::-1]), color='m')
+#fig.subplots_adjust(hspace=.5)
+
+if PLOT:
+    for bl in redbls:
+        bl = tuple(bl)
+        try:
+            #p.subplot(211); arp.waterfall(dataxx[bl], mode='log',mx=0,drng=3); p.colorbar(shrink=.5)
+            #p.subplot(212); arp.waterfall(dataxx_c[bl], mode='log',mx=0,drng=3); p.colorbar(shrink=.5)
+            p.subplot(211); arp.waterfall(dataxx[bl], mode='phs'); p.colorbar(shrink=.5)
+            p.subplot(212); arp.waterfall(dataxx_c[bl], mode='phs'); p.colorbar(shrink=.5)
+            p.title('%d_%d'%bl)
+            print sols[bl[0]] - sols[bl[1]]
+            print bl
+        except(KeyError):
+            p.subplot(211); arp.waterfall(n.conj(dataxx[bl[::-1]]), mode='phs'); p.colorbar(shrink=.5)
+            p.subplot(212); arp.waterfall(n.conj(dataxx_c[bl]), mode='phs'); p.colorbar(shrink=.5)
+            p.title('%d_%d'%bl)
+            print bl
+
+        p.show()
 
 
+data_norm = normalize_data(dataxx_c)
 
-#Do calibration here.
+if PLOT or True:
+    for bl in redbls:
+        bl = tuple(bl)
+        try:
+            print data_norm[bl].shape
+            p.subplot(111); arp.waterfall(n.fft.fftshift(arp.clean_transform(data_norm[bl]),axes=1),extent=(dlys[0],dlys[-1],0,len(redbls))); p.colorbar()
+            p.xlim(-50,50)
+            p.title('%d,%d'%bl)
+        except(KeyError):
+            print 'Key Error on', bl
+
+        p.show()
+        
+   
+
+
 
 
 
