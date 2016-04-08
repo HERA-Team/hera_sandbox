@@ -2,7 +2,6 @@ import numpy as np
 from scipy.sparse import csr_matrix
 import capo.omni as omni, capo.zsa as zsa, capo.arp as arp
 import scipy
-import scipy.constants
 import omnical
 import time
 import aipy as a
@@ -21,9 +20,9 @@ class uCalReds():
     Only includes baselines-frequency pairs obeying the Deltau threshold (default 0.3)."""
 
     #TODO: remove chan2FreqDict
-    def __init__(self, freqs, bls, chan2FreqDict, bl2SepDict, maxDeltau = .3):
-        
-        print 'Now finding all baseline/frequency pairs...'
+    def __init__(self, freqs, bls, chan2FreqDict, bl2SepDict, maxDeltau = .3, verbose=False):
+        self.verbose = verbose
+        if self.verbose: print 'Now finding all baseline/frequency pairs...'
         self.maxDeltau = maxDeltau
         chans = range(len(freqs))
         self.blChanPairs = {}
@@ -33,21 +32,21 @@ class uCalReds():
             for f2,ch2 in freqChanPairs[i+1:]:
                 for j,(sep2,bl2) in enumerate(sepBLPairs):
                     for sep1,bl1 in sepBLPairs[j+1:]:
-                        deltau = np.linalg.norm(f1*sep1 - f2*sep2) * 1.0e9 / scipy.constants.c
+                        deltau = np.linalg.norm(f1*sep1 - f2*sep2) 
                         if deltau < maxDeltau and not self.blChanPairs.has_key((ch1,bl1,ch2,bl2)) and not self.blChanPairs.has_key((ch2,bl2,ch1,bl1)):
-                            u = (f1*sep1 + f2*sep2)/2.0 * 1e9/ scipy.constants.c
+                            u = (f1*sep1 + f2*sep2)/2.0 
                             self.blChanPairs[(ch1,bl1,ch2,bl2)] = (u, deltau)
-        print "    " + str(len(self.blChanPairs)) + " baseline/frequency pairs identified with delta u < " + str(maxDeltau)
+        if self.verbose: print "    " + str(len(self.blChanPairs)) + " baseline/frequency pairs identified with delta u < " + str(maxDeltau)
 
     def applyuCut(self, uMin=25, uMax=150):
         for key,value in self.blChanPairs.items():
             if np.linalg.norm(value[0]) < uMin or np.linalg.norm(value[0]) > uMax: del[self.blChanPairs[key]]
-        print "    " + str(len(self.blChanPairs)) + " baseline/frequency pairs remain after requiring " + str(uMin) + " < u < " + str(uMax)
+        if self.verbose: print "    " + str(len(self.blChanPairs)) + " baseline/frequency pairs remain after requiring " + str(uMin) + " < u < " + str(uMax)
 
     def applyChannelFlagCut(self, flaggedChannels):
         for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys():
             if ch1 in flaggedChannels or ch2 in flaggedChannels: del[self.blChanPairs[(ch1,bl1,ch2,bl2)]]
-        print "    " + str(len(self.blChanPairs)) + " baseline/frequency pairs remain after flagging " + str(len(set(flaggedChannels))) + " channels."
+        if self.verbose: print "    " + str(len(self.blChanPairs)) + " baseline/frequency pairs remain after flagging " + str(len(set(flaggedChannels))) + " channels."
 
     def getBlChanPairs(self): return self.blChanPairs
 
@@ -79,6 +78,9 @@ class uCalibrator():
                 self.blChanPairs[(ch1,bl1,ch2,bl2)]['visCorr'] = np.average((data[bl1][:,ch1]*np.conj(data[bl2][:,ch2]))[w])
                 self.blChanPairs[(ch1,bl1,ch2,bl2)]['samples'] = np.sum((samples[bl1][:,ch1] * samples[bl2][:,ch2])[w])
         self.visibilitiesAreCorrelated = True
+
+    #TODO: need to figure out what to do if there are additional flagged channels. I guess, in general, I need to figure out what to do about flagged channels.
+
 
     def setupBinning(self, uBinSize = .72**-.5, duBinSize = 5.0/203):
         """Given a size of each bin in u (in wavelengths) and each bin in Delta u (in wavelengths), this function initializes the proper """
@@ -216,3 +218,39 @@ class uCalibrator():
         """Returns a new noise covariance diagonal that has been renormalized such that the median observed error reflects the median noise covariance. """
         errors = self.computeErrors(betas, Sigmas, Ds)
         return noiseCovDiag * (np.median(np.real(errors)**2)+np.median(np.imag(errors)**2)) / (2*np.median(noiseCovDiag))
+
+def save2npz(filename, dataFiles, bandpass, weights, betas, Sigmas, Ds, noiseCovDiag, A):
+    """Saves necessary information to use this uCal solution on data or to combine with with other times:\n
+        - filename: output filename
+        - dataFiles: list of files that went into this uCal solution
+        - bandpass: best guess of the bandpass (sky power law corrected), length = len(freqs)
+        - weights: 0 for flagged channels, 1 otherwise, length = len(freqs)
+        - betas, Sigmas, Ds: raw result of uCal
+        - noiseCovDiag: noise on the real (or imaginary) part of the visibiltiy correlations
+        - A: lincal A matrix. """
+    result = {}
+    result['dataFiles'] = dataFiles
+    result['bandpass'] = bandpass
+    result['weights'] = weights
+    result['betas'] = betas
+    result['Sigmas'] = Sigmas
+    result['Ds'] = Ds
+    result['A'] = A
+    result['noiseCovDiag'] = noiseCovDiag
+    np.savez(filename, **result)
+
+def loadAndCombine(fileList):
+    invCovList = []
+    invCovWeightedResultList = []
+    for file in fileList:
+        result = np.load(file)
+        
+
+# if __name__ == '__main__':
+#     loadAndCombine(['/Users/jsdillon/Desktop/capo/jsd/uCal/Data/zen.2456943.65409.xx.uvcRRE.uCal.npz'])
+
+
+
+
+
+

@@ -17,20 +17,26 @@ import capo.uCal as uc
 #   TODO: Hardcoded for now.
 #############################################
 
+#TODO: look at answers per file (and then average them) 
+    #name it with the file name .ucal.npz
+    #
+#TODO: look at various u binning values
+#TODO: make to and from .npz routines for results
+
 regenerateEverything = False
 
-if regenerateEverything:
-    dataFiles = ["./Data/" + file for file in os.listdir("./Data") if file.endswith("uvcRRE.npz")]
-    #dataFiles = ["./Data/" + file for file in os.listdir("./Data") if file.endswith("2456943.57058.xx.uvcRRE.npz")] 
-    pol='xx'
-    alwaysFlaggedChannels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 169, 183, 185, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 75, 76, 77]
-    alsoFlagTheseChannels = [14, 15, 55, 101, 123, 179, 180, 181, 182, 184, 186]    
-    flaggedChannels = sorted(list(set(alwaysFlaggedChannels).union(set(alsoFlagTheseChannels))))
+#dataFiles = ["./Data/" + file for file in os.listdir("./Data") if file.endswith("xx.npz")]
+dataFiles = ["./Data/" + file for file in os.listdir("./Data") if file.endswith("2456943.57058.xx.uvcRRE.npz")] 
+pol='xx'
+alwaysFlaggedChannels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 75, 76, 77, 169, 183, 185, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202]
+alsoFlagTheseChannels = [14, 15, 55, 101, 123, 179, 180, 181, 182, 184, 186]    
+flaggedChannels = sorted(list(set(alwaysFlaggedChannels).union(set(alsoFlagTheseChannels))))
+freqs = np.arange(.1,.2,.1/203)
 
+if regenerateEverything:
     seps = np.arange(1,16) #* 15m  = baseline lengths
-    dx = 15.0
+    dx = 15.0 / scipy.constants.c * 1e9
     separations = dx*seps
-    freqs = np.arange(.1,.2,.1/203)
     #freqs = np.arange(.1,.2,.1/203)[160:]
     chans = range(len(freqs))
     chan2FreqDict = {chan: freqs[chan] for chan in chans}
@@ -55,7 +61,7 @@ if regenerateEverything:
         """ Uses Omnical to figure out the number of redundant baselines for a given separation (as demarkated by a representative baseline tuple). 
         Returns redundancyDict and also saves it as an instance variable."""
         aa = a.cal.get_aa(calFile,np.array([.15]))
-        print 'Now generating baseline redundancy dictionary from calfile..'
+        print 'Now generating baseline redundancy dictionary from calfile...'
         ex_ants = [5,7,8,15,16,17,24,26,27,28,29,37,38,46,48,50,51,53,55,63,68,69,72,74,76,77,82,83,84,85,92,107,110]
         info = capo.omni.aa_to_info(aa, pols=['x'], ex_ants=ex_ants)
         reds = info.get_reds()
@@ -105,7 +111,7 @@ if regenerateEverything:
 print '\nNow performing uCal...\n'
 
 if regenerateEverything: #regenerate uReds and data
-    uReds = uc.uCalReds(freqs, bls, chan2FreqDict, bl2SepDict, maxDeltau=.3) #just pass in freqs
+    uReds = uc.uCalReds(freqs, bls, chan2FreqDict, bl2SepDict, maxDeltau=.3, verbose=True) #just pass in freqs
     uReds.applyuCut(uMin=25, uMax=150)
     uReds.applyChannelFlagCut(flaggedChannels) 
     uCal = uc.uCalibrator(uReds.getBlChanPairs())
@@ -114,8 +120,8 @@ if regenerateEverything: #regenerate uReds and data
 else:
     uReds, uCal = pickle.load(open('./Data/uCalData.p','rb'))
 
-uCal.setupBinning(uBinSize = .72**.5, duBinSize = 5.0/203) #TODO: investigate uBinSize = .5 (nyquist sampling)
-#uCal.setupBinning(uBinSize = .5, duBinSize = 5.0/203)
+#uCal.setupBinning(uBinSize = .72**.5, duBinSize = 5.0/203) #TODO: investigate uBinSize = .5 (nyquist sampling)
+uCal.setupBinning(uBinSize = .5, duBinSize = 5.0/203)
 
 print 'Now performing logcal...'
 betasLogcal, SigmasLogcal, DsLogcal = uCal.performLogcal()
@@ -134,6 +140,14 @@ for iteration in range(50):
 noiseCovDiag = uCal.renormalizeNoise(betas, Sigmas, Ds, noiseCovDiag)
 betas, Sigmas, Ds, chiSqPerDoF = uCal.performLincalIteration(betas, Sigmas, Ds, noiseCovDiag, alpha = .5)    
 print 'Final, noise-median-renormalized chi^2/dof = ' + str(chiSqPerDoF)
+
+#Save Results
+bandpass, weights = np.zeros(len(freqs),dtype=complex), np.zeros(len(freqs))
+bandpass[uCal.chans] = freqs[uCal.chans]**2.55 * betas
+weights[uCal.chans] = 1
+uCal.save2npz(dataFiles[-1].replace('.npz','.uCal.npz'), dataFiles, bandpass, weights, betas, Sigmas, Ds, noiseCovDiag, uCal.A)
+
+
 
 #TODO: add in polynomial fitting of final beta solution
 #TODO: take out sky part from final solution
@@ -157,10 +171,9 @@ if True:
 
     #%%Bandpass
     plt.figure(1); plt.clf()
-    inferredErrorsOnAbsBeta = np.abs(betas)*((np.diag(np.linalg.pinv(uCal.AtNinvA))[0:2*uCal.nChans:2]) + (np.diag(np.linalg.pinv(uCal.AtNinvA))[1:2*uCal.nChans:2]))**.5
-    plt.errorbar(np.arange(.1,.2,.1/203)[uCal.chans],np.abs(betas),yerr=inferredErrorsOnAbsBeta)
-
-    plt.xlabel('Frequency (GHz)'); plt.ylabel('Abs(Lincal Bandpass)');
+    inferredErrorsOnAbsBeta = freqs[uCal.chans]**2.55 * np.abs(betas)*((np.diag(np.linalg.pinv(uCal.AtNinvA))[0:2*uCal.nChans:2]) + (np.diag(np.linalg.pinv(uCal.AtNinvA))[1:2*uCal.nChans:2]))**.5
+    plt.errorbar(np.arange(.1,.2,.1/203)[uCal.chans],np.abs(freqs[uCal.chans]**2.55 * betas),yerr=inferredErrorsOnAbsBeta)
+    plt.xlabel('Frequency (GHz)'); plt.ylabel('Abs(Lincal Bandpass)'); plt.title(r'Lincal Bandpass Corrected by $\nu^{2.55}$')
 
     #%%Predicted vs. Observed Scatter
     plt.figure(2); plt.clf()
