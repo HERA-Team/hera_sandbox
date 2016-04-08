@@ -30,26 +30,26 @@ print args
 
 def noise_level(freq=None):
     tsys = 500e3 #mK
-    inttime = 1886. #seconds. XXX fix with new integration.
-    nbls=51
-    ndays = 120 #effectively this many days. days of operation = 135
-    nseps = 3
+    inttime = 2477. #seconds. XXX fix with new integration. get it from frfilter_numbers.py
+    nbls=59 #number of baselines used (if using multiple seps, average the numbers?)
+    ndays = 31 #effectively this many days
+    nseps = 1 #number of seps used
     folding = 2
-    #ndays = 60 #effectively this many days. days of operation = 135
-    nmodes = (nseps*folding*8.5*60*60/inttime)**.5 # 3 for baseline types, 8.5=total lst time used.
+    nlsts = 6 #number of LST hours in time-range
+    nmodes = (nseps*folding*nlsts*60*60/inttime)**.5
     pol = 2
     real = 2 #??? what is this again?
     if freq is None:
-            freq = .15117 #GHz
+            freq = .159 #GHz
     z = C.pspec.f2z(freq)
     X2Y = C.pspec.X2Y(z)/1e9 #h^-3 Mpc^3 / str/ Hz
     sdf = .1/203
-    freqs = n.linspace(.1,.2,203)[95:115]
+    freqs = n.linspace(.1,.2,203)[110:130] #put in channel range
     B = sdf*freqs.size
-    bm = n.polyval(C.pspec.DEFAULT_BEAM_POLY, freq) * 2.35 # correction for beam^2
+    bm = n.polyval(C.pspec.DEFAULT_BEAM_POLY, freq) * 2.35 #correction for beam^2
     scalar = X2Y * bm 
 
-    fr_correct = 1.39
+    fr_correct = 1.66 #get it from frfilter_numbers.py
 
 
     print 'scalar:', scalar
@@ -75,7 +75,7 @@ def noise_level(freq=None):
 
 ONLY_POS_K = True
 
-def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.164, color='', bins=None, upperlimit=False):
+def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.159, color='', bins=None, upperlimit=False):
     z = C.pspec.f2z(f0)
     kpr = C.pspec.dk_du(z) * umag
     k = n.sqrt(kpl**2 + kpr**2)
@@ -461,6 +461,7 @@ p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')
 p.ylim(1e0,1e5)
 p.xlim(0, 0.6)
 p.grid()
+p.show()
 p.savefig('pspec.png')
 
 #p.figure(2)

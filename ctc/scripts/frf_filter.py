@@ -1,11 +1,11 @@
 #! /usr/bin/env python
+
 import aipy as a
 import capo.arp as arp
 import capo.frf_conv as fringe
 import capo.zsa as zsa
 import numpy as n, pylab as p
 import sys, os, optparse
-
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, ant=True, pol=True)
@@ -23,11 +23,11 @@ del(uv)
 
 #Get only the antennas of interest
 sep2ij, blconj, bl2sep = zsa.grid2ij(aa.ant_layout)
-print "Looking for baselines matching ", opts.ant
+print "Looking for baselines matching", opts.ant
 ants = [ b[0] for b in a.scripting.parse_ants(opts.ant, nants) ]
 seps = [ bl2sep[b] for b in ants ]
 seps = n.unique(seps)
-print 'These are the separations that we are going to use ', seps
+print 'These are the separations that we are going to use:', seps
     
 #Get the fir filters for the separation used
 firs = {}
@@ -37,19 +37,26 @@ for sep in seps:
         ij = map(int, sep2ij[sep].split(',')[c].split('_'))
         bl = a.miriad.ij2bl(*ij)
         if blconj[bl]: c+=1
-        else: break
+        else: break #find when conjugation isn't necessary
     frp, bins = fringe.aa_to_fr_profile(aa, ij, 100, pol=pol) 
     timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[100])
-    
 baselines = ''.join(sep2ij[sep] for sep in seps)
 times, data, flags = arp.get_dict_of_uv_data(args, baselines, pol, verbose=True)
-lsts = [ aa.sidereal_time() for k in map(aa.set_jultime(), times) ]
-
+#jds = times['times']
+#lsts = [ aa.sidereal_time() for k in map(aa.set_jultime(), jds) ]
+lsts = times['lsts']
+lst_order = n.argsort(lsts) #data is not always read in LST order!
+lsts = n.array(lsts)[lst_order]
+times['times'] = times['times'][lst_order]
+for bl in data: #orders data and flags correctly by LST
+    for pol in data[bl]:
+        data[bl][pol] = data[bl][pol][lst_order]
+        flags[bl][pol] = flags[bl][pol][lst_order]
 _d = {}
 _w = {}
-for bl in data.keys():
+for bl in data.keys(): #bl format is (i,j) in data keys
     if not _d.has_key(bl): _d[bl],_w[bl] = {}, {}
-    #get filter which is baseline dependent.
+    #get filter which is baseline dependent
     m_bl = a.miriad.ij2bl(bl[0],bl[1]) #miriad bl
     sep = bl2sep[m_bl]
     fir = firs[sep]
@@ -69,11 +76,11 @@ for bl in data.keys():
             #_w[bl][pol][:,ch] = n.convolve(flg, n.abs(firs[ch,:]), mode='same')
             #_d[bl][pol][:,ch] = n.where(flags[bl][pol][:,ch]>0, _d[bl][pol][:,ch]/_w[bl][pol][:,ch], 1)  
             _d[bl][pol][:,ch] = n.where(flg>0, _d[bl][pol][:,ch]/_w[bl][pol][:,ch], 1)  
-
 def mfunc(uv, p, d, f):
     uvw,t,(i,j) = p
-    index = n.where(times==t)
-    bl = a.miriad.ij2bl(i,j)
+    index = n.where(times['times']==t)
+    #bl = a.miriad.ij2bl(i,j)
+    bl = (i,j)
     pol = a.miriad.pol2str[uv['pol']]
     try:
         #The flags are the same flags as input.

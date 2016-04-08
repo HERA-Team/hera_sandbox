@@ -3,3 +3,9 @@ build
 .*.swp
 .*.swo
 Kfg.npy
+kmk/**.fits
+kmk/**.dat
+kmk/data
+kmk/calfiles
+jsd/uCal/Data
+jsd/uCal/Old

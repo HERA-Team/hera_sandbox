@@ -1,4 +1,16 @@
 #! /usr/bin/env python
+
+#import matplotlib as mpl
+#mpl.rcParams['font.size']  = 18
+#mpl.rcParams['legend.numpoints']  = 1
+#mpl.rcParams['legend.frameon'] = False
+#mpl.rcParams['legend.fontsize'] = 8
+#mpl.rcParams['figure.dpi'] = 400
+#mpl.rcParams['savefig.dpi'] = 400
+#mpl.rcParams['savefig.format'] ='png'
+#mpl.rcParams['lines.markeredgewidth'] = 0
+#mpl.rcParams['lines.markersize'] = 7
+#mpl.rcParams['lines.linewidth'] = 2
 import aipy as a
 import capo.arp as arp
 import capo.frf_conv as fringe
@@ -28,6 +40,8 @@ o.add_option('--plot',action='store_true',
         help='Plot the Fringe Rate Width')
 o.add_option('--maxfr',type='float', default='1.2',
         help='max fringe rate for filter')
+o.add_option('--inttime',type='float', default='50',
+        help='set the inttime specific for lst binned data')
 opts,args = o.parse_args(sys.argv[1:])
 
 def get_colors(N):
@@ -57,7 +71,26 @@ frpads = [ float(x) for x in opts.frpad.split(',')]
 npads=len(frpads)
 cmap= get_colors(int(1.5*npads))
 mychan = n.floor(nchan/2)
-#mychan = 150
+#mychan = 160
+
+#manually calculate the inttime so frf time bins match data
+#(uvw,t1,(i,j)),d = uv.read()
+#(uvw,t2,(i,j)),d = uv.read()
+#while t1 == t2:
+#    (uvw,t2,(i,j)),d = uv.read()
+#inttime = (t2-t1)* (3600*24)
+#del(uv)
+
+
+#set channel to make frf
+mychan=101
+
+##use calculated inttime to generate correct frf bins
+frbins = fringe.gen_frbins(opts.inttime)
+#frbins = n.arange( -.5/opts.inttime+5e-5/2, .5/opts.inttime,5e-5)
+#DEFAULT_FRBINS = n.arange(-.01+5e-5/2,.01,5e-5) # Hz
+
+
 print 'These are the separations that we are going to use ', seps
 print "calculating fringe profile at channel ",mychan
 #Get the fir filters for the separation used.
@@ -73,12 +106,13 @@ for cnt,pad in enumerate(frpads):
             bl = a.miriad.ij2bl(*ij)
             if blconj[bl]: c+=1
             else: break
-        frp, bins = fringe.aa_to_fr_profile(aa, ij, mychan)
+        frp, bins = fringe.aa_to_fr_profile(aa, ij, mychan,bins=frbins,frpad=pad)
 
         #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True,mdl=skew,startprms=(.001,.001,-5))
-        timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True)
-        #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True,alietal=True)
-        #print 'current sum of n.abs(firs)**2: ', n.sum(n.abs(firs[sep][mychan])**2)
+        #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True)
+        timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan], limit_xtalk=True)
+        #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True,alietal=True,fr_xtalk=.00035)
+        print 'current sum of n.abs(firs)**2: ', n.sum(n.abs(firs[sep][mychan])**2)
         
         if False and pad ==1:
             delta=prms0[-1]/n.sqrt(1+prms0[-1]**2)
@@ -122,11 +156,11 @@ if PLOT:
     ax_firs.legend(loc='best')
     p.show()
 
-f= open('frf_diagnose_optimal_frf.pkl','w')
+#f= open('frf_diagnose_parsons_42.pkl','w')
 
 frps['freqs'] = frp_freqs
 frps['frp'] = frp
 
-pickle.dump(frps,f)
+#pickle.dump(frps,f)
 
-f.close()
+#f.close()
