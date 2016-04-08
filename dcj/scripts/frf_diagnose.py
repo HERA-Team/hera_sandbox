@@ -42,6 +42,8 @@ o.add_option('--maxfr',type='float', default='1.2',
         help='max fringe rate for filter')
 o.add_option('--inttime',type='float', default='50',
         help='set the inttime specific for lst binned data')
+o.add_option('--output',action='store_true',
+        help='output each frf as a pkl that can be plotted by plot_frf')
 opts,args = o.parse_args(sys.argv[1:])
 
 def get_colors(N):
@@ -108,10 +110,8 @@ for cnt,pad in enumerate(frpads):
             else: break
         frp, bins = fringe.aa_to_fr_profile(aa, ij, mychan,bins=frbins,frpad=pad)
 
-        #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True,mdl=skew,startprms=(.001,.001,-5))
-        #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True)
         timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan], limit_xtalk=True)
-        #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True,alietal=True,fr_xtalk=.00035)
+        
         print 'current sum of n.abs(firs)**2: ', n.sum(n.abs(firs[sep][mychan])**2)
         
         if False and pad ==1:
@@ -125,24 +125,33 @@ for cnt,pad in enumerate(frpads):
             ftsk= (4-n.pi)/2.* (delta*n.sqrt(2/n.pi))**3/(1-2*delta**2/n.pi)**(1.5)
             print 'actual skew is: ', sk
             print 'fitted skew is: ', ftsk
-        #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=pad, limit_xtalk=True, mdl=skew, startprms=(.001,.001,-2))
 
         frps[sep], frp_freqs = fringe.fir_to_frp(firs[sep],tbins=timebins)
-    baselines = ''.join(sep2ij[sep] for sep in seps)
+        baselines = ''.join(sep2ij[sep] for sep in seps)
 
-    #times, data, flags = arp.get_dict_of_uv_data(args, baselines, pol, verbose=True)
-    #lsts = [ aa.sidereal_time() for k in map(aa.set_jultime(), times) ]
     for sep in seps:
         if PLOT:
-            ax_frp.plot(frp_freqs*1e3,frps[sep][mychan]/n.max(frps[sep][mychan]), label='{0}'.format(pad),color=cmap(cnt))
-           # p.plot(timebins,firs[sep][mychan])
-            ax_firs.plot(timebins,n.abs(firs[sep][mychan]),label='{0}'.format(pad),color=cmap(cnt))
+            ax_frp.plot(frp_freqs*1e3,frps[sep][mychan]/n.max(frps[sep][mychan]), 
+                            label='{0}'.format(pad),color=cmap(cnt))
+            ax_firs.plot(timebins,n.abs(firs[sep][mychan]),
+                            label='{0}'.format(pad),color=cmap(cnt))
             ax_firs.set_xlabel('s')
         envelope = n.abs(firs[sep][mychan])
         envelope /= n.max(envelope)
         dt = n.sqrt(n.sum(envelope*timebins**2)/n.sum(envelope))
         dt_50 = (timebins[envelope>0.5].max() - timebins[envelope>0.5].min())
         print "pad:", pad, "variance width ",sep, " [s]:",int(n.round(dt)),"50% width",int(n.round(dt_50))
+    if opts.output: 
+        filename = 'fringe_rate_profile_pad{pad}int{inttime}.pkl'.format(
+                    pad=pad,inttime=opts.inttime)
+        print("saving to: {filename}".format(filename=filename))
+        f = open(filename,'w')
+        frps['freqs'] = frp_freqs
+        frps['frp'] = frp
+        frps['firs'] = firs
+        frps['timebins'] = timebins
+        pickle.dump(frps,f)
+        f.close()
 if PLOT:
     ax_frp.plot(frp_freqs*1e3,frp,label='frp0',color='black')
     #ax_frp.plot(frp_freqs*1e3,skew([mn,sq,sk],bins),'k--',label='data')
@@ -158,8 +167,6 @@ if PLOT:
 
 #f= open('frf_diagnose_parsons_42.pkl','w')
 
-frps['freqs'] = frp_freqs
-frps['frp'] = frp
 
 #pickle.dump(frps,f)
 
