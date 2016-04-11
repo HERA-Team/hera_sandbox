@@ -118,13 +118,13 @@ def redundant_bl_cal_simple(d1,d2,fqs, window='blackman-harris', tune=True, verb
         fqs_val = fqs.compress(valid)
         dly = n.real(n.log(d12_sum.compress(valid) * n.exp(2j*n.pi*tau*fqs_val))/(2j*n.pi))
         #Fit is better with lst squares approach
-#        B = n.zeros((fqs_val.size,1)); B[:,0] = dly
-#        A = n.zeros((fqs_val.size,2)); A[:,0] = fqs_val; A[:,1] = 1
-#        dt,off = n.linalg.lstsq(A,B)[0].flatten()
-        off,dt = n.polyfit(dly,fqs_val,1)
-#        p.plot(dly)
-#        p.plot(off+dt*fqs)
-#        p.plot(pp[0] + pp[1]*fqs)
+        B = n.zeros((fqs_val.size,1)); B[:,0] = dly
+        A = n.zeros((fqs_val.size,2)); A[:,0] = fqs_val; A[:,1] = 1
+        dt,off = n.linalg.lstsq(A,B)[0].flatten()
+#        off,dt = n.polyfit(dly,fqs_val,1)
+#        p.plot(fqs_val,dly)
+#        p.plot(fqs_val,off+dt*fqs_val)
+#        p.plot(fqs_val,pp[0] + pp[1]*fqs_val)
 #        p.show()
     # Pull out an integral number of phase wraps
     #if verbose: print tau, dtau, mxs, dt, off
