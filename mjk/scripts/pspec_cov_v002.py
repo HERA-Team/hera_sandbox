@@ -18,6 +18,8 @@ o.add_option('--loss', action='store',
     help='In signal loss mode to measure the signal loss. Uses default data in my path. Give it the path to the simulated signal data. Assumes ends in ')
 o.add_option('--level', type='float', default=-1.0,
     help='Scalar to multiply the default signal level for simulation runs.')
+o.add_option('--noise', type='float', default=0.0,
+    help='amplitude of noise to inject into data')
 o.add_option('--rmbls', action='store', 
     help='List of baselines, in miriad format, to remove from the power spectrum analysis.')
 o.add_option('--output', type='string', default='',
@@ -32,7 +34,7 @@ DELAY = False
 NGPS = 5
 INJECT_SIG = 0.
 SAMPLE_WITH_REPLACEMENT = True
-NOISE = .0
+NOISE = opts.noise
 PLOT = opts.plot
 try:
     rmbls = map(int, opts.rmbls.split(','))
@@ -160,14 +162,21 @@ uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
+
+(uvw,t1,(i,j)),d = uv.read()
+(uvw,t2,(i,j)),d = uv.read()
+while t1 == t2:
+    (uvw,t2,(i,j)),d = uv.read()
+inttime = (t2-t1)* (3600*24)
 del(uv)
+#inttime = 50
 
 afreqs = freqs.take(chans)
 nchan = chans.size
 fq = n.average(afreqs)
 z = capo.pspec.f2z(fq)
 
-aa = a.cal.get_aa(opts.cal, n.array([.150]))
+aa = a.cal.get_aa(opts.cal, freqs)
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
 jy2T = capo.pspec.jy2T(afreqs)
 window = a.dsp.gen_window(nchan, WINDOW)
@@ -298,15 +307,14 @@ if INJECT_SIG > 0.: # Create a fake EoR signal to inject
 #            p.figure(2)
 #            p.plot(eor[k][bl])
 #            p.show()
-            x[k][bl] += eor[k][bl] 
-    
+            x[k][bl] += eor[k][bl]
+
     if PLOT:
         capo.arp.waterfall(x[k][bl], mode='real'); p.colorbar(); p.show()
-       
-    
-    
-    
-    
+
+
+
+
 #    eor = noise(x.values()[bls_master[0]].shape) * INJECT_SIG
 #    fringe_filter = n.ones((44,))
 #    # Maintain amplitude of original noise
@@ -322,6 +330,46 @@ if INJECT_SIG > 0.: # Create a fake EoR signal to inject
 #    #eor = n.fft.fft(_eor, axis=0)
 #    eor *= wgt
 
+if NOISE > 0.: # Create a fake EoR signal to inject
+    print 'INJECTING WHITE NOSIE at {0}K ...'.format(NOISE) ,
+    sys.stdout.flush()
+    noise_array = {}
+    for k in days:
+        noise_array[k] = {}
+        for bl in x[k]:
+            ed = noise(x[k][bls_master[0]].shape) * NOISE
+
+            if True:
+                bl1 = a.miriad.bl2ij(bls_master[0])
+                #frbins = capo.frf_conv.gen_frbins(inttime)
+                frbins = n.arange( -.5/inttime+5e-5/2, .5/inttime,5e-5)
+                #use channel 101 like in the frf_filter script
+                frp, bins = capo.frf_conv.aa_to_fr_profile(aa, bl1,101, bins= frbins)
+                timebins, firs = capo.frf_conv.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[101])
+
+                for cnt,ch in enumerate(chans):
+                    ed[cnt] = n.convolve(ed[cnt], firs[ch], mode='same')
+
+            if conj[bl]: ed = n.conj(ed)
+            noise_array[k][bl] = ed
+
+    for k in days:
+        for bl in x[k]:
+            x[k][bl] += noise_array[k][bl] 
+            if PLOT and True:
+               fig,axes = p.subplots(nrows=2,ncols=1)
+               p.subplot(211); capo.arp.waterfall(x[k][bl], mode='real',mx=16,drng=32); #p.colorbar();
+               p.ylabel('Data + Noise')
+               p.subplot(212); im=  capo.arp.waterfall(noise_array[k][bl], mode='real',mx=16,drng=32); #p.colorbar(); p.show()
+               p.ylabel('Noise')
+               cbar_ax =fig.add_axes([.85,0.15,.05,.7])
+               fig.subplots_adjust(right=.8)
+               cbar=fig.colorbar(im,cax=cbar_ax)
+               cbar.set_label('K')
+               p.suptitle('%d_%d'%a.miriad.bl2ij(bl))
+               p.show()
+    print '[Done]'
+sys.stdout.flush()
 #Q = {} # Create the Q's that extract power spectrum modes
 #for i in xrange(nchan):
 #    Q[i] = get_Q(i, nchan)
