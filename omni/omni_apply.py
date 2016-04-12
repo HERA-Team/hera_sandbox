@@ -49,6 +49,7 @@ for f,filename in enumerate(args):
             p1,p2 = pol = aipy.miriad.pol2str[uv['pol']]
             if len(times) == 0 or times[-1] != t: times.append(t) #fill times list
             if opts.xtalk: #subtract xtalk
+                import IPython; IPython.embed()
                 try: d -= xtalk[pol][(a1,a2)]
                 except(KeyError):
                     try: d -= xtalk[pol][(a2,a1)].conj()
