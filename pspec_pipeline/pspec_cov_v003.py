@@ -464,8 +464,9 @@ for boot in xrange(opts.nboot):
     norm  = WI.sum(axis=-1); norm.shape += (1,)
     #norm  = WI.max(axis=-1); norm.shape += (1,) # XXX
     MI /= norm; WI = n.dot(MI, FI)
-    capo.arp.waterfall(MI,mode='real');p.colorbar(shrink=.5)
-    p.show()
+    if PLOT:
+        capo.arp.waterfall(MI,mode='real');p.colorbar(shrink=.5)
+        p.show()
     WC = n.dot(MC, FC)
     norm  = WC.sum(axis=-1); norm.shape += (1,)
     #norm  = WC.max(axis=-1); norm.shape += (1,) # XXX
@@ -491,8 +492,10 @@ for boot in xrange(opts.nboot):
         p.plot(kpl, n.average(pI.real, axis=1), 'k.-')
         p.show()
 
-    print '   Writing '+opts.output+'/pspec_boot%04d.npz' % boot
-    n.savez(opts.output+'/pspec_boot%04d.npz'%boot, kpl=kpl, scalar=scalar, times=n.array(lsts),
+    if len(opts.output) > 0: outpath = opts.output+'/pspec_boot%04d.npz' % boot
+    else: outpath = 'pspec_boot%04d.npz' % boot
+    print '   Writing '+outpath
+    n.savez(outpath, kpl=kpl, scalar=scalar, times=n.array(lsts),
         pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
         afreqs=afreqs,chans=chans,cmd=' '.join(sys.argv))
 
