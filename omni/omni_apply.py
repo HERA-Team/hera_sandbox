@@ -49,10 +49,13 @@ for f,filename in enumerate(args):
             p1,p2 = pol = aipy.miriad.pol2str[uv['pol']]
             if len(times) == 0 or times[-1] != t: times.append(t) #fill times list
             if opts.xtalk: #subtract xtalk
-                import IPython; IPython.embed()
-                try: d -= xtalk[pol][(a1,a2)]
+                try:
+                    xt = numpy.resize(xtalk[pol][(a1,a2)],d.shape)
+                    d -= xt
                 except(KeyError):
-                    try: d -= xtalk[pol][(a2,a1)].conj()
+                    try:
+                        xt = numpy.resize(xtalk[pol][(a2,a1)].conj(),d.shape) 
+                        d -= xt
                     except(KeyError): pass
             ti = len(times) - 1 #time index
             try: d /= gains[p1][a1][ti] #apply gains
