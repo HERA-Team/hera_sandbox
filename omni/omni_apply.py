@@ -37,7 +37,6 @@ for f,filename in enumerate(args):
     for p in pols:
         print 'Reading', files[filename][p]
         newfile = files[filename][p].split('/')[-1]+'O' #saves in cwd
-        omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:3])
         if os.path.exists(newfile):
             print '    %s exists.  Skipping...' % newfile
             continue
