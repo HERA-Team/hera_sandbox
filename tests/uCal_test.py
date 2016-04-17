@@ -55,6 +55,7 @@ class TestuCalibrator(unittest.TestCase):
 class TestImportExport(unittest.TestCase):
     def setUp(self):
         uc.save2npz('uCal_unittesting_savetest', 1, 2, 3, 4, 5, 6, 7, 8)
+        
 
     def testImport(self):
         uc.loadAndCombine(['uCal_unittesting_savetest.npz'])

@@ -22,15 +22,15 @@ import capo.uCal as uc
     #
 #TODO: look at various u binning values
 #TODO: make to and from .npz routines for results
+#TODO: find out if omnical has any notion of visibility noise
 
-regenerateEverything = False
+regenerateEverything = True
 
-#dataFiles = ["./Data/" + file for file in os.listdir("./Data") if file.endswith("xx.npz")]
-dataFiles = ["./Data/" + file for file in os.listdir("./Data") if file.endswith("2456943.57058.xx.uvcRRE.npz")] 
+dataFiles = ["./Data/" + file for file in os.listdir("./Data") if file.endswith("uvcRRE.npz")]
+#dataFiles = ["./Data/" + file for file in os.listdir("./Data") if file.endswith("2456943.43835.xx.uvcRRE.npz")] 
 pol='xx'
-alwaysFlaggedChannels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 75, 76, 77, 169, 183, 185, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202]
-alsoFlagTheseChannels = [14, 15, 55, 101, 123, 179, 180, 181, 182, 184, 186]    
-flaggedChannels = sorted(list(set(alwaysFlaggedChannels).union(set(alsoFlagTheseChannels))))
+#alwaysFlaggedChannels = []#[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 75, 76, 77, 169, 183, 185, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202]
+flaggedChannels = []#sorted([14, 15, 55, 101, 123, 179, 180, 181, 182, 184, 186,     20,78,170])
 freqs = np.arange(.1,.2,.1/203)
 
 if regenerateEverything:
@@ -115,42 +115,49 @@ if regenerateEverything: #regenerate uReds and data
     uReds.applyuCut(uMin=25, uMax=150)
     uReds.applyChannelFlagCut(flaggedChannels) 
     uCal = uc.uCalibrator(uReds.getBlChanPairs())
-    uCal.computeVisibilityCorrelations(data, samples)
+    uCal.computeVisibilityCorrelations(data, samples, verbose = True)
     pickle.dump([uReds, uCal], open('./Data/uCalData.p', 'wb'))
 else:
     uReds, uCal = pickle.load(open('./Data/uCalData.p','rb'))
 
-#uCal.setupBinning(uBinSize = .72**.5, duBinSize = 5.0/203) #TODO: investigate uBinSize = .5 (nyquist sampling)
-uCal.setupBinning(uBinSize = .5, duBinSize = 5.0/203)
+while True:
+    uCal.setupBinning(uBinSize = .5, duBinSize = 5.0/203)
 
-print 'Now performing logcal...'
-betasLogcal, SigmasLogcal, DsLogcal = uCal.performLogcal()
-noiseCovDiag = uCal.generateNoiseCovariance(betasLogcal)
-betas, Sigmas, Ds = betasLogcal.copy(), SigmasLogcal.copy(), DsLogcal.copy()
+    print 'Now performing logcal...'
+    betasLogcal, SigmasLogcal, DsLogcal = uCal.performLogcal()
+    noiseCovDiag = uCal.generateNoiseCovariance(betasLogcal)
+#    noiseCovDiag = np.ones(noiseCovDiag.shape)
+    betas, Sigmas, Ds = betasLogcal.copy(), SigmasLogcal.copy(), DsLogcal.copy()
 
-print 'Now performing lincal...'
-previousChiSqPerDoF = 1e10
-for iteration in range(50): 
-    betas, Sigmas, Ds, chiSqPerDoF = uCal.performLincalIteration(betas, Sigmas, Ds, noiseCovDiag, alpha = .5)
-    print '    ' + str(iteration) + ') chi^2/dof = ' + str(chiSqPerDoF)
-    if np.abs(previousChiSqPerDoF - chiSqPerDoF)/chiSqPerDoF < 1e-4: break
-    previousChiSqPerDoF = chiSqPerDoF
-    noiseCovDiag = uCal.generateNoiseCovariance(betas) #updated each cycle based on improved result for beta
+    print 'Now performing lincal...'
+    previousChiSqPerDoF = 1e10
+    for iteration in range(50): 
+        betas, Sigmas, Ds, chiSqPerDoF = uCal.performLincalIteration(betas, Sigmas, Ds, noiseCovDiag, alpha = .5)
+        print '    ' + str(iteration) + ') chi^2/dof = ' + str(chiSqPerDoF)
+        if np.abs(previousChiSqPerDoF - chiSqPerDoF)/chiSqPerDoF < 1e-4: break
+        previousChiSqPerDoF = chiSqPerDoF
+        noiseCovDiag = uCal.generateNoiseCovariance(betas) #updated each cycle based on improved result for beta
+#        noiseCovDiag = np.ones(noiseCovDiag.shape)
 
-noiseCovDiag = uCal.renormalizeNoise(betas, Sigmas, Ds, noiseCovDiag)
+    noiseCovDiag = uCal.renormalizeNoise(betas, Sigmas, Ds, noiseCovDiag)
+    badChans = uCal.identifyBadChannels(betas, Sigmas, Ds, noiseCovDiag, maxAvgError = 2.5)
+    if len(badChans)==0: break
+    print 'Removing bad channels: ', badChans
+    uCal.applyChannelFlagCut(badChans)
+
+
 betas, Sigmas, Ds, chiSqPerDoF = uCal.performLincalIteration(betas, Sigmas, Ds, noiseCovDiag, alpha = .5)    
 print 'Final, noise-median-renormalized chi^2/dof = ' + str(chiSqPerDoF)
 
-#Save Results
+    #Save Results
+print 'Saving results to', dataFiles[-1].replace('.npz','.uCal.npz')
 bandpass, weights = np.zeros(len(freqs),dtype=complex), np.zeros(len(freqs))
 bandpass[uCal.chans] = freqs[uCal.chans]**2.55 * betas
 weights[uCal.chans] = 1
-uCal.save2npz(dataFiles[-1].replace('.npz','.uCal.npz'), dataFiles, bandpass, weights, betas, Sigmas, Ds, noiseCovDiag, uCal.A)
-
+uc.save2npz(dataFiles[-1].replace('.npz','.uCal.npz'), dataFiles, bandpass, weights, betas, uCal.chans, Sigmas, uCal.uBins, Ds, uCal.duBins, noiseCovDiag, uCal.A)
 
 
 #TODO: add in polynomial fitting of final beta solution
-#TODO: take out sky part from final solution
 
 #############################################
 #   Diagnostic Plotting
@@ -179,7 +186,7 @@ if True:
     plt.figure(2); plt.clf()
     visCorrs = np.asarray([entry['visCorr'] for entry in uCal.blChanPairs.values()])
     predictedCorrs = visCorrs - uCal.computeErrors(betas, Sigmas, Ds)
-    lincalScatter(np.abs(predictedCorrs), np.abs(visCorrs), color=duList, figNum=2, ys='log', xs='log', title = '')
+    lincalScatter(np.abs(predictedCorrs), np.abs(visCorrs), color=ch1List, figNum=2, ys='log', xs='log', title = '')
     plt.plot([0,1],[0,1],'k--')
     plt.xlabel('Abs(Predicted Correlations)'); plt.ylabel('Abs(Observe Correlations)')
 
@@ -202,7 +209,12 @@ if True:
     plt.figure(4); plt.clf()
     plt.plot(uCal.chans, chanAvgErrors,'.')
     plt.ylabel('Channel-Averaged, Noise Weighted Errors'); plt.xlabel('Channel')
-    badChans = np.asarray(uCal.chans)[chanAvgErrors > 3]
-    if len(badChans) > 0: print 'Channels with average sigma > 3: ', badChans
+    badChans = np.asarray(uCal.chans)[chanAvgErrors > 2.5]
+    if len(badChans) > 0: print 'Channels with average sigma > 2.5: ', badChans
 
     plt.show()
+
+
+
+
+

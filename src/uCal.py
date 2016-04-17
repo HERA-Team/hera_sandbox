@@ -40,12 +40,12 @@ class uCalReds():
 
     def applyuCut(self, uMin=25, uMax=150):
         for key,value in self.blChanPairs.items():
-            if np.linalg.norm(value[0]) < uMin or np.linalg.norm(value[0]) > uMax: del[self.blChanPairs[key]]
+            if np.linalg.norm(value[0]) < uMin or np.linalg.norm(value[0]) > uMax: del self.blChanPairs[key]
         if self.verbose: print "    " + str(len(self.blChanPairs)) + " baseline/frequency pairs remain after requiring " + str(uMin) + " < u < " + str(uMax)
 
     def applyChannelFlagCut(self, flaggedChannels):
         for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys():
-            if ch1 in flaggedChannels or ch2 in flaggedChannels: del[self.blChanPairs[(ch1,bl1,ch2,bl2)]]
+            if ch1 in flaggedChannels or ch2 in flaggedChannels: del self.blChanPairs[(ch1,bl1,ch2,bl2)]
         if self.verbose: print "    " + str(len(self.blChanPairs)) + " baseline/frequency pairs remain after flagging " + str(len(set(flaggedChannels))) + " channels."
 
     def getBlChanPairs(self): return self.blChanPairs
@@ -60,33 +60,38 @@ class uCalibrator():
         self.lincalIterations = 0
         #Internal format for blChanPairs that will be populated with data and binning info
         self.blChanPairs = {key: {'u': u, 'du': du} for key,(u,du) in blChanPairs.items()}
-        self.nPairs = len(self.blChanPairs)
         self.binningIsSetup = False
         self.visibilitiesAreCorrelated = False
 
     def getBlChanPairs(self): return self.blChanPairs
 
-    def computeVisibilityCorrelations(self, data, samples):
+    def computeVisibilityCorrelations(self, data, samples, verbose=True):
         """This function computes visibility correlations from data dictionaries and samples dictionaries (which reflects flags and redundancies).
         These dictionaries must be in the standard PAPER format. The results are stored inside self.blChanPairs with keys 'visCorr' and 'samples'."""
+        oldChans = sorted(np.unique([[ch1,ch2] for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]))
+        oldPairs = len(self.blChanPairs)
         for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys():
             w = np.logical_and(samples[bl1][:,ch1] != 0, samples[bl2][:,ch2] != 0)
             if np.all(np.logical_not(w)):
-                self.blChanPairs[(ch1,bl1,ch2,bl2)]['visCorr'] = 0.0+0.0j
-                self.blChanPairs[(ch1,bl1,ch2,bl2)]['samples'] = 0
+                del self.blChanPairs[(ch1,bl1,ch2,bl2)]
             else: 
                 self.blChanPairs[(ch1,bl1,ch2,bl2)]['visCorr'] = np.average((data[bl1][:,ch1]*np.conj(data[bl2][:,ch2]))[w])
                 self.blChanPairs[(ch1,bl1,ch2,bl2)]['samples'] = np.sum((samples[bl1][:,ch1] * samples[bl2][:,ch2])[w])
+        self.nPairs = len(self.blChanPairs)
+        self.chans = sorted(np.unique([[ch1,ch2] for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]))
+        self.nChans = len(self.chans)
+        if verbose: print 'Removed ' + str(oldPairs - self.nPairs) + ' unobserved baselines-frequency pairs. ' + str(len(oldChans) - self.nChans) + ' channels flagged completely.'
         self.visibilitiesAreCorrelated = True
 
-    #TODO: need to figure out what to do if there are additional flagged channels. I guess, in general, I need to figure out what to do about flagged channels.
-
+    def applyChannelFlagCut(self, flaggedChannels):
+        for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys():
+            if ch1 in flaggedChannels or ch2 in flaggedChannels: del self.blChanPairs[(ch1,bl1,ch2,bl2)]
+        self.nPairs = len(self.blChanPairs)
+        self.chans = sorted(np.unique([[ch1,ch2] for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]))
+        self.nChans = len(self.chans)
 
     def setupBinning(self, uBinSize = .72**-.5, duBinSize = 5.0/203):
         """Given a size of each bin in u (in wavelengths) and each bin in Delta u (in wavelengths), this function initializes the proper """
-        #Find unique chans and count chans.
-        self.chans = sorted(np.unique([[ch1,ch2] for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]))
-        self.nChans = len(self.chans)
         #Determine binning: first assign integers to u and du
         for key,value in self.blChanPairs.items():
             self.blChanPairs[key]['uBin'] = tuple(np.floor(1.0*(value['u'])/uBinSize).astype(int).tolist())
@@ -204,7 +209,10 @@ class uCalibrator():
             if not lincalZeroEVs == 4: print "    WARNING: Lincal's AtNinvA has " + str(lincalZeroEVs) + " zero eigenvalues. It should have 4."
 
         deltas = self.computeErrors(betas, Sigmas, Ds)
-        xHat = np.linalg.pinv(self.AtNinvA).dot(self.A.T.conjugate().dot(Ninv.dot(np.append(np.real(deltas),np.imag(deltas)))))
+        try:
+            xHat = np.linalg.pinv(self.AtNinvA).dot(self.A.T.conjugate().dot(Ninv.dot(np.append(np.real(deltas),np.imag(deltas)))))
+        except:
+            xHat = np.linalg.pinv(self.AtNinvA+1e-16).dot(self.A.T.conjugate().dot(Ninv.dot(np.append(np.real(deltas),np.imag(deltas))))) #TODO: is this OK???
         newBetas = np.asarray([betaDict[chan]*(1+alpha*(xHat[chan2Col[chan]] + 1.0j*xHat[chan2Col[chan]+1])) for chan in self.chans])
         newSigmas = np.asarray([SigmaDict[uBin] + alpha*(xHat[uBin2Col[uBin]] + 1.0j*xHat[uBin2Col[uBin]+1]) for uBin in self.uBins])
         newDs = np.asarray([DDict[duBin] + alpha*(xHat[duBin2Col[duBin]] + 1.0j*xHat[duBin2Col[duBin]+1]) for duBin in self.duBins])
@@ -219,13 +227,26 @@ class uCalibrator():
         errors = self.computeErrors(betas, Sigmas, Ds)
         return noiseCovDiag * (np.median(np.real(errors)**2)+np.median(np.imag(errors)**2)) / (2*np.median(noiseCovDiag))
 
-def save2npz(filename, dataFiles, bandpass, weights, betas, Sigmas, Ds, noiseCovDiag, A):
+    def identifyBadChannels(self, betas, Sigmas, Ds, noiseCovDiag, maxAvgError = 2.5):
+        """Sorts the errors by channel and figures out which channels exceed the average error criterion."""
+        chanCompiledList = {chan: [] for chan in self.chans}
+        ch1List = [ch1 for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]
+        ch2List = [ch2 for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]
+        errorList = self.computeErrors(betas, Sigmas, Ds)
+        for f1,f2,error,Nii in zip(ch1List,ch2List,errorList,noiseCovDiag):
+            chanCompiledList[f1].append(error/(2*Nii**.5))
+            chanCompiledList[f2].append(error/(2*Nii**.5))
+        chanAvgErrors = np.asarray([np.mean(np.abs(np.asarray(chanCompiledList[chan]))) for chan in self.chans])
+        return np.asarray(self.chans)[chanAvgErrors > maxAvgError]
+
+def save2npz(filename, dataFiles, bandpass, weights, betas, chans, Sigmas, uBins, Ds, duBins, noiseCovDiag, A):
     """Saves necessary information to use this uCal solution on data or to combine with with other times:\n
         - filename: output filename
         - dataFiles: list of files that went into this uCal solution
         - bandpass: best guess of the bandpass (sky power law corrected), length = len(freqs)
         - weights: 0 for flagged channels, 1 otherwise, length = len(freqs)
         - betas, Sigmas, Ds: raw result of uCal
+        - chans, uBins, duBins: necessary for interpreting betas, Sigmas, Ds
         - noiseCovDiag: noise on the real (or imaginary) part of the visibiltiy correlations
         - A: lincal A matrix. """
     result = {}
@@ -233,8 +254,11 @@ def save2npz(filename, dataFiles, bandpass, weights, betas, Sigmas, Ds, noiseCov
     result['bandpass'] = bandpass
     result['weights'] = weights
     result['betas'] = betas
+    result['chans'] = chans
     result['Sigmas'] = Sigmas
+    result['uBins'] = uBins
     result['Ds'] = Ds
+    result['duBins'] = duBins
     result['A'] = A
     result['noiseCovDiag'] = noiseCovDiag
     np.savez(filename, **result)
@@ -244,10 +268,13 @@ def loadAndCombine(fileList):
     invCovWeightedResultList = []
     for file in fileList:
         result = np.load(file)
-        
 
-# if __name__ == '__main__':
-#     loadAndCombine(['/Users/jsdillon/Desktop/capo/jsd/uCal/Data/zen.2456943.65409.xx.uvcRRE.uCal.npz'])
+        
+    #xhat = (Sum Cinv)**-1 * (Sum Cinv*x)
+    #Cov(xhat) = (Sum Cinv)**-1
+
+if __name__ == '__main__':
+    loadAndCombine(['/Users/jsdillon/Desktop/capo/jsd/uCal/Data/zen.2456943.65409.xx.uvcRRE.uCal.npz'])
 
 
 
