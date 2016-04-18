@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
-import aipy as a, numpy as n, pylab as p, capo
+import aipy as a, numpy as n, capo
+from matplotlib import pylab as p
 import glob, optparse, sys, random
 from scipy.linalg import fractional_matrix_power
 
