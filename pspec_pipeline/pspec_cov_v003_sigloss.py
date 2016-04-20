@@ -2,6 +2,7 @@
 import aipy as a, numpy as n, pylab as p, capo
 import capo.frf_conv as fringe
 import glob, optparse, sys, random
+import capo.zsa as zsa
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
@@ -111,11 +112,12 @@ fq = n.average(afreqs)
 z = capo.pspec.f2z(fq)
 
 #aa = a.cal.get_aa(opts.cal, n.array([.150]))
-aa = a.cal.get_aa(opts.cal, freqs)
+aa = a.cal.get_aa(opts.cal, afreqs)
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
 jy2T = capo.pspec.jy2T(afreqs)
 window = a.dsp.gen_window(nchan, WINDOW)
 if not WINDOW == 'none': window.shape=(nchan,1)
+sep2ij, blconj, bl2sep = zsa.grid2ij(aa.ant_layout)
 
 #B = sdf * afreqs.size / capo.pfb.NOISE_EQUIV_BW[WINDOW] # this is wrong if we aren't inverting
 # the window post delay transform (or at least dividing out by the gain of the window)
@@ -193,12 +195,16 @@ lsts = lsts.values()[0] #same set of LST values for both even/odd data
 for boot in xrange(opts.nboot):
     print '%d / %d' % (boot+1,opts.nboot)
     x = {}
+    f = {}
     for k in days:
         x[k] = {}
+        f[k] = {}
         for bl in data[k]:
             d = data[k][bl][:,chans] * jy2T
+            flg = flgs[k][bl][:,chans]
             if conj[bl]: d = n.conj(d) #conjugate if necessary
             x[k][bl] = n.transpose(d, [1,0]) #swap time and freq axes
+            f[k][bl] = n.transpose(flg, [1,0])
     #eor = x.pop('eor'); days = x.keys() #make up for putting eor in list above
     bls_master = x.values()[0].keys()
     nbls = len(bls_master)
@@ -207,6 +213,8 @@ for boot in xrange(opts.nboot):
     if INJECT_SIG > 0.: #Create a fake EoR signal to inject
         print 'INJECTING SIMULATED SIGNAL'
         eor1 = noise(x[days[0]][bls_master[0]].shape) * INJECT_SIG
+        wij = n.transpose(f[days[0]][bls_master[0]], [1,0]) #flags (time,freq)
+        #eor1 = noise((21,1451)) * INJECT_SIG #shape of full data
         if False: #this hack of a fringe_filter doesn't seem to be representative
             fringe_filter = n.ones((44,))
             #maintain amplitude of original noise
@@ -218,12 +226,26 @@ for boot in xrange(opts.nboot):
             #beam_w_fr = capo.frf_conv.get_beam_w_fr(aa, bl)
             #t, firs, frbins,frspace = capo.frf_conv.get_fringe_rate_kernels(beam_w_fr, inttime, FRF_WIDTH)
             bins = fringe.gen_frbins(inttime)    
-            frp, bins = fringe.aa_to_fr_profile(aa, ij, 100, bins=bins)
-            timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[100])
-            for cnt,ch in enumerate(chans):
-                eor1[cnt] = n.convolve(eor1[cnt], firs[ch], mode='same')
+            frp, bins = fringe.aa_to_fr_profile(aa, ij, 10, bins=bins)
+            timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[10])
+            if blconj[a.miriad.ij2bl(ij[0],ij[1])]: fir = {(ij[0],ij[1],POL):n.conj(firs)} #conjugate fir if needed
+            else: fir = {(ij[0],ij[1],POL):firs}
+            dij,wij = n.transpose(eor1, [1,0]),n.logical_not(wij)
+            _d,_w,_,_ = fringe.apply_frf(aa,dij,wij,ij[0],ij[1],pol=POL,bins=bins,firs=fir)
+        
+            ### OLD CODE TO FRF ###
+            #for cnt,ch in enumerate(chans):
+            #    eor1[cnt] = n.convolve(eor1[cnt], n.conj(firs[cnt]), mode='same') #conjugate firs!!!
+        #eor = eor1
+        ### END ###
+        eor2 = n.transpose(_d, [1,0])
+        eor = eor2
         #eor2 = eor.values()[0] * INJECT_SIG
-        eor = eor1 * INJECT_SIG
+        #eor = eor1 * INJECT_SIG #XXX WHY again?!
+        #each time integration is 32s, which is 1.875 ints/min or 112.5 ints/hour
+        #first LST of dataset is 3.2h, but I start at 4h
+        #0.8h from beginning of array gives 90th time sample
+        #eor = eor[:,90:742] #back to (21,652) shape for LST range 4-10
         for k in days:
             for bl in x[k]: x[k][bl] += eor #add injected signal to data
         if False and PLOT:
@@ -245,6 +267,7 @@ for boot in xrange(opts.nboot):
         for bl in x[k]:
             C[k][bl] = cov(x[k][bl])
             I[k][bl] = n.identity(C[k][bl].shape[0])
+            #C[k][bl] = C[k][bl] + 1*I[k][bl] #C+IN noise
             U,S,V = n.linalg.svd(C[k][bl].conj()) #singular value decomposition
             _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
             _I[k][bl] = n.identity(_C[k][bl].shape[0])
