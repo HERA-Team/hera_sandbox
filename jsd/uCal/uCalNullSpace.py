@@ -17,14 +17,8 @@ import capo.uCal as uc
 #   TODO: Hardcoded for now.
 #############################################
 
-#TODO: look at answers per file (and then average them) 
-    #name it with the file name .ucal.npz
-    #
-#TODO: look at various u binning values
-#TODO: make to and from .npz routines for results
-#TODO: find out if omnical has any notion of visibility noise
 
-regenerateEverything = True
+regenerateEverything = False
 
 dataFiles = ["./Data/" + file for file in os.listdir("./Data") if file.endswith("uvcRRE.npz")]
 #dataFiles = ["./Data/" + file for file in os.listdir("./Data") if file.endswith("2456943.43835.xx.uvcRRE.npz")] 
@@ -126,7 +120,7 @@ while True:
     print 'Now performing logcal...'
     betasLogcal, SigmasLogcal, DsLogcal = uCal.performLogcal()
     noiseCovDiag = uCal.generateNoiseCovariance(betasLogcal)
-#    noiseCovDiag = np.ones(noiseCovDiag.shape)
+#    noiseCovDiag = np.ones(noiseCovDiag.shape)s
     betas, Sigmas, Ds = betasLogcal.copy(), SigmasLogcal.copy(), DsLogcal.copy()
 
     print 'Now performing lincal...'
@@ -149,72 +143,42 @@ while True:
 betas, Sigmas, Ds, chiSqPerDoF = uCal.performLincalIteration(betas, Sigmas, Ds, noiseCovDiag, alpha = .5)    
 print 'Final, noise-median-renormalized chi^2/dof = ' + str(chiSqPerDoF)
 
-    #Save Results
-print 'Saving results to', dataFiles[-1].replace('.npz','.uCal.npz')
-bandpass, weights = np.zeros(len(freqs),dtype=complex), np.zeros(len(freqs))
-bandpass[uCal.chans] = freqs[uCal.chans]**2.55 * betas
-weights[uCal.chans] = 1
-uc.save2npz(dataFiles[-1].replace('.npz','.uCal.npz'), dataFiles, bandpass, weights, betas, uCal.chans, Sigmas, uCal.uBins, Ds, uCal.duBins, noiseCovDiag, uCal.A)
+#%%
+def SortedEigensystem(matrix):
+    """Returns the eigensystem of the input matrix where eigenvalues and eigenvectors are sorted by descending absolute value."""
+    evals,evecs = np.linalg.eig(matrix)
+    indices = np.argsort(np.abs(evals))[::-1]   
+    return evals[indices], evecs[:,indices]    
+
+#%% Looking at lincal
+params = uCal.nChans + uCal.nuBins + uCal.nduBins
+evals, evecs = SortedEigensystem(uCal.AtNinvA)
+nullspace = np.asarray([np.append(evecs[0::2,n],evecs[1::2,n]) for n in range(-4,0)])
+#fullNullspace = (nullspace[0:1,:]+nullspace[1:2,:]+nullspace[2:3,:]+nullspace[3:4,:]).dot(nullspace[0:1,:]+nullspace[1:2,:]+nullspace[2:3,:]+nullspace[3:4,:]).T.conj())
+fullNullspace = np.real(nullspace.conj().T.dot(nullspace))
 
 
-#TODO: add in polynomial fitting of final beta solution
+plt.figure(1); plt.clf()
+plt.imshow(fullNullspace)
+plt.colorbar()
 
-#############################################
-#   Diagnostic Plotting
-#############################################
-if True:
-    #%% Setup
-    def lincalScatter(x,y,color=None, figNum=100, xs='log', ys='log', title='', clear=True, xl='', yl=''):
-        plt.figure(figNum); 
-        if clear: plt.clf()
-        if color is not None: plt.scatter(x,y,c=color)
-        else: plt.scatter(x,y)
-        plt.yscale(ys); plt.xscale(xs)
-        plt.ylim([.9*np.min(y), 1.1*np.max(y)]); plt.xlim([.9*np.min(x), 1.1*np.max(x)])
-        plt.xlabel(xl); plt.ylabel(yl); plt.title(title)
-    duList = np.asarray([entry['du'] for entry in uCal.blChanPairs.values()])
-    ch1List = np.asarray([ch1 for (ch1,bl1,ch2,bl2) in uCal.blChanPairs.keys()])
-    ch2List = np.asarray([ch2 for (ch1,bl1,ch2,bl2) in uCal.blChanPairs.keys()])
+#%% looking at logcal
+params = uCal.nChans + uCal.nuBins + uCal.nduBins
+evals, evecs = SortedEigensystem(uCal.logcalBtB)
+nullspace = np.asarray([evecs[:,n] for n in range(-2,0)])
 
-    #%%Bandpass
-    plt.figure(1); plt.clf()
-    inferredErrorsOnAbsBeta = freqs[uCal.chans]**2.55 * np.abs(betas)*((np.diag(np.linalg.pinv(uCal.AtNinvA))[0:2*uCal.nChans:2]) + (np.diag(np.linalg.pinv(uCal.AtNinvA))[1:2*uCal.nChans:2]))**.5
-    plt.errorbar(np.arange(.1,.2,.1/203)[uCal.chans],np.abs(freqs[uCal.chans]**2.55 * betas),yerr=inferredErrorsOnAbsBeta)
-    plt.xlabel('Frequency (GHz)'); plt.ylabel('Abs(Lincal Bandpass)'); plt.title(r'Lincal Bandpass Corrected by $\nu^{2.55}$')
+fullNullspace = np.real(nullspace.conj().T.dot(nullspace))
+v = np.asarray([1]*uCal.nChans + [0]*(uCal.nuBins + uCal.nduBins)) / (uCal.nChans)**.5
+v.shape = (params,1)
+Proj = np.eye(params) - v.dot(v.T)
+newNullspace = (Proj.dot(fullNullspace)).dot(Proj)
+evals2, evecs2 = SortedEigensystem(newNullspace)
+finalEvec = evecs2[:,0]
 
-    #%%Predicted vs. Observed Scatter
-    plt.figure(2); plt.clf()
-    visCorrs = np.asarray([entry['visCorr'] for entry in uCal.blChanPairs.values()])
-    predictedCorrs = visCorrs - uCal.computeErrors(betas, Sigmas, Ds)
-    lincalScatter(np.abs(predictedCorrs), np.abs(visCorrs), color=ch1List, figNum=2, ys='log', xs='log', title = '')
-    plt.plot([0,1],[0,1],'k--')
-    plt.xlabel('Abs(Predicted Correlations)'); plt.ylabel('Abs(Observe Correlations)')
+plt.figure(2); plt.clf()
+plt.plot(finalEvec)
+#plt.colorbar()
 
-    #%%Examine error correlations
-    plt.figure(3); plt.clf()
-    AtNinvAinv = np.linalg.pinv(uCal.AtNinvA)[0:2*uCal.nChans:2,0:2*uCal.nChans:2]
-    inverseSqrtDiag = np.diag(np.diag(AtNinvAinv)**-.5)
-    plt.imshow(inverseSqrtDiag.dot(AtNinvAinv.dot(inverseSqrtDiag)), interpolation='nearest', extent = [uCal.chans[0],uCal.chans[-1],uCal.chans[0],uCal.chans[-1]], vmin=-.2, vmax=1)
-    plt.title('Error Correlation Matrix for Real Part of Beta')
-    plt.xlabel('Channel'); plt.ylabel('Channel')
-    plt.colorbar()
-
-    #%%Identify bad channels
-    chanCompiledList = {chan: [] for chan in uCal.chans}
-    errorList = uCal.computeErrors(betas, Sigmas, Ds)
-    for f1,f2,error,Nii in zip(ch1List,ch2List,errorList,noiseCovDiag):
-        chanCompiledList[f1].append(error/(2*Nii**.5))
-        chanCompiledList[f2].append(error/(2*Nii**.5))
-    chanAvgErrors = np.asarray([np.mean(np.abs(np.asarray(chanCompiledList[chan]))) for chan in uCal.chans])
-    plt.figure(4); plt.clf()
-    plt.plot(uCal.chans, chanAvgErrors,'.')
-    plt.ylabel('Channel-Averaged, Noise Weighted Errors'); plt.xlabel('Channel')
-    badChans = np.asarray(uCal.chans)[chanAvgErrors > 2.5]
-    if len(badChans) > 0: print 'Channels with average sigma > 2.5: ', badChans
-
-    plt.show()
-
-
-
+#note to self: the conclusion of this is that the fourth degeneracy is multiplying all Sigmas by e^i*phi and all Ds by e^i*-phi where phi is constant
 
 

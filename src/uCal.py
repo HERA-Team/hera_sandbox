@@ -115,11 +115,13 @@ class uCalibrator():
         """This function normalizes betas, Sigmas, and Ds according to the following convention:\n
             - Mean absolute value of betas = 1.0
             - Sum of phases of beta = 0.0
-            - Max value of Ds = 1.0 """
+            - Max value of Ds = 1.0 
+            - Sum of the phases of D = 0.0"""
         bandpassMean = np.average(np.abs(betas))
         bandpassAngleMean = np.average(np.angle(betas))
+        DsAngleMean = np.average(np.angle(Ds))
         DsMax = np.max(np.abs(Ds))
-        return betas / bandpassMean * np.exp(-1.0j * bandpassAngleMean), Sigmas * bandpassMean**2 * DsMax, Ds / DsMax
+        return betas / bandpassMean * np.exp(-1.0j * bandpassAngleMean), Sigmas * bandpassMean**2 * DsMax, Ds / DsMax * np.exp(-1.0j * DsAngleMean)
 
     def performLogcal(self):
         """This function returns the logcal result beta, Sigma, and D in the order specified."""

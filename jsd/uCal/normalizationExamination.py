@@ -12,19 +12,8 @@ import optparse, sys, os
 import capo
 import capo.uCal as uc
 
-#############################################
-#   Set-up script specific to PAPER 128. 
-#   TODO: Hardcoded for now.
-#############################################
 
-#TODO: look at answers per file (and then average them) 
-    #name it with the file name .ucal.npz
-    #
-#TODO: look at various u binning values
-#TODO: make to and from .npz routines for results
-#TODO: find out if omnical has any notion of visibility noise
-
-regenerateEverything = True
+regenerateEverything = False
 
 dataFiles = ["./Data/" + file for file in os.listdir("./Data") if file.endswith("uvcRRE.npz")]
 #dataFiles = ["./Data/" + file for file in os.listdir("./Data") if file.endswith("2456943.43835.xx.uvcRRE.npz")] 
@@ -149,72 +138,7 @@ while True:
 betas, Sigmas, Ds, chiSqPerDoF = uCal.performLincalIteration(betas, Sigmas, Ds, noiseCovDiag, alpha = .5)    
 print 'Final, noise-median-renormalized chi^2/dof = ' + str(chiSqPerDoF)
 
-    #Save Results
-print 'Saving results to', dataFiles[-1].replace('.npz','.uCal.npz')
-bandpass, weights = np.zeros(len(freqs),dtype=complex), np.zeros(len(freqs))
-bandpass[uCal.chans] = freqs[uCal.chans]**2.55 * betas
-weights[uCal.chans] = 1
-uc.save2npz(dataFiles[-1].replace('.npz','.uCal.npz'), dataFiles, bandpass, weights, betas, uCal.chans, Sigmas, uCal.uBins, Ds, uCal.duBins, noiseCovDiag, uCal.A)
-
-
-#TODO: add in polynomial fitting of final beta solution
-
+#%%##########################################
+#   Try to renormalize
 #############################################
-#   Diagnostic Plotting
-#############################################
-if True:
-    #%% Setup
-    def lincalScatter(x,y,color=None, figNum=100, xs='log', ys='log', title='', clear=True, xl='', yl=''):
-        plt.figure(figNum); 
-        if clear: plt.clf()
-        if color is not None: plt.scatter(x,y,c=color)
-        else: plt.scatter(x,y)
-        plt.yscale(ys); plt.xscale(xs)
-        plt.ylim([.9*np.min(y), 1.1*np.max(y)]); plt.xlim([.9*np.min(x), 1.1*np.max(x)])
-        plt.xlabel(xl); plt.ylabel(yl); plt.title(title)
-    duList = np.asarray([entry['du'] for entry in uCal.blChanPairs.values()])
-    ch1List = np.asarray([ch1 for (ch1,bl1,ch2,bl2) in uCal.blChanPairs.keys()])
-    ch2List = np.asarray([ch2 for (ch1,bl1,ch2,bl2) in uCal.blChanPairs.keys()])
-
-    #%%Bandpass
-    plt.figure(1); plt.clf()
-    inferredErrorsOnAbsBeta = freqs[uCal.chans]**2.55 * np.abs(betas)*((np.diag(np.linalg.pinv(uCal.AtNinvA))[0:2*uCal.nChans:2]) + (np.diag(np.linalg.pinv(uCal.AtNinvA))[1:2*uCal.nChans:2]))**.5
-    plt.errorbar(np.arange(.1,.2,.1/203)[uCal.chans],np.abs(freqs[uCal.chans]**2.55 * betas),yerr=inferredErrorsOnAbsBeta)
-    plt.xlabel('Frequency (GHz)'); plt.ylabel('Abs(Lincal Bandpass)'); plt.title(r'Lincal Bandpass Corrected by $\nu^{2.55}$')
-
-    #%%Predicted vs. Observed Scatter
-    plt.figure(2); plt.clf()
-    visCorrs = np.asarray([entry['visCorr'] for entry in uCal.blChanPairs.values()])
-    predictedCorrs = visCorrs - uCal.computeErrors(betas, Sigmas, Ds)
-    lincalScatter(np.abs(predictedCorrs), np.abs(visCorrs), color=ch1List, figNum=2, ys='log', xs='log', title = '')
-    plt.plot([0,1],[0,1],'k--')
-    plt.xlabel('Abs(Predicted Correlations)'); plt.ylabel('Abs(Observe Correlations)')
-
-    #%%Examine error correlations
-    plt.figure(3); plt.clf()
-    AtNinvAinv = np.linalg.pinv(uCal.AtNinvA)[0:2*uCal.nChans:2,0:2*uCal.nChans:2]
-    inverseSqrtDiag = np.diag(np.diag(AtNinvAinv)**-.5)
-    plt.imshow(inverseSqrtDiag.dot(AtNinvAinv.dot(inverseSqrtDiag)), interpolation='nearest', extent = [uCal.chans[0],uCal.chans[-1],uCal.chans[0],uCal.chans[-1]], vmin=-.2, vmax=1)
-    plt.title('Error Correlation Matrix for Real Part of Beta')
-    plt.xlabel('Channel'); plt.ylabel('Channel')
-    plt.colorbar()
-
-    #%%Identify bad channels
-    chanCompiledList = {chan: [] for chan in uCal.chans}
-    errorList = uCal.computeErrors(betas, Sigmas, Ds)
-    for f1,f2,error,Nii in zip(ch1List,ch2List,errorList,noiseCovDiag):
-        chanCompiledList[f1].append(error/(2*Nii**.5))
-        chanCompiledList[f2].append(error/(2*Nii**.5))
-    chanAvgErrors = np.asarray([np.mean(np.abs(np.asarray(chanCompiledList[chan]))) for chan in uCal.chans])
-    plt.figure(4); plt.clf()
-    plt.plot(uCal.chans, chanAvgErrors,'.')
-    plt.ylabel('Channel-Averaged, Noise Weighted Errors'); plt.xlabel('Channel')
-    badChans = np.asarray(uCal.chans)[chanAvgErrors > 2.5]
-    if len(badChans) > 0: print 'Channels with average sigma > 2.5: ', badChans
-
-    plt.show()
-
-
-
-
 
