@@ -89,6 +89,14 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     if use_offset: return gain, (tau,off), info
     else: return gain, tau, info
 
+def fit_line(phs, fqs, valid):
+    fqs = fqs.compress(valid)
+    dly = phs.compress(valid)
+    B = n.zeros((fqs.size,1)); B[:,0] = dly
+    A = n.zeros((fqs.size,2)); A[:,0] = fqs; A[:,1] = 1
+    dt,off = n.linalg.lstsq(A,B)[0].flatten()
+    return dt,off
+
 def redundant_bl_cal_simple(d1,d2,fqs, window='blackman-harris', tune=True, verbose=False):
     '''Given redundant measurements, get the phase difference between them.
        For use on raw data'''
@@ -112,19 +120,26 @@ def redundant_bl_cal_simple(d1,d2,fqs, window='blackman-harris', tune=True, verb
     dtau = mx / (fqs[-1] - fqs[0])
     mxs = mx + n.array([-1,0,1])
     tau = n.sum(_phs[mxs] * dlys[mxs]) / n.sum(_phs[mxs])
+    dt,off = 0,0
     if tune:
 #        import IPython; IPython.embed()
         valid = n.where(n.abs(d12_sum) > 0, 1, 0) # Throw out zeros, which NaN in the log below
-        fqs_val = fqs.compress(valid)
-        dly = n.real(n.log(d12_sum.compress(valid) * n.exp(2j*n.pi*tau*fqs_val))/(2j*n.pi))
-        #Fit is better with lst squares approach
-        B = n.zeros((fqs_val.size,1)); B[:,0] = dly
-        A = n.zeros((fqs_val.size,2)); A[:,0] = fqs_val; A[:,1] = 1
-        dt,off = n.linalg.lstsq(A,B)[0].flatten()
+        valid = n.logical_and(valid, n.logical_and(fqs>.11,fqs<.19))
+        dly = n.angle(d12_sum*n.exp(2j*n.pi*tau*fqs))
+#        fqs_val = fqs.compress(valid)
+#        #dly = n.real(n.log(d12_sum.compress(valid) * n.exp(2j*n.pi*tau*fqs_val))/(2j*n.pi))
+#        import IPython; IPython.embed() 
+#        #Fit is better with lst squares approach
+#        B = n.zeros((fqs_val.size,1)); B[:,0] = dly
+#        A = n.zeros((fqs_val.size,2)); A[:,0] = fqs_val; A[:,1] = 1
+#        dt,off = n.linalg.lstsq(A,B)[0].flatten()
 #        off,dt = n.polyfit(dly,fqs_val,1)
-#        p.plot(fqs_val,dly)
-#        p.plot(fqs_val,off+dt*fqs_val)
-#        p.plot(fqs_val,pp[0] + pp[1]*fqs_val)
+        dt,off = fit_line(dly,fqs,valid)
+#        p.plot(fqs,dly)
+#        p.plot(fqs,off+dt*fqs)
+#        p.plot(fqs,n.unwrap(dly))
+#        print off
+#    #    p.plot(fqs_val,pp[0] + pp[1]*fqs_val)
 #        p.show()
     # Pull out an integral number of phase wraps
     #if verbose: print tau, dtau, mxs, dt, off

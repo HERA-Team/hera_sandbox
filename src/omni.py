@@ -252,6 +252,7 @@ class FirstCal(object):
                 supports 'window': window function for fourier transform. default is none
            Returns a dictionary with keys baseline pairs and values delays.'''
         window=kwargs.get('window','none')
+        tune=kwargs.get('tune','True')
         self.blpair2delay = {}
         dd = self.info.order_data(self.data)
 #        ww = self.info.order_data(self.wgts)
@@ -261,7 +262,7 @@ class FirstCal(object):
             d2 = dd[:,:,self.info.bl_index(bl2)]
 #            w2 = ww[:,:,self.info.bl_index(bl2)]
             #delay = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs)
-            delay = red.redundant_bl_cal_simple(d1,d2,self.fqs,window=window)
+            delay = red.redundant_bl_cal_simple(d1,d2,self.fqs,window=window,tune=tune)
             self.blpair2delay[(bl1,bl2)] = delay
         return self.blpair2delay
     def get_N(self,nblpairs):
@@ -274,7 +275,7 @@ class FirstCal(object):
         return M
     def run(self, **kwargs):
         #make measurement matrix 
-        self.M = self.get_M()
+        self.M = self.get_M(**kwargs)
         #make noise matrix
         N = self.get_N(len(self.info.bl_pairs)) 
         self._N = np.linalg.inv(N)
