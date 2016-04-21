@@ -74,6 +74,16 @@ for f,filename in enumerate(args):
     for key in file_group.keys(): print '   '+file_group[key]
 
     #pol = filename.split('.')[-2] #XXX assumes 1 pol per file
+    
+    if len(pols)>1: #zen.jd.npz
+        npzb = 3
+    else: #zen.jd.pol.npz
+        npzb = 4 
+    npzname = opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:npzb])+'.npz'
+    if os.path.exists(npzname):
+        print '   %s exists. Skipping...' % npzname
+        continue
+
     timeinfo,d,f = capo.arp.get_dict_of_uv_data([file_group[key] for key in file_group.keys()], antstr='cross', polstr=opts.pol)
     t_jd = timeinfo['times']
     t_lst = timeinfo['lsts']
@@ -98,13 +108,6 @@ for f,filename in enumerate(args):
     m2['jds'] = t_jd
     m2['lsts'] = t_lst
     m2['freqs'] = freqs
-    
-    if len(pols)>1: #zen.jd.npz
-        npzb = 3
-    else: #zen.jd.pol.npz
-        npzb = 4
-    
-    npzname = opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:npzb])+'.npz'
     
     print '   Saving %s'%npzname
     capo.omni.to_npz(npzname, m2, g2, v2, xtalk)
