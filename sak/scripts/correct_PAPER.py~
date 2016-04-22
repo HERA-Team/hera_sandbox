@@ -24,6 +24,9 @@ aa = a.phs.ArrayLocation(('-30:43:17.5', '21:25:41.9')) # Karoo, ZAR, GPS. #elev
 
 if len(opts.rmants) > 0: opts.rmants = map(int,opts.rmants.split(','))
 if len(opts.flipants) > 0: opts.flipants = map(int,opts.flipants.split(','))
+
+print opts.rmants
+print opts.flipants
 #rewireants=map(int,opts.rewire.split(','))
 
 for filename in args:
