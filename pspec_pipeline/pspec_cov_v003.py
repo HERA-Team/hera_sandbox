@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import aipy as a, numpy as n, pylab as p, capo
+import aipy as a, numpy as n, pylab as p, capo, capo.frf_conv as fringe
 import glob, optparse, sys, random
 from scipy.linalg import fractional_matrix_power
 
@@ -20,6 +20,12 @@ o.add_option('--level', type='float', default=-1.0,
     help='Scalar by which to multiply the default signal level for simulation runs.')
 o.add_option('--rmbls', dest='rmbls',type='string', 
     help='List of baselines (ex:1_4,2_33) to remove from the power spectrum analysis.')
+o.add_option('--noise', type='float', default=0.0,
+    help='amplitude of noise to inject into data')
+o.add_option('--filter_noise',action='store_true',
+    help='Apply fringe rate filter to injected noise')
+o.add_option('--noise_only',action='store_true',
+    help='Instead of injecting noise, Replace data with noise')
 o.add_option('--output', type='string', default='',
     help='Output directory for pspec_boot files (default "")')
 
@@ -33,7 +39,7 @@ DELAY = False
 NGPS = 5 #number of groups to break the random sampled bls into
 INJECT_SIG = 0.
 SAMPLE_WITH_REPLACEMENT = True
-NOISE = .0
+NOISE = opts.noise
 PLOT = opts.plot
 
 #Remove baselines if specified
@@ -144,6 +150,12 @@ uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
+
+#manually calculate the inttime based of time differnce in data
+(uvw,t1,(i,j)),d = uv.read()
+(uvw,t2,(i,j)),d = uv.read()
+while t1 == t2: (uvw,t2,(i,j)),d = uv.read()
+inttime = (t2-t1)* (3600*24)
 del(uv)
 
 afreqs = freqs.take(chans)
@@ -151,8 +163,9 @@ nchan = chans.size
 fq = n.average(afreqs)
 z = capo.pspec.f2z(fq)
 
-aa = a.cal.get_aa(opts.cal, n.array([.150]))
+aa = a.cal.get_aa(opts.cal, freqs)
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
+sep2ij, blconj, bl2sep = capo.zsa.grid2ij(aa.ant_layout)
 jy2T = capo.pspec.jy2T(afreqs)
 window = a.dsp.gen_window(nchan, WINDOW)
 if not WINDOW == 'none': window.shape=(nchan,1)
@@ -237,12 +250,17 @@ x = {}
 #print len(data[k][bl])
 #print type(chans)
 for k in days:
-    x[k] = {}
-    for bl in data[k]:
-        #print k, bl
-        d = data[k][bl][:,chans] * jy2T
-        if conj[bl]: d = n.conj(d) #conjugate if necessary
-        x[k][bl] = n.transpose(d, [1,0]) #swap time and freq axes
+    x = {}
+    f = {}
+    for k in days:
+        x[k] = {}
+        f[k] = {}
+        for bl in data[k]:
+            d = data[k][bl][:,chans] * jy2T
+            flg = flgs[k][bl][:,chans]
+            if conj[bl]: d = n.conj(d) #conjugate if necessary
+            x[k][bl] = n.transpose(d, [1,0]) #swap time and freq axes
+            f[k][bl] = n.transpose(flg, [1,0])
 bls_master = x.values()[0].keys()
 nbls = len(bls_master)
 print 'Baselines:', nbls
@@ -298,7 +316,61 @@ if INJECT_SIG > 0.:
 #    #eor = n.fft.fft(_eor, axis=0)
 #    eor *= wgt
 
+if NOISE > 0.: # Create a fake EoR signal to inject
+    print 'INJECTING WHITE NOSIE at {0}Jy ...'.format(NOISE) ,
+    sys.stdout.flush()
+    noise_array = {}
+    if opts.filter_noise:
+        sep = bl2sep[bls_master[0]]
+        c=0
+        while c != -1:
+            ij = map(int, sep2ij[sep].split(',')[c].split('_'))
+            bl1 = a.miriad.ij2bl(*ij)
+            if blconj[bl1]: c+=1
+            else: break
+        bl_ij= a.miriad.bl2ij(bl1)
+        frbins = capo.frf_conv.gen_frbins(inttime)
+        #frbins = n.arange( -.5/inttime+5e-5/2, .5/inttime,5e-5)
+        #use channel 101 like in the frf_filter script
+        frp, bins = capo.frf_conv.aa_to_fr_profile(aa, bl_ij,101, bins= frbins)
+        timebins, firs = capo.frf_conv.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[101])
 
+    for k in days:
+        noise_array[k] = {}
+        for bl in x[k]:
+
+            ns = noise(x[k][bls_master[0]].shape) * NOISE
+            wij = n.transpose(f[days[0]][bls_master[0]], [1,0]) #flags (time,freq)
+
+            if opts.filter_noise:
+                if blconj[a.miriad.ij2bl(ij[0],ij[1])]: fir = {(ij[0],ij[1],POL):n.conj(firs)} #conjugate fir if needed
+                else: fir = {(ij[0],ij[1],POL):firs}
+                dij,wij = n.transpose(ns, [1,0]),n.logical_not(wij)
+                ns,_w,_,_ = fringe.apply_frf(aa,dij,wij,ij[0],ij[1],pol=POL,bins=bins,firs=fir)
+                ns = n.transpose(ns, [1,0])
+
+
+            if conj[bl]: ns = n.conj(ns)
+            noise_array[k][bl] = n.transpose( ns.T * jy2T, [1,0])
+
+    for k in days:
+        for bl in x[k]:
+            if opts.noise_only: x[k][bl] = n.copy( noise_array[k][bl])
+            else: x[k][bl] += noise_array[k][bl]
+            if PLOT and True:
+               fig,axes = p.subplots(nrows=2,ncols=1)
+               p.subplot(211); capo.arp.waterfall(x[k][bl], mode='real',mx=16,drng=32); #p.colorbar();
+               p.ylabel('Data + Noise')
+               p.subplot(212); im=  capo.arp.waterfall(noise_array[k][bl], mode='real',mx=16,drng=32); #p.colorbar(); p.show()
+               p.ylabel('Noise')
+               cbar_ax =fig.add_axes([.85,0.15,.05,.7])
+               fig.subplots_adjust(right=.8)
+               cbar=fig.colorbar(im,cax=cbar_ax)
+               cbar.set_label('K')
+               p.suptitle('%d_%d'%a.miriad.bl2ij(bl))
+               p.show()
+    print '[Done]'
+sys.stdout.flush()
 #Power spectrum stuff
 Q = [get_Q(i,nchan) for i in xrange(nchan)] #get Q matrix (does FT from freq to delay)
 

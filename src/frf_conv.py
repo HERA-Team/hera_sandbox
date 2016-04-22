@@ -148,7 +148,7 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
 
 def apply_frf(aa, data, wgts, i, j, pol='I', firs=None, **kwargs):
     '''Generate & apply fringe-rate filter to data for baseline (i,j).'''
-    freqs, nchan = aa.get_freqs(), data.shape[-1]
+    freqs, nchan = aa.get_afreqs(), data.shape[-1]
     ch0,fq0 = nchan/2, freqs[nchan/2]
     if firs is None: firs = {}
     tbins = None

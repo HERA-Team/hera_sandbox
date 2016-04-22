@@ -8,6 +8,8 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
 o.add_option('--plot', action='store_true',
     help='Generate plots')
+o.add_option('--nocov', action='store_true',
+    help='Replace the Covariance weighted power spectrum with the Identity weighted power spectrum.')
 opts,args = o.parse_args(sys.argv[1:])
 
 NBOOT = 400
@@ -68,7 +70,7 @@ wgts = n.ones_like(avg_pk_2d)
 #wgts = n.ones_like(wgts) / nos_std_1d**2
 #wgts = 1./(n.abs(avg_pk_1d) + nos_std_2d)**2
 
-if False: #override power spectrum with the version w/o covariance diagonalization
+if opts.nocov: #override power spectrum with the version w/o covariance diagonalization
     print 'Overriding power spectrum with non-covariance diagonalized version'
     pk_2d = nocov_2d
 

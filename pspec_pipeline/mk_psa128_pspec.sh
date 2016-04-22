@@ -10,20 +10,47 @@ if [[ ! -n ${WINDOW} ]]; then export WINDOW="none"; fi
 echo the cal file we are using: 
 pywhich $cal
 
+#form up the sigloss factors
 cov_array=($covs)
 chan_array=($chans)
-if [ -z "$covs" ]; then
-    declare -A scales
-    for (( i=0; i<${#chan_array[@]}; ++i )); do
+declare -A scales
+for (( i=0; i<${#chan_array[@]}; ++i )); do
+    if [ -z "$covs" ]; then
         scales[${chan_array[$i]}]=1
-    done
-else
-    declare -A scales
-    for (( i=0; i<${#chan_array[@]}; ++i )); do
+    else
         scales[${chan_array[$i]}]=${cov_array[$i]}
-    done
-fi
+    fi
+done
 
+##create the proper flags in pspec_cov for the desired injected noise
+n_array=($noise)
+declare -A noise_append
+for (( i=0; i<${#chan_array[@]}; ++i )); do
+
+    if [ -z "$noise" ]; then
+        noise_append[${chan_array[$i]}]="--noise=0.0"
+    else
+        noise_append[${chan_array[$i]}]="--noise=${n_array[$i]}"
+    fi
+
+    if [ $NOISE_ONLY == True ]; then
+        noise_append[${chan_array[$i]}]+=" --noise_only"
+    fi
+
+    if [ $FILTER_NOISE == True ]; then
+        noise_append[${chan_array[$i]}]+=" --filter_noise"
+    fi
+
+    if [ ! -z "$FRPAD" ]; then
+        noise_append[${chan_array[$i]}]+=" --frpad=${FRPAD}"
+    fi
+done
+
+if [ $USE_pI == True ]; then
+    use_pI='--nocov'
+else
+    use_pI=''
+fi
 
 threadcount=`python -c "c=map(len,['${pols}'.split(),'${chans}'.split(),'${seps}'.split()]);print c[0]*c[1]*c[2]"`
 echo Running $threadcount pspecs
@@ -108,9 +135,9 @@ for chan in $chans; do
                 if [ $BOOT == True ]; then
                 echo Beginning bootstrap: `date` | tee -a ${LOGFILE} 
                 if [ $PLOT == True ]; then
-                ${SCRIPTSDIR}/pspec_cov_boot_v002.py ${sepdir}/pspec_boot*npz | tee -a ${LOGFILE} 
+                ${SCRIPTSDIR}/pspec_cov_boot_v002.py ${sepdir}/pspec_boot*npz ${use_pI}  | tee -a ${LOGFILE} 
                 else
-                ${SCRIPTSDIR}/pspec_cov_boot_v002.py ${sepdir}/pspec_boot*npz | tee -a ${LOGFILE}
+                ${SCRIPTSDIR}/pspec_cov_boot_v002.py ${sepdir}/pspec_boot*npz ${use_pI}  | tee -a ${LOGFILE}
                 fi
                 fi
                 echo complete! `date`| tee -a ${LOGFILE} 
