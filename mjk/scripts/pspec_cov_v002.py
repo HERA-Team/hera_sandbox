@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python/
 import matplotlib
 #matplotlib.use('Agg')
 import aipy as a, numpy as n, pylab as p, capo
@@ -20,6 +20,12 @@ o.add_option('--level', type='float', default=-1.0,
     help='Scalar to multiply the default signal level for simulation runs.')
 o.add_option('--noise', type='float', default=0.0,
     help='amplitude of noise to inject into data')
+o.add_option('--filter_noise',action='store_true',
+    help='Apply fringe rate filter to injected noise')
+o.add_option('--noise_only',action='store_true',
+    help='Instead of injecting noise, Replace data with noise')
+o.add_option('--frpad', type='float',default=1.0,
+    help='frpad to use while filtering noise')
 o.add_option('--rmbls', action='store', 
     help='List of baselines, in miriad format, to remove from the power spectrum analysis.')
 o.add_option('--output', type='string', default='',
@@ -83,7 +89,7 @@ def cov(m):
     return (n.dot(X, X.T.conj()) / fact).squeeze()
 
 def noise(size):
-    return n.random.normal(size=size) * n.exp(1j*n.random.uniform(0,2*n.pi,size=size))
+    return n.random.random(size=size) * n.exp(1j*n.random.uniform(0,2*n.pi,size=size))
 
 def get_Q(mode, n_k):
     if not DELAY:
@@ -178,6 +184,7 @@ z = capo.pspec.f2z(fq)
 
 aa = a.cal.get_aa(opts.cal, freqs)
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
+sep2ij, blconj, bl2sep = capo.zsa.grid2ij(aa.ant_layout)
 jy2T = capo.pspec.jy2T(afreqs)
 window = a.dsp.gen_window(nchan, WINDOW)
 #if not WINDOW == 'none': window.shape=(1,nchan)
@@ -263,16 +270,20 @@ else:
 lsts = lsts.values()[0]
 
 x = {}
+xf = {}
 print len(data[k][bl][POL])
 print type(chans)
 for k in days:
     x[k] = {}
+    xf[k] = {}
     for bl in data[k]:
         print k, bl
         d = data[k][bl][POL][:,chans] * jy2T
+        f = flgs[k][bl][POL][:,chans]
         if conj[bl]: d = n.conj(d)
         x[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
-        
+        xf[k][bl] = n.transpose(f,[1,0])
+
 bls_master = x.values()[0].keys()
 nbls = len(bls_master)
 print 'Baselines:', nbls
@@ -331,31 +342,48 @@ if INJECT_SIG > 0.: # Create a fake EoR signal to inject
 #    eor *= wgt
 
 if NOISE > 0.: # Create a fake EoR signal to inject
-    print 'INJECTING WHITE NOSIE at {0}K ...'.format(NOISE) ,
+    print 'INJECTING WHITE NOSIE at {0}Jy ...'.format(NOISE) ,
     sys.stdout.flush()
     noise_array = {}
+    if opts.filter_noise:
+        sep = bl2sep[bls_master[0]]
+        c=0
+        while c != -1:
+            ij = map(int, sep2ij[sep].split(',')[c].split('_'))
+            bl1 = a.miriad.ij2bl(*ij)
+            if blconj[bl1]: c+=1
+            else: break
+        bl_ij= a.miriad.bl2ij(bl1)
+        frbins = capo.frf_conv.gen_frbins(inttime)
+        #frbins = n.arange( -.5/inttime+5e-5/2, .5/inttime,5e-5)
+        #use channel 101 like in the frf_filter script
+        frp, bins = capo.frf_conv.aa_to_fr_profile(aa, bl_ij,101, bins= frbins, frpad=opts.frpad)
+        timebins, firs = capo.frf_conv.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[101], startprms=(.001*opts.frpad,.0001))
+
     for k in days:
         noise_array[k] = {}
         for bl in x[k]:
+
             ed = noise(x[k][bls_master[0]].shape) * NOISE
 
-            if True:
-                bl1 = a.miriad.bl2ij(bls_master[0])
-                #frbins = capo.frf_conv.gen_frbins(inttime)
-                frbins = n.arange( -.5/inttime+5e-5/2, .5/inttime,5e-5)
-                #use channel 101 like in the frf_filter script
-                frp, bins = capo.frf_conv.aa_to_fr_profile(aa, bl1,101, bins= frbins)
-                timebins, firs = capo.frf_conv.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[101])
+            if opts.filter_noise:
+                if conj[bl]: fir = n.conj(firs)
+                else: fir = n.copy(firs)
 
                 for cnt,ch in enumerate(chans):
-                    ed[cnt] = n.convolve(ed[cnt], firs[ch], mode='same')
+                    fg = n.logical_not(xf[k][bl][cnt])
+                    ed[cnt] = n.convolve(ed[cnt], fir[ch], mode='same')
+                    w = n.convolve(fg, n.abs(n.conj(fir[ch])), mode='same')
+                    ed[cnt] = n.where(fg>0, ed[cnt]/w, 1)
+
 
             if conj[bl]: ed = n.conj(ed)
-            noise_array[k][bl] = ed
+            noise_array[k][bl] = n.transpose( ed.T * jy2T, [1,0])
 
     for k in days:
         for bl in x[k]:
-            x[k][bl] += noise_array[k][bl] 
+            if opts.noise_only: x[k][bl] = n.copy( noise_array[k][bl])
+            else: x[k][bl] += noise_array[k][bl]
             if PLOT and True:
                fig,axes = p.subplots(nrows=2,ncols=1)
                p.subplot(211); capo.arp.waterfall(x[k][bl], mode='real',mx=16,drng=32); #p.colorbar();
@@ -592,7 +620,7 @@ for boot in xrange(opts.nboot):
     print "Writing", outfile
     n.savez(outfile, kpl=kpl, scalar=scalar, times=n.array(lsts),
         pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI, 
-        afreqs=afreqs, chans=chans,
+        afreqs=afreqs, chans=chans, frpad=opts.frpad,
         cmd=' '.join(sys.argv))
 
 

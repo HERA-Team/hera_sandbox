@@ -60,12 +60,14 @@ for chan in $chans; do
                     --window=${WINDOW} -p ${pol} -c ${chan} -b ${NBOOT} \
                      -C ${cal} -i ${inject} -a ${ANTS}\
                      --sep=${sep} --output=${ijectdir} \
+                     --frpad=${FRPAD} \
                      ${EVEN_FILES} ${ODD_FILES} 
 
                python ${SCRIPTSDIR}/pspec_cov_v002_sigloss.py \
                     --window=${WINDOW} -p ${pol} -c ${chan} -b ${NBOOT} \
                      -C ${cal} -i ${inject} -a ${ANTS}\
                      --sep=${sep} --output=${injectdir} \
+                     --frpad=${FRPAD} \
                      ${EVEN_FILES} ${ODD_FILES} \
                      |tee -a ${LOGFILE}
             done

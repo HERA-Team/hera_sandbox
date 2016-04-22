@@ -5,16 +5,18 @@ plot the output frf_diagnose.py pickles
 import matplotlib as mpl
 import numpy as np
 
-mpl.rcParams['font.size']  = 12
+#mpl.rcParams['font.size']  = 12
 mpl.rcParams['legend.numpoints']  = 1
 mpl.rcParams['legend.frameon'] = False
 mpl.rcParams['legend.fontsize'] = 8
-mpl.rcParams['figure.dpi'] = 300
-mpl.rcParams['savefig.dpi'] = 300
-mpl.rcParams['savefig.format'] ='png'
-mpl.rcParams['lines.markeredgewidth'] = 0
-mpl.rcParams['lines.markersize'] = 7
+#mpl.rcParams['figure.dpi'] = 300
+#mpl.rcParams['savefig.dpi'] = 300
+#mpl.rcParams['savefig.format'] ='png'
+#mpl.rcParams['lines.markeredgewidth'] = 0
+#mpl.rcParams['lines.markersize'] = 7
 import pickle
+import matplotlib.cm as cmx
+import matplotlib.colors as colors
 import numpy as np, matplotlib.pyplot as p, glob, optparse, sys
 
 o = optparse.OptionParser()
@@ -26,6 +28,14 @@ o.add_option('--chan',type=int,default=101,
     help='channel index to plot')
 opts,args = o.parse_args(sys.argv[1:])
 
+def get_colors(N):
+    '''Returns function with N unique colors'''
+    norm=colors.Normalize(vmin=0,vmax=N-1)
+    scal_map=cmx.ScalarMappable(norm=norm,cmap='hsv')
+    def map_index_to_rgb(index):
+        return scal_map.to_rgba(index)
+    return map_index_to_rgb
+
 mychan = opts.chan
 mysep = '0,1'
 fig, ax = p.subplots(1)
@@ -36,31 +46,44 @@ ax.set_xlim([-.7,1.5])
 ax.set_ylim([0,1])
 
 ax2.set_xlabel('time [ns]')
-ax2.set_xlim([-1000,1500])
-ax2.set_ylim([0.001,1])
-ax2.set_yscale('log')
+ax2.set_xlim([-10000,10000])
+ax2.set_ylim([-1,1])
+#ax2.set_yscale('log')
 ax2.set_xlabel('time [ns]')
 
-for filename in args:
+num_files = len(args) +1
+
+cmap = get_colors(num_files)
+
+for cnt,filename in enumerate(args):
     print("plotting:{filename}".format(filename=filename))
     F = pickle.load(open(filename,'r'))
-    
+
+    mychan = F['chan']
     frp_freqs = F['freqs']
     frp = F['frp']
     frp_fit = F[mysep][mychan]
     frp_fit /= np.max(frp_fit)
     fir = F['firs']
     timebins = F['timebins']
-    fir_single = F[mysep][mychan]
+    fir_single = fir[mysep][mychan]
+    #factor = np.sqrt(np.sum(np.abs(fir_single)**2))
     fir_single /= np.abs(fir_single).max()
+    #fir_single /= factor
 
-    
-    lines = ax.plot( frp_freqs * 1e3, frp, label =filename)
+
+    fir_fft = np.fft.ifft(np.fft.ifftshift(frp_fit))
+    fir_fft = np.fft.fftshift(fir_fft)
+    fir_fft /=  np.abs(fir_fft).max()
+
+    lines = ax.plot( frp_freqs * 1e3, frp, label =filename,color=cmap(cnt),alpha=.5)
     color = lines[0].get_color()
-    ax.plot(frp_freqs*1e3,frp_fit,'--',color=color)
-    ax2.plot(timebins,fir_single.real,color=color,label=filename)
-    ax2.plot(timebins,fir_single.imag,':',color=color)
-ax2.legend(loc='best')  
+    ax.plot(frp_freqs*1e3,frp_fit,'--',color=cmap(cnt),alpha=.5)
+    ax2.plot(timebins,fir_single.real,'-',color=cmap(cnt),label=filename,alpha=.5)
+    #ax2.plot(timebins,fir_single.imag,':',color=color)
+    #ax2.plot(timebins,fir_fft,'--',color=color)
+    #ax2.plot(timebins,fir_fft.imag,'-.',color=color)
+ax2.legend(loc='upper right')
 ax.legend(loc='best')
 fig.savefig('frf_comparison.png',format='png')
 fig2.savefig('fir_comparison_complex.png')

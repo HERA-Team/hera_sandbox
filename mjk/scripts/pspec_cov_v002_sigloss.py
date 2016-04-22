@@ -14,6 +14,8 @@ o.add_option('--sep', default='sep0,1', action='store',
     help='Which separation type?')
 o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
+o.add_option('--frpad', type='float',default=1.0,
+    help='frpad to use while filtering eor')
 o.add_option('--output', type='string', default='',
     help='output directory for pspec_boot files (default "")')
 opts,args = o.parse_args(sys.argv[1:])
@@ -101,7 +103,12 @@ uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
-inttime = uv['inttime'] * 4 # XXX hack for *E files that have inttime set incorrectly
+#inttime = uv['inttime'] * 4 # XXX hack for *E files that have inttime set incorrectly
+(uvw,t1,(i,j)),d = uv.read()
+(uvw,t2,(i,j)),d = uv.read()
+while t1 == t2:
+    (uvw,t2,(i,j)),d = uv.read()
+inttime = (t2-t1)* (3600*24)
 del(uv)
 
 afreqs = freqs.take(chans)
@@ -113,6 +120,7 @@ z = capo.pspec.f2z(fq)
 aa = a.cal.get_aa(opts.cal, freqs)
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
 jy2T = capo.pspec.jy2T(afreqs)
+sep2ij, blconj, bl2sep = capo.zsa.grid2ij(aa.ant_layout)
 window = a.dsp.gen_window(nchan, WINDOW)
 #if not WINDOW == 'none': window.shape=(1,nchan)
 if not WINDOW == 'none': window.shape=(nchan,1)
@@ -189,12 +197,16 @@ lsts = lsts.values()[0]
 for boot in xrange(opts.nboot):
     print '%d / %d' % (boot+1,opts.nboot)
     x = {}
+    xf = {}
     for k in days:
         x[k] = {}
+        xf[k] = {}
         for bl in data[k]:
             d = data[k][bl][:,chans] * jy2T
+            f = flgs[k][bl][:,chans]
             if conj[bl]: d = n.conj(d)
             x[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
+            xf[k][bl] = n.transpose(f, [1,0])
 
     #eor = x.pop('eor'); days = x.keys() # make up for putting eor in list above
     bls_master = x.values()[0].keys()
@@ -212,19 +224,36 @@ for boot in xrange(opts.nboot):
                 eor1[ch] = n.convolve(eor1[ch], fringe_filter, mode='same')
         else: # this one is the exact one
             #this update reflects new frf and the time bin alignment April 2016
-            bl = a.miriad.bl2ij(bls_master[0])
+            sep = bl2sep[bls_master[0]]
+            c=0
+            while c != -1:
+                ij = map(int, sep2ij[sep].split(',')[c].split('_'))
+                bl1 = a.miriad.ij2bl(*ij)
+                if blconj[bl1]: c+=1
+                else: break
+            bl_ij= a.miriad.bl2ij(bl1)
             frbins = capo.frf_conv.gen_frbins(inttime)
+            #frbins = n.arange( -.5/inttime+5e-5/2, .5/inttime,5e-5)
             #use channel 101 like in the frf_filter script
-            frp, bins = capo.frf_conv.aa_to_fr_profile(aa, bl,101, bins= frbins)
-            timebins, firs = capo.frf_conv.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[101])
+            frp, bins = capo.frf_conv.aa_to_fr_profile(aa, bl_ij,101, bins= frbins, frpad=opts.frpad)
+            timebins, firs = capo.frf_conv.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[101], startprms=(.001*opts.frpad,.0001))
+
 
             #this is the arp way
             #beam_w_fr = capo.frf_conv.get_beam_w_fr(aa, bl)
             #t, firs, frbins,frspace = capo.frf_conv.get_fringe_rate_kernels(beam_w_fr, inttime, FRF_WIDTH)
+            if conj[bl]: fir = n.conj(firs)
+            else: fir = n.copy(firs)
             for cnt,ch in enumerate(chans):
-                eor1[cnt] = n.convolve(eor1[cnt], firs[ch], mode='same')
+                fg = n.logical_not(xf[k][bl][cnt])
+                eor1[cnt] = n.convolve(eor1[cnt], fir[ch], mode='same')
+                w = n.convolve(fg, n.abs(n.conj(fir[ch])), mode='same')
+                eor1[cnt] = n.where(fg>0, eor1[cnt]/w, 1)
         #eor2 = eor.values()[0] * INJECT_SIG
-        eor = eor1 * INJECT_SIG
+
+        if conj[bl]: eor1 = n.conj(eor1)
+        #noise_array[k][bl] = n.transpose( ed.T * jy2T, [1,0])
+        eor =  n.transpose(eor1.T * INJECT_SIG * jy2T, [1,0])
         for k in days:
             for bl in x[k]: x[k][bl] += eor
         if False and PLOT:
