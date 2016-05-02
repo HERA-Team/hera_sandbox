@@ -94,7 +94,7 @@ def runAll(dataFiles, flaggedChannels, findFlaggedChannels=False, subset = None)
 
 
     uReds = uc.uCalReds(freqs, bls, chan2FreqDict, bl2SepDict, maxDeltau=.3, verbose=True) #just pass in freqs
-    uReds.applyuCut(uMin=25, uMax=150)
+#    uReds.applyuCut(uMin=25, uMax=150)
     uReds.applyChannelFlagCut(flaggedChannels) 
     uCal = uc.uCalibrator(uReds.getBlChanPairs())
     uCal.computeVisibilityCorrelations(data, samples, verbose = True)

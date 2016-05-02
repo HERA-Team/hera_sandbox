@@ -229,16 +229,16 @@ class uCalibrator():
         errors = self.computeErrors(betas, Sigmas, Ds)
         return noiseCovDiag * (np.median(np.real(errors)**2)+np.median(np.imag(errors)**2)) / (2*np.median(noiseCovDiag))
 
-    def identifyBadChannels(self, betas, Sigmas, Ds, noiseCovDiag, maxAvgError = 2.5):
+    def identifyBadChannels(self, betas, Sigmas, Ds, noiseCovDiag, maxAvgError = 5):
         """Sorts the errors by channel and figures out which channels exceed the average error criterion."""
         chanCompiledList = {chan: [] for chan in self.chans}
         ch1List = [ch1 for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]
         ch2List = [ch2 for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]
         errorList = self.computeErrors(betas, Sigmas, Ds)
         for f1,f2,error,Nii in zip(ch1List,ch2List,errorList,noiseCovDiag):
-            chanCompiledList[f1].append(error/(2*Nii**.5))
-            chanCompiledList[f2].append(error/(2*Nii**.5))
-        chanAvgErrors = np.asarray([np.mean(np.abs(np.asarray(chanCompiledList[chan]))) for chan in self.chans])
+            chanCompiledList[f1].append(error/((2*Nii)**.5))
+            chanCompiledList[f2].append(error/((2*Nii)**.5))
+        chanAvgErrors = np.asarray([np.mean(np.abs(np.asarray(chanCompiledList[chan]))**2)**.5 for chan in self.chans])
         return np.asarray(self.chans)[chanAvgErrors > maxAvgError]
 
 def save2npz(filename, dataFiles, bandpass, weights, betas, chans, Sigmas, uBins, Ds, duBins, noiseCovDiag, A):

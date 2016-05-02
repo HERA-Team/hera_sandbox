@@ -17,12 +17,9 @@ import capo.uCal as uc
 #   TODO: Hardcoded for now.
 #############################################
 
-#TODO: look at answers per file (and then average them) 
-    #name it with the file name .ucal.npz
-    #
 #TODO: look at various u binning values
-#TODO: make to and from .npz routines for results
 #TODO: find out if omnical has any notion of visibility noise
+#TODO: look into the effects of the range of u values included
 
 regenerateEverything = True
 
@@ -112,7 +109,7 @@ print '\nNow performing uCal...\n'
 
 if regenerateEverything: #regenerate uReds and data
     uReds = uc.uCalReds(freqs, bls, chan2FreqDict, bl2SepDict, maxDeltau=.3, verbose=True) #just pass in freqs
-    uReds.applyuCut(uMin=25, uMax=150)
+    #uReds.applyuCut(uMin=25, uMax=150)
     uReds.applyChannelFlagCut(flaggedChannels) 
     uCal = uc.uCalibrator(uReds.getBlChanPairs())
     uCal.computeVisibilityCorrelations(data, samples, verbose = True)
@@ -126,6 +123,7 @@ while True:
     print 'Now performing logcal...'
     betasLogcal, SigmasLogcal, DsLogcal = uCal.performLogcal()
     noiseCovDiag = uCal.generateNoiseCovariance(betasLogcal)
+    print noiseCovDiag
 #    noiseCovDiag = np.ones(noiseCovDiag.shape)
     betas, Sigmas, Ds = betasLogcal.copy(), SigmasLogcal.copy(), DsLogcal.copy()
 
@@ -140,7 +138,7 @@ while True:
 #        noiseCovDiag = np.ones(noiseCovDiag.shape)
 
     noiseCovDiag = uCal.renormalizeNoise(betas, Sigmas, Ds, noiseCovDiag)
-    badChans = uCal.identifyBadChannels(betas, Sigmas, Ds, noiseCovDiag, maxAvgError = 2.5)
+    badChans = uCal.identifyBadChannels(betas, Sigmas, Ds, noiseCovDiag, maxAvgError = 5)
     if len(badChans)==0: break
     print 'Removing bad channels: ', badChans
     uCal.applyChannelFlagCut(badChans)
@@ -213,8 +211,3 @@ if True:
     if len(badChans) > 0: print 'Channels with average sigma > 2.5: ', badChans
 
     plt.show()
-
-
-
-
-
