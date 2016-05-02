@@ -8,13 +8,15 @@ o.set_usage('omni_run.py [options] *uvcRRE')
 o.set_description(__doc__)
 aipy.scripting.add_standard_options(o,cal=True,pol=True)
 o.add_option('--calpar',dest='calpar',type='string',
-            help='Path and name of POL.p ("xx.p") calpar file.')
+            help='Path and name of POL.p ("xx.p") calpar file from firstcal v1.')
 o.add_option('--redinfo',dest='redinfo',type='string',default='',
-            help='Path and name of .bin redundant info file.')
+            help='Path and name of .bin redundant info file from firstcal v1. If not given, it will be created.')
 o.add_option('--omnipath',dest='omnipath',default='',type='string',
             help='Path to save .npz files. Include final / in path.')
 o.add_option('--ba',dest='ba',default=None,
             help='Antennas to exclude, separated by commas.')
+o.add_option('--fc2',dest='fc2',type='string',
+            help='Path and name of POL.npz file outputted by firstcal v2.')
 opts,args = o.parse_args(sys.argv[1:])
 
 #Dictionary of calpar gains and files
@@ -24,23 +26,36 @@ g0 = {} #firstcal gains
 for pp,p in enumerate(pols):
     #dictionary of calpars per pol
     g0[p[0]] = {} #indexing by one pol letter instead of two
-    if p in opts.calpar: #your supplied calpar matches a pol
-        print 'Reading', opts.calpar
-        cp = pickle.load(open(opts.calpar,'rb'))
-        for i in xrange(cp[p].shape[1]): #loop over antennas
-            g0[p[0]][i] = numpy.conj(cp[p][:,i] / numpy.abs(cp[p][:,i]))
-    else: #looks for a calpar you haven't stated in the call
-        new_cp = opts.calpar.split('.p')[0][:-2]+p+'.p' #XXX assumes calpar naming is *pol.p
-        if os.path.exists(new_cp): #if it exists, use it
-            print 'Reading', new_cp
-            cp = pickle.load(open(new_cp,'rb'))
+    if opts.calpar != None: #if calpar is given
+        if p in opts.calpar: #your supplied calpar matches a pol
+            print 'Reading', opts.calpar
+            cp = pickle.load(open(opts.calpar,'rb'))
             for i in xrange(cp[p].shape[1]): #loop over antennas
                 g0[p[0]][i] = numpy.conj(cp[p][:,i] / numpy.abs(cp[p][:,i]))
-        elif len(list(set(p))) > 1: #if the crosspol first_cal is missing, don't worry
-            #print '%s not found, but that is OK'%new_cp
-            continue
-        else: #if the linpol first_cal is missing, do worry
-            raise IOError('Missing first_cal file %s'%new_cp)
+        else: #looks for a calpar you haven't stated in the call
+            new_cp = opts.calpar.split('.p')[0][:-2]+p+'.p' #XXX assumes calpar naming is *pol.p
+            if os.path.exists(new_cp): #if it exists, use it
+                print 'Reading', new_cp
+                cp = pickle.load(open(new_cp,'rb'))
+                for i in xrange(cp[p].shape[1]): #loop over antennas
+                    g0[p[0]][i] = numpy.conj(cp[p][:,i] / numpy.abs(cp[p][:,i]))
+            elif len(list(set(p))) > 1: #if the crosspol first_cal is missing, don't worry
+                #print '%s not found, but that is OK'%new_cp
+                continue
+            else: #if the linpol first_cal is missing, do worry
+                raise IOError('Missing first_cal file %s'%new_cp)
+    if opts.fc2 != None: #if fc2 file is given
+        if p in opts.fc2:
+            print 'Reading', opts.fc2
+            cp = numpy.load(opts.fc2)
+            for i in cp.keys():
+                g0[p[0]][int(i)] = cp[i] / numpy.abs(cp[i])
+        else:
+            new_cp = opts.fc2.split('.npz')[0][:-2]+p+'.npz'
+            print 'Reading', new_cp
+            cp = numpy.load(new_cp)
+            for i in cp.keys():
+                g0[p[0]][int(i)] = cp[i] / numpy.abs(cp[i])
         
 for filename in args:
     files[filename] = {}
