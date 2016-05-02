@@ -5,6 +5,7 @@ Tools for dealing with redundant array configurations.
 import numpy as n
 from aipy.miriad import ij2bl, bl2ij
 import aipy as a
+import pylab as p
 
 def group_redundant_bls(antpos):
     '''Return 2 dicts: bls contains baselines grouped by separation ('drow,dcol'), conj indicates for each
@@ -88,7 +89,15 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     if use_offset: return gain, (tau,off), info
     else: return gain, tau, info
 
-def redundant_bl_cal_simple(d1,d2,fqs, window='blackman-harris', clean=1e-4, verbose=False):
+def fit_line(phs, fqs, valid):
+    fqs = fqs.compress(valid)
+    dly = phs.compress(valid)
+    B = n.zeros((fqs.size,1)); B[:,0] = dly
+    A = n.zeros((fqs.size,2)); A[:,0] = fqs; A[:,1] = 1
+    dt,off = n.linalg.lstsq(A,B)[0].flatten()
+    return dt,off
+
+def redundant_bl_cal_simple(d1,d2,fqs, window='blackman-harris', tune=True, verbose=False):
     '''Given redundant measurements, get the phase difference between them.
        For use on raw data'''
     d12 = d2 * n.conj(d1)
@@ -106,14 +115,37 @@ def redundant_bl_cal_simple(d1,d2,fqs, window='blackman-harris', clean=1e-4, ver
     _phs = n.abs(_phs)
     #get bin of phase
     mx = n.argmax(_phs)
-    # Pull out an integral number of phase wraps
+    #Fine tune with linear fit.
     if mx > _phs.size/2: mx -= _phs.size
     dtau = mx / (fqs[-1] - fqs[0])
     mxs = mx + n.array([-1,0,1])
     tau = n.sum(_phs[mxs] * dlys[mxs]) / n.sum(_phs[mxs])
-    if verbose: print tau, dtau, mxs, 
-    #info = {'dtau':dtau, 'doff':doff, 'mx':mx} # Some information about last step, useful for detecting screwups
-    return tau
+    dt,off = 0,0
+    if tune:
+#        import IPython; IPython.embed()
+        valid = n.where(n.abs(d12_sum) > 0, 1, 0) # Throw out zeros, which NaN in the log below
+        valid = n.logical_and(valid, n.logical_and(fqs>.11,fqs<.19))
+        dly = n.angle(d12_sum*n.exp(2j*n.pi*tau*fqs))
+#        fqs_val = fqs.compress(valid)
+#        #dly = n.real(n.log(d12_sum.compress(valid) * n.exp(2j*n.pi*tau*fqs_val))/(2j*n.pi))
+#        import IPython; IPython.embed() 
+#        #Fit is better with lst squares approach
+#        B = n.zeros((fqs_val.size,1)); B[:,0] = dly
+#        A = n.zeros((fqs_val.size,2)); A[:,0] = fqs_val; A[:,1] = 1
+#        dt,off = n.linalg.lstsq(A,B)[0].flatten()
+#        off,dt = n.polyfit(dly,fqs_val,1)
+        dt,off = fit_line(dly,fqs,valid)
+#        p.plot(fqs,dly)
+#        p.plot(fqs,off+dt*fqs)
+#        p.plot(fqs,n.unwrap(dly))
+#        print off
+#    #    p.plot(fqs_val,pp[0] + pp[1]*fqs_val)
+#        p.show()
+    # Pull out an integral number of phase wraps
+    #if verbose: print tau, dtau, mxs, dt, off
+    info = {'dtau':dt, 'off':off, 'mx':mx} # Some information about last step, useful for detecting screwups
+    if verbose: print info, tau, tau+dt+off
+    return tau+dt+off
 
 
 

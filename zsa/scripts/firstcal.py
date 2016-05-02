@@ -24,7 +24,10 @@ def save_gains(s,f,pol):
     s2 = {}
     for k,i in s.iteritems():
         s2[str(k)] = omni.get_phase(f,i)
-    s2['pol'] = pol
+    import sys
+    cmd = sys.argv()
+    s2['cmd'] = cmd
+    print s2
     n.savez('fcgains.%s.npz'%pol,**s2)
 
 def normalize_data(datadict):
@@ -36,15 +39,14 @@ def normalize_data(datadict):
     
 #hera info assuming a hex of 19 and 128 antennas
 aa = a.cal.get_aa(opts.cal, n.array([.150]))
+#info = omni.aa_to_info(aa, fcal=True, ubls=[(80,104),(64,80),(53,80),(80,96)], ex_ants=[81])
 info = omni.aa_to_info(aa, fcal=True, ex_ants=[81])
-infotest = omni.aa_to_info(aa, fcal=True, ubls=[(80,104),(9,22),(80,96)],ex_ants=[81])
-#info = hx.hera_to_info(3, 128, connections=connection_file, ex_ants=[81])
-#infotest = hx.hera_to_info(3, 128, connections=connection_file,  ex_ants=[81])
-#infotest = hx.hera_to_info(3, 128, connections=connection_file, ubls=[(80,104),(9,22),(80,96)], ex_ants=[81])
+infotest = omni.aa_to_info(aa, fcal=True, ubls=[(80,96)],ex_ants=[81])
 reds = flatten_reds(info.get_reds())
 redstest = infotest.get_reds()#for plotting 
-
+print reds
 print len(reds)
+
 #Read in data here.
 ant_string =','.join(map(str,info.subsetant))
 bl_string = ','.join(['_'.join(map(str,k)) for k in reds])
@@ -57,17 +59,21 @@ dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, fqs[1]-fqs[0]))
 
 #gets phase solutions per frequency.
 fc = omni.FirstCal(dataxx,fqs,info)
-sols = fc.run()
+sols = fc.run(tune=True)
 #import IPython; IPython.embed()
-#save_gains(sols,fqs, opts.pol)
+save_gains(sols,fqs, opts.pol)
 #save solutions
 dataxx_c = {}
+print dataxx.keys()
 for (a1,a2) in info.bl_order():
     if (a1,a2) in dataxx.keys():
         dataxx_c[(a1,a2)] = dataxx[(a1,a2)]*omni.get_phase(fqs,sols[a1])*n.conj(omni.get_phase(fqs,sols[a2]))
+        #if a1==43 or a2==43:
+        #    dataxx_c[(a1,a2)]*=n.exp(-2j*n.pi*fqs*n.pi)
     else:
-        dataxx_c[(a1,a2)] = n.conj(dataxx[(a2,a1)]*omni.get_phase(fqs,sols[a2])*n.conj(omni.get_phase(fqs,sols[a1])))
-
+        dataxx_c[(a1,a2)] = dataxx[(a2,a1)]*omni.get_phase(fqs,sols[a2])*n.conj(omni.get_phase(fqs,sols[a1]))
+        #if a1==43 or a2==43:
+        #    dataxx_c[(a1,a2)]*=n.exp(-2j*n.pi*fqs*n.pi)
 #def waterfall(d, ax, mode='log', mx=None, drng=None, recenter=False, **kwargs):
 #    if n.ma.isMaskedArray(d): d = d.filled(0)
 #    if recenter: d = a.img.recenter(d, n.array(d.shape)/2)
@@ -96,23 +102,24 @@ redbls = n.array(redbls)
 #fig.subplots_adjust(hspace=.5)
 
 if PLOT:
-    for bl in redbls:
+    for k, bl in enumerate(redbls):
         bl = tuple(bl)
         try:
             #p.subplot(211); arp.waterfall(dataxx[bl], mode='log',mx=0,drng=3); p.colorbar(shrink=.5)
             #p.subplot(212); arp.waterfall(dataxx_c[bl], mode='log',mx=0,drng=3); p.colorbar(shrink=.5)
+            p.figure(k)
             p.subplot(211); arp.waterfall(dataxx[bl], mode='phs'); p.colorbar(shrink=.5)
             p.subplot(212); arp.waterfall(dataxx_c[bl], mode='phs'); p.colorbar(shrink=.5)
             p.title('%d_%d'%bl)
             print sols[bl[0]] - sols[bl[1]]
             print bl
         except(KeyError):
-            p.subplot(211); arp.waterfall(n.conj(dataxx[bl[::-1]]), mode='phs'); p.colorbar(shrink=.5)
-            p.subplot(212); arp.waterfall(n.conj(dataxx_c[bl]), mode='phs'); p.colorbar(shrink=.5)
+            p.subplot(211); arp.waterfall(dataxx[bl[::-1]], mode='phs'); p.colorbar(shrink=.5)
+            p.subplot(212); arp.waterfall(dataxx_c[bl], mode='phs'); p.colorbar(shrink=.5)
             p.title('%d_%d'%bl)
             print bl
 
-        p.show()
+    p.show()
 
 
 data_norm = normalize_data(dataxx_c)
