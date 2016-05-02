@@ -20,7 +20,7 @@ def save_gains(s,f,pol):
     s2 = {}
     for k,i in s.iteritems():
         s2[str(k)] = omni.get_phase(f,i)
-    s2['pol'] = pol
+    #s2['pol'] = pol #XXX not saving pol in npz file
     print 'Saving fcgains.%s.npz'%pol
     n.savez('fcgains.%s.npz'%pol,**s2)
 
