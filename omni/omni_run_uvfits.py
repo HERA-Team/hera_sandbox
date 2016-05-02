@@ -2,6 +2,59 @@
 
 import omnical, aipy, numpy, capo
 import pickle, optparse, os, sys
+import uvdata.uv as uvd
+
+
+#####################################################################################################
+def uv_read(filenames,polstr=None,antstr=None,recast_as_array=True):
+    info={'lsts':[], 'times':[]}
+    dat, flg={},{}
+    uvdata=uvd.UVData()
+    if type(filenames) == 'str': filenames=[filenames]
+    for filename in filenames:
+        uvdata.read_uvfits(filename)
+        tt=uvdata.time_array
+        blt=len(tt)
+        for nbl in range(0,blt):
+            if tt[nbl]!=tt[0]: break
+        Nt=blt/nbl
+        for ii in range(0,Nt):
+            info['times'].append(tt[ii*nbl])
+            info['lsts'].append(tt[ii*nbl])   #not sure how to calculate lsts
+        pol=uvdata.polarization_array
+        npol=len(pol)
+        data=uvdata.data_array
+        flag=uvdata.flag_array
+        ant1=uvdata.ant_1_array
+        ant2=uvdata.ant_2_array
+        
+        for ii in range(0,blt):
+            bl=(ant1[ii],ant2[ii])
+            if antstr=='cross':
+                if ant1[ii]==ant2[ii]:continue
+            if not dat.has_key(bl): dat[bl],flg[bl]={},{}
+            for jj in range(0,npol):
+                pp=aipy.miriad.pol2str[pol[jj]]
+                if polstr!=None:
+                    if pp!=polstr:continue
+                if not dat[bl].has_key(pp):
+                    dat[bl][pp],flg[bl][pp]=[],[]
+                data00,flag00=[],[]
+                for nn in range(0,len(data[ii][jj])):
+                    data00.append(data[ii][jj][nn][0])
+                    flag00.append(flag[ii][jj][nn][0])
+                dat[bl][pp].append(data00)
+                flg[bl][pp].append(flag00)
+        if recast_as_array:
+            for ii in dat.keys():
+                for jj in dat[ii].keys():
+                    dat[ii][jj]=numpy.array(dat[ii][jj])
+                    flg[ii][jj]=numpy.array(flg[ii][jj])
+            info['lsts'] = numpy.array(info['lsts'])
+            info['times'] = numpy.array(info['times'])
+    return info, dat, flg
+######################################################################################################
+
 
 o = optparse.OptionParser()
 o.set_usage('omni_run.py [options] *uvcRRE')
@@ -62,7 +115,7 @@ else: #generate reds from calfile
         ex_ants = []
         for a in opts.ba.split(','):
             ex_ants.append(int(a))
-        print '   Excluding antennas:',sorted(ex_ants)
+        print '   Excluding antennas:',ex_ants
     else: ex_ants = []
     info = capo.omni.aa_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, crosspols=pols)
 reds = info.get_reds()
@@ -70,15 +123,20 @@ reds = info.get_reds()
 ### Omnical-ing! Loop Through Compressed Files ###
 for f,filename in enumerate(args):
     file_group = files[filename] #dictionary with pol indexed files
+    #print type([file_group[key] for key in file_group.keys()])
     print 'Reading:'
     for key in file_group.keys(): print '   '+file_group[key]
 
     #pol = filename.split('.')[-2] #XXX assumes 1 pol per file
-    timeinfo,d,f = capo.arp.get_dict_of_uv_data([file_group[key] for key in file_group.keys()], antstr='cross', polstr=opts.pol)
+    
+    #Read data from file
+    timeinfo,d,f = uv_read([file_group[key] for key in file_group.keys()], polstr=opts.pol, antstr='cross')
+
     t_jd = timeinfo['times']
     t_lst = timeinfo['lsts']
     freqs = numpy.arange(.1,.2,.1/len(d[d.keys()[0]][pols[0]][0]))
     SH = d.values()[0].values()[0].shape #shape of file data (ex: (19,203))
+    #print SH
     data,wgts,xtalk = {}, {}, {}
     m2,g2,v2 = {}, {}, {}
     for p in g0.keys():
@@ -90,7 +148,7 @@ for f,filename in enumerate(args):
             i,j = bl
             wgts[p][(j,i)] = wgts[p][(i,j)] = numpy.logical_not(f[bl][p]).astype(numpy.int)
     print '   Logcal-ing' 
-    m1,g1,v1 = capo.omni.redcal(data,info,gains=g0, removedegen=True) #SAK CHANGE REMOVEDEGEN
+    m1,g1,v1 = capo.omni.redcal(data,info,gains=g0)
     print '   Lincal-ing'
     m2,g2,v2 = capo.omni.redcal(data, info, gains=g1, vis=v1, uselogcal=False, removedegen=True)
     xtalk = capo.omni.compute_xtalk(m2['res'], wgts) #xtalk is time-average of residual
@@ -98,12 +156,6 @@ for f,filename in enumerate(args):
     m2['jds'] = t_jd
     m2['lsts'] = t_lst
     m2['freqs'] = freqs
-    
-    if len(pols)>1: #zen.jd.npz
-        npzname = opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:3])+'.npz'
-    else: #zen.jd.pol.npz
-        npzname = opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:4])+'.npz'
-    
-    print '   Saving %s'%npzname
-    capo.omni.to_npz(npzname, m2, g2, v2, xtalk)
+    print '   Saving '+opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:3])+'.npz'
+    capo.omni.to_npz(opts.omnipath+'.'.join(filename.split('/')[-1].split('.')[0:3])+'.npz', m2, g2, v2, xtalk)
     

@@ -21,26 +21,47 @@ opts,args = o.parse_args(sys.argv[1:])
 pols = opts.pol.split(',')
 files = {}
 g0 = {} #firstcal gains
-for pp,p in enumerate(pols):
-    #dictionary of calpars per pol
-    g0[p[0]] = {} #indexing by one pol letter instead of two
-    if p in opts.calpar: #your supplied calpar matches a pol
-        print 'Reading', opts.calpar
-        cp = pickle.load(open(opts.calpar,'rb'))
-        for i in xrange(cp[p].shape[1]): #loop over antennas
-            g0[p[0]][i] = numpy.conj(cp[p][:,i] / numpy.abs(cp[p][:,i]))
-    else: #looks for a calpar you haven't stated in the call
-        new_cp = opts.calpar.split('.p')[0][:-2]+p+'.p' #XXX assumes calpar naming is *pol.p
-        if os.path.exists(new_cp): #if it exists, use it
-            print 'Reading', new_cp
-            cp = pickle.load(open(new_cp,'rb'))
-            for i in xrange(cp[p].shape[1]): #loop over antennas
-                g0[p[0]][i] = numpy.conj(cp[p][:,i] / numpy.abs(cp[p][:,i]))
-        elif len(list(set(p))) > 1: #if the crosspol first_cal is missing, don't worry
-            #print '%s not found, but that is OK'%new_cp
-            continue
-        else: #if the linpol first_cal is missing, do worry
-            raise IOError('Missing first_cal file %s'%new_cp)
+if not opts.calpar==None:
+    fname=opts.calpar
+    if fname.endswith('.txt'):
+        f=open(fname,'r')
+        tkn=[]
+        g={}
+        for line in f:
+            temp=line.split(',')[:7]
+            if temp[0].startswith('#'):continue
+            temp2=[]
+            for ii, s in enumerate(temp):
+                if ii==0: continue
+                elif s.strip()=='EE': s='xx'
+                elif s.strip()=='NN': s='yy'
+                temp2.append(s)
+            if temp2[2].strip()=='EN' or temp2[2].strip()=='NE': continue
+            temp3=[temp2[2], int(temp2[0]), float(temp2[3]), float(temp2[1]), float(temp2[4]), float(temp2[5])]
+            tkn.append(temp3)
+        for p,pp in enumerate(tkn):
+            if not g.has_key(pp[0][0]):
+                g[pp[0][0]]={}
+                g0[pp[0][0]]={}
+            if not g[pp[0][0]].has_key(pp[1]):
+                g[pp[0][0]][pp[1]]={}
+                g0[pp[0][0]][pp[1]]=[]
+            if not g[pp[0][0]][pp[1]].has_key(pp[2]):
+                g[pp[0][0]][pp[1]][pp[2]]={}
+            if not g[pp[0][0]][pp[1]][pp[2]].has_key(pp[3]):
+                g[pp[0][0]][pp[1]][pp[2]][pp[3]]=complex(pp[4],pp[5])
+        for i1, pol in enumerate(g):
+            for i2, ant in enumerate(g[pol]):
+                for i3, jds in enumerate(g[pol][ant]):
+                    ff=[]
+                    for i4, freq in enumerate(g[pol][ant][jds]):
+                        ff.append(g[pol][ant][jds][freq])
+                    g0[pol][ant].append(ff)
+                g0[pol][ant]=numpy.array(g0[pol][ant])
+    else:
+        raise IOError('invalid txtfile')
+else: #if the linpol first_cal is missing, do worry
+    raise IOError('Missing first_cal file %s'%new_cp)
         
 for filename in args:
     files[filename] = {}
@@ -81,8 +102,6 @@ for f,filename in enumerate(args):
     SH = d.values()[0].values()[0].shape #shape of file data (ex: (19,203))
     data,wgts,xtalk = {}, {}, {}
     m2,g2,v2 = {}, {}, {}
-    for p in g0.keys():
-        for i in g0[p]: g0[p][i] = numpy.resize(g0[p][i],SH) #resize gains like data
     data = d #indexed by bl and then pol (backwards from everything else)
     for p in pols:
         wgts[p] = {} #weights dictionary by pol

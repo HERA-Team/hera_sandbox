@@ -64,7 +64,7 @@ else: #generate reds from calfile
             ex_ants.append(int(a))
         print '   Excluding antennas:',sorted(ex_ants)
     else: ex_ants = []
-    info = capo.omni.aa_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, crosspols=pols)
+    info = capo.omni.aa_pos_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, crosspols=pols)
 reds = info.get_reds()
 
 ### Omnical-ing! Loop Through Compressed Files ###

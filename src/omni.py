@@ -76,10 +76,11 @@ def compute_reds(nant, pols, *args, **kwargs):
         for pj in pols:
             reds += [[(Antpol(i,pi,nant),Antpol(j,pj,nant)) for i,j in gp] for gp in _reds]
     return reds
- 
+
+
 def aa_to_info(aa, pols=['x'], **kwargs):
     '''Use aa.ant_layout to generate redundances based on ideal placement.
-    The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
+        The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
     layout = aa.ant_layout
     nant = len(aa)
     antpos = -np.ones((nant*len(pols),3)) # -1 to flag unused antennas
@@ -97,6 +98,30 @@ def aa_to_info(aa, pols=['x'], **kwargs):
     info = RedundantInfo(nant)
     info.init_from_reds(reds,antpos)
     return info
+
+#generate info from real positions
+####################################################################################################
+def aa_pos_to_info(aa, pols=['x'], **kwargs):
+    '''Use aa.ant_layout to generate redundances based on real placement.
+        The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
+    nant = len(aa)
+    antpos = -np.ones((nant*len(pols),3)) # -1 to flag unused antennas
+    for ant in xrange(nant):
+        bl = aa.get_baseline(0,ant,src='z')
+        x,y = bl[0], bl[1]#w is currently not included
+        for z,pol in enumerate(pols):
+            z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
+            i = Antpol(ant,pol,len(aa)) # creates index in POLNUM/NUMPOL for pol
+            antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
+    reds = compute_reds(nant, pols, antpos[:nant],tol=2) # only first nant b/c compute_reds treats pol redundancy separately
+    # XXX haven't enforced xy = yx yet.  need to conjoin red groups for that
+    ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] < 0]
+    kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
+    reds = filter_reds(reds, **kwargs)
+    info = RedundantInfo(nant)
+    info.init_from_reds(reds,antpos)
+    return info
+####################################################################################################
 
 
 def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
