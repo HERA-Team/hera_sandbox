@@ -46,9 +46,9 @@ print 'Number of redundant baselines:',len(reds)
 ant_string =','.join(map(str,info.subsetant))
 bl_string = ','.join(['_'.join(map(str,k)) for k in reds])
 times, data, flags = arp.get_dict_of_uv_data(args, bl_string, opts.pol, verbose=True)
-dataxx = {}
+dataxx = {} #not necessarily xx data inside
 for (i,j) in data.keys():
-    dataxx[(i,j)] = data[(i,j)]['xx']
+    dataxx[(i,j)] = data[(i,j)][opts.pol]
 fqs = n.linspace(.1,.2,203) #XXX
 dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, fqs[1]-fqs[0]))
 
