@@ -6,6 +6,8 @@ import sys,optparse
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o,cal=True,pol=True)
 o.add_option('--plot', action='store_true', help='Plot things.')
+o.add_option('--ubls', default='', help='Unique baselines to use, separated by commas (ex: 1_4,64_49).')
+o.add_option('--ex_ants', default='', help='Antennas to exclude, separated by commas (ex: 1,4,64,49).')
 opts,args = o.parse_args(sys.argv[1:])
 connection_file=opts.cal
 PLOT=opts.plot
@@ -33,11 +35,20 @@ def normalize_data(datadict):
     
 #hera info assuming a hex of 19 and 128 antennas
 aa = a.cal.get_aa(opts.cal, n.array([.150]))
-info = omni.aa_to_info(aa, fcal=True, ubls=[(64,49)])#, ex_ants=[81])
+ex_ants = []
+ubls = []
+for a in opts.ex_ants.split(','):
+    try: ex_ants.append(int(a))
+    except: pass
+for bl in opts.ubls.split(','):
+    try:
+        i,j = bl.split('_')
+        ubls.append((int(i),int(j)))
+    except: pass
+print 'Excluding Antennas:',ex_ants
+if len(ubls) != None: print 'Using Unique Baselines:',ubls
+info = omni.aa_to_info(aa, fcal=True, ubls=ubls, ex_ants=ex_ants)
 #infotest = omni.aa_to_info(aa, fcal=True, ubls=[(80,104),(9,22),(80,96)],ex_ants=[81])
-#info = hx.hera_to_info(3, 128, connections=connection_file, ex_ants=[81])
-#infotest = hx.hera_to_info(3, 128, connections=connection_file,  ex_ants=[81])
-#infotest = hx.hera_to_info(3, 128, connections=connection_file, ubls=[(80,104),(9,22),(80,96)], ex_ants=[81])
 reds = flatten_reds(info.get_reds())
 #redstest = infotest.get_reds()#for plotting 
 
@@ -57,7 +68,7 @@ fc = omni.FirstCal(dataxx,fqs,info)
 sols = fc.run()
 
 #Save solutions
-save_gains(sols,fqs, opts.pol) 
+#save_gains(sols,fqs, opts.pol) 
 
 """
 dataxx_c = {}
