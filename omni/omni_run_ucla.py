@@ -102,7 +102,8 @@ if not opts.calpar==None:
             if not g[pp[0][0]][pp[1]].has_key(pp[2]):
                 g[pp[0][0]][pp[1]][pp[2]]={}
             if not g[pp[0][0]][pp[1]][pp[2]].has_key(pp[3]):
-                g[pp[0][0]][pp[1]][pp[2]][pp[3]]=complex(pp[4],pp[5])
+                gg=complex(pp[4],pp[5])
+                g[pp[0][0]][pp[1]][pp[2]][pp[3]]=gg.conjugate()/abs(gg)
         for i1, pol in enumerate(g):
             for i2, ant in enumerate(g[pol]):
                 for i3, jds in enumerate(g[pol][ant]):
