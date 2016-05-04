@@ -46,7 +46,7 @@ opts,args = o.parse_args(sys.argv[1:])
 noisefiles = sort(args)
 print "loading a few noise model redshifts and building a 2d (z,k) cubic fit model"
 #re_f = re.compile(r'paper_dcj_lstcnt_sa_pess_(\d+\.\d+)\.npz')
-re_f = re.compile('21cmsense_noise/psa6240_v003drift_mod_(\d+\.\d+)\.npz')#glob should load them in increasing freq order
+re_f = re.compile('psa6240_v003drift_mod_(\d+\.\d+)\.npz')#glob should load them in increasing freq order
 
 noises = []
 noise_ks = []
@@ -74,7 +74,7 @@ for noisefile in noisefiles:
     nk3 = noise_k**3/(2*np.pi**2)
     tmp = n.linalg.lstsq( n.vstack([nk3,n.zeros((3,len(nk3)))]).T,noise)
     #tmp = n.polyfit(noise_k,noise,3,full=True)
-    noise = n.poly1d(tmp[0])(nk_grid)
+    noise = n.poly1d(tmp[0])(nk_grid)/(2*np.pi**2)
     noises.append(noise)
     noise_ks.append(nk_grid)
     f = float(re_f.match(noisefile).groups()[0])*1e3 #sensitivity freq in MHz
