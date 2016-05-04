@@ -68,8 +68,9 @@ def cov(m):
     return (n.dot(X, X.T.conj()) / fact).squeeze()
 
 def noise(size):
-    sig = 1./n.sqrt(2)
-    return n.random.normal(scale=sig, size=size) + 1j*n.random.normal(scale=sig, size=size)
+    #sig = 1./n.sqrt(2)
+    #return n.random.normal(scale=sig, size=size) + 1j*n.random.normal(scale=sig, size=size)
+    return n.random.normal(size=size) * n.exp(1j*n.random.uniform(0,2*n.pi,size=size))
 
 def get_Q(mode, n_k):
     if not DELAY:
@@ -226,8 +227,9 @@ for boot in xrange(opts.nboot):
             #beam_w_fr = capo.frf_conv.get_beam_w_fr(aa, bl)
             #t, firs, frbins,frspace = capo.frf_conv.get_fringe_rate_kernels(beam_w_fr, inttime, FRF_WIDTH)
             bins = fringe.gen_frbins(inttime)    
-            frp, bins = fringe.aa_to_fr_profile(aa, ij, 10, bins=bins)
-            timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[10])
+            frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
+            #frp = frp**2 #XXX test for reducing noise modes
+            timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
             if blconj[a.miriad.ij2bl(ij[0],ij[1])]: fir = {(ij[0],ij[1],POL):n.conj(firs)} #conjugate fir if needed
             else: fir = {(ij[0],ij[1],POL):firs}
             dij,wij = n.transpose(eor1, [1,0]),n.logical_not(wij)

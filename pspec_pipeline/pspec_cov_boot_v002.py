@@ -184,7 +184,6 @@ pk_fold = n.average(pk_fold_boot, axis=1)
 #this is excluding imag component in noise estimate `
 pk_boot = n.sort(pk_boot.real, axis=1) #dropping imag component here
 pk_fold_boot = n.sort(pk_fold_boot.real, axis=1) #dropping imag component here
-
 if True:
     print 'Deriving errors from histogram...'
     up_thresh = int(n.around(0.975 * pk_boot.shape[1])) #2 sigma, single tail

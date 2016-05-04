@@ -38,7 +38,8 @@ pIs_err,pCs_err = n.array(pIs_err), n.array(pCs_err)
 
 ### GETTING PSPEC DATA ###
 
-npz = n.load('pspec.npz')
+#npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_frfnew/pspec.npz')
+npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_noise/pspec.npz') #purely noise 
 kpls,pks,errs = npz['kpl'], npz['pk'], npz['err']
 
 
@@ -51,6 +52,7 @@ fig.subplots_adjust(left=.15, top=.95, bottom=.15, wspace=.15, hspace=.15, right
 #Plot 2
 p.figure(1)
 pklo,pkhi = 1e3,1e13
+#pklo,pkhi = 1e-10,1e5 #for noise only
 p.subplot(gs[2])
 #p.loglog(pIs, pCs, 'k.')
 p.errorbar(pIs, pCs, xerr=2*pIs_err, yerr=2*pCs_err, capsize=0, fmt='k.')
@@ -64,8 +66,8 @@ for kpl,pk,err in zip(kpls,pks,errs):
     #p.([pklo,pkhi], [pk,pk], 'r')
     pkup = max(pk+err,1e-6)
     pkdn = max(pk-err,1e-6)
+    print pkdn,pkup
     p.fill_between([pklo,pkhi], [pkdn,pkdn], [pkup,pkup], facecolor='gray', edgecolor='gray')
-
 #Plot 3    
 ax3 = p.subplot(gs[3])
 p.setp(ax3.get_yticklabels(), visible=False)
