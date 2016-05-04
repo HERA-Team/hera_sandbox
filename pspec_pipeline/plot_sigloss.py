@@ -1,6 +1,8 @@
 #! /usr/bin/env python
 import numpy as n, pylab as p
 from matplotlib import gridspec
+from scipy.interpolate import interp1d
+from capo.pspec import f2z
 import glob
 
 
@@ -36,12 +38,17 @@ pIs,pCs = n.array(pIs), n.array(pCs)
 pIs_err,pCs_err = n.array(pIs_err), n.array(pCs_err)
 
 
+###Build an interpolator to find sigloss factors###
+sig_factor_interp = interp1d(pIs, pIs/pCs,kind='linear',bounds_error=False,fill_value=0)
+
 ### GETTING PSPEC DATA ###
 
 #npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_frfnew/pspec.npz')
 npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_noise/pspec.npz') #purely noise 
 kpls,pks,errs = npz['kpl'], npz['pk'], npz['err']
 
+freq = npz['freq']
+z_bin = f2z(freq)
 
 ### PLOTTING ###
 
@@ -83,10 +90,14 @@ p.xlim(1e-3,20)
 #p.xlim(1,10)
 p.grid()
 p.xlabel(r'$P_{\rm in}/P_{\rm out}-1$', fontsize=14)
+
+sig_factors=[]
 for kpl,pk,err in zip(kpls,pks,errs):
     pkup = max(pk+err,1e-6)
     pkdn = max(pk-err,1e-6)
     p.fill_between([1e-3,20], [pkdn,pkdn], [pkup,pkup], facecolor='gray', edgecolor='gray')
+    if pkup > 1e-6 and kpl > .17:
+        sig_factors.append( sig_factor_interp(pkup))
 
 #Plot 1
 ax0 = p.subplot(gs[0])
@@ -98,8 +109,11 @@ p.xlim(pklo, pkhi)
 p.ylim(0,1.1)
 p.grid()
 p.ylabel(r'$P_{\rm out}/P_{\rm in}$', fontsize=14)
+p.title('z = {0:.2f}'.format(z_bin))
+p.savefig('sigloss.png',format='png')
 
 p.show()
 
+print "Max sigloss factor z={0:.2f}:  {1:.2f}".format(z_bin,n.max(sig_factors))
 
 
