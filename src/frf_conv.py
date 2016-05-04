@@ -9,6 +9,7 @@ from numpy.fft import ifft, fftshift, ifftshift, fftfreq, fft
 import scipy.interpolate
 
 DEFAULT_FRBINS = n.arange(-.01+5e-5/2,.01,5e-5) # Hz
+#DEFAULT_FRBINS = n.arange(-.5/42.94999+5e-5/2,.5/42.94999,5e-5) # Hz old fr_bins, new inttime
 DEFAULT_WGT = lambda bm: bm**2
 DEFAULT_IWGT = lambda h: n.sqrt(h)
 
@@ -25,10 +26,10 @@ def mk_fng(bl, eq):
     return -2*n.pi/a.const.sidereal_day * n.dot(n.cross(n.array([0,0,1.]),bl), eq)
 
 #fringe used in ali et.al to degrade optimal fringe rate filter.
-def mk_fng_alietal(bl, eq):
-    '''Return distorted fringe rates for given eq coordinates and a baseline vector (measured in wavelengths) in eq coords. This was the version used in ali et.al'''
-    ey, ex, ez = eq#yes, ex and ey are flipped.
-    return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
+#def mk_fng(bl, eq):
+#    '''Return distorted fringe rates for given eq coordinates and a baseline vector (measured in wavelengths) in eq coords. This was the version used in ali et.al'''
+#    ey, ex, ez = eq#yes, ex and ey are flipped.
+#    return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
 
 def fr_profile(bm, fng, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT):
     '''Return the fringe-rate profile (binning the beam by fringe rate).'''
@@ -66,13 +67,13 @@ def hmap_to_fr_profile(bm_hmap, bl, lat, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, i
     fng = mk_fng(bl,eq)
     return fr_profile(bm, fng, bins=bins, wgt=wgt, iwgt=iwgt)
     
-def aa_to_fr_profile(aa, (i,j), ch, pol='I', bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT, nside=64, **kwargs):
+def aa_to_fr_profile(aa, (i,j), ch, pol='I', bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT, nside=64, frpad=1, **kwargs):
     '''For an AntennaArray, for a baseline indexed by i,j, at frequency fq, return the fringe-rate profile.'''
     fq = aa.get_afreqs()[ch]
     h = a.healpix.HealpixMap(nside=nside)
     eq = h.px2crd(n.arange(h.npix()), ncrd=3)
     top = n.dot(aa._eq2zen, eq)
-    fng = mk_fng(aa.get_baseline(i,j,'r')*fq, eq)
+    fng = mk_fng(aa.get_baseline(i,j,'r')*fq*frpad, eq)
     # XXX computing bm at all freqs, but only taking one
     _bmx = aa[0].bm_response((top), pol='x')[ch]; _bmx = n.where(top[2] > 0, _bmx, 0)
     _bmy = aa[0].bm_response((top), pol='y')[ch]; _bmy = n.where(top[2] > 0, _bmy, 0)
@@ -124,10 +125,11 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
         mdl: a function to fit the fringe rate profile too. gaussian for default.
     '''
     #print bins
+    startprms = tuple( [startprms[0]*frpad*fq0/fqs[101],startprms[1]])
     if maxfr is None: maxfr = bins[n.argwhere(frp0 != 0).max()] # XXX check this
     prms0 = fit_mdl(frp0, bins, maxfr, mdl=mdl,maxfun=maxfun,ftol=ftol,xtol=xtol,startprms=startprms,verbose=verbose)
-    prms0 = n.array(prms0)
-    prms0[1] *= frpad
+    #prms0 = n.array(prms0)
+    #prms0[1] *= frpad
     if limit_maxfr:
         def limit_maxfr(fq): return tanh(bins,maxfr/fq0*fq,1e-5,a=-1.)
     else:
@@ -146,7 +148,7 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
 
 def apply_frf(aa, data, wgts, i, j, pol='I', firs=None, **kwargs):
     '''Generate & apply fringe-rate filter to data for baseline (i,j).'''
-    freqs, nchan = aa.get_freqs(), data.shape[-1]
+    freqs, nchan = aa.get_afreqs(), data.shape[-1]
     ch0,fq0 = nchan/2, freqs[nchan/2]
     if firs is None: firs = {}
     tbins = None

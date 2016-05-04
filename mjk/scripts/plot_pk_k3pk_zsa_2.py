@@ -160,7 +160,7 @@ def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.164, color=
     print '-'*20
     print "saving pspec_pk_k3pk.npz"
     print "output @ freq = ",f0
-    n.savez('pspec_pk_k3pk.npz',kpl=kpl,pk=pk,err=err,k=k[k0:], k3pk=k3[k0:]*pkfold, k3err=k3[k0:]*errfold,freq=f0)
+    n.savez('pspec_pk_k3pk.npz',kpl=kpl,pk=pk,err=err,k=k[k0:], k3pk=k3[k0:]*pkfold, k3err=k3[k0:]*errfold,freq=f0,frpad=frpad)
     #pos = n.where(kpl >= 0, 1, 0)
     #neg = n.where(kpl <= 0, 1, 0)
     #posneg = 0.5*(k3pk.compress(pos) + k3pk.compress(neg)[::-1])
@@ -202,10 +202,12 @@ dsum, dwgt = {}, {}
 dsum_fold, dwgt_fold = {}, {}
 afreqs=[]
 chans=[]
+frpad = []
 for filename in args:
     print 'Reading', filename
     f = n.load(filename)
     afreqs=f['afreqs']
+    frpad=f['frpad']
     chans=f['chans']
     RS_VS_KPL[filename] = {}
     RS_VS_KPL_FOLD[filename] = {}
@@ -458,7 +460,7 @@ p.plot(n.array(kpl_pos), 2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2), 'c--')
 p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')
-p.ylim(1e0,1e5)
+p.ylim(1e0,1e7)
 p.xlim(0, 0.6)
 p.grid()
 p.savefig('pspec.png')
@@ -529,7 +531,6 @@ def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,theo_no
     #    print data[-1]
     data = n.array(data)
     data_omit = n.array(data_omit)
-    #print data
     #print s
     #data/=n.sum(data)
     data /= n.max(data)

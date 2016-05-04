@@ -14,6 +14,8 @@ o.add_option('--plot', action='store_true',
     help='Generate plots')
 o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
+o.add_option('--output', type='string', default='',
+    help='output directory for pspec_boot files (default "")')
 opts,args = o.parse_args(sys.argv[1:])
 
 #Basic Parameters
@@ -104,7 +106,11 @@ uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
-inttime = uv['inttime'] #* 4 # XXX hack for *E files that have inttime set incorrectly
+#inttime = uv['inttime'] #* 4 # XXX hack for *E files that have inttime set incorrectly
+(uvw,t1,(i,j)),d = uv.read()
+(uvw,t2,(i,j)),d = uv.read()
+while t1 == t2: (uvw,t2,(i,j)),d = uv.read()
+inttime = (t2-t1)* (3600*24)
 del(uv)
 
 afreqs = freqs.take(chans)
@@ -113,7 +119,7 @@ fq = n.average(afreqs)
 z = capo.pspec.f2z(fq)
 
 #aa = a.cal.get_aa(opts.cal, n.array([.150]))
-aa = a.cal.get_aa(opts.cal, afreqs)
+aa = a.cal.get_aa(opts.cal, freqs)
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
 jy2T = capo.pspec.jy2T(afreqs)
 window = a.dsp.gen_window(nchan, WINDOW)
@@ -234,7 +240,7 @@ for boot in xrange(opts.nboot):
             else: fir = {(ij[0],ij[1],POL):firs}
             dij,wij = n.transpose(eor1, [1,0]),n.logical_not(wij)
             _d,_w,_,_ = fringe.apply_frf(aa,dij,wij,ij[0],ij[1],pol=POL,bins=bins,firs=fir)
-        
+
             ### OLD CODE TO FRF ###
             #for cnt,ch in enumerate(chans):
             #    eor1[cnt] = n.convolve(eor1[cnt], n.conj(firs[cnt]), mode='same') #conjugate firs!!!
@@ -433,14 +439,18 @@ for boot in xrange(opts.nboot):
         p.show()
 
     print 'pI=', n.average(pI.real), 'pC=', n.average(pC.real), 'pI/pC=', n.average(pI.real)/n.average(pC.real)
-    
+
     if PLOT:
         p.plot(kpl, n.average(pC.real, axis=1), 'b.-')
         p.plot(kpl, n.average(pI.real, axis=1), 'k.-')
         p.show()
 
     print '   Writing pspec_bootsigloss%04d.npz' % boot
-    n.savez('pspec_bootsigloss%04d.npz'%boot, kpl=kpl, scalar=scalar, times=n.array(lsts),
+
+    if len(opts.output) > 0: outpath = opts.output+'/pspec_boot%04d.npz' % boot
+    else: outpath = 'pspec_boot%04d.npz' % boot
+
+    n.savez(outpath, kpl=kpl, scalar=scalar, times=n.array(lsts),
         pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
         cmd=' '.join(sys.argv))
 

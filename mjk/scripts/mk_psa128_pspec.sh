@@ -5,14 +5,18 @@ export PYTHONPATH='.':$PYTHONPATH
 echo using config $*
 . $*
 #set defaults to parameters which might not be set
+
 if [[ ! -n ${WINDOW} ]]; then export WINDOW="none"; fi
+
 #for posterity,
 echo the cal file we are using: 
 pywhich $cal
 
+
 #form up the sigloss factors
 cov_array=($covs)
 chan_array=($chans)
+
 declare -A scales
 for (( i=0; i<${#chan_array[@]}; ++i )); do
     if [ -z "$covs" ]; then
@@ -47,10 +51,17 @@ for (( i=0; i<${#chan_array[@]}; ++i )); do
 done
 
 if [ $USE_pI == True ]; then
-    use_pI='--nocov'
+    nocov='--nocov'
 else
-    use_pI=''
+    nocov=''
 fi
+
+
+#for (( i=0; i<${#chan_array[@]}; ++i )); do
+#  echo ${chan_array[$i]} ${noise_append[${chan_array[$i]}]}
+#done
+
+
 
 threadcount=`python -c "c=map(len,['${pols}'.split(),'${chans}'.split(),'${seps}'.split()]);print c[0]*c[1]*c[2]"`
 echo Running $threadcount pspecs
@@ -104,26 +115,30 @@ for chan in $chans; do
                     echo using ${#EVEN_FILES} even files and ${#ODD_FILES} odd files
                     # If plotting covariances
                     if [ $PLOT == True ]; then 
-                    echo python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} \
+                    echo python ${SCRIPTSDIR}/pspec_cov_v002.py -C ${cal} \
                          -b ${NBOOT} -a ${ANTS} -c ${chan} -p ${pol}\
                           --window=${WINDOW}  ${NOPROJ} --output=${sepdir} --rmbls=${RMBLS} --plot \
+                          ${noise_append[${chan}]} \
                            ${EVEN_FILES} ${ODD_FILES} ${OPTIONS}
-                    python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} -b ${NBOOT} \
+                    python ${SCRIPTSDIR}/pspec_cov_v002.py -C ${cal} -b ${NBOOT} \
                         -a ${ANTS} -c ${chan} -p ${pol} --window=${WINDOW} \
                           ${NOPROJ} --output=${sepdir} --rmbls=${RMBLS} --plot \
+                          ${noise_append[${chan}]} \
                           ${EVEN_FILES} ${ODD_FILES} ${OPTIONS} \
                          | tee -a ${LOGFILE}
                     fi
                     
                     # If not plotting covariances
                     if [ $PLOT == False ]; then
-                    echo python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} \
+                    echo python ${SCRIPTSDIR}/pspec_cov_v002.py -C ${cal} \
                          -b ${NBOOT} -a ${ANTS} -c ${chan} -p ${pol}\
                           --window=${WINDOW}  ${NOPROJ} --output=${sepdir} --rmbls=${RMBLS} \
+                          ${noise_append[${chan}]} \
                            ${EVEN_FILES} ${ODD_FILES} ${OPTIONS}
-                    python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} -b ${NBOOT} \
+                    python ${SCRIPTSDIR}/pspec_cov_v002.py -C ${cal} -b ${NBOOT} \
                         -a ${ANTS} -c ${chan} -p ${pol} --window=${WINDOW} \
                           ${NOPROJ} --output=${sepdir} --rmbls=${RMBLS} \
+                          ${noise_append[${chan}]} \
                           ${EVEN_FILES} ${ODD_FILES} ${OPTIONS} \
                          | tee -a ${LOGFILE}
                     fi
@@ -135,9 +150,9 @@ for chan in $chans; do
                 if [ $BOOT == True ]; then
                 echo Beginning bootstrap: `date` | tee -a ${LOGFILE} 
                 if [ $PLOT == True ]; then
-                ${SCRIPTSDIR}/pspec_cov_boot_v002.py ${sepdir}/pspec_boot*npz ${use_pI}  | tee -a ${LOGFILE} 
+                ${SCRIPTSDIR}/pspec_cov_boot_v002.py ${sepdir}/pspec_boot*npz ${nocov} | tee -a ${LOGFILE} 
                 else
-                ${SCRIPTSDIR}/pspec_cov_boot_v002.py ${sepdir}/pspec_boot*npz ${use_pI}  | tee -a ${LOGFILE}
+                ${SCRIPTSDIR}/pspec_cov_boot_v002.py ${sepdir}/pspec_boot*npz ${nocov} | tee -a ${LOGFILE}
                 fi
                 fi
                 echo complete! `date`| tee -a ${LOGFILE} 
