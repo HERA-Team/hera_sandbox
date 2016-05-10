@@ -12,7 +12,7 @@ o.add_option('--xtalk',dest='xtalk',default=False,action='store_true',
             help='Toggle: apply xtalk solutions to data. Default=False')
 o.add_option('--omnipath',dest='omnipath',default='%s.npz',type='string',
             help='Format string (e.g. "path/%s.npz", where you actually type the "%s") which converts the input file name to the omnical npz path/file.')
-o.add_option('--firstcal', default=False, action='store_true',
+o.add_option('--firstcal', action='store',
             help='apply firstcal solutions.')
 opts,args = o.parse_args(sys.argv[1:])
 
@@ -28,7 +28,7 @@ for filename in args:
         files[filename][p] = '.'.join(fn)
 
 if opts.firstcal:
-    firstfile = numpy.load('fcgains.xx.npz')
+    firstfile = numpy.load(opts.firstcal)
     gains = {'x':{}}
     for ant in firstfile.keys():
         if ant.isdigit():
