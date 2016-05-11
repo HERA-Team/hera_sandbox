@@ -80,7 +80,7 @@ o = optparse.OptionParser()
 o.set_usage('omni_run.py [options] *uvcRRE')
 o.set_description(__doc__)
 aipy.scripting.add_standard_options(o,cal=True,pol=True)
-o.add_option('--calpar',dest='calpar',type='string',default=None
+o.add_option('--calpar',dest='calpar',type='string',default=None,
             help='Path and name of POL.p ("xx.p") calpar file.')
 o.add_option('--redinfo',dest='redinfo',type='string',default='',
             help='Path and name of .bin redundant info file.')
