@@ -80,7 +80,7 @@ o = optparse.OptionParser()
 o.set_usage('omni_run.py [options] *uvcRRE')
 o.set_description(__doc__)
 aipy.scripting.add_standard_options(o,cal=True,pol=True)
-o.add_option('--calpar',dest='calpar',type='string',
+o.add_option('--calpar',dest='calpar',type='string',default=None
             help='Path and name of POL.p ("xx.p") calpar file.')
 o.add_option('--redinfo',dest='redinfo',type='string',default='',
             help='Path and name of .bin redundant info file.')
@@ -97,7 +97,7 @@ pols = opts.pol.split(',')
 #files = {}
 files=[]
 g0 = {} #firstcal gains
-if not opts.calpar==None:
+if not opts.calpar==None: #create g0 if txt file is provided
     fname=opts.calpar
     if fname.endswith('.txt'):
         f=open(fname,'r')
@@ -137,9 +137,7 @@ if not opts.calpar==None:
                 g0[pol][ant]=numpy.array(g0[pol][ant])      #g0={pol:{ant:{array(jds,freq)}}}
     else:
         raise IOError('invalid txtfile')
-#else: create g0 with all ones
-#else: #if the linpol first_cal is missing, do worry
-#    raise IOError('Missing first_cal file %s'%new_cp)
+#if not provided, will initiate g0 with units in the reading file part
 
 for filename in args:
     files.append(filename)
@@ -176,15 +174,17 @@ if len(files)>0:
 
     #pol = filename.split('.')[-2] #XXX assumes 1 pol per file
     timeinfo,d,f,ginfo,freqs = uv_read(files, filetype=opts.ftype, polstr=opts.pol, antstr='cross')
+    
+    #if txt file is not provided, g0 is initiated here, with all of them to be 1.0
     if opts.calpar==None:
         for p in pols:
             if not g0.has_key(p[0]): g0[p[0]]={}
             for iant in range(0, ginfo[0]):
                 g0[p[0]][iant]=numpy.ones((ginfo[1],ginfo[2]))
+
     t_jd = timeinfo['times']
     t_lst = timeinfo['lsts']
-#freqs = numpy.arange(.1,.2,.1/len(d[d.keys()[0]][pols[0]][0]))
-#SH = d.values()[0].values()[0].shape #shape of file data (ex: (19,203))
+
     data,wgts,xtalk = {}, {}, {}
     m2,g2,v2 = {}, {}, {}
     data = d #indexed by bl and then pol (backwards from everything else)
