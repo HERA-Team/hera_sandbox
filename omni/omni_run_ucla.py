@@ -2,30 +2,51 @@
 
 import omnical, aipy, numpy, capo
 import pickle, optparse, os, sys
-import uvdata.uv as uvd
+import uvdata.uv as uvd, math
 
 #####################################################################################################
 def uv_read(filenames, filetype=None, polstr=None,antstr=None,recast_as_array=True):
     info={'lsts':[], 'times':[]}
     dat, flg={},{}
-    uvdata=uvd.UVData()
+    ginfo=[0,0,0]
+    #    uvdata=uvd.UVData()
     if type(filenames) == 'str': filenames=[filenames]
     for filename in filenames:
-        uvdata.read(filename, filetype)
-        tt=uvdata.time_array
+        uvdata=uvd.UVData()
+        if filetype == 'miriad':
+            uvdata.read_miriad(filename)
+        elif filetype == 'uvfits':
+            uvdata.read_uvfits(filename)
+        elif filetype == 'fhd':
+            uvdata.read_fhd(filenames)
+        else:
+            raise IOError('invalid filetype, it should be miriad, uvfits, or fhd')
+        #uvdata.read(filename, filetype)
+        tt=uvdata.time_array.value
+        Nt=uvdata.Ntimes.value
         blt=len(tt)
-        for nbl in range(0,blt):
-            if tt[nbl]!=tt[0]: break
-        Nt=blt/nbl
+        nbl=uvdata.Nbls.value
+        nfreq=uvdata.Nfreqs.value
+#        for nbl in range(0,blt):
+#            if tt[nbl]!=tt[0]: break
+#        Nt=blt/nbl
         for ii in range(0,Nt):
             info['times'].append(tt[ii*nbl])
             info['lsts'].append(tt[ii*nbl])   #not sure how to calculate lsts
-        pol=uvdata.polarization_array
+        pol=uvdata.polarization_array.value
         npol=len(pol)
-        data=uvdata.data_array
-        flag=uvdata.flag_array
-        ant1=uvdata.ant_1_array
-        ant2=uvdata.ant_2_array
+        data=uvdata.data_array.value
+        flag=uvdata.flag_array.value
+        ant1=uvdata.ant_1_array.value
+        ant2=uvdata.ant_2_array.value
+        freqarr=uvdata.freq_array.value[0]
+        
+        nant=int((1+math.sqrt(1+8*nbl))/2)
+
+#ginfo=[nant, Nt, nfreq]
+        ginfo[0]=nant
+        ginfo[1]+=Nt
+        ginfo[2]=nfreq
         
         for ii in range(0,blt):
             bl=(ant1[ii],ant2[ii])
@@ -44,14 +65,15 @@ def uv_read(filenames, filetype=None, polstr=None,antstr=None,recast_as_array=Tr
                     flag00.append(flag[ii][jj][nn][0])
                 dat[bl][pp].append(data00)
                 flg[bl][pp].append(flag00)
-        if recast_as_array:
-            for ii in dat.keys():
-                for jj in dat[ii].keys():
-                    dat[ii][jj]=numpy.array(dat[ii][jj])
-                    flg[ii][jj]=numpy.array(flg[ii][jj])
-            info['lsts'] = numpy.array(info['lsts'])
-            info['times'] = numpy.array(info['times'])
-    return info, dat, flg
+        if filetype=='fhd': break
+    if recast_as_array:
+        for ii in dat.keys():
+            for jj in dat[ii].keys():
+                dat[ii][jj]=numpy.array(dat[ii][jj])
+                flg[ii][jj]=numpy.array(flg[ii][jj])
+        info['lsts'] = numpy.array(info['lsts'])
+        info['times'] = numpy.array(info['times'])
+    return info, dat, flg, ginfo, freqarr
 ######################################################################################################
 
 o = optparse.OptionParser()
@@ -72,7 +94,8 @@ opts,args = o.parse_args(sys.argv[1:])
 
 #Dictionary of calpar gains and files
 pols = opts.pol.split(',')
-files = {}
+#files = {}
+files=[]
 g0 = {} #firstcal gains
 if not opts.calpar==None:
     fname=opts.calpar
@@ -90,7 +113,7 @@ if not opts.calpar==None:
                 elif s.strip()=='NN': s='yy'
                 temp2.append(s)
             if temp2[2].strip()=='EN' or temp2[2].strip()=='NE': continue
-            temp3=[temp2[2], int(temp2[0]), float(temp2[3]), float(temp2[1]), float(temp2[4]), float(temp2[5])]
+            temp3=[temp2[2], int(temp2[0]), float(temp2[3]), float(temp2[1]), float(temp2[4]), float(temp2[5])]  #temp3=[pol,ant,jds,freq,real,imag]
             tkn.append(temp3)
         for p,pp in enumerate(tkn):
             if not g.has_key(pp[0][0]):
@@ -103,26 +126,28 @@ if not opts.calpar==None:
                 g[pp[0][0]][pp[1]][pp[2]]={}
             if not g[pp[0][0]][pp[1]][pp[2]].has_key(pp[3]):
                 gg=complex(pp[4],pp[5])
-                g[pp[0][0]][pp[1]][pp[2]][pp[3]]=gg.conjugate()/abs(gg)
-        for i1, pol in enumerate(g):
+                g[pp[0][0]][pp[1]][pp[2]][pp[3]]=gg.conjugate()/abs(gg)#g{pol:{ant:{jds:{freq:gain}}}}
+        for i1, pol in pols:
             for i2, ant in enumerate(g[pol]):
                 for i3, jds in enumerate(g[pol][ant]):
                     ff=[]
                     for i4, freq in enumerate(g[pol][ant][jds]):
                         ff.append(g[pol][ant][jds][freq])
                     g0[pol][ant].append(ff)
-                g0[pol][ant]=numpy.array(g0[pol][ant])
+                g0[pol][ant]=numpy.array(g0[pol][ant])      #g0={pol:{ant:{array(jds,freq)}}}
     else:
         raise IOError('invalid txtfile')
-else: #if the linpol first_cal is missing, do worry
-    raise IOError('Missing first_cal file %s'%new_cp)
-        
+#else: create g0 with all ones
+#else: #if the linpol first_cal is missing, do worry
+#    raise IOError('Missing first_cal file %s'%new_cp)
+
 for filename in args:
-    files[filename] = {}
-    for p in pols:
-        fn = filename.split('.')
-        fn[-2] = p
-        files[filename][p] = '.'.join(fn)
+    files.append(filename)
+#    files[filename] = {}
+#    for p in pols:
+#        fn = filename.split('.')
+#        fn[-2] = p
+#        files[filename][p] = filename
 
 #Create info
 if opts.redinfo != '': #reading redinfo file
@@ -143,18 +168,23 @@ else: #generate reds from calfile
 reds = info.get_reds()
 
 ### Omnical-ing! Loop Through Compressed Files ###
-for f,filename in enumerate(args):
-    file_group = files[filename] #dictionary with pol indexed files
+#for f,filename in enumerate(args):
+if len(files)>0:
+    #file_group = files[filename] #dictionary with pol indexed files
     print 'Reading:'
-    for key in file_group.keys(): print '   '+file_group[key]
+    for fn in files: print fn
 
     #pol = filename.split('.')[-2] #XXX assumes 1 pol per file
-    timeinfo,d,f = uv_read([file_group[key] for key in file_group.keys()], filetype=opts.ftype, polstr=opts.pol, antstr='cross')
-    
+    timeinfo,d,f,ginfo,freqs = uv_read(files, filetype=opts.ftype, polstr=opts.pol, antstr='cross')
+    if opts.calpar==None:
+        for p in pols:
+            if not g0.has_key(p[0]): g0[p[0]]={}
+            for iant in range(0, ginfo[0]):
+                g0[p[0]][iant]=numpy.ones((ginfo[1],ginfo[2]))
     t_jd = timeinfo['times']
     t_lst = timeinfo['lsts']
-    freqs = numpy.arange(.1,.2,.1/len(d[d.keys()[0]][pols[0]][0]))
-    SH = d.values()[0].values()[0].shape #shape of file data (ex: (19,203))
+#freqs = numpy.arange(.1,.2,.1/len(d[d.keys()[0]][pols[0]][0]))
+#SH = d.values()[0].values()[0].shape #shape of file data (ex: (19,203))
     data,wgts,xtalk = {}, {}, {}
     m2,g2,v2 = {}, {}, {}
     data = d #indexed by bl and then pol (backwards from everything else)
