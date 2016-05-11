@@ -27,9 +27,7 @@ def uv_read(filenames, filetype=None, polstr=None,antstr=None,recast_as_array=Tr
         blt=len(tt)
         nbl=uvdata.Nbls.value
         nfreq=uvdata.Nfreqs.value
-#        for nbl in range(0,blt):
-#            if tt[nbl]!=tt[0]: break
-#        Nt=blt/nbl
+        
         for ii in range(0,Nt):
             info['times'].append(tt[ii*nbl])
             info['lsts'].append(tt[ii*nbl])   #not sure how to calculate lsts
@@ -45,7 +43,7 @@ def uv_read(filenames, filetype=None, polstr=None,antstr=None,recast_as_array=Tr
 
 #ginfo=[nant, Nt, nfreq]
         ginfo[0]=nant
-        ginfo[1]+=Nt
+        ginfo[1]=Nt
         ginfo[2]=nfreq
         
         for ii in range(0,blt):
@@ -94,8 +92,9 @@ opts,args = o.parse_args(sys.argv[1:])
 
 #Dictionary of calpar gains and files
 pols = opts.pol.split(',')
-#files = {}
-files=[]
+files = {}
+fhdfiles = []
+#files=[]
 g0 = {} #firstcal gains
 if not opts.calpar==None: #create g0 if txt file is provided
     fname=opts.calpar
@@ -140,12 +139,16 @@ if not opts.calpar==None: #create g0 if txt file is provided
 #if not provided, will initiate g0 with units in the reading file part
 
 for filename in args:
-    files.append(filename)
-#    files[filename] = {}
-#    for p in pols:
-#        fn = filename.split('.')
-#        fn[-2] = p
-#        files[filename][p] = filename
+    if opts.ftype=='uvfits' or opts.ftype=='miriad':
+        files[filename] = {}
+        for p in pols:
+            fn = filename.split('.')
+            fn[-2] = p
+            files[filename][p] = '.'.join(fn)
+    elif opts.ftype=='fhd':
+        fhdfiles.append(filename)
+    else:
+        raise IOError('invalid filetype, it should be miriad, uvfits, or fhd')
 
 #Create info
 if opts.redinfo != '': #reading redinfo file
@@ -166,14 +169,20 @@ else: #generate reds from calfile
 reds = info.get_reds()
 
 ### Omnical-ing! Loop Through Compressed Files ###
-#for f,filename in enumerate(args):
-if len(files)>0:
-    #file_group = files[filename] #dictionary with pol indexed files
-    print 'Reading:'
-    for fn in files: print fn
+for f,filename in enumerate(args):
+    #if len(files)>0:
+    if opts.ftype=='uvfits' or opts.ftype=='miriad':
+        file_group = files[filename] #dictionary with pol indexed files
+        print 'Reading:'
+        for key in file_group.keys(): print '   '+file_group[key]
 
     #pol = filename.split('.')[-2] #XXX assumes 1 pol per file
-    timeinfo,d,f,ginfo,freqs = uv_read(files, filetype=opts.ftype, polstr=opts.pol, antstr='cross')
+        timeinfo,d,f,ginfo,freqs = uv_read([file_group[key] for key in file_group.keys()], filetype=opts.ftype, polstr=opts.pol, antstr='cross')
+
+    elif opts.ftype=='fhd':
+        print 'Reading:'
+        for fn in fhdfiles: print fn
+        timeinfo,d,f,ginfo,freqs = uv_read(fhdfiles, filetype=opts.ftype, polstr=opts.pol, antstr='cross')
     
     #if txt file is not provided, g0 is initiated here, with all of them to be 1.0
     if opts.calpar==None:
@@ -210,4 +219,6 @@ if len(files)>0:
     
     print '   Saving %s'%npzname
     capo.omni.to_npz(npzname, m2, g2, v2, xtalk)
+
+    if opts.ftype=='fhd': break
     
