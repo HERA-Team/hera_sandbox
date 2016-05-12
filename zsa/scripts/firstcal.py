@@ -4,12 +4,22 @@ import numpy as n, pylab as p, aipy as a
 import sys,optparse
 
 o = optparse.OptionParser()
-a.scripting.add_standard_options(o,cal=True)
-#o.add_option('--cal', action='store',
-#    help='File path for the connections.')
+a.scripting.add_standard_options(o,cal=True,pol=True)
 o.add_option('--plot', action='store_true', help='Plot things.')
-o.add_option('--pol', action='store', default='xx',
-    help='polarization')
+o.add_option('--bls', action='store', default=None,
+    help='Include only these baselines when solving')
+o.add_option('--ex_bls', action='store', default=None,
+    help='Remove these baselines when solving.')
+o.add_option('--ants', action='store', default=None,
+    help='Use baselines with these antennas when solving.')
+o.add_option('--ex_ants', action='store', default=None,
+    help='Exclude these antennas when solving.')
+o.add_option('--ubls', action='store', default=None,
+    help='Include all baselines of this type (give example baseline) when solving.')
+o.add_option('--ex_ubls', action='store', default=None,
+    help='Exclude all baselines of this type (give example baseline) when solving.')
+
+
 opts,args = o.parse_args(sys.argv[1:])
 connection_file=opts.cal
 PLOT=opts.plot
@@ -39,10 +49,8 @@ def normalize_data(datadict):
     
 #hera info assuming a hex of 19 and 128 antennas
 aa = a.cal.get_aa(opts.cal, n.array([.150]))
-#info = omni.aa_to_info(aa, fcal=True, ubls=[(80,104),(64,80),(53,80),(80,96)], ex_ants=[81])
-info = omni.aa_to_info(aa, fcal=True, ex_ants=[81])
+info = omni.aa_to_info(aa, fcal=True, bls=opts.bls, ex_bls=opts.ex_bls, ants=opts.ants, ex_ants=opts.ex_ants, ubls=opts.ubls, ex_ubls=opts.ex_ubls) #ex_ants=[81])
 reds = flatten_reds(info.get_reds())
-print reds
 print len(reds)
 
 #Read in data here.
