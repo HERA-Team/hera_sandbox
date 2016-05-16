@@ -14,7 +14,7 @@ o.add_option('--xtalk',dest='xtalk',default=False,action='store_true',
 o.add_option('--omnipath',dest='omnipath',default='%s.npz',type='string',
             help='Format string (e.g. "path/%s.npz", where you actually type the "%s") which converts the input file name to the omnical npz path/file.')
 o.add_option('--intype', dest='intype', default='', type='string',
-             help='Type of the input file, .uvfits, or miriad, or fhd')
+             help='Type of the input file, .uvfits, or miriad, or fhd, to read fhd, use comma to separate different save files, and put the vis file at the end')
 o.add_option('--outtype', dest='outtype', default='uvfits', type='string',
              help='Type of the output file, .uvfits, or miriad, or fhd')
 opts,args = o.parse_args(sys.argv[1:])
@@ -63,6 +63,15 @@ for f,filename in enumerate(args):
             print '    %s exists.  Skipping...' % newfile
             continue
         times = []
+
+        uvi = uvd.UVData()
+        if intype == 'uvfits':
+            uvi.read_uvfits(files[filename][p])
+        elif intype == 'miriad':
+            uvi.read_miriad(files[filename][p])
+        elif intype == 'fhd':
+            fnames = files[filename][p].split(',')
+            uvi.read_fhd(fnames)
     
 #        def mfunc(uv,p,d,f): #loops over time and baseline
 #            global times #global list

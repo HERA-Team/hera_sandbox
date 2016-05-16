@@ -345,7 +345,7 @@ def uv_read(filenames, filetype=None, polstr=None,antstr=None,recast_as_array=Tr
     dat, flg = {},{}
     ginfo = [0,0,0]
     #    uvdata=uvd.UVData()
-    if type(filenames) == 'str': filenames = [filenames]
+    if type(filenames) == str: filenames = [filenames]
     for filename in filenames:
         uvdata = uvd.UVData()
         if filetype == 'miriad':
