@@ -109,7 +109,7 @@ print '\nNow performing uCal...\n'
 
 if regenerateEverything: #regenerate uReds and data
     uReds = uc.uCalReds(freqs, bls, chan2FreqDict, bl2SepDict, maxDeltau=.3, verbose=True) #just pass in freqs
-    #uReds.applyuCut(uMin=25, uMax=150)
+    uReds.applyuCut(uMin=25, uMax=150)
     uReds.applyChannelFlagCut(flaggedChannels) 
     uCal = uc.uCalibrator(uReds.getBlChanPairs())
     uCal.computeVisibilityCorrelations(data, samples, verbose = True)
@@ -138,7 +138,7 @@ while True:
 #        noiseCovDiag = np.ones(noiseCovDiag.shape)
 
     noiseCovDiag = uCal.renormalizeNoise(betas, Sigmas, Ds, noiseCovDiag)
-    badChans = uCal.identifyBadChannels(betas, Sigmas, Ds, noiseCovDiag, maxAvgError = 5)
+    badChans = uCal.identifyBadChannels2(betas, Sigmas, Ds, noiseCovDiag, maxAvgError = .5)
     if len(badChans)==0: break
     print 'Removing bad channels: ', badChans
     uCal.applyChannelFlagCut(badChans)
@@ -171,6 +171,7 @@ if True:
         plt.ylim([.9*np.min(y), 1.1*np.max(y)]); plt.xlim([.9*np.min(x), 1.1*np.max(x)])
         plt.xlabel(xl); plt.ylabel(yl); plt.title(title)
     duList = np.asarray([entry['du'] for entry in uCal.blChanPairs.values()])
+    uList = np.asarray([entry['u'][0] for entry in uCal.blChanPairs.values()])
     ch1List = np.asarray([ch1 for (ch1,bl1,ch2,bl2) in uCal.blChanPairs.keys()])
     ch2List = np.asarray([ch2 for (ch1,bl1,ch2,bl2) in uCal.blChanPairs.keys()])
 
@@ -184,7 +185,7 @@ if True:
     plt.figure(2); plt.clf()
     visCorrs = np.asarray([entry['visCorr'] for entry in uCal.blChanPairs.values()])
     predictedCorrs = visCorrs - uCal.computeErrors(betas, Sigmas, Ds)
-    lincalScatter(np.abs(predictedCorrs), np.abs(visCorrs), color=ch1List, figNum=2, ys='log', xs='log', title = '')
+    lincalScatter(np.abs(predictedCorrs), np.abs(visCorrs), color=uList, figNum=2, ys='log', xs='log', title = '')
     plt.plot([0,1],[0,1],'k--')
     plt.xlabel('Abs(Predicted Correlations)'); plt.ylabel('Abs(Observe Correlations)')
 
@@ -200,9 +201,12 @@ if True:
     #%%Identify bad channels
     chanCompiledList = {chan: [] for chan in uCal.chans}
     errorList = uCal.computeErrors(betas, Sigmas, Ds)
-    for f1,f2,error,Nii in zip(ch1List,ch2List,errorList,noiseCovDiag):
-        chanCompiledList[f1].append(error/(2*Nii**.5))
-        chanCompiledList[f2].append(error/(2*Nii**.5))
+    visCorrs = np.asarray([entry['visCorr'] for entry in uCal.blChanPairs.values()])
+    for f1,f2,error,Nii,visCorr in zip(ch1List,ch2List,errorList,noiseCovDiag,visCorrs):
+#        chanCompiledList[f1].append(error/((2*Nii)**.5))
+#        chanCompiledList[f2].append(error/((2*Nii)**.5))
+        chanCompiledList[f1].append(np.abs(error/visCorr))
+        chanCompiledList[f2].append(np.abs(error/visCorr))
     chanAvgErrors = np.asarray([np.mean(np.abs(np.asarray(chanCompiledList[chan]))) for chan in uCal.chans])
     plt.figure(4); plt.clf()
     plt.plot(uCal.chans, chanAvgErrors,'.')
@@ -211,3 +215,13 @@ if True:
     if len(badChans) > 0: print 'Channels with average sigma > 2.5: ', badChans
 
     plt.show()
+
+
+#%%
+    plt.plot(223); plt.clf()
+    visCorrs = np.asarray([entry['visCorr'] for entry in uCal.blChanPairs.values()])
+    errorList = uCal.computeErrors(betas, Sigmas, Ds)
+    lincalScatter(np.abs(visCorrs), np.abs(errorList), color=uList)
+    plt.plot([0,1],[0,1])
+    plt.plot([0,1],[0,.1])
+    plt.plot([0,1],[0,.01])
