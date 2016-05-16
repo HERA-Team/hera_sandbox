@@ -93,6 +93,7 @@ for f,filename in enumerate(args):
                 except(KeyError): pass
                 try: uvi.data_array.value[ii][0][jj][ip] /= gains[p2][a2][ti][jj].conj()
                 except(KeyError): pass
+        uvi.history.value = ''
         if opts.outtype == 'uvfits':
             uvi.write_uvfits(newfile)
     
