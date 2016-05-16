@@ -53,7 +53,8 @@ def get_colors(N):
     def map_index_to_rgb(index):
         return scal_map.to_rgba(index)
     return map_index_to_rgb
-
+def noise_equivalent_bandwidth(t,H):
+    return 1/n.max(n.abs(H))**2 * n.sum(n.abs(H)**2)*n.diff(t)[0] 
 
 freqs = n.linspace(0.1,0.2,num=203)
 aa = a.cal.get_aa(opts.cal, freqs)
@@ -112,7 +113,7 @@ for cnt,pad in enumerate(frpads):
 
         timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan], limit_xtalk=True)
         
-        print 'current sum of n.abs(firs)**2: ', n.sum(n.abs(firs[sep][mychan])**2)
+            
         
         if False and pad ==1:
             delta=prms0[-1]/n.sqrt(1+prms0[-1]**2)
@@ -140,7 +141,11 @@ for cnt,pad in enumerate(frpads):
         envelope /= n.max(envelope)
         dt = n.sqrt(n.sum(envelope*timebins**2)/n.sum(envelope))
         dt_50 = (timebins[envelope>0.5].max() - timebins[envelope>0.5].min())
-        print "pad:", pad, "variance width ",sep, " [s]:",int(n.round(dt)),"50% width",int(n.round(dt_50))
+        print "pad = ", pad, "variance width = ",sep, 
+        print " [s]:",int(n.round(dt)),
+        print "50% width = ",int(n.round(dt_50)),
+        print "NEQW (frp) = ",1/noise_equivalent_bandwidth(frp_freqs,frps[sep]),
+        print "NEQW (time) = ",noise_equivalent_bandwidth(timebins,firs[sep])
     if opts.output: 
         filename = 'fringe_rate_profile_pad{pad}int{inttime}.pkl'.format(
                     pad=pad,inttime=opts.inttime)
@@ -165,9 +170,3 @@ if PLOT:
     ax_firs.legend(loc='best')
     p.show()
 
-#f= open('frf_diagnose_parsons_42.pkl','w')
-
-
-#pickle.dump(frps,f)
-
-#f.close()
