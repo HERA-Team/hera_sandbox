@@ -52,7 +52,8 @@ for f,filename in enumerate(args):
             omnifile = opts.omnipath % filename.split('/')[-1].split('_')[0]+pols[0]
     print '   Omnical npz:', omnifile
     _,gains,_,xtalk = capo.omni.from_npz(omnifile) #loads npz outputs from omni_run
-    for p in pols:
+
+    for ip,p in enumerate(pols):
         print 'Reading', files[filename][p]
         if opts.outtype == 'uvfits':
             newfn = omnifile.split('.')
@@ -62,16 +63,38 @@ for f,filename in enumerate(args):
         if os.path.exists(newfile):
             print '    %s exists.  Skipping...' % newfile
             continue
-        times = []
+        #times = []
 
         uvi = uvd.UVData()
-        if intype == 'uvfits':
+        if opts.intype == 'uvfits':
             uvi.read_uvfits(files[filename][p])
-        elif intype == 'miriad':
+        elif opts.intype == 'miriad':
             uvi.read_miriad(files[filename][p])
-        elif intype == 'fhd':
+        elif opts.intype == 'fhd':
             fnames = files[filename][p].split(',')
             uvi.read_fhd(fnames)
+
+        Nblts = uvi.Nblts.value
+        Nfreqs = uvi.Nfreqs.value
+        Nbls = uvi.Nbls.value
+
+        for ii in range(0,Nblts):
+            a1 = uvi.ant_1_array.value[ii]
+            a2 = uvi.ant_2_array.value[ii]
+            p1,p2 = p
+            ti = ii/Nbls
+            for jj in range(0,Nfreqs):
+                if opts.xtalk:
+                    try: uvi.data_array.value[ii][0][jj][ip] -= xtalk[p][(a1,a2)][jj]
+                    except(KeyError):
+                        try: uvi.data_array.value[ii][0][jj][ip] -= xtalk[p][(a1,a2)][jj].conj()
+                        except(KeyError): pass
+                try: uvi.data_array.value[ii][0][jj][ip] /= gains[p1][a1][ti][jj]
+                except(KeyError): pass
+                try: uvi.data_array.value[ii][0][jj][ip] /= gains[p2][a2][ti][jj].conj()
+                except(KeyError): pass
+        if opts.outtype == 'uvfits':
+            uvi.write_uvfits(newfile)
     
 #        def mfunc(uv,p,d,f): #loops over time and baseline
 #            global times #global list
