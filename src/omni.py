@@ -344,6 +344,7 @@ def uv_read(filenames, filetype=None, polstr=None,antstr=None,recast_as_array=Tr
     info = {'lsts':[], 'times':[]}
     dat, flg = {},{}
     ginfo = [0,0,0]
+    freqarr = []
     #    uvdata=uvd.UVData()
     if type(filenames) == str: filenames = [filenames]
     for filename in filenames:
@@ -353,8 +354,7 @@ def uv_read(filenames, filetype=None, polstr=None,antstr=None,recast_as_array=Tr
         elif filetype == 'uvfits':
             uvdata.read_uvfits(filename)
         elif filetype == 'fhd':
-            fnames = filename.split(',')
-            uvdata.read_fhd(fnames)
+            uvdata.read_fhd(filename)
         else:
             raise IOError('invalid filetype, it should be miriad, uvfits, or fhd')
         #uvdata.read(filename, filetype)
