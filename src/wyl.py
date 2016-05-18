@@ -1,5 +1,3 @@
-#moved this function to wenyang-li/capo/src/omni.py
-
 import numpy as np, omnical, aipy, math
 import uvdata.uv as uvd
 
@@ -108,10 +106,10 @@ def uv_read(filenames, filetype=None, polstr=None,antstr=None,recast_as_array=Tr
                 dat[bl][pp].append(data00)
                 flg[bl][pp].append(flag00)
     #        if filetype == 'fhd': break
-if recast_as_array:
-    for ii in dat.keys():
-        for jj in dat[ii].keys():
-            dat[ii][jj] = np.array(dat[ii][jj])
+    if recast_as_array:
+        for ii in dat.keys():
+            for jj in dat[ii].keys():
+                dat[ii][jj] = np.array(dat[ii][jj])
                 flg[ii][jj] = np.array(flg[ii][jj])
         info['lsts'] = np.array(info['lsts'])
         info['times'] = np.array(info['times'])
