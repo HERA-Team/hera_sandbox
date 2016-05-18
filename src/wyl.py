@@ -42,7 +42,7 @@ def writetxt(npzfiles):
                         stkey = str(aa) + p2pol[pol[pp]]
                         try: da = data[stkey][tt][ff]
                         except: da = 1.0
-                        string = 'ant'+str(aa)+', '+str(aa)+', '+str(df)+', '+dp+', '+str(dt)+', '+str(da.real)+', '+str(da.imag)+', 0\n'
+                        string = 'ant'+str(aa)+', '+str(aa)+', '+str(df)+', '+dp+', '+'%.10f'%dt +', '+str(da.real)+', '+str(da.imag)+', 0\n'
                         outfile.write(string)
     outfile.close()
 
