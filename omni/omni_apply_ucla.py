@@ -76,8 +76,7 @@ for f,filename in enumerate(args):
         elif opts.intype == 'miriad':
             uvi.read_miriad(files[filename][p])
         elif opts.intype == 'fhd':
-            fnames = files[filename][p].split(',')
-            uvi.read_fhd(fnames)
+            uvi.read_fhd(files[filename][p])
 
         Nblts = uvi.Nblts.value
         Nfreqs = uvi.Nfreqs.value
