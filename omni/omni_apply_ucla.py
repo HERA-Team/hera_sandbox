@@ -61,7 +61,7 @@ for f,filename in enumerate(args):
     for ip,p in enumerate(pols):
         print 'Reading', files[filename][p]
         if opts.outtype == 'uvfits':
-            newfn = omnifile.split('.')
+            newfn = files[filename][p].split('.')
             newfn[-1] = 'O.uvfits'
             newfile = '.'.join(newfn)
 #        omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:3])
@@ -89,13 +89,13 @@ for f,filename in enumerate(args):
             ti = ii/Nbls
             for jj in range(0,Nfreqs):
                 if opts.xtalk:
-                    try: uvi.data_array.value[ii][0][jj][ip] -= xtalk[p][(a1,a2)][jj]
+                    try: uvi.data_array.value[ii][0][jj][0] -= xtalk[p][(a1,a2)][jj]
                     except(KeyError):
-                        try: uvi.data_array.value[ii][0][jj][ip] -= xtalk[p][(a1,a2)][jj].conj()
+                        try: uvi.data_array.value[ii][0][jj][0] -= xtalk[p][(a1,a2)][jj].conj()
                         except(KeyError): pass
-                try: uvi.data_array.value[ii][0][jj][ip] /= gains[p1][a1][ti][jj]
+                try: uvi.data_array.value[ii][0][jj][0] /= gains[p1][a1][ti][jj]
                 except(KeyError): pass
-                try: uvi.data_array.value[ii][0][jj][ip] /= gains[p2][a2][ti][jj].conj()
+                try: uvi.data_array.value[ii][0][jj][0] /= gains[p2][a2][ti][jj].conj()
                 except(KeyError): pass
         uvi.history.value = ''
         if opts.outtype == 'uvfits':

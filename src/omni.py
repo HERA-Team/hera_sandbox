@@ -114,7 +114,7 @@ def aa_pos_to_info(aa, pols=['x'], **kwargs):
             z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
             i = Antpol(ant,pol,len(aa)) # creates index in POLNUM/NUMPOL for pol
             antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
-    reds = compute_reds(nant, pols, antpos[:nant],tol=2) # only first nant b/c compute_reds treats pol redundancy separately
+    reds = compute_reds(nant, pols, antpos[:nant],tol=0.1) # only first nant b/c compute_reds treats pol redundancy separately
     # XXX haven't enforced xy = yx yet.  need to conjoin red groups for that
     ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] < 0]
     kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
