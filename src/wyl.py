@@ -1,7 +1,8 @@
 import numpy as np, omnical, aipy, math
 import uvdata.uv as uvd
+import subprocess
 
-def writetxt(npzfiles):
+def writetxt(npzfiles, repopath):
     
     p2pol = {'EE': 'x','NN': 'y','EN': 'cross', 'NE': 'cross'}  #check the convension
     
@@ -10,7 +11,9 @@ def writetxt(npzfiles):
     fn0[-1] = 'txt'
     outfn = '.'.join(fn0)
     outfile = open(outfn,'w')
-    outfile.write("# Program of origin: Omnical\n")
+    hash = subprocess.check_output(['git','rev-parse','HEAD'], cwd=repopath)
+    outfile.write("# Program of origin: https://github.com/wenyang-li/capo.git\n")
+    outfile.write("# Git Hash: %s"%hash)
     outfile.write("# Convention: Divide uncalibrated data by these gains to obtain calibrated data.\n")
     outfile.write("# ANT NAME, ANT INDEX, FREQ (MHZ), POL, TIME (JD), RE(GAIN), IM(GAIN), FLAG\n")
     
