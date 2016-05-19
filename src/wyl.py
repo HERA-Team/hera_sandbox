@@ -1,6 +1,6 @@
 import numpy as np, omnical, aipy, math
 import uvdata.uv as uvd
-import subprocess
+import subprocess, datetime
 
 def writetxt(npzfiles, repopath):
     
@@ -11,9 +11,11 @@ def writetxt(npzfiles, repopath):
     fn0[-1] = 'txt'
     outfn = '.'.join(fn0)
     outfile = open(outfn,'w')
-    hash = subprocess.check_output(['git','rev-parse','HEAD'], cwd=repopath)
+    githash = subprocess.check_output(['git','rev-parse','HEAD'], cwd=repopath)
+    today = datetime.date.today().strftime("Date: %d, %b %Y")
+    outfile.write("# %s\n"%today)
     outfile.write("# Program of origin: https://github.com/wenyang-li/capo.git\n")
-    outfile.write("# Git Hash: %s"%hash)
+    outfile.write("# Git Hash: %s"%githash)
     outfile.write("# Convention: Divide uncalibrated data by these gains to obtain calibrated data.\n")
     outfile.write("# ANT NAME, ANT INDEX, FREQ (MHZ), POL, TIME (JD), RE(GAIN), IM(GAIN), FLAG\n")
     
