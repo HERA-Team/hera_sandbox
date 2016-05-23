@@ -245,7 +245,7 @@ class FirstCal(object):
         self.data = data
         self.fqs = fqs
         self.info = info
-    def data_to_delays(self,**kwargs):
+    def data_to_delays(self, verbose=False, **kwargs):
         '''data = dictionary of visibilities. 
            info = FirstCalRedundantInfo class
            can give it kwargs:
@@ -257,6 +257,8 @@ class FirstCal(object):
         dd = self.info.order_data(self.data)
 #        ww = self.info.order_data(self.wgts)
         for (bl1,bl2) in self.info.bl_pairs:
+            if verbose:
+                print (bl1, bl2)
             d1 = dd[:,:,self.info.bl_index(bl1)]
 #            w1 = ww[:,:,self.info.bl_index(bl1)]
             d2 = dd[:,:,self.info.bl_index(bl2)]
@@ -267,15 +269,15 @@ class FirstCal(object):
         return self.blpair2delay
     def get_N(self,nblpairs):
         return np.identity(nblpairs) 
-    def get_M(self,**kwargs):
+    def get_M(self, verbose=False, **kwargs):
         M = np.zeros((len(self.info.bl_pairs),1))
-        blpair2delay = self.data_to_delays(**kwargs)
+        blpair2delay = self.data_to_delays(verbose=verbose, **kwargs)
         for pair in blpair2delay:
             M[self.info.blpair_index(pair)] = blpair2delay[pair]
         return M
-    def run(self, **kwargs):
+    def run(self, verbose=False, **kwargs):
         #make measurement matrix 
-        self.M = self.get_M(**kwargs)
+        self.M = self.get_M(verbose=verbose, **kwargs)
         #make noise matrix
         N = self.get_N(len(self.info.bl_pairs)) 
         self._N = np.linalg.inv(N)
