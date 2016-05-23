@@ -1,5 +1,4 @@
 import numpy as np, omnical, aipy, math
-import uvdata.uv as uvd
 import capo.red as red
 import numpy.linalg as la
 import warnings

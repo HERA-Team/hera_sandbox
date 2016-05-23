@@ -19,15 +19,14 @@ def flatten_reds(reds):
         freds += r
     return freds
 
-def save_gains(s,f,pol):
+def save_gains(s,f,name='fcgains'):
     s2 = {}
     for k,i in s.iteritems():
         s2[str(k)] = omni.get_phase(f,i)
     import sys
     cmd = sys.argv
     s2['cmd'] = ' '.join(cmd)
-    print s2
-    n.savez('fcgains.%s.npz'%pol,**s2)
+    n.savez('%s.npz'%name,**s2)
 
 def normalize_data(datadict):
     d = {}
@@ -40,7 +39,7 @@ def normalize_data(datadict):
 #hera info assuming a hex of 19 and 128 antennas
 aa = a.cal.get_aa(opts.cal, n.array([.150]))
 bad_ants = [ant for ant in map(int,opts.ex_ants)]
-info = omni.aa_to_info(aa, fcal=True, ex_ants=[81])
+info = omni.aa_to_info(aa, fcal=True, ex_ants=bad_ants)
 reds = flatten_reds(info.get_reds())
 print len(reds)
 
@@ -59,7 +58,7 @@ fc = omni.FirstCal(dataxx,fqs,info)
 sols = fc.run(tune=True, verbose=True)
 #import IPython; IPython.embed()
 #save solutions
-save_gains(sols,fqs, opts.pol)
+save_gains(sols,fqs, opts.pol, name=fname)
 
 
 if PLOT:
