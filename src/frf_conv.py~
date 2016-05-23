@@ -25,10 +25,10 @@ def mk_fng(bl, eq):
     return -2*n.pi/a.const.sidereal_day * n.dot(n.cross(n.array([0,0,1.]),bl), eq)
 
 #fringe used in ali et.al to degrade optimal fringe rate filter.
-#def mk_fng(bl, eq):
-#    '''Return distorted fringe rates for given eq coordinates and a baseline vector (measured in wavelengths) in eq coords. This was the version used in ali et.al'''
-#    ey, ex, ez = eq#yes, ex and ey are flipped.
-#    return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
+def mk_fng_alietal(bl, eq):
+    '''Return distorted fringe rates for given eq coordinates and a baseline vector (measured in wavelengths) in eq coords. This was the version used in ali et.al'''
+    ey, ex, ez = eq#yes, ex and ey are flipped.
+    return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
 
 def fr_profile(bm, fng, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT):
     '''Return the fringe-rate profile (binning the beam by fringe rate).'''
@@ -137,6 +137,9 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
     frps = n.array([mdl(prms0*fq/fq0,bins) * limit_maxfr(fq) * limit_xtalk for i,fq in enumerate(fqs)])
     tbins = fftshift(fftfreq(bins.size, bins[1]-bins[0]))
     firs = frp_to_fir(frps) 
+    #frps = ifftshift(frps, axes=-1)
+    #firs = ifft(frps, axis=-1)
+    #firs = fftshift(firs, axes=-1)
     firs *= a.dsp.gen_window(bins.size, window)
     if alietal:
         firs /= n.sum(n.abs(firs),axis=1).reshape(-1,1) # normalize so that n.sum(abs(fir)) = 1

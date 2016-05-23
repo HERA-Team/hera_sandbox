@@ -24,6 +24,8 @@ print args
 
 ONLY_POS_K = True
 
+#fig = p.figure(figsize=(8,10))
+
 def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.164, color='', bins=None):
     z = C.pspec.f2z(f0)
     kpr = C.pspec.dk_du(z) * umag
@@ -170,7 +172,7 @@ for filename in args:
             dsum_fold[_kpl] = dsum_fold.get(_kpl, 0) + _pk / _err**2
             dwgt_fold[_kpl] = dwgt_fold.get(_kpl, 0) + 1 / _err**2
 #freq = f['freq']
-freq=0.151
+freq = .151
 #RS_VS_KPL = {}
 if True:
     RS_VS_KPL['total'] = {}
@@ -268,7 +270,7 @@ for sep in RS_VS_KPL:
         nos_fold *= f
     #if True: # extra penalty for signal loss in covariance diagonalization
     if opts.cov: # extra penalty for signal loss in covariance diagonalization
-        f = 1.5
+        f = 1.2
         print 'Scaling data and noise by %f for signal loss in covariance diagonalization' % f
         d *= f
         nos *= f
@@ -303,7 +305,13 @@ for filename in glob.glob('lidz_mcquinn_k3pk/*7.3*dat'):
     p.subplot(122)
     p.plot(ks, k3pk * mean_temp(z)**2, 'k-')
     
+
+tau_h = 100 + 15. #in ns
+k_h = C.pspec.dk_deta(C.pspec.f2z(.151)) * tau_h
 p.subplot(121)
+p.vlines(k_h, 1e-5, 1e10, linestyle='--')
+p.vlines(-k_h, 1e-5, 1e10, linestyle='--')
+
 p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k_\parallel\ [h\ {\rm Mpc}^{-1}]$')
 p.ylabel(r'$P(k)\ [{\rm mK}^2\ (h^{-1}\ {\rm Mpc})^3]$')
@@ -368,7 +376,7 @@ def posterior(kpl, pk, err, pkfold=None):
     p.figure(5)
     p.plot(s, data)
     p.show()
-posterior(f['kpl'], f['pk'], f['err'])
+#posterior(f['kpl'], f['pk'], f['err'])
 
 
 if opts.show:
