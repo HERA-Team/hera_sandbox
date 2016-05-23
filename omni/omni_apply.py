@@ -28,15 +28,15 @@ for filename in args:
 ### Read Data and Solutions ###
 for f,filename in enumerate(args):
     if len(pols)>1:
-        omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:3])
+        npzb=3
     else:
-        omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:4])
+        npzb=4
+    omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:npzb])
     print '   Omnical npz:', omnifile
     _,gains,_,xtalk = capo.omni.from_npz(omnifile) #loads npz outputs from omni_run
     for p in pols:
         print 'Reading', files[filename][p]
         newfile = files[filename][p].split('/')[-1]+'O' #saves in cwd
-        omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:3])
         if os.path.exists(newfile):
             print '    %s exists.  Skipping...' % newfile
             continue
@@ -48,9 +48,13 @@ for f,filename in enumerate(args):
             p1,p2 = pol = aipy.miriad.pol2str[uv['pol']]
             if len(times) == 0 or times[-1] != t: times.append(t) #fill times list
             if opts.xtalk: #subtract xtalk
-                try: d -= xtalk[pol][(a1,a2)]
+                try:
+                    xt = numpy.resize(xtalk[pol][(a1,a2)],d.shape)
+                    d -= xt
                 except(KeyError):
-                    try: d -= xtalk[pol][(a2,a1)].conj()
+                    try:
+                        xt = numpy.resize(xtalk[pol][(a2,a1)].conj(),d.shape) 
+                        d -= xt
                     except(KeyError): pass
             ti = len(times) - 1 #time index
             try: d /= gains[p1][a1][ti] #apply gains

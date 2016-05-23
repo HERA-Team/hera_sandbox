@@ -182,7 +182,7 @@ def compute_xtalk(res, wgts):
     return xtalk
 
 def to_npz(filename, meta, gains, vismdl, xtalk):
-    '''Write results from omnical.calib.redcal (meta,gains,vismdl) to npz file.
+    '''Write results from omnical.calib.redcal (meta,gains,vismdl,xtalk) to npz file.
     Each of these is assumed to be a dict keyed by pol, and then by bl/ant/keyword'''
     d = {}
     metakeys = ['jds','lsts','freqs','history']#,chisq]
@@ -213,14 +213,18 @@ def from_npz(filename, verbose=False):
     for f in filename:
         if verbose: print 'Reading', f
         npz = np.load(f)
-        for k in [f for f in npz.files if f.startswith('(')]:
-            pol,bl = parse_key(k)
-            if not xtalk.has_key(pol): xtalk[pol] = {}
-            xtalk[pol][bl] = xtalk[pol].get(bl,[]) + [np.copy(npz[k])]
         for k in [f for f in npz.files if f.startswith('<')]:
             pol,bl = parse_key(k)
             if not vismdl.has_key(pol): vismdl[pol] = {}
             vismdl[pol][bl] = vismdl[pol].get(bl,[]) + [np.copy(npz[k])]
+        for k in [f for f in npz.files if f.startswith('(')]:
+            pol,bl = parse_key(k)
+            if not xtalk.has_key(pol): xtalk[pol] = {}
+            dat = np.resize(np.copy(npz[k]),vismdl[pol][vismdl[pol].keys()[0]][0].shape) #resize xtalk to be like vismdl (with a time dimension too)
+            if xtalk[pol].get(bl) == None: #no bl key yet
+                xtalk[pol][bl] = dat
+            else: #append to array
+                xtalk[pol][bl] = np.vstack((xtalk[pol].get(bl),dat))
         for k in [f for f in npz.files if f[0].isdigit()]:
             pol,ant = k[-1:],int(k[:-1])
             if not gains.has_key(pol): gains[pol] = {}
@@ -229,8 +233,8 @@ def from_npz(filename, verbose=False):
         for kw in kws:
             for k in [f for f in npz.files if f.startswith(kw)]:
                 meta[k] = meta.get(k,[]) + [np.copy(npz[k])]
-    for pol in xtalk:
-        for bl in xtalk[pol]: xtalk[pol][bl] = np.concatenate(xtalk[pol][bl])
+    #for pol in xtalk: #this is already done above now
+        #for bl in xtalk[pol]: xtalk[pol][bl] = np.concatenate(xtalk[pol][bl])
     for pol in vismdl:
         for bl in vismdl[pol]: vismdl[pol][bl] = np.concatenate(vismdl[pol][bl])
     for pol in gains:

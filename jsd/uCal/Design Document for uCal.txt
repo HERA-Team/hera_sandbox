@@ -1,0 +1,25 @@
+Design Document for uCal
+
+uCalReds class:
+	constructor:
+		IN: list of baselines, list of frequencies, thresholds
+		Out: suitable list to construct uCalibrator class
+
+uCalibrator class
+	constructor: 
+		IN: give it a grouped list of [[(ant1index, ant2index, chan, u) for all visibilities measuring this u bin] for all u bins]
+	create logcal matrices
+		IN: nothing
+		OUT: A, B
+	create noise coveriance matrix
+		IN: bandpass, redundancies, 
+		OUT: 
+	create lincal matrices
+		In: initial guesses for beta, sigma, D, noise covariance diagonal
+		Out: A, (AtNinvA)^-1
+
+uCalData class
+	constructor: calculates visibility averages and stores them as a class object
+		IN: data in some reasonable format, uCalibrator object
+
+Main Script:
