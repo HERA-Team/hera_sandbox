@@ -88,11 +88,11 @@ def uv_read(filenames, filetype=None, polstr=None,antstr='cross',recast_as_array
         ant1 = uvdata.ant_1_array.value
         ant2 = uvdata.ant_2_array.value
         
-        if filetype == 'fhd':          #for fhd, the index starts from 1
-            ones = np.ones((len(ant1)))
-            ant1 = ant1 - ones
-            ant2 = ant2 - ones
-        
+#        if filetype == 'fhd':          #for fhd, the index starts from 1
+#            ones = np.ones((len(ant1)))
+#            ant1 = ant1 - ones
+#            ant2 = ant2 - ones
+
         freqarr = uvdata.freq_array.value[0]
         auto = 0
         
