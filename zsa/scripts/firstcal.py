@@ -6,22 +6,12 @@ import sys,optparse
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o,cal=True,pol=True)
 o.add_option('--plot', action='store_true', help='Plot things.')
-o.add_option('--bls', action='store',
-    help='Include only these baselines when solving')
-o.add_option('--ex_bls', action='store',
-    help='Remove these baselines when solving.')
-o.add_option('--ants', action='store',
-    help='Use baselines with these antennas when solving.')
-o.add_option('--ex_ants', action='store',
+o.add_option('--ex_ants', action='store', type='string', default='',
     help='Exclude these antennas when solving.')
-o.add_option('--ubls', action='store',
-    help='Include all baselines of this type (give example baseline) when solving.')
-o.add_option('--ex_ubls', action='store',
-    help='Exclude all baselines of this type (give example baseline) when solving.')
-
-
 opts,args = o.parse_args(sys.argv[1:])
 PLOT=opts.plot
+
+print opts.ex_ants
 
 def flatten_reds(reds):
     freds = []
@@ -45,11 +35,11 @@ def normalize_data(datadict):
         d[key] = datadict[key]/n.where(n.abs(datadict[key]) == 0., 1., n.abs(datadict[key]))
     return d 
 
-print opts.ants, opts.bls
 
     
 #hera info assuming a hex of 19 and 128 antennas
 aa = a.cal.get_aa(opts.cal, n.array([.150]))
+bad_ants = [ant for ant in map(int,opts.ex_ants)]
 info = omni.aa_to_info(aa, fcal=True, ex_ants=[81])
 reds = flatten_reds(info.get_reds())
 print len(reds)
