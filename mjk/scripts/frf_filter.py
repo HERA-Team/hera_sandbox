@@ -24,7 +24,25 @@ nants = uv['nants']
 inttime = uv['inttime'] * 4 #integration time hack
 aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
 pol = a.miriad.pol2str[uv['pol']]
+
+
+#manually calculate the inttime so frf time bins match data
+(uvw,t1,(i,j)),d = uv.read()
+(uvw,t2,(i,j)),d = uv.read()
+while t1 == t2:
+    (uvw,t2,(i,j)),d = uv.read()
+inttime = (t2-t1)* (3600*24)
 del(uv)
+
+#inttime=50.
+
+#set channel to make frf
+mychan=101
+
+##use calculated inttime to generate correct frf bins
+frbins = fringe.gen_frbins(inttime)
+#frbins = n.arange( -.5/inttime+5e-5/2, .5/inttime,5e-5)
+#DEFAULT_FRBINS = n.arange(-.01+5e-5/2,.01,5e-5) # Hz
 
 #Get only the antennas of interest
 sep2ij, blconj, bl2sep = zsa.grid2ij(aa.ant_layout)
@@ -35,7 +53,8 @@ ants = [ b[0] for b in a.scripting.parse_ants(opts.ant, nants) ]
 seps = [ bl2sep[b] for b in ants ]
 seps = n.unique(seps)
 print 'These are the spearations that we are going to use ', seps
-    
+print 'This is the channel we are using to build the frf: ',mychan
+print 'Current inttime use for gen_frbins: ',inttime
 #Get the fir filters for the separation used.
 firs = {}
 for sep in seps:
@@ -45,13 +64,14 @@ for sep in seps:
         bl = a.miriad.ij2bl(*ij)
         if blconj[bl]: c+=1
         else: break
-    frp, bins = fringe.aa_to_fr_profile(aa, ij, 100)
+    frp, bins = fringe.aa_to_fr_profile(aa, ij, mychan, bins=frbins,frpad=opts.frpad)
+    #frp, bins = fringe.aa_to_fr_profile(aa, ij, mychan) ## for default fr_bins
     #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[100],mdl=skew,startprms=(.001,.001,-50),frpad=opts.frpad)
-    timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[100])
-    #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[160],frpad=opts.frpad, alietal=opts.alietal )
+    timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan], startprms=(.001*opts.frpad,.0001))
+    #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=opts.frpad, alietal=opts.alietal )
     
 baselines = ''.join(sep2ij[sep] for sep in seps)
-times, data, flags = arp.get_dict_of_uv_data(args, baselines, pol, verbose=True)
+times, data, flags = zsa.get_dict_of_uv_data(args, baselines, pol, verbose=True)
 lsts = [ aa.sidereal_time() for k in map(aa.set_jultime(), times) ]
 
 _d = {}
@@ -101,4 +121,4 @@ for filename in args:
         uvo = a.miriad.UV(outfile, status='new')
         print 'Writing %s'%(outfile)
     uvo.init_from_uv(uvi)
-    uvo.pipe(uvi, mfunc=mfunc, append2hist=' '.join(sys.argv)+'\n', raw=True)
+    uvo.pipe(uvi, mfunc=mfunc, append2hist=' '.join(sys.argv)+' inttime={0:.3f}s'.format(inttime)+' \\n', raw=True)

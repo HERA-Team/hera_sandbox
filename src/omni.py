@@ -1,4 +1,5 @@
-import numpy as np, omnical
+import numpy as np, omnical, aipy, math
+import uvdata.uv as uvd
 import capo.red as red
 import numpy.linalg as la
 import warnings
@@ -99,6 +100,9 @@ def compute_reds(nant, pols, *args, **kwargs):
 #    return info
 
 def aa_to_info(aa, pols=['x'], fcal=False, **kwargs):
+    '''Use aa.ant_layout to generate redundances based on ideal placement.
+        The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
+    layout = aa.ant_layout
     nant = len(aa)
     try:
         antpos_ideal = aa.antpos_ideal
@@ -124,6 +128,37 @@ def aa_to_info(aa, pols=['x'], fcal=False, **kwargs):
         info = RedundantInfo(nant)
     info.init_from_reds(reds,antpos)
     return info
+
+#generate info from real positions
+####################################################################################################
+def aa_pos_to_info(aa, pols=['x'], **kwargs):
+    '''Use aa.ant_layout to generate redundances based on real placement.
+        The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
+    nant = len(aa)
+    antpos = -np.ones((nant*len(pols),3)) # -1 to flag unused antennas
+    xmin = 0
+    ymin = 0
+    for ant in xrange(nant):  #trying to shift the crd to make sure they are positive
+        bl = aa.get_baseline(0,ant,src='z')
+        x,y = bl[0], bl[1]
+        if x < xmin: xmin = x
+        if y < ymin: ymin = y
+    for ant in xrange(nant):
+        bl = aa.get_baseline(0,ant,src='z')
+        x,y = bl[0] - xmin + 0.1, bl[1] - ymin + 0.1  #w is currently not included
+        for z,pol in enumerate(pols):
+            z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
+            i = Antpol(ant,pol,len(aa)) # creates index in POLNUM/NUMPOL for pol
+            antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
+    reds = compute_reds(nant, pols, antpos[:nant],tol=0.0001) # only first nant b/c compute_reds treats pol redundancy separately
+    # XXX haven't enforced xy = yx yet.  need to conjoin red groups for that
+    ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] < 0]
+    kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
+    reds = filter_reds(reds, **kwargs)
+    info = RedundantInfo(nant)
+    info.init_from_reds(reds,antpos)
+    return info
+####################################################################################################
 
 
 
@@ -182,7 +217,7 @@ def compute_xtalk(res, wgts):
     return xtalk
 
 def to_npz(filename, meta, gains, vismdl, xtalk):
-    '''Write results from omnical.calib.redcal (meta,gains,vismdl) to npz file.
+    '''Write results from omnical.calib.redcal (meta,gains,vismdl,xtalk) to npz file.
     Each of these is assumed to be a dict keyed by pol, and then by bl/ant/keyword'''
     d = {}
     metakeys = ['jds','lsts','freqs','history']#,chisq]
@@ -213,14 +248,18 @@ def from_npz(filename, verbose=False):
     for f in filename:
         if verbose: print 'Reading', f
         npz = np.load(f)
-        for k in [f for f in npz.files if f.startswith('(')]:
-            pol,bl = parse_key(k)
-            if not xtalk.has_key(pol): xtalk[pol] = {}
-            xtalk[pol][bl] = xtalk[pol].get(bl,[]) + [np.copy(npz[k])]
         for k in [f for f in npz.files if f.startswith('<')]:
             pol,bl = parse_key(k)
             if not vismdl.has_key(pol): vismdl[pol] = {}
             vismdl[pol][bl] = vismdl[pol].get(bl,[]) + [np.copy(npz[k])]
+        for k in [f for f in npz.files if f.startswith('(')]:
+            pol,bl = parse_key(k)
+            if not xtalk.has_key(pol): xtalk[pol] = {}
+            dat = np.resize(np.copy(npz[k]),vismdl[pol][vismdl[pol].keys()[0]][0].shape) #resize xtalk to be like vismdl (with a time dimension too)
+            if xtalk[pol].get(bl) == None: #no bl key yet
+                xtalk[pol][bl] = dat
+            else: #append to array
+                xtalk[pol][bl] = np.vstack((xtalk[pol].get(bl),dat))
         for k in [f for f in npz.files if f[0].isdigit()]:
             pol,ant = k[-1:],int(k[:-1])
             if not gains.has_key(pol): gains[pol] = {}
@@ -229,8 +268,8 @@ def from_npz(filename, verbose=False):
         for kw in kws:
             for k in [f for f in npz.files if f.startswith(kw)]:
                 meta[k] = meta.get(k,[]) + [np.copy(npz[k])]
-    for pol in xtalk:
-        for bl in xtalk[pol]: xtalk[pol][bl] = np.concatenate(xtalk[pol][bl])
+    #for pol in xtalk: #this is already done above now
+        #for bl in xtalk[pol]: xtalk[pol][bl] = np.concatenate(xtalk[pol][bl])
     for pol in vismdl:
         for bl in vismdl[pol]: vismdl[pol][bl] = np.concatenate(vismdl[pol][bl])
     for pol in gains:
@@ -300,3 +339,6 @@ class FirstCal(object):
 
 def get_phase(fqs,tau):
     return np.exp(-2j*np.pi*fqs*tau)
+
+
+
