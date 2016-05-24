@@ -3,7 +3,7 @@
 #$ -cwd
 #$ -o grid_output
 #$ -e grid_output
-#$ -l h_vmem=16G
+#$ -l h_vmem=24G #has to be big for IMG_ARR
 #$ -N HERA_SUBARRAYS
 
 FILES=`pull_args.py $*`
@@ -19,25 +19,41 @@ for FILE in ${FILES}; do
     POL=${NAME:18:2}
     echo 'working on ' ${FILE}
     
-    echo pull_antpols.py -p ${POL} -a "($POL_ARR)_($POL_ARR)" ${FILE}
-    pull_antpols.py -p ${POL} -a "($POL_ARR)_($POL_ARR)" ${FILE}
-    echo ${FILE} -\> ${FILE%/*}/${NAME:0:21}PP.uv
-    mv ${FILE}A ${FILE%/*}/${NAME:0:21}PP.uv
-    
-    echo pull_antpols.py -p ${POL} -a "($HERA_HEX)_($HERA_HEX)" ${FILE}
-    pull_antpols.py -p ${POL} -a "($HERA_HEX)_($HERA_HEX)" ${FILE}
-    echo ${FILE} -\> ${FILE%/*}/${NAME:0:21}HH.uv
-    mv ${FILE}A ${FILE%/*}/${NAME:0:21}HH.uv
+    if [[ ! -e ${NAME:0:21}PP.uv ]]; then
+        echo pull_antpols.py -p ${POL} -a "($POL_ARR)_($POL_ARR)" ${FILE}
+        pull_antpols.py -p ${POL} -a "($POL_ARR)_($POL_ARR)" ${FILE}
+        echo ${FILE}A -\> ${NAME:0:21}PP.uv
+        mv ${FILE}A ${NAME:0:21}PP.uv
+    else
+        echo ${NAME:0:21}PP.uv exists... skipping... 
+    fi 
+   
+    if [[ ! -e ${NAME:0:21}HH.uv ]]; then 
+        echo pull_antpols.py -p ${POL} -a "($HERA_HEX)_($HERA_HEX)" ${FILE}
+        pull_antpols.py -p ${POL} -a "($HERA_HEX)_($HERA_HEX)" ${FILE}
+        echo ${FILE}A -\> ${NAME:0:21}HH.uv
+        mv ${FILE}A ${NAME:0:21}HH.uv
+    else
+        echo ${NAME:0:21}HH.uv exists... skipping...
+    fi
 
-    echo pull_antpols.py -p ${POL} -a "($PAPER_HEX)_($PAPER_HEX)" ${FILE}
-    pull_antpols.py -p ${POL} -a "($PAPER_HEX)_($PAPER_HEX)" ${FILE} 
-    echo ${FILE} -\> ${FILE%/*}/${NAME:0:21}PH.uv
-    mv ${FILE}A ${FILE%/*}/${NAME:0:21}PH.uv
+    if [[ ! -e ${NAME:0:21}PH.uv ]]; then
+        echo pull_antpols.py -p ${POL} -a "($PAPER_HEX)_($PAPER_HEX)" ${FILE}
+        pull_antpols.py -p ${POL} -a "($PAPER_HEX)_($PAPER_HEX)" ${FILE} 
+        echo ${FILE}A -\> ${NAME:0:21}PH.uv
+        mv ${FILE}A ${NAME:0:21}PH.uv
+    else
+        echo ${NAME:0:21}PH.uv exists... skipping...
+    fi
 
-    echo pull_antpols.py -p ${POL} -a "($IMG_ARR)_($IMG_ARR)" ${FILE}
-    pull_antpols.py -p ${POL} -a "($IMG_ARR_($IMG_ARR)" ${FILE}
-    echo ${FILE} -\> ${FILE%/*}/${NAME:0:21}PI.uv
-    mv ${FILE}A ${FILE%/*}/${NAME:0:21}PI.uv
+    if [[ ! -e ${NAME:0:21}PI.uv ]]; then
+        echo pull_antpols.py -p ${POL} -a "($IMG_ARR)_($IMG_ARR)" ${FILE}
+        pull_antpols.py -p ${POL} -a "($IMG_ARR)_($IMG_ARR)" ${FILE}
+        echo ${FILE}A -\> ${NAME:0:21}PI.uv
+        mv ${FILE}A ${NAME:0:21}PI.uv
+    else
+        echo ${NAME:0:21}PI.uv exists... skipping...
+    fi
 
 done
 
