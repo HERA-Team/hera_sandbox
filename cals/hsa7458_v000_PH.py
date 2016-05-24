@@ -82,7 +82,7 @@ class AntennaArray(a.pol.AntennaArray):
 
 prms = {
     'loc': ('-30:43:17.5', '21:25:41.9'), # KAT, SA (GPS)
-	'antpos_ideal':{ # ideal hexagonal grid positions taken from hsa7458_v000.py, and remapped to HERA19 Hex antenna numbers.
+	'antpos_ideal':{ # ideal hexagonal grid positions taken from hsa7458_v000.py, and remapped to PAPER hex antenna numbers.
 44: {'top_x':-14.0,'top_y':-24.2871131,'top_z':0.0 }, #a0
 14: {'top_x':0.0,'top_y':-24.2871131,'top_z':0.0 }, #a1
 86: {'top_x':14.0,'top_y':-24.2871131,'top_z':0.0 }, #a2
@@ -553,7 +553,13 @@ def get_aa(freqs):
     '''Return the AntennaArray to be used for simulation.'''
     location = prms['loc']
     antennas = []
+    prms['antpos'] = prms['antpos_ideal'] #XXX regular 'antpos' only has 19 positions but need 128 for things not to break
     nants = len(prms['antpos'])
+    antpos_ideal = n.zeros(shape=(nants,3),dtype=float)
+    tops = {'top_x':0, 'top_y':1, 'top_z':2}
+    for k in prms['antpos_ideal'].keys():
+        for i,m in enumerate(prms['antpos_ideal'][k]):
+            antpos_ideal[k,tops[m]] = prms['antpos_ideal'][k][m]
     for i in range(nants):
         beam = prms['beam'](freqs, nside=32, lmax=20, mmax=20, deg=7)
         try: beam.set_params(prms['bm_prms'])
