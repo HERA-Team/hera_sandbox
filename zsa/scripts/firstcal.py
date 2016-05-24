@@ -23,6 +23,8 @@ def save_gains(s,f,name='fcgains'):
     s2 = {}
     for k,i in s.iteritems():
         s2[str(k)] = omni.get_phase(f,i)
+    for k,i in s.iteritems():
+        s2['d'+str(k)] = i
     import sys
     cmd = sys.argv
     s2['cmd'] = ' '.join(cmd)
@@ -55,10 +57,12 @@ dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, fqs[1]-fqs[0]))
 
 #gets phase solutions per frequency.
 fc = omni.FirstCal(dataxx,fqs,info)
-sols = fc.run(tune=True, verbose=True)
+#sols = fc.run(tune=True, verbose=True)
+sols = fc.run(tune=True)
 #import IPython; IPython.embed()
 #save solutions
-save_gains(sols,fqs, opts.pol, name=fname)
+fname = args[0]
+save_gains(sols,fqs,name=fname)
 
 
 if PLOT:
