@@ -120,6 +120,22 @@ def a2l(array):
 def file2jd(file):
     return float(re.findall('\D+(\d+.\d+)\D+',file)[0])
 
+def condition_goodness(X,goodness=.9):
+    #checks the condition of a matrix
+    #return true if its reasonably invertible
+    #return false if the condition approaches the limit
+    # set by the bit dept of the input array
+    #
+    #the 'goodness' parameter is defined as the fractional number of
+    # bits in X's precision above which the matrix is assumed to be
+    #ill conditioned
+    # based on: http://mathworld.wolfram.com/ConditionNumber.html
+    condition = np.linalg.cond(X)
+    bit_count = X.itemsize*8
+    if np.iscomplexobj(X):
+        bit_count /= 2 
+    bit_goodness_threshold = np.round(bit_count * goodness)
+    return np.log(condition)/np.log(2)  < bit_goodness_threshold
 
     
 
