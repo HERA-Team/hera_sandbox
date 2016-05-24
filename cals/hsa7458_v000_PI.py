@@ -1,5 +1,5 @@
 """
-Calfile for data taken from 2456240. - 2456378.
+Calfile for the PAPER Imaging subarray
 """
 import aipy as a, numpy as n
 cm_p_m = 100
