@@ -21,7 +21,7 @@ for FILE in ${FILES}; do
     POL=${NAME:18:2}
     echo 'working on ' ${FILE}
  
-    if [[ ! -e ${NAME:0:21}PP.uv ]]; then
+    if [[ ! -e ${BASE}PP.uv ]]; then
         echo pull_antpols.py -p ${POL} -a "($POL_ARR)_($POL_ARR)" ${FILE}
         pull_antpols.py -p ${POL} -a "($POL_ARR)_($POL_ARR)" ${FILE}
         echo ${FILE}A -\> ${BASE}PP.uv
