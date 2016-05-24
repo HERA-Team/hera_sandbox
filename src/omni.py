@@ -126,7 +126,6 @@ def aa_to_info(aa, pols=['x'], fcal=False, **kwargs):
     return info
 
 
-
 def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
     #add layer to support new gains format
     if gains:
