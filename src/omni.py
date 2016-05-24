@@ -101,7 +101,6 @@ def compute_reds(nant, pols, *args, **kwargs):
 def aa_to_info(aa, pols=['x'], fcal=False, **kwargs):
     '''Use aa.ant_layout to generate redundances based on ideal placement.
         The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
-    layout = aa.ant_layout
     nant = len(aa)
     try:
         antpos_ideal = aa.antpos_ideal
