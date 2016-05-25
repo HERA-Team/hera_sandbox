@@ -22,6 +22,7 @@ for FILE in ${FILES}; do
     echo 'working on ' ${FILE}
  
     if [[ ! -e ${BASE}PP.uv ]]; then
+        echo MAKING PP:
         echo pull_antpols.py -p ${POL} -a "($POL_ARR)_($POL_ARR)" ${FILE}
         pull_antpols.py -p ${POL} -a "($POL_ARR)_($POL_ARR)" ${FILE}
         echo ${FILE}A -\> ${BASE}PP.uv
@@ -31,6 +32,7 @@ for FILE in ${FILES}; do
     fi 
    
     if [[ ! -e ${BASE}HH.uv ]]; then 
+        echo MAKING HH:
         echo pull_antpols.py -p ${POL} -a "($HERA_HEX)_($HERA_HEX)" ${FILE}
         pull_antpols.py -p ${POL} -a "($HERA_HEX)_($HERA_HEX)" ${FILE}
         echo ${FILE}A -\> ${BASE}HH.uv
@@ -40,6 +42,7 @@ for FILE in ${FILES}; do
     fi
 
     if [[ ! -e ${BASE}PH.uv ]]; then
+        echo MAKING PH:
         echo pull_antpols.py -p ${POL} -a "($PAPER_HEX)_($PAPER_HEX)" ${FILE}
         pull_antpols.py -p ${POL} -a "($PAPER_HEX)_($PAPER_HEX)" ${FILE} 
         echo ${FILE}A -\> ${BASE}PH.uv
@@ -49,6 +52,7 @@ for FILE in ${FILES}; do
     fi
 
     if [[ ! -e ${BASE}PI.uv ]]; then
+        echo MAKING PI:
         echo pull_antpols.py -p ${POL} -a "($IMG_ARR)_($IMG_ARR)" ${FILE}
         pull_antpols.py -p ${POL} -a "($IMG_ARR)_($IMG_ARR)" ${FILE}
         echo ${FILE}A -\> ${BASE}PI.uv
