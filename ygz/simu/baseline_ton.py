@@ -4,11 +4,11 @@ import aipy as a, numpy as n, capo as C, pylab as p
 #@p.ion()
 #fqs = n.linspace(.1,.2,203)
 fq = .15
-bl1, bl2 = (0,26),(0,38)
+bl1, bl2 = (0,26),(0,26)
 N = 10   #number of universes to average over
 
 VIS = False
-REDNORM = 1082680.50999
+REDNORM = 1.
 
 aa = a.cal.get_aa('psa6240_v003', n.array([fq]))
 #h = a.healpix.HealpixMap(nside=256)
@@ -98,12 +98,12 @@ cuedict = {'26_26':0.,'26_38': 0.032557,'26_50':0.073557,'13_32':0.030557,'13_14
 try: ver = cuedict[str(bl1[1])+'_'+str(bl2[1])]
 except(KeyError): ver = 0.
 meancorr = n.mean(corr,axis=0)
-meancorr = meancorr/REDNORM        #REDNORM is the peak of baseline_ton
+#meancorr = meancorr/REDNORMm
 maxind = n.argmax(n.abs(meancorr))
 absmax = n.abs(meancorr[maxind])
 print '############## baseline_toff RESULT for', bl1, bl2, '#####################'
 print "Peak: ", meancorr[maxind], 'abs=',absmax, 'at dT = ', TT[n.argmax(n.abs(meancorr))]-2455700.5
-#meancorr = meancorr/absmax
+meancorr = meancorr/absmax
 #import IPython; IPython.embed()
 blstr = str(bl1[0])+'_'+str(bl1[1])+'_'+str(bl2[0])+'_'+str(bl2[1])
 n.savez('blout_'+blstr, TT-2455700.5,meancorr)
