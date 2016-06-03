@@ -120,16 +120,16 @@ class uCalibrator():
         self.binningIsSetup = True
 
     def normalize(self, betas, Sigmas, Ds):
-        """This function normalizes betas, Sigmas, and Ds according to the following convention:\n
-            - Mean absolute value of betas = 1.0
+        """This function normalizes betas, Sigmas, and Ds so that: \n
+            - Mean abs value of Sigma = 1.0
             - Sum of phases of beta = 0.0
             - Mean abs value of Ds = 1.0 
             - Sum of the phases of D = 0.0"""
-        bandpassMean = np.average(np.abs(betas))
+        SigmasMean = np.average(np.abs(Sigmas))
         bandpassAngleMean = np.average(np.angle(betas))
         DsMean = np.average(np.abs(Ds))
         DsAngleMean = np.average(np.angle(Ds))
-        return betas / bandpassMean * np.exp(-1.0j * bandpassAngleMean), Sigmas * bandpassMean**2 * DsMean, Ds / DsMean * np.exp(-1.0j * DsAngleMean)
+        return betas * SigmasMean**.5 * DsMean**.5 * np.exp(-1.0j * bandpassAngleMean), Sigmas / SigmasMean * np.exp(1.0j * DsAngleMean), Ds / DsMean * np.exp(-1.0j * DsAngleMean)
 
     def performLogcal(self):
         """This function returns the logcal result beta, Sigma, and D in the order specified."""
@@ -159,14 +159,6 @@ class uCalibrator():
         result = np.exp(xhatReal + 1.0j*xhatImag)
         betas, Sigmas, Ds = self.normalize(result[0:self.nChans], result[self.nChans: self.nChans+self.nuBins], result[self.nChans+self.nuBins:self.nChans+self.nuBins+self.nduBins])
         return betas, Sigmas, Ds
-
-    # def generateNoiseVariance(self, freqs=None):
-    #     """Creates a noise variance that is proportional to 1/ nSamples where
-    #     nSamples is nBaselines_1 * nBaselines_2 * nIntegrations. Overall scaling is arbitrary."""
-    #     noiseCovDiag = np.asarray([(1) / (1.0 * entry['samples']) for (ch1,bl1,ch2,bl2),entry in self.blChanPairs.items()])
-    #     if freqs is not None: noiseCovDiag = np.asarray([(freqs[ch1]**-5 * freqs[ch2]**-5) / (1.0 * entry['samples']) for (ch1,bl1,ch2,bl2),entry in self.blChanPairs.items()])
-    #     noiseCovDiag = noiseCovDiag / np.median(noiseCovDiag) * 4e-10 #approximate renormalization
-    #     return noiseCovDiag
 
     def generateNoiseCovariance(self, betas):
         """Creates a noise covariance that is proportional to beta(ch1)**2 * beta(ch2)**2 / nSamples where
@@ -235,60 +227,57 @@ class uCalibrator():
                          np.imag(bbstarSD), np.imag(bbstarSD), np.real(bbstarSD), -np.real(bbstarSD), np.imag(bbstarD), np.real(bbstarD), np.imag(bbstarS), np.real(bbstarS)]
             for i,coeff in enumerate(coeffList): 
                 coeffs[16*n+i] = coeff #these are the coefficients of those terms
-        
+
+        absSigmaCoeffs = alpha * np.asarray([(np.real(Sigma)/np.abs(Sigma),-np.imag(Sigma)/np.abs(Sigma)) for Sigma in Sigmas]).flatten() #try to set mean(abs(Sigma))) to 1
+        absDCoeffs = alpha * np.asarray([(np.real(D)/np.abs(D),-np.imag(D)/np.abs(D)) for D in Ds]).flatten() #try to set mean(abs(D))) to 1
+        phaseBetaCoeffs = alpha * np.asarray([(-np.imag(beta)/np.abs(beta), np.real(beta)/np.abs(beta)) for beta in betas]).flatten() #try to set mean(angle(beta))) to 1
+        phaseDCoeffs = alpha * np.asarray([(-np.imag(D)/np.abs(D)**2, np.real(D)/np.abs(D)**2) for D in Ds]).flatten() #try to set mean(angle(beta))) to 1
+        coeffs = np.append(coeffs, np.concatenate((absSigmaCoeffs, absDCoeffs, phaseBetaCoeffs, phaseDCoeffs)))
+        rowIndices = np.append(rowIndices, np.concatenate([(2*self.nPairs+i)*np.ones(length) for i,length in enumerate([2*self.nuBins, 2*self.nduBins, 2*self.nChans, 2*self.nduBins])]))
+        DColIndices = range(2*self.nChans+2*self.nuBins, 2*self.nChans+2*self.nuBins+2*self.nduBins)
+        colIndices = np.append(colIndices, np.concatenate((range(2*self.nChans, 2*self.nChans+2*self.nuBins), DColIndices, range(0, 2*self.nChans), DColIndices)))
         self.A = csr_matrix((coeffs,(rowIndices,colIndices)))
-        if len(noiseCovDiag == self.nPairs): 
-            Ninv = csr_matrix((np.append((noiseCovDiag)**-1,(noiseCovDiag)**-1), (np.arange(2*self.nPairs), np.arange(2*self.nPairs))))
-        else: 
-            Ninv = csr_matrix((noiseCovDiag)**-1, (np.arange(2*self.nPairs), np.arange(2*self.nPairs))) #this is the case when real and imag parts have different variances
-        self.AtNinvA = (self.A.conjugate().transpose().dot(Ninv)).dot(self.A).toarray()
+
+        self.Ninv = csr_matrix((np.append(np.append((noiseCovDiag)**-1,(noiseCovDiag)**-1), 5e7*np.min(noiseCovDiag**-1)*np.ones(4)), (np.arange(2*self.nPairs+4), np.arange(2*self.nPairs+4))))
+        self.AtNinvA = (self.A.conjugate().transpose().dot(self.Ninv)).dot(self.A).toarray()
         if self.lincalIterations == 1: 
             lincalZeroEVs = len(self.AtNinvA) - np.linalg.matrix_rank(self.AtNinvA)
-            if not lincalZeroEVs == 4: print "    WARNING: Lincal's AtNinvA has " + str(lincalZeroEVs) + " zero eigenvalues. It should have 4."
+            if lincalZeroEVs > 0: print "    WARNING: Lincal's AtNinvA has " + str(lincalZeroEVs) + " zero eigenvalues."
 
         deltas = self.computeErrors(betas, Sigmas, Ds)
+        constraints = [self.nuBins - np.sum(np.abs(Sigmas)), self.nduBins - np.sum(np.abs(Ds)), -np.sum(np.angle(betas)), -np.sum(np.angle(Ds))]
         try:
-            xHat = np.linalg.pinv(self.AtNinvA).dot(self.A.T.conjugate().dot(Ninv.dot(np.append(np.real(deltas),np.imag(deltas)))))
+            xHat = np.linalg.pinv(self.AtNinvA).dot(self.A.T.conjugate().dot(self.Ninv.dot(np.concatenate((np.real(deltas),np.imag(deltas),constraints)))))
         except:
-            xHat = np.linalg.pinv(self.AtNinvA+1e-16).dot(self.A.T.conjugate().dot(Ninv.dot(np.append(np.real(deltas),np.imag(deltas))))) #TODO: is this OK???
+            xHat = np.linalg.pinv(self.AtNinvA+1e-16).dot(self.A.T.conjugate().dot(self.Ninv.dot(np.concatenate((np.real(deltas),np.imag(deltas),constraints)))))
+
         newBetas = np.asarray([betaDict[chan]*(1+alpha*(xHat[chan2Col[chan]] + 1.0j*xHat[chan2Col[chan]+1])) for chan in self.chans])
         newSigmas = np.asarray([SigmaDict[uBin] + alpha*(xHat[uBin2Col[uBin]] + 1.0j*xHat[uBin2Col[uBin]+1]) for uBin in self.uBins])
         newDs = np.asarray([DDict[duBin] + alpha*(xHat[duBin2Col[duBin]] + 1.0j*xHat[duBin2Col[duBin]+1]) for duBin in self.duBins])
-        betas, Sigmas, Ds = self.normalize(newBetas, newSigmas, newDs)
+        betas, Sigmas, Ds = newBetas, newSigmas, newDs #self.normalize(newBetas, newSigmas, newDs)
 
         errors = self.computeErrors(betas, Sigmas, Ds)
-        chiSqPerDoF = np.average(np.append(np.real(errors)**2, np.imag(errors)**2) * Ninv)
+        noise = csr_matrix((np.append(noiseCovDiag**-1,noiseCovDiag**-1), (np.arange(2*self.nPairs), np.arange(2*self.nPairs))))
+        chiSqPerDoF = np.average(np.append(np.real(errors)**2, np.imag(errors)**2) * noise)
         return betas, Sigmas, Ds, chiSqPerDoF
+
 
     def renormalizeNoise(self, betas, Sigmas, Ds, noiseCovDiag):
         """Returns a new noise covariance diagonal that has been renormalized such that the median observed error reflects the median noise covariance. """
         errors = self.computeErrors(betas, Sigmas, Ds)
         return noiseCovDiag * (np.median(np.real(errors)**2)+np.median(np.imag(errors)**2)) / (2*np.median(noiseCovDiag))
 
-    def identifyBadChannels(self, betas, Sigmas, Ds, noiseCovDiag, maxAvgError = 5):
+    def identifyBadChannels(self, betas, Sigmas, Ds, noiseCovDiag, maxAvgError = 5, cutUpToThisFracOfMaxError = .5):
         """Sorts the errors by channel and figures out which channels exceed the average error criterion."""
         chanCompiledList = {chan: [] for chan in self.chans}
         ch1List = [ch1 for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]
         ch2List = [ch2 for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]
         errorList = self.computeErrors(betas, Sigmas, Ds)
         for f1,f2,error,Nii in zip(ch1List,ch2List,errorList,noiseCovDiag):
-            chanCompiledList[f1].append(error/((2*Nii)**.5))
-            chanCompiledList[f2].append(error/((2*Nii)**.5))
-        chanAvgErrors = np.asarray([np.mean(np.abs(np.asarray(chanCompiledList[chan]))**2)**.5 for chan in self.chans])
-        return np.asarray(self.chans)[chanAvgErrors > maxAvgError]
-
-    def identifyBadChannelsVersion2(self, betas, Sigmas, Ds, noiseCovDiag, maxAvgError = .5):
-        """Sorts the errors by channel and figures out which channels exceed the average error criterion."""
-        chanCompiledList = {chan: [] for chan in self.chans}
-        ch1List = [ch1 for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]
-        ch2List = [ch2 for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]
-        visCorrs = np.asarray([entry['visCorr'] for entry in self.blChanPairs.values()])
-        errorList = self.computeErrors(betas, Sigmas, Ds)
-        for f1,f2,error,Nii,visCorr in zip(ch1List,ch2List,errorList,noiseCovDiag,visCorrs):
-            chanCompiledList[f1].append(np.abs(error/visCorr))
-            chanCompiledList[f2].append(np.abs(error/visCorr))
-        chanAvgErrors = np.asarray([np.mean(np.abs(np.asarray(chanCompiledList[chan]))**2)**.5 for chan in self.chans])
-        return np.asarray(self.chans)[chanAvgErrors > maxAvgError]
+            chanCompiledList[f1].append(np.abs(error)**2/((2*Nii)))
+            chanCompiledList[f2].append(np.abs(error)**2/((2*Nii)))
+        chanAvgErrors = np.asarray([np.mean(np.asarray(chanCompiledList[chan]))**.5 for chan in self.chans])
+        return np.asarray(self.chans)[(chanAvgErrors > maxAvgError) * (chanAvgErrors > cutUpToThisFracOfMaxError * np.max(chanAvgErrors))]
 
 
 def save2npz(filename, dataFiles, bandpass, weights, betas, chans, Sigmas, uBins, Ds, duBins, noiseCovDiag, A):
@@ -301,18 +290,7 @@ def save2npz(filename, dataFiles, bandpass, weights, betas, chans, Sigmas, uBins
         - chans, uBins, duBins: necessary for interpreting betas, Sigmas, Ds
         - noiseCovDiag: noise on the real (or imaginary) part of the visibiltiy correlations
         - A: lincal A matrix. """
-    result = {}
-    result['dataFiles'] = dataFiles
-    result['bandpass'] = bandpass
-    result['weights'] = weights
-    result['betas'] = betas
-    result['chans'] = chans
-    result['Sigmas'] = Sigmas
-    result['uBins'] = uBins
-    result['Ds'] = Ds
-    result['duBins'] = duBins
-    result['A'] = A
-    result['noiseCovDiag'] = noiseCovDiag
+    result = {var: eval(var) for var in ['dataFiles', 'bandpass', 'weights', 'betas', 'chans', 'Sigmas', 'uBins', 'Ds', 'duBins', 'A', 'noiseCovDiag']}
     np.savez(filename, **result)
 
 def loadAndCombine(fileList):
