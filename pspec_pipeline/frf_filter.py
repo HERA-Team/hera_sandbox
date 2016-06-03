@@ -4,6 +4,7 @@ import aipy as a
 import capo.arp as arp
 import capo.frf_conv as fringe
 import capo.zsa as zsa
+import capo as C
 import numpy as n, pylab as p
 import sys, os, optparse
 
@@ -15,6 +16,11 @@ o.add_option('--outpath', action='store',
 opts,args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
+if opts.outpath: outfile = opts.outpath + '/'+args[0]+'L'
+else: outfile = args[0]+'L'
+if os.path.exists(outfile): 
+    print 'File exists:',outfile
+    sys.exit(0)
 nants = uv['nants']
 inttime = uv['inttime']
 aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
@@ -30,18 +36,21 @@ seps = n.unique(seps)
 print 'These are the separations that we are going to use:', seps
     
 #Get the fir filters for the separation used
+bins = fringe.gen_frbins(inttime)
 firs = {}
 for sep in seps:
-    c = 0 
-    while c != -1:
+    c = 0 #baseline indices
+    while True:
         ij = map(int, sep2ij[sep].split(',')[c].split('_'))
         bl = a.miriad.ij2bl(*ij)
         if blconj[bl]: c+=1
         else: break #find when conjugation isn't necessary
-    frp, bins = fringe.aa_to_fr_profile(aa, ij, 100, pol=pol) 
+    frp, bins = fringe.aa_to_fr_profile(aa, ij, 100, pol=pol, bins=bins) 
     timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[100])
+
+
 baselines = ''.join(sep2ij[sep] for sep in seps)
-times, data, flags = arp.get_dict_of_uv_data(args, baselines, pol, verbose=True)
+times, data, flags = C.miriad.read_files(args, baselines, pol, verbose=True) #new way of get_dict_of_uv_data
 #jds = times['times']
 #lsts = [ aa.sidereal_time() for k in map(aa.set_jultime(), jds) ]
 lsts = times['lsts']
@@ -54,20 +63,28 @@ for bl in data: #orders data and flags correctly by LST
         flags[bl][pol] = flags[bl][pol][lst_order]
 _d = {}
 _w = {}
+bins = fringe.gen_frbins(inttime)
 for bl in data.keys(): #bl format is (i,j) in data keys
     if not _d.has_key(bl): _d[bl],_w[bl] = {}, {}
     #get filter which is baseline dependent
     m_bl = a.miriad.ij2bl(bl[0],bl[1]) #miriad bl
     sep = bl2sep[m_bl]
-    fir = firs[sep]
-    if blconj[m_bl]: fir = n.conj(fir)
-    print map(int, a.miriad.bl2ij(m_bl)), sep, blconj[m_bl]
+    i,j = bl
+    #fir = firs[sep]
+    #if blconj[m_bl]: fir = n.conj(fir)
+    #print map(int, a.miriad.bl2ij(m_bl)), sep, blconj[m_bl]
+    print bl
     for pol in data[bl].keys():
+        if blconj[m_bl]: fir = {(i,j,pol):n.conj(firs[sep])} #conjugate fir if needed
+        else: fir = {(i,j,pol):firs[sep]}
         if not _d[bl].has_key(pol): _d[bl][pol], _w[bl][pol] = {}, {}
-        _d[bl][pol] = n.zeros_like(data[bl][pol])
-        _w[bl][pol] = n.zeros_like(data[bl][pol])
+        #_d[bl][pol] = n.zeros_like(data[bl][pol])
+        #_w[bl][pol] = n.zeros_like(data[bl][pol])
+        dij,wij = data[bl][pol],n.logical_not(flags[bl][pol])
+        _d[bl][pol],_w[bl][pol],_,_ = fringe.apply_frf(aa,dij,wij,i,j,pol=pol,bins=bins,firs=fir)
+        """ #stuff below is now in fringe.apply_frf
         for ch in xrange(data[bl][pol].shape[1]):
-            flg = n.logical_not(flags[bl][pol][:,ch])
+            #flg = n.logical_not(flags[bl][pol][:,ch])
             #_d[bl][pol][:,ch] = n.convolve(flags[bl][pol][:,ch]*data[bl][pol][:,ch], n.conj(firs[ch,:]), mode='same')
             _d[bl][pol][:,ch] = n.convolve(flg*data[bl][pol][:,ch], n.conj(fir[ch,:]), mode='same')
             #_d[bl][pol][:,ch] = n.convolve(flg*data[bl][pol][:,ch], firs[ch,:], mode='same')
@@ -76,6 +93,8 @@ for bl in data.keys(): #bl format is (i,j) in data keys
             #_w[bl][pol][:,ch] = n.convolve(flg, n.abs(firs[ch,:]), mode='same')
             #_d[bl][pol][:,ch] = n.where(flags[bl][pol][:,ch]>0, _d[bl][pol][:,ch]/_w[bl][pol][:,ch], 1)  
             _d[bl][pol][:,ch] = n.where(flg>0, _d[bl][pol][:,ch]/_w[bl][pol][:,ch], 1)  
+        """
+
 def mfunc(uv, p, d, f):
     uvw,t,(i,j) = p
     index = n.where(times['times']==t)
@@ -90,14 +109,11 @@ def mfunc(uv, p, d, f):
         
 
 for filename in args:
-    outfile = filename+'L'
+    if opts.outpath: outfile = opts.outpath + '/'+filename+'L'
+    else: outfile = filename+'L'
     uvi = a.miriad.UV(filename)
     a.scripting.uv_selector(uvi, ants=baselines)
-    if opts.outpath:
-        uvo = a.miriad.UV(opts.outpath+'/'+outfile, status='new')
-        print 'Writing %s'%(opts.outpath+'/'+outfile)
-    else:
-        uvo = a.miriad.UV(outfile, status='new')
-        print 'Writing %s'%(outfile)
+    uvo = a.miriad.UV(outfile, status='new')
+    print 'Writing %s'%(outfile)
     uvo.init_from_uv(uvi)
     uvo.pipe(uvi, mfunc=mfunc, append2hist=' '.join(sys.argv)+'\n', raw=True)
