@@ -4,6 +4,8 @@ matplotlib.use('Agg')
 import aipy as a, numpy as n, pylab as p
 import capo as C
 import sys, optparse, re, os
+from scipy.interpolate import interp2d
+from scipy.interpolate import griddata
 
 o=optparse.OptionParser()
 o.add_option('--flux', action='store_true', 
@@ -24,6 +26,8 @@ o.add_option('--nocov', action='store_true',
     help='Replace the Covariance weighted power spectrum with the Identity weighted power spectrum.')
 o.add_option('--show', action='store_true',
             help='Show the plot')
+o.add_option('--outpath',type='string',
+        help='Give outpath to save npz and png files')
 opts,args = o.parse_args(sys.argv[1:])
 print args
 
@@ -162,7 +166,7 @@ def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.164, color=
     print '-'*20
     print "saving pspec_pk_k3pk.npz"
     print "output @ freq = ",f0
-    n.savez('pspec_pk_k3pk.npz',kpl=kpl,pk=pk,err=err,
+    n.savez('pspec_'+opts.outpath+'.npz',kpl=kpl,pk=pk,err=err,
             k=k[k0:], k3pk=k3[k0:]*pkfold, 
             k3err=k3[k0:]*errfold,freq=f0,
             condition_max = c_num_max, condition_min=c_num_min)
@@ -248,8 +252,8 @@ for filename in args:
             dwgt_fold[_kpl] = dwgt_fold.get(_kpl, 0) + 1 / _err**2
 #freq = f['freq']
 freq=n.average(afreqs)
-c_num_min = n.min(c_num_min)
-c_num_max = n.min(c_num_max)
+#c_num_min = n.min(c_num_min)
+#c_num_max = n.min(c_num_max)
 #RS_VS_KPL = {}
 if True:
     RS_VS_KPL['total'] = {}
@@ -467,18 +471,73 @@ p.plot([.2], 9.82e7 * .2**3/(2*n.pi**2), 'mv', label='Dillon2013')
 #Parsons2014 upper lmit 41mk at .27
 p.plot([.27], 41**2, 'gv', label='Parsons2014')
 
-theo_noise = noise_level(freq=freq)
+print "loading a few noise model redshifts and building a 2d (z,k) cubic fit model"
+noisefiles = glob.glob('../21cmsense_noise/psa6240_v003drift_mod_0.???.npz')#glob should load them in increasing freq order
+noisefiles.sort()
+re_f = re.compile('../21cmsense_noise/psa6240_v003drift_mod_(\d+\.\d+)\.npz')#glob should load them in increasing freq order
+
+noises = []
+noise_ks = []
+noise_freqs = []
+nk_grid = n.linspace(0,1)*0.5+0.01
+for noisefile in noisefiles:
+    noise = n.load(noisefile)['T_errs']
+    noise_k = n.load(noisefile)['ks']
+
+    #look for infs at low k and re-assign large values
+    #noise[ n.logical_and(n.isinf(noise), noise_k < .15)] = 1e+6
+
+    bad = n.logical_or(n.isinf(noise),n.isnan(noise))
+    noise = noise[n.logical_not(bad)] 
+    noise_k = noise_k[n.logical_not(bad)]
+    #keep only the points that fall in our desired k range
+    good_k = noise_k < nk_grid.max()
+    noise = noise[noise_k<nk_grid.max()]
+    noise_k = noise_k[noise_k<nk_grid.max()]
+    print noisefile,n.max(noise),
+
+    noise_k = n.insert(noise_k,0,0)
+    noise = n.insert(noise,0, n.min([1e+3,n.median(noise)]))
+    #noise = n.insert(noise,0, 0)
+
+    #nk3 = noise_k**3/(2*np.pi**2)
+    #tmp = n.linalg.lstsq( n.vstack([nk3,n.zeros((3,len(nk3)))]).T,noise)
+    tmp = n.polyfit(noise_k,noise,3,full=True)
+    noise = n.poly1d(tmp[0])(nk_grid)
+    noises.append(noise)
+    noise_ks.append(nk_grid)
+    f = float(re_f.match(noisefile).groups()[0])*1e3 #sensitivity freq in MHz
+    print f
+    noise_freqs.append(f) 
+    #embed()
+
+noise_k_range = [n.min(n.concatenate(noise_ks)),n.max(n.concatenate(noise_ks))]
+nk_count = n.mean([len(myks) for myks in noise_ks])
+nks = n.linspace(noise_k_range[0],noise_k_range[1],num=nk_count)
+noise_interp = n.array([n.interp(nks,noise_ks[i],noises[i]) for i in range(len(noises))])
+NK,NF = n.meshgrid(nks,noise_freqs)
+#noise_freqs = n.array(noise_freqs)
+POBER_NOISE = interp2d(NK,NF,noise_interp,kind='linear')#build 2d interpolation model
+#FINISHED LOADING POBER NOISE MODEL
 #print k0
 #print kpl_pos[0], theo_noise[0]
 #2 for the 2 sigma
-p.plot(n.array(kpl_pos), 2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2), 'c--')
+#theo_noise = noise_level(freq=freq)
+#p.plot(n.array(kpl_pos), 2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2), 'c--')
+
+z = C.pspec.f2z(freq)
+kpr = C.pspec.dk_du(z) * 16
+tmp_k = n.sqrt( n.array(kpl_pos)**2 + kpr**2)
+noise_line = 2*POBER_NOISE(tmp_k,freq*1e3)*3000/3800.
+#noise_line = 2*POBER_NOISE(tmp_k,freq*1e3)* 2232./2396
+p.plot(tmp_k, noise_line , 'c--')
 p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')
 p.ylim(1e0,1e7)
 p.xlim(0, 0.6)
 p.grid()
-p.savefig('pspec.png')
+p.savefig('pspec_'+opts.outpath+'.png')
 
 #p.figure(2)
 #dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS,f0=freq) # 2-sigma error bars
@@ -495,7 +554,7 @@ p.savefig('pspec.png')
 #p.grid()
 
 f = n.load(args[0])
-noise_line=2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2)
+#noise_line=2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2)
 def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,theo_noise=None):
     import scipy.interpolate as interp
     k0 = n.abs(kpl).argmin()
@@ -601,7 +660,7 @@ def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,theo_no
     if not theo_noise is None:
         s2l_theo=n.sqrt(1./n.mean(1./theo_noise**2))
         p.vlines(s2l_theo**2,0,1,color='black',linewidth=2)
-        print('Noise level: {0:0>5.3f} mk^2'.format(s2l_theo**2))
+        print('Noise level: {0:0>5.3f} mk^2'.format(s2l_theo))
     p.xlabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')
     p.ylabel('Posterior Distribution', fontsize='large')
     p.xlim(0,700)
@@ -609,17 +668,17 @@ def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,theo_no
         p.xlim(0,2000)
     p.grid(1)
     p.subplots_adjust(left=.15, top=.95, bottom=.15, right=.95)
-    p.savefig('posterior.png')
-    f=open('posterior.txt', 'w')
+    p.savefig('posterior_'+opts.outpath+'.png')
+    f=open('posterior_'+opts.outpath+'.txt', 'w')
     f.write('Posterior: Mean,\t(1siglo,1sighi),\t(2siglo,2sighi)\n')
     f.write('Posterior: {0:.4f},\t({1:.4f},{2:.4f}),\t({3:.4f},{4:.4f})\n'.format( mean, s1lo,s1hi, s2lo,s2hi))
     f.write( 'Posterior (omit): {0:.4f}, ({1:.4f},{2:.4f}),\t({3:.4f},{4:.4f})\n'.format( mean_o, s1lo_o,s1hi_o, s2lo_o,s2hi_o))
-    f.write( 'Noise level: {0:0>5.3f} mk^2\n'.format(s2l_theo**2) )
+    f.write( 'Noise level: {0:0>5.3f} mk^2\n'.format(s2l_theo) )
     f.close()
     #p.show()
 
 #posterior(f['kpl'], f['pk'], f['err'], f['pk_fold'], f['err_fold'])
-posterior(kpl, d, 2*nos, d_fold, nos_fold,theo_noise=noise_line,f0=freq)
+posterior(kpl, d, 2*nos, d_fold, nos_fold,theo_noise=noise_line[kpl_pos >= .15],f0=freq)
 
 
 

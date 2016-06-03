@@ -27,50 +27,32 @@ for chan in $chans; do
         for sep in $seps; do 
            sepdir=${poldir}/${sep}
            test -e $sepdir || mkdir $sepdir
-           for inject in `python -c "import numpy; print ' '.join(map(str,numpy.logspace(-10,10,40)))"`; do
+           for inject in `python -c "import numpy; print ' '.join(map(str,numpy.logspace(-5,10,3)))"`; do
                injectdir=${sepdir}/inject_${inject}
                test -e ${injectdir} || mkdir ${injectdir}
                echo ${inject}
-                if [[ -z $EVEN_GLOB ]]; then
-                    #form up the path to the data use ()s for globing
-                    EVEN_FILES=(${EVEN_DATAPATH}/${sep}/*${FILEAPPELLATION})
-                    #convert from an array to a... list? ida know. bash stuff.
-                    EVEN_FILES=`lst_select.py -C ${cal} --ra=${LST} ${EVEN_FILES[@]}`
-                else
-                    EVEN_FILES=${EVEN_DATAPATH}/${sep}/${EVEN_GLOB}.${FILEAPPELLATION}
-                fi
-
-                #check for odd glob before using lst_select
-                if [[ -z $ODD_GLOB ]]; then
-                     ODD_FILES=(${ODD_DATAPATH}/${sep}/*${FILEAPPELLATION})
-                     ODD_FILES=`lst_select.py -C ${cal} --ra=${LST} ${ODD_FILES[@]}`
-                else
-                     ODD_FILES=${ODD_DATAPATH}/${sep}/${ODD_GLOB}.${FILEAPPELLATION}
-                fi
                test -e ${sepdir} || mkdir ${sepdir}
                LOGFILE=`pwd`/${PREFIX}/${chan}_${pol}_${sep}.log
-               echo this is make_sigloss.sh with  |tee  ${LOGFILE}
+               echo this is make_sigloss_simulation.sh with  |tee  ${LOGFILE}
                echo experiment: ${PREFIX}|tee -a ${LOGFILE}
                echo channels: ${chan}|tee -a ${LOGFILE}
                echo polarization: ${pol}|tee -a ${LOGFILE}
                echo separation: ${sep}|tee -a ${LOGFILE}
                echo `date` | tee -a ${LOGFILE} 
                    
-               echo python ${SCRIPTSDIR}/pspec_cov_v003_sigloss.py \
+               echo python ${SCRIPTSDIR}/pspec_cov_v003_sigloss_simulation.py \
                     --window=${WINDOW} -p ${pol} -c ${chan} -b ${NBOOT} \
                      -C ${cal} -i ${inject} -a ${ANTS}\
                      --output=${ijectdir} \
                      --bl_scale=${BLSCALE}\
                      --fr_width_scale=${FR_WIDTH_SCALE} \
-                     ${EVEN_FILES} ${ODD_FILES} 
 
-               python ${SCRIPTSDIR}/pspec_cov_v003_sigloss.py \
+                    python ${SCRIPTSDIR}/pspec_cov_v003_sigloss_simulation.py \
                     --window=${WINDOW} -p ${pol} -c ${chan} -b ${NBOOT} \
                      -C ${cal} -i ${inject} -a ${ANTS}\
-                     --output=${injectdir} \
                      --bl_scale=${BLSCALE}\
                      --fr_width_scale=${FR_WIDTH_SCALE} \
-                     ${EVEN_FILES} ${ODD_FILES} \
+                     --output=${injectdir} \
                      |tee -a ${LOGFILE}
             done
         done

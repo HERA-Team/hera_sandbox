@@ -2,4 +2,4 @@
 
 hel=hello
 world=world
-echo $hel+$world
+echo $hel' '$world
