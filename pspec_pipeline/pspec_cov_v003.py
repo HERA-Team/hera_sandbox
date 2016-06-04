@@ -383,12 +383,13 @@ for k in days:
     for bl in x[k]:
         C[k][bl] = cov(x[k][bl])
         I[k][bl] = n.identity(C[k][bl].shape[0])
+        #C[k][bl] = C[k][bl] + 1*I[k][bl] #C+NI noise
         U,S,V = n.linalg.svd(C[k][bl].conj()) #singular value decomposition
         _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
         _I[k][bl] = n.identity(_C[k][bl].shape[0])
         _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
         _Ix[k][bl] = x[k][bl].copy()
-        if PLOT and False:
+        if PLOT and True:
             #p.plot(S); p.show()
             p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
             p.title('Data x')

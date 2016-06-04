@@ -8,8 +8,8 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
 o.add_option('--plot', action='store_true',
     help='Generate plots')
-o.add_option('--nocov', action='store_true',
-    help='Replace the Covariance weighted power spectrum with the Identity weighted power spectrum.')
+o.add_option('--identity', action='store_true', default=False,
+    help='Use the identity matrix instead of C^-1')
 opts,args = o.parse_args(sys.argv[1:])
 
 NBOOT = 400
@@ -51,7 +51,6 @@ k0 = n.abs(kpl).argmin() #where k=0 is
 
 pk_2d = n.array([pk_vs_t[path] for path in paths]) #(bltype,bootstraps,kpls,times)
 nocov_2d = n.array([nocov_vs_t[path] for path in paths]) #(bltype,bootstraps,kpls,times), T averaged over all bls
-#pk_2d = nocov_2d #use this instead of first line if using identity covariance matrix 
 #temp_noise_var = n.array([temp_noise_var[path] for path in paths])
 #err_2d = n.array([err_vs_t[path] for path in paths])
 #wgts = 1./(temp_noise_var * err_2d)
@@ -70,10 +69,9 @@ wgts = n.ones_like(avg_pk_2d)
 #wgts = n.ones_like(wgts) / nos_std_1d**2
 #wgts = 1./(n.abs(avg_pk_1d) + nos_std_2d)**2
 
-if opts.nocov: #override power spectrum with the version w/o covariance diagonalization
+if opts.identity: #override power spectrum with the version w/o covariance diagonalization
     print 'Overriding power spectrum with non-covariance diagonalized version'
     pk_2d = nocov_2d
-
 if CLIP: #trim time axis
     pk_2d = pk_2d[...,LO:HI]
     avg_pk_2d = avg_pk_2d[...,LO:HI]
@@ -186,7 +184,6 @@ pk_fold = n.average(pk_fold_boot, axis=1)
 #this is excluding imag component in noise estimate `
 pk_boot = n.sort(pk_boot.real, axis=1) #dropping imag component here
 pk_fold_boot = n.sort(pk_fold_boot.real, axis=1) #dropping imag component here
-
 if True:
     print 'Deriving errors from histogram...'
     up_thresh = int(n.around(0.975 * pk_boot.shape[1])) #2 sigma, single tail

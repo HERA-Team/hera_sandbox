@@ -4,6 +4,9 @@ import capo.frf_conv as fringe
 import glob, optparse, sys, random
 import capo.zsa as zsa
 
+# Creates Gaussian noise for all baselines instead of using actual data! #
+# NO SCALAR #
+
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
 o.add_option('-b', '--nboot', type='int', default=20,
@@ -14,19 +17,15 @@ o.add_option('--plot', action='store_true',
     help='Generate plots')
 o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
-o.add_option('--output', type='string', default='',
-    help='output directory for pspec_boot files (default "")')
 opts,args = o.parse_args(sys.argv[1:])
 
 #Basic Parameters
 random.seed(0)
 n.random.seed(1235813)
 POL = opts.pol #'I'
-LST_STATS = False
 DELAY = False
 NGPS = 5
 INJECT_SIG = opts.inject_sig
-FRF_WIDTH = 401
 NOISE = .0
 PLOT = opts.plot
 
@@ -47,12 +46,6 @@ def get_data(filenames, antstr, polstr, verbose=False):
             if not dat.has_key(bl): dat[bl],flg[bl] = [],[]
             dat[bl].append(d)
             flg[bl].append(f)
-            #if not dat.has_key(bl): dat[bl],flg[bl] = {},{}
-            #pol = a.miriad.pol2str[uv['pol']]
-            #if not dat[bl].has_key(pol):
-            #    dat[bl][pol],flg[bl][pol] = [],[]
-            #dat[bl][pol].append(d)
-            #flg[bl][pol].append(f)
     order_lst = n.argsort(lsts) #sometimes data is not in LST order!
     lsts = n.array(lsts)[order_lst]
     for bl in dat:
@@ -87,18 +80,11 @@ def get_Q(mode, n_k):
         Q[mode,mode] = 1
         return Q
 
-#SEP = 'sep0,2'
-
 #Read even&odd datasets
 dsets = {
     'even': [x for x in args if 'even' in x],
     'odd': [x for x in args if 'odd' in x]
-    #'even': glob.glob('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/even/sep0,2/*I.uvGAL'),
-    #'odd': glob.glob('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/odd/sep0,2/*I.uvGAL')
-    #'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even_xtalk_removed/'+SEP+'/newfrf/*242.[3456]*uvGL'),
-    #'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd_xtalk_removed/'+SEP+'/newfrf/*243.[3456]*uvGL'),
 }
-#for i in xrange(10): dsets[i] = glob.glob('lstbinX%d/%s/lst.24562[45]*.[3456]*.uvAL'%(i,SEP))
 
 #Get uv file info
 WINDOW = opts.window
@@ -106,11 +92,7 @@ uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
-#inttime = uv['inttime'] #* 4 # XXX hack for *E files that have inttime set incorrectly
-(uvw,t1,(i,j)),d = uv.read()
-(uvw,t2,(i,j)),d = uv.read()
-while t1 == t2: (uvw,t2,(i,j)),d = uv.read()
-inttime = (t2-t1)* (3600*24)
+inttime = uv['inttime'] #* 4 # XXX hack for *E files that have inttime set incorrectly
 del(uv)
 
 afreqs = freqs.take(chans)
@@ -118,8 +100,7 @@ nchan = chans.size
 fq = n.average(afreqs)
 z = capo.pspec.f2z(fq)
 
-#aa = a.cal.get_aa(opts.cal, n.array([.150]))
-aa = a.cal.get_aa(opts.cal, freqs)
+aa = a.cal.get_aa(opts.cal, afreqs)
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
 jy2T = capo.pspec.jy2T(afreqs)
 window = a.dsp.gen_window(nchan, WINDOW)
@@ -136,7 +117,7 @@ etas = n.fft.fftshift(capo.pspec.f2eta(afreqs)) #create etas (fourier dual to fr
 #etas = capo.pspec.f2eta(afreqs) #create etas (fourier dual to frequency)
 kpl = etas * capo.pspec.dk_deta(z) #111
 #print kpl
-if True:
+if False:
     bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 # correction for beam^2
     scalar = capo.pspec.X2Y(z) * bm * B
 else: scalar = 1
@@ -161,26 +142,6 @@ for k in days:
     #inside that are baseline keys
     #inside that has shape (#lsts, #freqs)
 
-#Get some statistics
-if LST_STATS:
-    #collect some metadata from the lst binning process
-    cnt, var = {}, {}
-    times = []
-    for filename in dsets.values()[0]:
-        print 'Reading', filename
-        uv = a.miriad.UV(filename)
-        a.scripting.uv_selector(uv, '64_49', POL)
-        for (uvw,t,(i,j)),d,f in uv.all(raw=True):
-            if len(times) == 0 or times[-1] != uv['lst']: times.append(uv['lst'])
-            bl = '%d,%d,%d' % (i,j,uv['pol'])
-            cnt[bl] = cnt.get(bl, []) + [uv['cnt']]
-            var[bl] = var.get(bl, []) + [uv['var']]
-    cnt = n.array(cnt.values()[0]) #all baselines should be the same
-    var = n.array(var.values()[0]) #all baselines should be the same
-    times = n.array(times)
-else: cnt,var = n.ones_like(lsts.values()[0]), n.ones_like(lsts.values()[0])
-
-
 #Align data in LST (even/odd data might have a different number of LSTs)
 lstmax = max([lsts[k][0] for k in days]) #the larger of the initial lsts
 for k in days:
@@ -202,17 +163,14 @@ lsts = lsts.values()[0] #same set of LST values for both even/odd data
 for boot in xrange(opts.nboot):
     print '%d / %d' % (boot+1,opts.nboot)
     x = {}
-    f = {}
+    noise_all = noise((21,100)) #XXX same noise for all baselines but not boots
     for k in days:
         x[k] = {}
-        f[k] = {}
         for bl in data[k]:
-            d = data[k][bl][:,chans] * jy2T
-            flg = flgs[k][bl][:,chans]
-            if conj[bl]: d = n.conj(d) #conjugate if necessary
-            x[k][bl] = n.transpose(d, [1,0]) #swap time and freq axes
-            f[k][bl] = n.transpose(flg, [1,0])
-    #eor = x.pop('eor'); days = x.keys() #make up for putting eor in list above
+            #d = data[k][bl][:,chans] * jy2T
+            #if conj[bl]: d = n.conj(d) #conjugate if necessary
+            #x[k][bl] = n.transpose(d, [1,0]) #swap time and freq axes
+            x[k][bl] = noise_all #XXX
     bls_master = x.values()[0].keys()
     nbls = len(bls_master)
     print 'Baselines:', nbls
@@ -220,8 +178,7 @@ for boot in xrange(opts.nboot):
     if INJECT_SIG > 0.: #Create a fake EoR signal to inject
         print 'INJECTING SIMULATED SIGNAL'
         eor1 = noise(x[days[0]][bls_master[0]].shape) * INJECT_SIG
-        wij = n.transpose(f[days[0]][bls_master[0]], [1,0]) #flags (time,freq)
-        #eor1 = noise((21,1451)) * INJECT_SIG #shape of full data
+        """ #NO FRINGE RATE FILTERING
         if False: #this hack of a fringe_filter doesn't seem to be representative
             fringe_filter = n.ones((44,))
             #maintain amplitude of original noise
@@ -240,30 +197,14 @@ for boot in xrange(opts.nboot):
             else: fir = {(ij[0],ij[1],POL):firs}
             dij,wij = n.transpose(eor1, [1,0]),n.logical_not(wij)
             _d,_w,_,_ = fringe.apply_frf(aa,dij,wij,ij[0],ij[1],pol=POL,bins=bins,firs=fir)
-
-            ### OLD CODE TO FRF ###
-            #for cnt,ch in enumerate(chans):
-            #    eor1[cnt] = n.convolve(eor1[cnt], n.conj(firs[cnt]), mode='same') #conjugate firs!!!
-        #eor = eor1
-        ### END ###
         eor2 = n.transpose(_d, [1,0])
         eor = eor2
-        #eor2 = eor.values()[0] * INJECT_SIG
-        #eor = eor1 * INJECT_SIG #XXX WHY again?!
-        #each time integration is 32s, which is 1.875 ints/min or 112.5 ints/hour
-        #first LST of dataset is 3.2h, but I start at 4h
-        #0.8h from beginning of array gives 90th time sample
-        #eor = eor[:,90:742] #back to (21,652) shape for LST range 4-10
+        """
+        eor = eor1
         for k in days:
             for bl in x[k]: x[k][bl] += eor #add injected signal to data
-        if False and PLOT:
-            p.subplot(211); capo.arp.waterfall(eor1, mode='real'); p.colorbar()
-            p.subplot(212); capo.arp.waterfall(eor2, mode='real'); p.colorbar(); p.show()
 
     #Power spectrum stuff
-    #Q = {} # Create the Q's that extract power spectrum modes
-    #for i in xrange(nchan):
-    #    Q[i] = get_Q(i, nchan)
     Q = [get_Q(i,nchan) for i in xrange(nchan)] #get Q matrix (does FT from freq to delay)
 
     #Compute baseline auto-covariances and apply inverse to data
@@ -301,7 +242,7 @@ for boot in xrange(opts.nboot):
         gps = [[random.choice(gp) for bl in gp] for gp in gps]
     else: gps = [bls[i::NGPS] for i in range(NGPS)]
     bls = [bl for gp in gps for bl in gp]
-    i#print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps])
+    #print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps])
     _Iz,_Isum,_IsumQ = {},{},{}
     _Cz,_Csum,_CsumQ = {},{},{}
     print "   Getting C"
@@ -318,7 +259,7 @@ for boot in xrange(opts.nboot):
             if DELAY: #this is much faster
                 _Iz[k][i] = n.fft.fftshift(n.fft.ifft(window*_Iz[k][i], axis=0), axes=0)
                 _Cz[k][i] = n.fft.fftshift(n.fft.ifft(window*_Cz[k][i], axis=0), axes=0)
-                # XXX need to take fft of _Csum, _Isum here
+                #XXX need to take fft of _Csum, _Isum here
             for ch in xrange(nchan): # XXX this loop makes computation go as nchan^3
                 _IsumQ[k][i][ch] = n.dot(_Isum[k][i], Q[ch])
                 _CsumQ[k][i][ch] = n.dot(_Csum[k][i], Q[ch])
@@ -439,19 +380,15 @@ for boot in xrange(opts.nboot):
         p.show()
 
     print 'pI=', n.average(pI.real), 'pC=', n.average(pC.real), 'pI/pC=', n.average(pI.real)/n.average(pC.real)
-
+    
     if PLOT:
         p.plot(kpl, n.average(pC.real, axis=1), 'b.-')
         p.plot(kpl, n.average(pI.real, axis=1), 'k.-')
         p.show()
 
     print '   Writing pspec_bootsigloss%04d.npz' % boot
-
-    if len(opts.output) > 0: outpath = opts.output+'/pspec_boot%04d.npz' % boot
-    else: outpath = 'pspec_boot%04d.npz' % boot
-
-    n.savez(outpath, kpl=kpl, scalar=scalar, times=n.array(lsts),
-        pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
+    n.savez('pspec_bootsigloss%04d.npz'%boot, kpl=kpl, scalar=scalar, times=n.array(lsts),
+        pk_vs_t=pC, nocov_vs_t=pI,
         cmd=' '.join(sys.argv))
 
 
