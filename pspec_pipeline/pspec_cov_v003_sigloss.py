@@ -16,11 +16,13 @@ o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 o.add_option('--output', type='string', default='',
     help='output directory for pspec_boot files (default "")')
+o.add_option('--noise_only',action='store_true',
+    help='Replace data with noise.')
 opts,args = o.parse_args(sys.argv[1:])
 
 #Basic Parameters
 random.seed(0)
-n.random.seed(1235813)
+#n.random.seed(1235813)
 POL = opts.pol #'I'
 LST_STATS = False
 DELAY = False
@@ -31,6 +33,23 @@ NOISE = .0
 PLOT = opts.plot
 
 ### FUNCTIONS ###
+
+#function uses aa, ij, afreqs, inttime, POL
+def frf(shape,loc=0,scale=1):
+    shape = shape[1]*2,shape[0] #(2*times,freqs)
+    dij = noise(shape,loc=loc,scale=scale)
+    #bins = fringe.gen_frbins(inttime)
+    #frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
+    #timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
+    #_,blconj,_ = zsa.grid2ij(aa.ant_layout)
+    #if blconj[a.miriad.ij2bl(ij[0],ij[1])]: fir = {(ij[0],ij[1],POL):n.conj(firs)}
+    #else: fir = {(ij[0],ij[1],POL):firs}
+    wij = n.ones(shape,dtype=bool) #XXX flags are all true (times,freqs)
+    #dij and wij are (times,freqs)
+    _d,_w,_,_ = fringe.apply_frf(aa,dij,wij,ij[0],ij[1],pol=POL,bins=bins,firs=fir)
+    _d = n.transpose(_d)
+    _d = _d[:,shape[0]/4:shape[0]/2+shape[0]/4]
+    return _d
 
 def get_data(filenames, antstr, polstr, verbose=False):
     # XXX could have this only pull channels of interest to save memory
@@ -69,10 +88,10 @@ def cov(m):
     fact = float(N - 1)
     return (n.dot(X, X.T.conj()) / fact).squeeze()
 
-def noise(size):
+def noise(size,loc=0,scale=1): #loc is mean, scale is stdev (sqrt(var))
     #sig = 1./n.sqrt(2)
     #return n.random.normal(scale=sig, size=size) + 1j*n.random.normal(scale=sig, size=size)
-    return n.random.normal(size=size) * n.exp(1j*n.random.uniform(0,2*n.pi,size=size))
+    return (n.random.normal(size=size,scale=scale) * n.exp(1j*n.random.uniform(0,2*n.pi,size=size))) + loc
 
 def get_Q(mode, n_k):
     if not DELAY:
@@ -107,10 +126,11 @@ freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 #inttime = uv['inttime'] #* 4 # XXX hack for *E files that have inttime set incorrectly
-(uvw,t1,(i,j)),d = uv.read()
-(uvw,t2,(i,j)),d = uv.read()
-while t1 == t2: (uvw,t2,(i,j)),d = uv.read()
-inttime = (t2-t1)* (3600*24)
+#(uvw,t1,(i,j)),d = uv.read()
+#(uvw,t2,(i,j)),d = uv.read()
+#while t1 == t2: (uvw,t2,(i,j)),d = uv.read()
+#inttime = (t2-t1)* (3600*24)
+inttime = 44
 del(uv)
 
 afreqs = freqs.take(chans)
@@ -119,7 +139,7 @@ fq = n.average(afreqs)
 z = capo.pspec.f2z(fq)
 
 #aa = a.cal.get_aa(opts.cal, n.array([.150]))
-aa = a.cal.get_aa(opts.cal, freqs)
+aa = a.cal.get_aa(opts.cal, afreqs)
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
 jy2T = capo.pspec.jy2T(afreqs)
 window = a.dsp.gen_window(nchan, WINDOW)
@@ -197,31 +217,51 @@ for k in days:
     for bl in data[k]:
         data[k][bl],flgs[k][bl] = n.array(data[k][bl][:j]),n.array(flgs[k][bl][:j])
 lsts = lsts.values()[0] #same set of LST values for both even/odd data
+daykey = data.keys()[0]
+blkey = data[daykey].keys()[0]
+ij = a.miriad.bl2ij(blkey)
 
-#Extract frequency range of data for each boot
+#Prep FRF Stuff
+bins = fringe.gen_frbins(inttime)
+frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
+timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
+_,blconj,_ = zsa.grid2ij(aa.ant_layout)
+if blconj[a.miriad.ij2bl(ij[0],ij[1])]: fir = {(ij[0],ij[1],POL):n.conj(firs)}
+else: fir = {(ij[0],ij[1],POL):firs}
+
+#Extract frequency range of data 
+xi = {}
+f = {}
+#NOISE = frf((len(chans),len(lsts)),loc=0,scale=1e7) #same noise on each bl
+for k in days:
+    xi[k] = {}
+    f[k] = {}
+    for bl in data[k]:
+        d = data[k][bl][:,chans] * jy2T
+        flg = flgs[k][bl][:,chans]
+        if conj[bl]: d = n.conj(d) #conjugate if necessary
+        shape = d.shape #(times,freqs)
+        if opts.noise_only:
+            xi[k][bl] = frf((len(chans),len(lsts)),loc=0,scale=1e7) #diff noise for each bl
+        else:
+             xi[k][bl] = n.transpose(d, [1,0]) #swap time and freq axes
+        f[k][bl] = n.transpose(flg, [1,0])
+bls_master = xi.values()[0].keys()
+#bls_master = bls_master[:5]
+nbls = len(bls_master)
+print 'Baselines:', nbls
+    
 for boot in xrange(opts.nboot):
-    print '%d / %d' % (boot+1,opts.nboot)
-    x = {}
-    f = {}
-    for k in days:
-        x[k] = {}
-        f[k] = {}
-        for bl in data[k]:
-            d = data[k][bl][:,chans] * jy2T
-            flg = flgs[k][bl][:,chans]
-            if conj[bl]: d = n.conj(d) #conjugate if necessary
-            x[k][bl] = n.transpose(d, [1,0]) #swap time and freq axes
-            f[k][bl] = n.transpose(flg, [1,0])
-    #eor = x.pop('eor'); days = x.keys() #make up for putting eor in list above
-    bls_master = x.values()[0].keys()
-    nbls = len(bls_master)
-    print 'Baselines:', nbls
-        
+    print '%d / %d' % (boot+1,opts.nboot)   
     if INJECT_SIG > 0.: #Create a fake EoR signal to inject
         print 'INJECTING SIMULATED SIGNAL'
-        eor1 = noise(x[days[0]][bls_master[0]].shape) * INJECT_SIG
-        wij = n.transpose(f[days[0]][bls_master[0]], [1,0]) #flags (time,freq)
-        #eor1 = noise((21,1451)) * INJECT_SIG #shape of full data
+        eor = frf((shape[1],shape[0]),loc=0,scale=1) * INJECT_SIG #create FRF-ered noise
+        """
+        #eor1 = noise(shape) * INJECT_SIG
+        #wij = n.transpose(f[days[0]][bls_master[0]], [1,0]) #flags (time,freq)
+        eor1 = noise((shape[1],shape[0]*2)) * INJECT_SIG #twice as long in time (freqs,times)
+        #XXX weights are all zeros instead of taken from data
+        wij = n.transpose(n.zeros((shape[1],shape[0]*2))) #twice as long in time (times,freqs)
         if False: #this hack of a fringe_filter doesn't seem to be representative
             fringe_filter = n.ones((44,))
             #maintain amplitude of original noise
@@ -239,23 +279,22 @@ for boot in xrange(opts.nboot):
             if blconj[a.miriad.ij2bl(ij[0],ij[1])]: fir = {(ij[0],ij[1],POL):n.conj(firs)} #conjugate fir if needed
             else: fir = {(ij[0],ij[1],POL):firs}
             dij,wij = n.transpose(eor1, [1,0]),n.logical_not(wij)
+            #import IPython;IPython.embed()
+            #dij and wij are (times,freqs)
             _d,_w,_,_ = fringe.apply_frf(aa,dij,wij,ij[0],ij[1],pol=POL,bins=bins,firs=fir)
-
             ### OLD CODE TO FRF ###
             #for cnt,ch in enumerate(chans):
             #    eor1[cnt] = n.convolve(eor1[cnt], n.conj(firs[cnt]), mode='same') #conjugate firs!!!
         #eor = eor1
         ### END ###
         eor2 = n.transpose(_d, [1,0])
-        eor = eor2
-        #eor2 = eor.values()[0] * INJECT_SIG
-        #eor = eor1 * INJECT_SIG #XXX WHY again?!
-        #each time integration is 32s, which is 1.875 ints/min or 112.5 ints/hour
-        #first LST of dataset is 3.2h, but I start at 4h
-        #0.8h from beginning of array gives 90th time sample
-        #eor = eor[:,90:742] #back to (21,652) shape for LST range 4-10
+        eor = eor2 #(freqs,times)
+        eor = eor[:,shape[0]/2:shape[0]/2+shape[0]] #take the middle section of time
+        """
+        x = {}
         for k in days:
-            for bl in x[k]: x[k][bl] += eor #add injected signal to data
+            x[k] = {}
+            for bl in xi[k]: x[k][bl] = xi[k][bl] + eor #add injected signal to data
         if False and PLOT:
             p.subplot(211); capo.arp.waterfall(eor1, mode='real'); p.colorbar()
             p.subplot(212); capo.arp.waterfall(eor2, mode='real'); p.colorbar(); p.show()
@@ -265,15 +304,14 @@ for boot in xrange(opts.nboot):
     #for i in xrange(nchan):
     #    Q[i] = get_Q(i, nchan)
     Q = [get_Q(i,nchan) for i in xrange(nchan)] #get Q matrix (does FT from freq to delay)
-
     #Compute baseline auto-covariances and apply inverse to data
     I,_I,_Ix = {},{},{}
     C,_C,_Cx = {},{},{}
     for k in days:
         I[k],_I[k],_Ix[k] = {},{},{}
         C[k],_C[k],_Cx[k] = {},{},{}
-        for bl in x[k]:
-            C[k][bl] = cov(x[k][bl])
+        for bl in bls_master:
+            C[k][bl] = cov(x[k][bl]) 
             I[k][bl] = n.identity(C[k][bl].shape[0])
             #C[k][bl] = C[k][bl] + 1*I[k][bl] #C+IN noise
             U,S,V = n.linalg.svd(C[k][bl].conj()) #singular value decomposition
@@ -281,15 +319,25 @@ for boot in xrange(opts.nboot):
             _I[k][bl] = n.identity(_C[k][bl].shape[0])
             #_Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
             #_Ix[k][bl] = x[k][bl].copy()
+            #eor = x[k][bl] #XXX back to original x instead of eor
             _Cx[k][bl] = n.dot(_C[k][bl], eor) # XXX
             _Ix[k][bl] = eor.copy() # XXX
+            #import IPython;IPython.embed()
             if PLOT and True:
                 #p.plot(S); p.show()
                 print a.miriad.bl2ij(bl), k
                 p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
+                p.colorbar()
+                p.title('Data x')
                 p.subplot(323); capo.arp.waterfall(C[k][bl])
+                p.colorbar()
+                p.title('C')
                 p.subplot(324); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
                 p.subplot(313); capo.arp.waterfall(_Cx[k][bl], mode='real')
+                p.colorbar()
+                p.title('C^-1 x')
+                p.suptitle('%d_%d'%a.miriad.bl2ij(bl)+' '+k)
+                p.tight_layout()
                 p.show()
         
     #Make boots
@@ -301,7 +349,7 @@ for boot in xrange(opts.nboot):
         gps = [[random.choice(gp) for bl in gp] for gp in gps]
     else: gps = [bls[i::NGPS] for i in range(NGPS)]
     bls = [bl for gp in gps for bl in gp]
-    i#print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps])
+    #print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps])
     _Iz,_Isum,_IsumQ = {},{},{}
     _Cz,_Csum,_CsumQ = {},{},{}
     print "   Getting C"
@@ -426,10 +474,11 @@ for boot in xrange(opts.nboot):
     MC /= norm; WC = n.dot(MC, FC)
 
     print '   Generating ps'
+    if opts.noise_only: scalar = 1
     pC = n.dot(MC, qC) * scalar
     #pC[m] *= 1.81 # signal loss, high-SNR XXX
     #pC[m] *= 1.25 # signal loss, low-SNR XXX
-    pI = n.dot(MI, qI) * scalar
+    pI = n.dot(MI, qI) * scalar 
 
     if PLOT:
         p.subplot(411); capo.arp.waterfall(qC, mode='real'); p.colorbar(shrink=.5)
@@ -447,8 +496,8 @@ for boot in xrange(opts.nboot):
 
     print '   Writing pspec_bootsigloss%04d.npz' % boot
 
-    if len(opts.output) > 0: outpath = opts.output+'/pspec_boot%04d.npz' % boot
-    else: outpath = 'pspec_boot%04d.npz' % boot
+    if len(opts.output) > 0: outpath = opts.output+'/pspec_bootsigloss%04d.npz' % boot
+    else: outpath = 'pspec_bootsigloss%04d.npz' % boot
 
     n.savez(outpath, kpl=kpl, scalar=scalar, times=n.array(lsts),
         pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,

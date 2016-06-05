@@ -67,13 +67,13 @@ def hmap_to_fr_profile(bm_hmap, bl, lat, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, i
     fng = mk_fng(bl,eq)
     return fr_profile(bm, fng, bins=bins, wgt=wgt, iwgt=iwgt)
     
-def aa_to_fr_profile(aa, (i,j), ch, pol='I', bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT, nside=64, frpad=1, **kwargs):
+def aa_to_fr_profile(aa, (i,j), ch, pol='I', bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT, nside=64, bl_scale=1, **kwargs):
     '''For an AntennaArray, for a baseline indexed by i,j, at frequency fq, return the fringe-rate profile.'''
     fq = aa.get_afreqs()[ch]
     h = a.healpix.HealpixMap(nside=nside)
     eq = h.px2crd(n.arange(h.npix()), ncrd=3)
     top = n.dot(aa._eq2zen, eq)
-    fng = mk_fng(aa.get_baseline(i,j,'r')*fq*frpad, eq)
+    fng = mk_fng(aa.get_baseline(i,j,'r')*fq*bl_scale, eq)
     # XXX computing bm at all freqs, but only taking one
     _bmx = aa[0].bm_response((top), pol='x')[ch]; _bmx = n.where(top[2] > 0, _bmx, 0)
     _bmy = aa[0].bm_response((top), pol='y')[ch]; _bmy = n.where(top[2] > 0, _bmy, 0)
@@ -113,7 +113,7 @@ def normalize(fx):
     
 
 def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, fr_xtalk=.00035, maxfr=None,
-        mdl=gauss, maxfun=1000, ftol=1e-6, xtol=1e-6, startprms=(.001,.0001), window='blackman-harris', alietal=False, verbose=False ,frpad=1., **kwargs):
+        mdl=gauss, maxfun=1000, ftol=1e-6, xtol=1e-6, startprms=(.001,.0001), window='blackman-harris', alietal=False, verbose=False ,bl_scale=1.,fr_width_scale=1., **kwargs):
     ''' Take a fringe rate profile at one frequency, fit an analytic function and extend 
         to other frequencies. 
         frp0: fringe rate profile at a single frequency. 
@@ -125,11 +125,11 @@ def frp_to_firs(frp0, bins, fqs, fq0=.150, limit_maxfr=True, limit_xtalk=True, f
         mdl: a function to fit the fringe rate profile too. gaussian for default.
     '''
     #print bins
-    startprms = tuple( [startprms[0]*frpad*fq0/fqs[101],startprms[1]])
+    startprms = tuple( [startprms[0]*fq0/fqs[len(fqs)/2]*bl_scale,startprms[1]])
     if maxfr is None: maxfr = bins[n.argwhere(frp0 != 0).max()] # XXX check this
     prms0 = fit_mdl(frp0, bins, maxfr, mdl=mdl,maxfun=maxfun,ftol=ftol,xtol=xtol,startprms=startprms,verbose=verbose)
     #prms0 = n.array(prms0)
-    #prms0[1] *= frpad
+    prms0[1] *= fr_width_scale ##Makes filter artificially wider by factor of fr_width_scale
     if limit_maxfr:
         def limit_maxfr(fq): return tanh(bins,maxfr/fq0*fq,1e-5,a=-1.)
     else:
@@ -161,7 +161,7 @@ def apply_frf(aa, data, wgts, i, j, pol='I', firs=None, **kwargs):
     for ch in xrange(nchan):
         #datf[:,ch] = n.convolve(data[:,ch], fir[ch,:], mode='same')
         #wgtf[:,ch] = n.convolve(wgts[:,ch], n.abs(fir[ch,:]), mode='same')
-        datf[:,ch] = n.convolve(data[:,ch], n.conj(fir[ch,:]), mode='same')
+        datf[:,ch] = n.convolve(data[:,ch]*wgts[:,ch], n.conj(fir[ch,:]), mode='same')
         wgtf[:,ch] = n.convolve(wgts[:,ch], n.abs(n.conj(fir[ch,:])), mode='same')
     datf = n.where(wgtf > 0, datf/wgtf, 0)
     return datf, wgtf, tbins, firs

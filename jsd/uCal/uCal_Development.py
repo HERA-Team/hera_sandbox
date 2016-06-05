@@ -1,5 +1,3 @@
-#! /usr/bin/env python
-
 import numpy as np
 import cPickle as pickle
 import matplotlib.pyplot as plt
@@ -17,16 +15,18 @@ def SortedEigensystem(matrix):
     indices = np.argsort(np.abs(evals))[::-1]   
     return evals[indices], evecs[:,indices]
 
-#baselineFreqPairs = pickle.load(open('./Data/zen.2456943.65409.xx.uvcRRE.ucal.p','rb'))
-baselineFreqPairs = pickle.load(open('./Data/zen.2456943.57058.xx.uvcRRE.ucal.p','rb'))
+baselineFreqPairs = pickle.load(open('./Data/zen.2456943.65409.xx.uvcRRE.ucal.p','rb'))
+#baselineFreqPairs = pickle.load(open('./Data/zen.2456943.57058.xx.uvcRRE.ucal.p','rb'))
 
 files = baselineFreqPairs['files']; del baselineFreqPairs['files']
-uMinCutoff = 5
-uMaxCutoff = 125
-duThreshold = .25
+uMinCutoff = 25
+uMaxCutoff = 150
+duThreshold = .3
 
 #flaggedChannels = np.asarray([])
-flaggedChannels = np.asarray([14, 55, 101, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186])
+alwaysFlaggedChannels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 169, 183, 185, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 75, 76, 77]
+alsoFlagTheseChannels = [14, 55, 101, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186]
+flaggedChannels = np.asarray(sorted(list(set(alwaysFlaggedChannels).union(set(alsoFlagTheseChannels)))))
 #TODO: find an automatic way to flag channels
 
 
@@ -41,12 +41,13 @@ nPairs = len(baselineFreqPairs)
 print 'There are ' + str(nPairs) + ' baseline frequency pairs after our cuts.'
 allFreqs = np.unique([[key[0],key[1]] for key in baselineFreqPairs.keys()])
 nFreqs = len(allFreqs)
-allus = np.unique([key[2] for key in baselineFreqPairs.keys()])
-alldus = np.unique([entry['du'] for key,entry in baselineFreqPairs.items()])
+allus = np.asarray([key[2] for key in baselineFreqPairs.keys()])
+alldus = np.array([entry['du'] for key,entry in baselineFreqPairs.items()])
 
 #Assign uBins for logcal
-nuBins = 50
 uMin, uMax = np.min(allus), np.max(allus)
+Omega = 0.72 #sterradians
+nuBins = int(np.ceil((uMax-uMin) / Omega**-.5)) #TODO: verify this calculation
 deltau = (uMax-uMin)/(nuBins-1e-9)
 for key in baselineFreqPairs.keys(): baselineFreqPairs[key]['uBin'] = int(np.floor((key[2]-uMin)/deltau))
 alluBins, uBinWeights = np.unique([entry['uBin'] for key,entry in baselineFreqPairs.items()],return_counts=True)
@@ -71,6 +72,19 @@ for key,entry in baselineFreqPairs.items(): duBinCenters[entry['duBin']].append(
 for duBin,duValues in duBinCenters.items(): duBinCenters[duBin] = np.average(duValues)
 for duBin,duValues in duBinCenters.items(): 
     if np.isnan(duBinCenters[duBin]): del duBinCenters[duBin]
+
+#duMin, duMax = np.min(alldus/allus), np.max(alldus/allus)
+#nduBins = 20#int(np.round((duMax-duMin) / (.1/203/3e8*1e9*15))) + 1
+#deltadu = (duMax-duMin)/(nduBins-1+1e-9)
+#for key in baselineFreqPairs.keys(): baselineFreqPairs[key]['duBin'] = int(np.floor((baselineFreqPairs[key]['du']/key[2]-duMin)/deltadu))
+#allduBins, duBinWeights = np.unique([entry['duBin'] for key,entry in baselineFreqPairs.items()],return_counts=True)
+#
+#duBinCenters = {n:[] for n in range(nduBins)}
+#for key,entry in baselineFreqPairs.items(): duBinCenters[entry['duBin']].append(entry['du'])
+#for duBin,duValues in duBinCenters.items(): duBinCenters[duBin] = np.average(duValues)
+#for duBin,duValues in duBinCenters.items(): 
+#    if np.isnan(duBinCenters[duBin]): del duBinCenters[duBin]
+
 
 #%% Perform logcal (assuming N = I)
 
@@ -118,7 +132,7 @@ plt.title('Logcal abs(beta)')
 plt.xlabel('f (GHz)')
 
 plt.figure(2); plt.clf()
-plt.plot([uBinCenters[uBin] for uBin in alluBins],[np.abs(logcalBandpass[uBin2Col[uBin]]) for uBin in alluBins],'.')
+plt.plot([uBinCenters[uBin] for uBin in alluBins],[np.imag(logcalBandpass[uBin2Col[uBin]]) for uBin in alluBins],'.')
 plt.title('Logcal abs(Sigma(u))')
 plt.xlabel('u')
 
@@ -141,7 +155,7 @@ freq2Col = {freq: col for col,freq in zip(range(0,nFreqs),allFreqs)}
 #noiseCovDiag = np.asarray([(f1*f2)**(2*spectralIndex) / (1.0 * redundancyDict[entry['blpairs'][0]] * redundancyDict[entry['blpairs'][1]] * entry['nIntegrations']) for ((f1,f2,u),entry) in baselineFreqPairs.items()])
 noiseCovDiag = np.asarray([(np.abs(logcalBandpass[freq2Col[f1]])**2 * np.abs(logcalBandpass[freq2Col[f2]])**2) / (1.0 * redundancyDict[entry['blpairs'][0]] * redundancyDict[entry['blpairs'][1]] * entry['nIntegrations']) for ((f1,f2,u),entry) in baselineFreqPairs.items()])
 visCorrs = np.asarray([entry['avgvis'] for key,entry in baselineFreqPairs.items()])
-noiseCovDiag *= np.var(visCorrs) / np.mean(noiseCovDiag) * 8e-6 * 750.0
+noiseCovDiag *= 5.876515518880278e-09 / np.mean(noiseCovDiag) #TODO: make this more automatic
 #TODO: need to renormalize the noise
 
 
@@ -165,7 +179,7 @@ col2duBin = {col: duBin for duBin,col in duBin2Col.items()}
 
 alpha = .3
 
-for iteration in range(8):
+for iteration in range(10):
 
     deltas = visCorrs - np.asarray([betas[f1]*np.conj(betas[f2])*Sigmas[entry['uBin']]*Ds[entry['duBin']] for ((f1,f2,u),entry) in baselineFreqPairs.items()])
     coeffs, rowIndices, colIndices = np.zeros(nPairs*16), np.zeros(nPairs*16), np.zeros(nPairs*16)        
@@ -189,7 +203,10 @@ for iteration in range(8):
     
     A = csr_matrix((coeffs,(rowIndices,colIndices)))
     #Ninv = csr_matrix((np.append(np.append(noiseCovDiag**-1,noiseCovDiag**-1),[1,1,1]), (np.arange(2*nPairs+3), np.arange(2*nPairs+3))))
-    Ninv = csr_matrix((np.append(noiseCovDiag**-1,noiseCovDiag**-1), (np.arange(2*nPairs), np.arange(2*nPairs))))
+    
+    noiseRenorm = np.mean(noiseCovDiag)/3.74232875333e-05**2 #TODO: make this more automatic
+    
+    Ninv = csr_matrix((np.append((noiseCovDiag)**-1,(noiseCovDiag)**-1), (np.arange(2*nPairs), np.arange(2*nPairs))))
     AtNinvA = (A.conjugate().transpose().dot(Ninv)).dot(A).toarray()
     if iteration == 0: print 'Zero Eigenvalues: ', len(AtNinvA) - np.linalg.matrix_rank(AtNinvA)
 
@@ -215,8 +232,12 @@ for iteration in range(8):
 
     
     allChiSq = np.abs(visCorrs - np.asarray([betas[f1]*np.conj(betas[f2])*Sigmas[entry['uBin']]*Ds[entry['duBin']] for ((f1,f2,u),entry) in baselineFreqPairs.items()]))**2 / noiseCovDiag
+    predicted = np.asarray([betas[f1]*np.conj(betas[f2])*Sigmas[entry['uBin']]*Ds[entry['duBin']] for ((f1,f2,u),entry) in baselineFreqPairs.items()])
+    chiSqPerDoF = np.average(np.append(np.real(visCorrs - predicted)**2, np.imag(visCorrs - predicted)**2) * Ninv)
     plt.figure(10); plt.clf()
+    #plt.plot(allFreqs,[np.abs(betas[freq]) * (freq/.15)**-spectralIndex for freq in allFreqs],'.')
     plt.plot(allFreqs,[np.abs(betas[freq]) for freq in allFreqs],'.')
+#    plt.plot(allFreqs,[np.angle(betas[freq]) for freq in allFreqs],'.')
     plt.title('Discrete Lincal abs(beta)')
     plt.xlabel('f (GHz)')
     plt.figure(11); plt.clf()
@@ -230,180 +251,29 @@ for iteration in range(8):
     plt.show() 
     plt.draw()
     plt.pause(0.05)
-    print str(iteration) + ') mean chi^2 = ' + str(np.average(allChiSq))
+    print str(iteration) + ') chi^2/dof = ' + str(chiSqPerDoF)#str(np.average(allChiSq))
 
 binnedLincalAtNinvA = AtNinvA.copy()
 binnedLincalBetas = betas.copy()
 binnedLincalSigmas = Sigmas.copy()
 binnedLincalDs = Ds.copy()
     
-#%% Fit Bandpass to intialize lincal
+#%%
+allChiSq = np.abs(visCorrs - np.asarray([betas[f1]*np.conj(betas[f2])*Sigmas[entry['uBin']]*Ds[entry['duBin']] for ((f1,f2,u),entry) in baselineFreqPairs.items()]))**2 / noiseCovDiag
+plt.figure(1231); plt.clf()
+test = plt.hist(allChiSq,2000)
+plt.yscale('log')
 
-realSigmaPolyOrder = 6
-imagSigmaPolyOrder = realSigmaPolyOrder
-uMean = np.mean(np.asarray([u for (f1,f2,u) in baselineFreqPairs.keys()]))
-uBinCenterList = np.asarray([uBinCenters[key] for key in uBinCenters.keys()])
-SigmaList = np.asarray([binnedLincalSigmas[key] for key in uBinCenters.keys()])
-initialRealSigmaPolyCoeffs = np.polyfit(uBinCenterList/uMean, np.real(SigmaList), realSigmaPolyOrder, w=uBinWeights)
-initialImagSigmaPolyCoeffs = np.polyfit(uBinCenterList/uMean, np.imag(SigmaList), imagSigmaPolyOrder, w=uBinWeights)
-
-plt.figure(21); plt.clf()
-plt.plot(uBinCenterList/uMean,np.real(SigmaList),'.')
-plt.plot(uBinCenterList/uMean,np.polyval(initialRealSigmaPolyCoeffs,uBinCenterList/uMean))    
-plt.plot(uBinCenterList/uMean,np.imag(SigmaList),'.')
-plt.plot(uBinCenterList/uMean,np.polyval(initialImagSigmaPolyCoeffs,uBinCenterList/uMean))    
-
-#%% Fit D(du) 
-
-realDsPolyOrder = 4
-imagDsPolyOrder = realDsPolyOrder
-duMean = np.mean(np.asarray([entry['du'] for key,entry in baselineFreqPairs.items()]))
-duBinCenterList = np.asarray([duBinCenters[key] for key in duBinCenters.keys()])
-DsList = np.asarray([binnedLincalDs[key] for key in duBinCenters.keys()])
-initialRealDsPolyCoeffs = np.polyfit(duBinCenterList/duMean, np.real(DsList), realDsPolyOrder, w=duBinWeights)
-initialImagDsPolyCoeffs = np.polyfit(duBinCenterList/duMean, np.imag(DsList), imagDsPolyOrder, w=duBinWeights)
-
-plt.figure(22); plt.clf()
-plt.plot(duBinCenterList/duMean,np.real(DsList),'.')
-plt.plot(duBinCenterList/duMean,np.polyval(initialRealDsPolyCoeffs,duBinCenterList/duMean))    
-plt.plot(duBinCenterList/duMean,np.imag(DsList),'.')
-plt.plot(duBinCenterList/duMean,np.polyval(initialImagDsPolyCoeffs,duBinCenterList/duMean))    
-
-
-#%% Perform lincal with polynomial
-
-print '\nNow performing Lincal with Polynomial Sigma(u) and D(du)...'
-
-alpha = .5
-
-betas = binnedLincalBetas
-realSigmas = initialRealSigmaPolyCoeffs
-imagSigmas = initialImagSigmaPolyCoeffs
-realDs = initialRealDsPolyCoeffs
-imagDs = initialImagDsPolyCoeffs
-freq2Col = {freq: col for col,freq in zip(range(0,2*nFreqs,2),allFreqs)}
-col2freq = {col: freq for freq,col in freq2Col.items()}
-
-
-for iteration in range(8):
-    betaBetaStarList = np.asarray([betas[f1]*np.conj(betas[f2]) for ((f1,f2,u),entry) in baselineFreqPairs.items()])    
-    SigmasList = np.asarray([(np.polyval(realSigmas,u/uMean) + 1.0j*np.polyval(imagSigmas,u/uMean)) for ((f1,f2,u),entry) in baselineFreqPairs.items()])
-    DsList = np.asarray([(np.polyval(realDs,entry['du']/duMean) + 1.0j*np.polyval(imagDs,entry['du']/duMean)) for ((f1,f2,u),entry) in baselineFreqPairs.items()])
-    deltas = visCorrs - betaBetaStarList * SigmasList * DsList
-    termsPerRow = 4*2 + (realSigmaPolyOrder+1)*2 + (imagSigmaPolyOrder+1)*2 + (realDsPolyOrder+1)*2 + (imagDsPolyOrder+1)*2
-    coeffs, rowIndices, colIndices = np.zeros(nPairs*termsPerRow), np.zeros(nPairs*termsPerRow), np.zeros(nPairs*termsPerRow)
-    realSigmaPolyCols = range(2*nFreqs,2*nFreqs+realSigmaPolyOrder+1)
-    imagSigmaPolyCols = range(2*nFreqs+realSigmaPolyOrder+1,2*nFreqs+realSigmaPolyOrder+imagSigmaPolyOrder+2)
-    realDsPolyCols = range(2*nFreqs+realSigmaPolyOrder+imagDsPolyOrder+2, 2*nFreqs+realSigmaPolyOrder+imagDsPolyOrder+realDsPolyOrder+3)
-    imagDsPolyCols = range(2*nFreqs+realSigmaPolyOrder+imagDsPolyOrder+realDsPolyOrder+3, 2*nFreqs+realSigmaPolyOrder+imagDsPolyOrder+realDsPolyOrder+imagDsPolyOrder+4)
-    for n,((f1,f2,u),entry) in enumerate(baselineFreqPairs.items()):
-        du = entry['du']
-        SigmaHere = (np.polyval(realSigmas,u/uMean) + 1.0j*np.polyval(imagSigmas,u/uMean))
-        DHere = (np.polyval(realDs,du/duMean) + 1.0j*np.polyval(imagDs,du/duMean))
-        bbstarSD = betas[f1]*np.conj(betas[f2])*SigmaHere*DHere #(beta)(beta^*)(Sigma)(D)
-        bbstarS = betas[f1]*np.conj(betas[f2])*SigmaHere #(beta)(beta^*)(Sigma)
-        bbstarD = betas[f1]*np.conj(betas[f2])*DHere #(beta)(beta^*)(D)
-        f1Col, f2Col = freq2Col[f1], freq2Col[f2]
-        
-        rowIndices[termsPerRow*n:termsPerRow*n+termsPerRow/2] = n #the first termsPerRow/2 terms are on this row
-        rowIndices[termsPerRow*n+termsPerRow/2:termsPerRow*n+termsPerRow] = n+nPairs #the next termsPerRow/2 terms are on the corresponding imaginary part row
-
-        #Frequency terms
-        for i,colIndex in enumerate([f1Col,f2Col,f1Col+1,f2Col+1]): 
-            colIndices[termsPerRow*n + i] = colIndex
-            colIndices[termsPerRow*n + termsPerRow/2 + i] = colIndex
-        for i,coeff in enumerate([np.real(bbstarSD), np.real(bbstarSD), -np.imag(bbstarSD), np.imag(bbstarSD)]): coeffs[termsPerRow*n+i] = coeff
-        for i,coeff in enumerate([np.imag(bbstarSD), np.imag(bbstarSD), np.real(bbstarSD), -np.real(bbstarSD)]): coeffs[termsPerRow*n + termsPerRow/2 + i] = coeff        
-        
-        #Sigma terms
-        for i,colIndex in enumerate(realSigmaPolyCols):
-            colIndices[termsPerRow*n + 4 + i] = colIndex
-            colIndices[termsPerRow*n + termsPerRow/2 + 4 + i] = colIndex
-        for i,order in enumerate(range(realSigmaPolyOrder,-1,-1)):
-            coeffs[termsPerRow*n + 4 + i] = (u/uMean)**order * np.real(bbstarD)
-            coeffs[termsPerRow*n + termsPerRow/2 + 4 + i] = (u/uMean)**order * np.imag(bbstarD)
-        for i,colIndex in enumerate(imagSigmaPolyCols):
-            colIndices[termsPerRow*n + 4 + realSigmaPolyOrder+1  + i] = colIndex
-            colIndices[termsPerRow*n + termsPerRow/2 + 4 + realSigmaPolyOrder+1 + i] = colIndex
-        for i,order in enumerate(range(imagSigmaPolyOrder,-1,-1)):
-            coeffs[termsPerRow*n + 4 + realSigmaPolyOrder+1  + i] = -(u/uMean)**order * np.imag(bbstarD)
-            coeffs[termsPerRow*n + termsPerRow/2 + 4 + realSigmaPolyOrder+1 + i] = (u/uMean)**order * np.real(bbstarD)        
-            
-        #D terms
-        for i,colIndex in enumerate(realDsPolyCols):
-            colIndices[termsPerRow*n + 4 + realSigmaPolyOrder + imagSigmaPolyOrder + 2 + i] = colIndex
-            colIndices[termsPerRow*n + termsPerRow/2 + 4 + realSigmaPolyOrder + imagSigmaPolyOrder + 2 + i] = colIndex
-        for i,order in enumerate(range(realDsPolyOrder,-1,-1)):
-            coeffs[termsPerRow*n + 4 + realSigmaPolyOrder + imagSigmaPolyOrder + 2 + i] = (du/duMean)**order * np.real(bbstarS)
-            coeffs[termsPerRow*n + termsPerRow/2 + 4 + realSigmaPolyOrder + imagSigmaPolyOrder + 2 + i] = (du/duMean)**order * np.imag(bbstarS)
-        for i,colIndex in enumerate(imagDsPolyCols):
-            colIndices[termsPerRow*n + 4 + realSigmaPolyOrder + imagSigmaPolyOrder + realDsPolyOrder + 3 + i] = colIndex
-            colIndices[termsPerRow*n + termsPerRow/2 + 4 + realSigmaPolyOrder + imagSigmaPolyOrder + realDsPolyOrder + 3 + i] = colIndex
-        for i,order in enumerate(range(imagDsPolyOrder,-1,-1)):
-            coeffs[termsPerRow*n + 4 + realSigmaPolyOrder + imagSigmaPolyOrder + realDsPolyOrder + 3  + i] = -(du/duMean)**order * np.imag(bbstarS)
-            coeffs[termsPerRow*n + termsPerRow/2 + 4 + realSigmaPolyOrder + imagSigmaPolyOrder + realDsPolyOrder + 3 + i] = (du/duMean)**order * np.real(bbstarS) 
-                        
-    A = csr_matrix((coeffs,(rowIndices,colIndices)))
-    Ninv = csr_matrix((np.append(noiseCovDiag**-1,noiseCovDiag**-1), (np.arange(2*nPairs), np.arange(2*nPairs))))
-    AtNinvA = (A.conjugate().transpose().dot(Ninv)).dot(A).toarray()    
-    if iteration == 0: print 'Zero Eigenvalues: ', len(AtNinvA) - np.linalg.matrix_rank(AtNinvA)
-    deltasSplitReIm = np.append(np.real(deltas),np.imag(deltas))
-    xHat = np.linalg.pinv(AtNinvA).dot(A.T.conjugate().dot(Ninv.dot(deltasSplitReIm)))
-    
-
-
-    newBetas = {freq: betas[freq]*(1+alpha*(xHat[freq2Col[freq]] + 1.0j*xHat[freq2Col[freq]+1])) for freq in allFreqs}
-    betas = newBetas
-    realSigmas = realSigmas + alpha*xHat[realSigmaPolyCols]
-    imagSigmas = imagSigmas + alpha*xHat[imagSigmaPolyCols]
-    realDs = realDs + alpha*xHat[realDsPolyCols]
-    imagDs = imagDs + alpha*xHat[imagDsPolyCols]
-    
-    #Renormalize
-    bandpassMean = np.average(np.asarray([np.abs(betas[f]) for f in allFreqs]))    
-    for f in allFreqs: betas[f] = betas[f] / bandpassMean
-    bandpassAngleMean = np.average(np.asarray([np.angle(betas[f]) for f in allFreqs]))
-    for f in allFreqs: betas[f] = betas[f] * np.exp(-1.0j*bandpassAngleMean)
-    Dmean = np.average(np.abs(np.asarray([(np.polyval(realDs,entry['du']/duMean) + 1.0j*np.polyval(imagDs,entry['du']/duMean)) for ((f1,f2,u),entry) in baselineFreqPairs.items()])))
-    realSigmas *= bandpassMean**2 * Dmean
-    imagSigmas *= bandpassMean**2 * Dmean
-    realDs /= Dmean
-    imagDs /= Dmean
-
-    betaBetaStarList = np.asarray([betas[f1]*np.conj(betas[f2]) for ((f1,f2,u),entry) in baselineFreqPairs.items()])    
-    SigmasList = np.asarray([(np.polyval(realSigmas,u/uMean) + 1.0j*np.polyval(imagSigmas,u/uMean)) for ((f1,f2,u),entry) in baselineFreqPairs.items()])
-    DsList = np.asarray([(np.polyval(realDs,entry['du']/duMean) + 1.0j*np.polyval(imagDs,entry['du']/duMean)) for ((f1,f2,u),entry) in baselineFreqPairs.items()])
-    allChiSq = np.abs(visCorrs - betaBetaStarList * SigmasList * DsList)**2 / noiseCovDiag
-    plt.figure(30); plt.clf()
-    plt.plot(allFreqs,[np.abs(betas[freq]) for freq in allFreqs],'.')
-    plt.plot(allFreqs,[np.abs(binnedLincalBetas[freq]) for freq in allFreqs],'r.')
-    plt.legend(['Polynomial Lincal','Discrete Lincal'])
-    plt.title('Polynomial Lincal abs(bandpass)')
-    plt.xlabel('f (GHz)')
-    plt.figure(31); plt.clf()
-    plt.plot(np.arange(uMin,uMax,1),np.abs(np.polyval(realSigmas,np.arange(uMin,uMax,1)/uMean) + (np.polyval(imagSigmas,np.arange(uMin,uMax,1)/uMean))))
-    plt.title('Polynomial abs(Sigma(u))')
-    plt.xlabel('u')
-    plt.show() 
-    plt.draw()
-    plt.pause(0.05)
-
-    print str(iteration) + ') mean chi^2 = ' + str(np.average(allChiSq))
-    
 
 #%% Diagnostic plotting
 
-betaBetaStarList = np.asarray([betas[f1]*np.conj(betas[f2]) for ((f1,f2,u),entry) in baselineFreqPairs.items()])    
-SigmasList = np.asarray([(np.polyval(realSigmas,u/uMean) + 1.0j*np.polyval(imagSigmas,u/uMean)) for ((f1,f2,u),entry) in baselineFreqPairs.items()])
-DsList = np.asarray([(np.polyval(realDs,entry['du']/duMean) + 1.0j*np.polyval(imagDs,entry['du']/duMean)) for ((f1,f2,u),entry) in baselineFreqPairs.items()])
-predictedCorrs =  betaBetaStarList * SigmasList * DsList
-
-#use binned version instead:
-#predictedCorrs = np.asarray([binnedLincalBetas[f1]*np.conj(binnedLincalBetas[f2])*binnedLincalSigmas[entry['uBin']]*binnedLincalDs[entry['duBin']] for ((f1,f2,u),entry) in baselineFreqPairs.items()]) 
-#AtNinvA = binnedLincalAtNinvA
+predictedCorrs = np.asarray([binnedLincalBetas[f1]*np.conj(binnedLincalBetas[f2])*binnedLincalSigmas[entry['uBin']]*binnedLincalDs[entry['duBin']] for ((f1,f2,u),entry) in baselineFreqPairs.items()]) 
+AtNinvA = binnedLincalAtNinvA
 
 
 errorList = np.abs(visCorrs - predictedCorrs)
+errorListImag = np.imag(visCorrs - predictedCorrs)
+errorListReal = np.real(visCorrs - predictedCorrs)
 fracErrorList = errorList / np.abs(visCorrs)
 
 f1List = np.asarray([f1 for ((f1,f2,u),entry) in baselineFreqPairs.items()])
@@ -414,6 +284,7 @@ duList = np.asarray([entry['du'] for ((f1,f2,u),entry) in baselineFreqPairs.item
 b1List = np.asarray([entry['separations'][0] for ((f1,f2,u),entry) in baselineFreqPairs.items()])
 b2List = np.asarray([entry['separations'][1] for ((f1,f2,u),entry) in baselineFreqPairs.items()])
 deltaProdList = np.asarray([entry['averageDeltaProd'] for ((f1,f2,u),entry) in baselineFreqPairs.items()])
+stdProdList = np.asarray([entry['stdDeltaProd'] for ((f1,f2,u),entry) in baselineFreqPairs.items()])
 noiseList = np.asarray(noiseCovDiag)
 #SigmaList = np.asarray([(np.polyval(realSigmas,u/uMean) + 1.0j*np.polyval(imagSigmas,u/uMean)) for ((f1,f2,u),entry) in baselineFreqPairs.items()])
 
@@ -437,23 +308,24 @@ def lincalScatter(x,y,color=None, figNum=100, xs='log', ys='log', title='', clea
 #lincalScatter(b1List,allChiSq, figNum=104, color=f2List, xs='linear', title = 'ChiSq vs. b1 (color = f2)')
 #lincalScatter(b2List,allChiSq, figNum=105, color=f1List, xs='linear', title = 'ChiSq vs. b2 (color = f1)')
 #lincalScatter(SigmaList,allChiSq, figNum=106, color=f1List, xs='log', title = 'ChiSq vs. Sigma (color = f1)')
-lincalScatter(deltaProdList,noiseList, figNum=107, color=uList, xs='log', title = 'ChiSq vs. Sigma (color = f1)')
+lincalScatter(errorListImag**2,(noiseList), figNum=107, color=uList, xs='log', ys='log', title = '')
+plt.plot([0,1],[0,1])
 
-
-lincalScatter(np.abs(predictedCorrs), np.abs(visCorrs), color=np.log10(np.abs(noiseList)), figNum=108, ys='log', xs='log', title = 'Color is du')
+lincalScatter(np.abs(predictedCorrs), np.abs(visCorrs), color=duList, figNum=108, ys='log', xs='log', title = 'Color is du/u')
+#lincalScatter(np.abs(predictedCorrs), np.abs(visCorrs), color=np.log10(allChiSq), figNum=108, ys='log', xs='log', title = 'Color is du')
 plt.xlabel('predicted visibility correlation')
 plt.ylabel('observed visibility correlation')
 plt.colorbar()
 plt.plot([0,1],[0,1])    
 
-lincalScatter(uList,fracErrorList, figNum=109, color=duList, xs='linear', title = 'Fractional Error vs. u (color = du)')
-#TODO: investigate weightings by u or sigma. Also look at what's going on at very low u for high du.
+#lincalScatter(b2List,np.abs(visCorrs), figNum=109, color=duList, xs='linear', title = 'ChiSq vs. u (color = du)')
 
 
 
-#% Plot Expected Error vs. Observed Std
+#%% Plot Expected Error vs. Observed Std
 
 errorList = np.real(predictedCorrs - visCorrs)
+absBetas = np.asarray([np.abs(betas[freq]) for freq in allFreqs])
 #relativeErrorList = np.abs(predictedCorrs - visCorrs)/np.abs(predictedCorrs)
 freqCompiledList = {freq: [] for freq in allFreqs}
 for f1,f2,error in zip(f1List,f2List,errorList):
@@ -471,9 +343,55 @@ plt.plot(allFreqs,freqAvgErrors,'k.')
 plt.plot(allFreqs,freqMedianErrors,'g.-')
 plt.plot(allFreqs,freqStdErrors,'b-')
 
-plt.plot(allFreqs,.03*np.asarray([np.abs(betas[freq]) for freq in allFreqs])*((np.diag(np.linalg.pinv(AtNinvA))[0:2*nFreqs:2]))**.5,'r-')
-plt.legend(['Average Real Error','Median Real Error','Std of Real Error','Rescaled Expected Noise'])
+#plt.plot(allFreqs,np.asarray([np.abs(betas[freq]) for freq in allFreqs])*((np.diag(np.linalg.pinv(AtNinvA))[0:2*nFreqs:2]) + (np.diag(np.linalg.pinv(AtNinvA))[1:2*nFreqs:2]))**.5,'r-')
+plt.legend(['Average Real Error','Median Real Error','Std of Real Error'])#,'Rescaled Expected Noise'])
 plt.xlabel('f (GHz)')
+
+#%%
+
+inferredErrorsOnAbsBeta = absBetas*((np.diag(np.linalg.pinv(AtNinvA))[0:2*nFreqs:2]) + (np.diag(np.linalg.pinv(AtNinvA))[1:2*nFreqs:2]))**.5
+plt.figure(777); plt.clf()
+plt.errorbar(allFreqs,absBetas,yerr=inferredErrorsOnAbsBeta)
+
+#%%
+errorList = np.abs(predictedCorrs - visCorrs)
+
+
+inferredBeta1s = np.asarray([entry['avgvis'] / (np.conj(binnedLincalBetas[f2])*binnedLincalSigmas[entry['uBin']]*binnedLincalDs[entry['duBin']]) for ((f1,f2,u),entry) in baselineFreqPairs.items()]) 
+inferredBeta2s = np.asarray([entry['avgvis'] / (binnedLincalBetas[f1]*binnedLincalSigmas[entry['uBin']]*binnedLincalDs[entry['duBin']]) for ((f1,f2,u),entry) in baselineFreqPairs.items()]) 
+lincalScatter(f1List,np.abs(inferredBeta1s), figNum=121, color=uList, xs='linear', ys='linear', title = 'inferred betas')
+lincalScatter(f2List,np.abs(inferredBeta2s), figNum=121, color=uList, xs='linear', ys='linear', title = 'inferred betas', clear=False)
+plt.xlabel('f (GHz)')
+
+lincalScatter(f1List,np.abs(inferredBeta1s)/np.abs(np.asarray([betas[f] for f in f1List])), figNum=122, color=uList, xs='linear', ys='linear', title = 'inferred betas / beta0')
+lincalScatter(f2List,np.abs(inferredBeta2s)/np.abs(np.asarray([betas[f] for f in f2List])), figNum=122, color=uList, xs='linear', ys='linear', title = 'inferred betas / beta0')
+plt.xlabel('f (GHz)')
+
+compiledRelativeBetas = {freq: [] for freq in allFreqs}
+for f1,beta1 in zip(f1List,inferredBeta1s): compiledRelativeBetas[f1].append(np.abs(beta1))
+for f2,beta2 in zip(f2List,inferredBeta2s): compiledRelativeBetas[f2].append(np.abs(beta2))
+
+compiledBetaAvgs = np.asarray([np.average(compiledRelativeBetas[freq]) for freq in allFreqs])
+compiledBetaStds = np.asarray([np.std(compiledRelativeBetas[freq]) for freq in allFreqs])
+compiledBetaErrors = np.asarray([np.std(compiledRelativeBetas[freq]) / (len(compiledRelativeBetas[freq])-1)**.5 for freq in allFreqs])
+import scipy.stats
+compiledBetaSkews = np.asarray([scipy.stats.skew(np.asarray(compiledRelativeBetas[freq])) for freq in allFreqs])
+
+plt.figure(778); plt.clf()
+plt.errorbar(allFreqs,compiledBetaAvgs,yerr=compiledBetaErrors)
+
+plt.figure(779); plt.clf()
+plt.plot(allFreqs,inferredErrorsOnAbsBeta,'r')
+plt.plot(allFreqs,compiledBetaErrors)
+
+
+
+
+#freqAvgErrors = np.asarray([np.mean(np.asarray(freqCompiledList[freq])) for freq in allFreqs])
+#freqMedianErrors = np.asarray([np.median(np.asarray(freqCompiledList[freq])) for freq in allFreqs])
+#freqStdErrors = np.asarray([np.std(np.asarray(freqCompiledList[freq])) for freq in allFreqs])
+
+
 
 #%% Examine error correlations
 
@@ -504,12 +422,28 @@ for ((f1,f2,u),entry) in baselineFreqPairs.items():
 
 
 #%%
-deltaProdFreqAvg = {freq: [] for freq in allFreqs}
-for ((f1,f2,u),entry) in baselineFreqPairs.items(): 
-    if entry['du'] < .5:
-        deltaProdFreqAvg[f1].append(entry['averageDeltaProd'])
-        deltaProdFreqAvg[f2].append(entry['averageDeltaProd'])
-deltaProdFreqAvg = [np.average(np.asarray(deltaProdFreqAvg[freq])) for freq in allFreqs]
-plt.figure(332); plt.clf()
-plt.plot(allFreqs,deltaProdFreqAvg,'.')
-plt.plot(allFreqs,.05*np.asarray([np.abs(betas[freq]) for freq in allFreqs])*((np.diag(np.linalg.pinv(AtNinvA))[0:2*nFreqs:2]))**.5,'r-')
+#deltaProdFreqAvg = {freq: [] for freq in allFreqs}
+#for ((f1,f2,u),entry) in baselineFreqPairs.items(): 
+#    if entry['du'] < .5:
+#        deltaProdFreqAvg[f1].append(entry['stdDeltaProd']**2)
+#        deltaProdFreqAvg[f2].append(entry['stdDeltaProd']**2)
+#deltaProdFreqAvg = [np.average(np.asarray(deltaProdFreqAvg[freq])) for freq in allFreqs]
+#plt.figure(332); plt.clf()
+#plt.plot(allFreqs,deltaProdFreqAvg,'.')
+#plt.plot(allFreqs,np.asarray([np.abs(betas[freq]) for freq in allFreqs])*((np.diag(np.linalg.pinv(AtNinvA))[0:2*nFreqs:2]) + (np.diag(np.linalg.pinv(AtNinvA))[1:2*nFreqs:2]))**.5,'r-')
+#
+
+
+#TODO: look at a single timeslice
+
+#%% Noise renormalization ideas. Looking at IQRs and medians
+
+realStdFromIQR = np.subtract(*np.percentile(np.real(visCorrs-predictedCorrs), [75, 25])) / 1.349
+imagStdFromIQR = np.subtract(*np.percentile(np.imag(visCorrs-predictedCorrs), [75, 25])) / 1.349
+stdFromIQR = np.subtract(*np.percentile(np.append(np.real(visCorrs-predictedCorrs),np.imag(visCorrs-predictedCorrs)), [75, 25])) / 1.349
+print stdFromIQR
+
+print (np.median(errorListReal**2)/2+np.median(errorListImag**2)/2) /  np.median(noiseList)
+
+#plt.figure(1223); plt.clf()
+#plt.hist([np.real(visCorrs-predictedCorrs), np.imag(visCorrs-predictedCorrs)],200)

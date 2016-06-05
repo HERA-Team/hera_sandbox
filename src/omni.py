@@ -1,4 +1,4 @@
-import numpy as np, omnical
+import numpy as np, omnical, aipy, math
 import capo.red as red
 import numpy.linalg as la
 import warnings
@@ -99,6 +99,8 @@ def compute_reds(nant, pols, *args, **kwargs):
 #    return info
 
 def aa_to_info(aa, pols=['x'], fcal=False, **kwargs):
+    '''Use aa.ant_layout to generate redundances based on ideal placement.
+        The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
     nant = len(aa)
     try:
         antpos_ideal = aa.antpos_ideal
@@ -125,6 +127,36 @@ def aa_to_info(aa, pols=['x'], fcal=False, **kwargs):
     info.init_from_reds(reds,antpos)
     return info
 
+#generate info from real positions
+####################################################################################################
+def aa_pos_to_info(aa, pols=['x'], **kwargs):
+    '''Use aa.ant_layout to generate redundances based on real placement.
+        The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
+    nant = len(aa)
+    antpos = -np.ones((nant*len(pols),3)) # -1 to flag unused antennas
+    xmin = 0
+    ymin = 0
+    for ant in xrange(nant):  #trying to shift the crd to make sure they are positive
+        bl = aa.get_baseline(0,ant,src='z')
+        x,y = bl[0], bl[1]
+        if x < xmin: xmin = x
+        if y < ymin: ymin = y
+    for ant in xrange(nant):
+        bl = aa.get_baseline(0,ant,src='z')
+        x,y = bl[0] - xmin + 0.1, bl[1] - ymin + 0.1  #w is currently not included
+        for z,pol in enumerate(pols):
+            z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
+            i = Antpol(ant,pol,len(aa)) # creates index in POLNUM/NUMPOL for pol
+            antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
+    reds = compute_reds(nant, pols, antpos[:nant],tol=0.0001) # only first nant b/c compute_reds treats pol redundancy separately
+    # XXX haven't enforced xy = yx yet.  need to conjoin red groups for that
+    ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] < 0]
+    kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
+    reds = filter_reds(reds, **kwargs)
+    info = RedundantInfo(nant)
+    info.init_from_reds(reds,antpos)
+    return info
+####################################################################################################
 
 
 def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
@@ -249,7 +281,7 @@ class FirstCal(object):
         self.data = data
         self.fqs = fqs
         self.info = info
-    def data_to_delays(self,**kwargs):
+    def data_to_delays(self, verbose=False, **kwargs):
         '''data = dictionary of visibilities. 
            info = FirstCalRedundantInfo class
            can give it kwargs:
@@ -261,6 +293,8 @@ class FirstCal(object):
         dd = self.info.order_data(self.data)
 #        ww = self.info.order_data(self.wgts)
         for (bl1,bl2) in self.info.bl_pairs:
+            if verbose:
+                print (bl1, bl2)
             d1 = dd[:,:,self.info.bl_index(bl1)]
 #            w1 = ww[:,:,self.info.bl_index(bl1)]
             d2 = dd[:,:,self.info.bl_index(bl2)]
@@ -271,15 +305,15 @@ class FirstCal(object):
         return self.blpair2delay
     def get_N(self,nblpairs):
         return np.identity(nblpairs) 
-    def get_M(self,**kwargs):
+    def get_M(self, verbose=False, **kwargs):
         M = np.zeros((len(self.info.bl_pairs),1))
-        blpair2delay = self.data_to_delays(**kwargs)
+        blpair2delay = self.data_to_delays(verbose=verbose, **kwargs)
         for pair in blpair2delay:
             M[self.info.blpair_index(pair)] = blpair2delay[pair]
         return M
-    def run(self, **kwargs):
+    def run(self, verbose=False, **kwargs):
         #make measurement matrix 
-        self.M = self.get_M(**kwargs)
+        self.M = self.get_M(verbose=verbose, **kwargs)
         #make noise matrix
         N = self.get_N(len(self.info.bl_pairs)) 
         self._N = np.linalg.inv(N)
@@ -302,3 +336,6 @@ class FirstCal(object):
 
 def get_phase(fqs,tau):
     return np.exp(-2j*np.pi*fqs*tau)
+
+
+

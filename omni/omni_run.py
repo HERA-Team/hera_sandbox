@@ -81,6 +81,7 @@ else: #generate reds from calfile
     else: ex_ants = []
     info = capo.omni.aa_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, crosspols=pols)
 reds = info.get_reds()
+#import IPython;IPython.embed()
 
 ### Omnical-ing! Loop Through Compressed Files ###
 for f,filename in enumerate(args):
@@ -102,7 +103,7 @@ for f,filename in enumerate(args):
     timeinfo,d,f = capo.arp.get_dict_of_uv_data([file_group[key] for key in file_group.keys()], antstr='cross', polstr=opts.pol)
     t_jd = timeinfo['times']
     t_lst = timeinfo['lsts']
-    freqs = numpy.arange(.1,.2,len(d[d.keys()[0]][pols[0]][0]))
+    freqs = numpy.arange(.1,.2,.1/len(d[d.keys()[0]][pols[0]][0]))
     SH = d.values()[0].values()[0].shape #shape of file data (ex: (19,203))
     data,wgts,xtalk = {}, {}, {}
     m2,g2,v2 = {}, {}, {}

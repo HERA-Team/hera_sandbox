@@ -20,6 +20,8 @@ o.add_option('--cov', action='store', type='float', default=None,
             help='scale factor for signal loss in covariance removal')
 o.add_option('--med', action='store_true',
             help='correction factor for using median statistics instead of the mean')
+o.add_option('--nocov', action='store_true',
+    help='Replace the Covariance weighted power spectrum with the Identity weighted power spectrum.')
 o.add_option('--show', action='store_true',
             help='Show the plot')
 opts,args = o.parse_args(sys.argv[1:])
@@ -160,7 +162,10 @@ def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.164, color=
     print '-'*20
     print "saving pspec_pk_k3pk.npz"
     print "output @ freq = ",f0
-    n.savez('pspec_pk_k3pk.npz',kpl=kpl,pk=pk,err=err,k=k[k0:], k3pk=k3[k0:]*pkfold, k3err=k3[k0:]*errfold,freq=f0,frpad=frpad)
+    n.savez('pspec_pk_k3pk.npz',kpl=kpl,pk=pk,err=err,
+            k=k[k0:], k3pk=k3[k0:]*pkfold, 
+            k3err=k3[k0:]*errfold,freq=f0,
+            condition_max = c_num_max, condition_min=c_num_min)
     #pos = n.where(kpl >= 0, 1, 0)
     #neg = n.where(kpl <= 0, 1, 0)
     #posneg = 0.5*(k3pk.compress(pos) + k3pk.compress(neg)[::-1])
@@ -202,18 +207,26 @@ dsum, dwgt = {}, {}
 dsum_fold, dwgt_fold = {}, {}
 afreqs=[]
 chans=[]
-frpad = []
+c_num_min = []
+c_num_max = []
+if opts.nocov: print 'Replacing Covariance weighted data with Standard Delay Spectrum'
 for filename in args:
     print 'Reading', filename
     f = n.load(filename)
     afreqs=f['afreqs']
-    frpad=f['frpad']
     chans=f['chans']
+    c_num_min.append( f['condition_min'])
+    c_num_max.append( f['condition_max'])
     RS_VS_KPL[filename] = {}
     RS_VS_KPL_FOLD[filename] = {}
-    kpl,pk,err = f['kpl'], f['pk'], f['err']
-    try: pkfold,errfold = f['pk_fold'],f['err_fold']
-    except(KeyError): pkfold,errfold = None, None
+    if opts.nocov:
+        kpl,pk,err = f['kpl'], f['pI'], f['pI_err']
+        try: pkfold,errfold = f['pI_fold'],f['pI_err_fold']
+        except(KeyError): pkfold,errfold = None, None
+    else:
+        kpl,pk,err = f['kpl'], f['pk'], f['err']
+        try: pkfold,errfold = f['pk_fold'],f['err_fold']
+        except(KeyError): pkfold,errfold = None, None
     if False: # Hacky way to get a noise bias out, if necessary
         pk -= n.median(n.concatenate([pk[:8], pk[-8:]]))
     if False: # Hacky way to estimate noise
@@ -235,6 +248,8 @@ for filename in args:
             dwgt_fold[_kpl] = dwgt_fold.get(_kpl, 0) + 1 / _err**2
 #freq = f['freq']
 freq=n.average(afreqs)
+c_num_min = n.min(c_num_min)
+c_num_max = n.min(c_num_max)
 #RS_VS_KPL = {}
 if True:
     RS_VS_KPL['total'] = {}
@@ -308,7 +323,7 @@ for sep in RS_VS_KPL:
     nos_fold = [1./n.sqrt(dwgt_fold[k]) for k in kpl_fold]
     #d = [RS_VS_KPL[k][0] for k in kpl]
     #nos = [RS_VS_KPL[k][1] for k in kpl]
-    if True: #if 'I' in sep: # Add foregrounds
+    if False: #if 'I' in sep: # Add foregrounds
         print 'Adding Foregrounds'
         for cnt,k in enumerate(kpl):
             k = '%6.3f' % k

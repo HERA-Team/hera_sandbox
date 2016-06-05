@@ -36,7 +36,7 @@ def get_colors(N):
         return scal_map.to_rgba(index)
     return map_index_to_rgb
 
-mychan = opts.chan
+#mychan = opts.chan
 mysep = '0,1'
 fig, ax = p.subplots(1)
 fig2,ax2 = p.subplots(1)
@@ -45,13 +45,13 @@ ax.set_xlabel('Fringe Rate [mili Hz]')
 ax.set_xlim([-.7,1.5])
 ax.set_ylim([0,1])
 
-ax2.set_xlabel('time [ns]')
+ax2.set_xlabel('time [s]')
 ax2.set_xlim([-10000,10000])
-ax2.set_ylim([-1,1])
+#ax2.set_ylim([-1,1])
 #ax2.set_yscale('log')
-ax2.set_xlabel('time [ns]')
+ax2.set_xlabel('time [s]')
 
-num_files = len(args) +1
+num_files = len(args) + 2
 
 cmap = get_colors(num_files)
 
@@ -62,13 +62,13 @@ for cnt,filename in enumerate(args):
     mychan = F['chan']
     frp_freqs = F['freqs']
     frp = F['frp']
-    frp_fit = F[mysep][mychan]
+    frp_fit = F['frps'][mychan]
     frp_fit /= np.max(frp_fit)
     fir = F['firs']
     timebins = F['timebins']
-    fir_single = fir[mysep][mychan]
+    fir_single = fir[mychan]
     #factor = np.sqrt(np.sum(np.abs(fir_single)**2))
-    fir_single /= np.abs(fir_single).max()
+    #fir_single /= np.abs(fir_single).max()
     #fir_single /= factor
 
 

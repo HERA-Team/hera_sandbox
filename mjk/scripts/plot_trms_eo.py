@@ -141,7 +141,8 @@ if set(['even','odd']) == set(days):
         o1 = n.copy( data['odd'][bl][:,band_chans]) * jy2T
         c = n.copy(n.array(cnt1['even'][bl])[:,band_chans]) 
         v = n.copy(n.array(var1['even'][bl])[:,band_chans])
-        if conj[bl]: d=n.conj(d)        
+        if conj[bl]:
+            d=n.conj(d), e1 = n.conj(e1), o1=n.conj(o1)
         x[bl] = n.transpose(d,[1,0])
         cnt[bl] = n.transpose(c,[1,0])
         var[bl] = n.transpose(v, [1,0])
@@ -161,7 +162,7 @@ for bl in bls_master:
     trms_data[bl] = n.sqrt( n.mean(x[bl][band_chans,::dlst].conj() * x[bl][band_chans,::dlst] +e[bl][band_chans,::dlst].conj()* o[bl][band_chans,::dlst] + o[bl][band_chans,::dlst].conj()* e[bl][band_chans,::dlst],axis=1)/2. ).real
     trms_the[bl] = n.sqrt( n.mean(var[bl][band_chans,::dlst]/cnt[bl][band_chans,::dlst].clip(1,n.Inf)**2,axis=1) ) * jy2T[band_chans]
 ##GSM emission + antenna temp / sqrt(df*dt*cnt)
-    theo_temp[bl]= (3e5*(allfreqs/.15)**(-2.8)+200)/(n.sqrt( 8*60 *100/203 *1e6))* n.mean(1./n.sqrt(cnt[bl][band_chans,::dlst].clip(1,n.Inf)),axis=1)
+    theo_temp[bl]= (3e5*(allfreqs/.15)**(-2.8)+200)/(n.sqrt( 8.*60 *100/203 *1e6))* n.mean(1./n.sqrt(cnt[bl][band_chans,::dlst].clip(1,n.Inf)),axis=1)
 
 
 var_blavg = n.mean( [var[bl] for bl in bls_master],axis=0)

@@ -35,7 +35,7 @@ for inject in args:
     pC_spec, pI_spec = [], []
     for pspec in pspecs:
         npz = n.load(pspec)
-        pC,pI = npz['pC'], npz['pI']
+        pC,pI = npz['pk_vs_t'], npz['nocov_vs_t']
         pC_avg.append(n.average(pC.real))
         pI_avg.append(n.average(pI.real))
         #pC_spec.append(n.average(pC.real, axis=1))
@@ -58,7 +58,7 @@ pIs,pCs = n.array(pIs), n.array(pCs)
 pIs_err,pCs_err = n.array(pIs_err), n.array(pCs_err)
 p.figure(1)
 
-pklo,pkhi = 1e4,1e13
+pklo,pkhi = 1e-3,1e9
 p.subplot(gs[2])
 #p.loglog(pIs, pCs, 'k.')
 p.errorbar(pIs, pCs, xerr=2*pIs_err, yerr=2*pCs_err, capsize=0, fmt='k.')

@@ -34,7 +34,7 @@ for pp,p in enumerate(pols):
 #            g0[p[0]][i] = numpy.conj(cp[p][:,i] / numpy.abs(cp[p][:,i]))
         for key in cp: #loop over antennas
             if key != 'pol':
-                g0[p[0]][int(key)] = cp[key] / numpy.abs(cp[key])
+                g0[p[0]][int(key)] = numpy.conj(cp[key]) / numpy.abs(cp[key])
     else: #looks for a calpar you haven't stated in the call
         new_cp = opts.calpar.split('.p')[0][:-2]+p+'.p' #XXX assumes calpar naming is *pol.p
         if os.path.exists(new_cp): #if it exists, use it
@@ -80,6 +80,8 @@ else: #generate reds from calfile
     info = capo.omni.aa_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, ubls=ubls, crosspols=pols)
 reds = info.get_reds()
 print reds
+print info.antloc
+#import IPython; IPython.embed()
 
 ### Omnical-ing! Loop Through Compressed Files ###
 for f,filename in enumerate(args):
