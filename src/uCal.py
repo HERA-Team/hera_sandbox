@@ -80,7 +80,7 @@ class uCalibrator():
         self.nPairs = len(self.blChanPairs)
         self.chans = sorted(np.unique([[ch1,ch2] for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]))
         self.nChans = len(self.chans)
-        if verbose: print 'Removed ' + str(oldPairs - self.nPairs) + ' unobserved baselines-frequency pairs. ' + str(len(oldChans) - self.nChans) + ' channels flagged completely.'
+        if verbose: print '    Removed ' + str(oldPairs - self.nPairs) + ' unobserved baselines-frequency pairs. ' + str(len(oldChans) - self.nChans) + ' channels flagged completely.'
         self.visibilitiesAreCorrelated = True
 
     def applyChannelFlagCut(self, flaggedChannels):
@@ -280,32 +280,17 @@ class uCalibrator():
         return np.asarray(self.chans)[(chanAvgErrors > maxAvgError) * (chanAvgErrors > cutUpToThisFracOfMaxError * np.max(chanAvgErrors))]
 
 
-def save2npz(filename, dataFiles, bandpass, weights, betas, chans, Sigmas, uBins, Ds, duBins, noiseCovDiag, A):
-    """Saves necessary information to use this uCal solution on data or to combine with with other times:\n
-        - filename: output filename
-        - dataFiles: list of files that went into this uCal solution
-        - bandpass: best guess of the bandpass (sky power law corrected), length = len(freqs)
-        - weights: 0 for flagged channels, 1 otherwise, length = len(freqs)
-        - betas, Sigmas, Ds: raw result of uCal
-        - chans, uBins, duBins: necessary for interpreting betas, Sigmas, Ds
-        - noiseCovDiag: noise on the real (or imaginary) part of the visibiltiy correlations
-        - A: lincal A matrix. """
-    result = {var: eval(var) for var in ['dataFiles', 'bandpass', 'weights', 'betas', 'chans', 'Sigmas', 'uBins', 'Ds', 'duBins', 'A', 'noiseCovDiag']}
-    np.savez(filename, **result)
+def save2npz(outfilename, dataFiles, allChans, unflaggedChans, bandpass, bandpassFit):
+    """Saves a .npz with the list of input data files, the complex bandpass result, and the bandpass fit evaluated on the channels."""
+    fullBandpass = np.zeros(len(allChans), dtype=complex)
+    fullBandpass[unflaggedChans] = bandpass
+    maskedBandpass = np.ma.masked_equal(fullBandpass, 0)
+    np.savez(outfilename, dataFiles=dataFiles, bandpass=maskedBandpass, bandpassFit=bandpassFit)
 
-def loadAndCombine(fileList):
-    invCovList = []
-    invCovWeightedResultList = []
-    for file in fileList:
-        result = np.load(file)
 
-        
-    #xhat = (Sum Cinv)**-1 * (Sum Cinv*x)
-    #Cov(xhat) = (Sum Cinv)**-1
-
-if __name__ == '__main__':
-    loadAndCombine(['/Users/jsdillon/Desktop/capo/jsd/uCal/Data/zen.2456943.65409.xx.uvcRRE.uCal.npz'])
-
+def saveDiagnosticData():
+    """ This funciton is not done!!!"""
+    return None
 
 
 

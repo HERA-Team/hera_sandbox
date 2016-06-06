@@ -8,14 +8,49 @@ import aipy as a
 import optparse, sys, os
 import capo
 import capo.uCal as uc
-
-uc = reload(capo.uCal)
 from joblib import Parallel, delayed
 import multiprocessing
 from scipy.optimize import curve_fit
 
+#%%##########################################
+#   Command line parsing
+#############################################
+
+o = optparse.OptionParser()
+a.scripting.add_standard_options(o, cal=True, pol=True)
+o.add_option('-b', '--nboot', type='int', default=40,
+    help='Number of bootstraps to normalize noise.  Default is 40')
+o.add_option('--verbose', action='store_true',
+    help='Makes uCal verbose.')
+o.add_option('--sfreq', type='float', default=0.1,
+    help='Starting frequency in GHz. Default is 0.1.')
+o.add_option('--sdf', type='float', default=0.1/203,
+    help='Frequency channel width in GHz. Default is 0.1/203.')
+o.add_option('--nchan', type='int', default=203,
+    help='Number of frequency channels. Default is 203.')
+o.add_option('--umin', type='float', default=25.0, 
+    help='Minimum value of u (in wavelengths) used for uCal. Default is 25.0')
+o.add_option('--umax', type='float', default=100.0, 
+    help='Maximum value of u (in wavelengths) used for uCal. Default is 100.0')
+o.add_option('--deltaumax', type='float', default=0.3, 
+    help='Maximum value of Delta u (in wavelengths) for two bl-freq pairs to be considered redundant. Default is 0.3.')
+o.add_option('--flagchan', type='string', default='74, 178, 166, 168, 102',
+    help='Channels to always remove. Defaults are 74, 178, 166, 168, 102.')
+o.add_option('--loadpickle', action='store_true',
+    help='Instead of reloading all the data, reloads the uCal objects from a pickle.')
 
 
+opts,args = o.parse_args(sys.argv[1:])
+dataFiles = args#["./Data/" + file for file in os.listdir("./Data") if file.endswith("uvcRRE.npz")]
+nBootstraps = opts.nboot
+verbose = opts.verbose
+pol=opts.pol
+freqs = np.arange(opts.sfreq, opts.sfreq+opts.sdf*opts.nchan, opts.sdf)
+chans = range(len(freqs))
+calFile = opts.cal
+uMin, uMax, maxDeltau = opts.umin, opts.umax, opts.deltaumax
+manualChannelFlags = [int(chan) for chan in opts.flagchan.split(',')]
+loadPickle = opts.loadpickle
 
 #TODO: look into the effects of the range of u values included
 #TODO: look at phase ramp
@@ -99,37 +134,27 @@ def harmonizeChannelFlags(chans, uCal, uCalBootstraps, verbose=False):
     for split in uCalBootstraps: split.applyChannelFlagCut(toFlag)
     if verbose: print "After harmonizing channels flags, " + str(len(toFlag)) + " channels have been flagged for all bootstraps."
 
-#############################################
-#   uCal Parameters
-#############################################
-
-regenerateEverything = False
-verbose = True
-dataFiles = ["./Data/" + file for file in os.listdir("./Data") if file.endswith("uvcRRE.npz")]
-nBootstraps = 40
-uMin, uMax = 25, 100
-
-#manualChannelFlags = [14, 17, 55, 74, 93, 101, 102, 152, 153, 166, 168, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186]
-manualChannelFlags = [74, 178, 166, 168, 102]
 
 #%%##########################################
-#   uCal Setup
+#   Setup
 #############################################
 
 #PAPER 128 Setup
-pol='xx'
-freqs = np.arange(.1,.2,.1/203) 
-chans = range(len(freqs))
-chan2FreqDict = {chan: freqs[chan] for chan in chans}
 intSeps = np.arange(1,16) #* 15m  = baseline lengths
 dx = 15.0 / scipy.constants.c * 1e9
+chan2FreqDict = {chan: freqs[chan] for chan in chans}
 separations = dx*intSeps
-bls = getBaselines(freqs, intSeps, dataFiles[0], calFile='psa6622_v003')
+if calFile is None: calFile = 'psa6622_v003'
+bls = getBaselines(freqs, intSeps, dataFiles[0], calFile=calFile)
 bl2SepDict = {bl: np.asarray([sep,0.0]) for bl,sep in zip(bls,separations)}
-redundancyDict = blRedundancyDictFromCalFile(calFile = 'psa6622_v003')
+redundancyDict = blRedundancyDictFromCalFile(calFile=calFile)
 
-if regenerateEverything:
-    uReds = uc.uCalReds(freqs, bls, chan2FreqDict, bl2SepDict, maxDeltau=.3, verbose=verbose) #just pass in freqs
+pickleFileName = dataFiles[0].replace('.npz', '.uCalDataWithBootstraps.p')
+if loadPickle:
+    uReds, uCal, uCalBootstraps, loadedDataFiles = pickle.load(open(pickleFileName,'rb'))
+    if not len(uCalBootstraps) == nBootstraps or not loadedDataFiles == dataFiles: raise RuntimeError('Loaded uCalDataWithBootstraps.p does not match current specifications.')
+else:
+    uReds = uc.uCalReds(freqs, bls, chan2FreqDict, bl2SepDict, maxDeltau=maxDeltau, verbose=verbose) #just pass in freqs
     uCal = uc.uCalibrator(uReds.getBlChanPairs())
     data, samples = loadVisibilitiesAndSamples(dataFiles, pol, bls, redundancyDict)
     uCal.computeVisibilityCorrelations(data, samples, verbose=verbose)
@@ -137,10 +162,8 @@ if regenerateEverything:
     dataBootstraps, samplesBootstraps = dataAndSamplesBootstraps(data, samples, bls, nBootstraps)
     for i in range(nBootstraps): uCalBootstraps[i].computeVisibilityCorrelations(dataBootstraps[i], samplesBootstraps[i], verbose=verbose)
     harmonizeChannelFlags(chans, uCal, uCalBootstraps, verbose=verbose)
-    pickle.dump([uReds, uCal, uCalBootstraps, dataFiles], open('./Data/uCalDataWithBootstraps.p', 'wb'))
-else: 
-    uReds, uCal, uCalBootstraps, loadedDataFiles = pickle.load(open('./Data/uCalDataWithBootstraps.p','rb'))
-    if not len(uCalBootstraps) == nBootstraps or not loadedDataFiles == dataFiles: raise RuntimeError('Loaded uCalDataWithBootstraps.p does not match current specifications.')
+    pickle.dump([uReds, uCal, uCalBootstraps, dataFiles], open(pickleFileName, 'wb'))
+
 
 #%%##########################################
 #   uCal Functionality
@@ -184,17 +207,18 @@ def renormalizeNoiseFromBootstraps(uCal, betas, Sigmas, Ds, noiseCovDiag, bootst
 #   Run uCal
 #############################################
 
+if verbose: print 'Now finding channels to remove...'
 try: channelsToFlag = manualChannelFlags
 except: channelsToFlag = []
-
 while True:
     uCalSetup(uCal, channelFlags=channelsToFlag)
-    betas, Sigmas, Ds, noiseCovDiag = performuCal(uCal, verbose=verbose)
+    betas, Sigmas, Ds, noiseCovDiag = performuCal(uCal)
     newFlags = uCal.identifyBadChannels(betas, Sigmas, Ds, noiseCovDiag, maxAvgError=4, cutUpToThisFracOfMaxError=.5)    
     if len(newFlags)==0: break
     for chan in newFlags: channelsToFlag.append(chan)
-if verbose: print str(len(channelsToFlag)) + ' channels flagged manually or due to high error: ' + str(sorted(channelsToFlag))
-    
+if verbose: print '    ' + str(len(channelsToFlag)) + ' channels flagged manually or due to high error: ' + str(sorted(channelsToFlag))
+   
+betas, Sigmas, Ds, noiseCovDiag = performuCal(uCal, verbose=True)
 for bootstrap in uCalBootstraps: uCalSetup(bootstrap, channelFlags=channelsToFlag)
 bootstrapBetas, bootstrapSigmas, bootstrapDs =  [[None for i in range(nBootstraps)] for j in range(3)]
 parallelBootstrapResults = Parallel(n_jobs=multiprocessing.cpu_count())(delayed(performuCal)(uCalBootstraps[i], noiseVariance=noiseCovDiag) for i in range(nBootstraps))
@@ -204,27 +228,27 @@ noiseCovDiag = renormalizeNoiseFromBootstraps(uCal, betas, Sigmas, Ds, noiseCovD
 betas, Sigmas, Ds, chiSqPerDoF = uCal.performLincalIteration(betas, Sigmas, Ds, noiseCovDiag, alpha = .5)
 if verbose: print 'Final chi^2/dof =', chiSqPerDoF 
 
-
 #%%##########################################
 #   Complex Fitting
 #############################################
 
-length = np.max(freqs)-np.min(freqs)
+periodLength = np.max(freqs)-np.min(freqs)
 def fourier(x, *a):
     ret = a[0]
     for deg in range(1, len(a)):
-        ret += a[deg] * np.cos((deg) * np.pi / length * x)
+        ret += a[deg] * np.cos((deg) * np.pi / periodLength * x)
     return ret
 
-def cosineFit(x, data, errors, degree):
+def cosineFit(x, data, errors, degree, fullx=None):
     popt, pcov = curve_fit(fourier, x, data, sigma=errors, p0=[1.0] * (degree+1))
-    return fourier(x, *popt)
+    if fullx is not None: return fourier(fullx, *popt)
+    else: return fourier(x, *popt)
     
 def BIC(data, realModel, imagModel, realErrors, imagErrors, DoF):
     chiSq = np.sum(((np.real(data) - realModel)/realErrors)**2) + np.sum(((np.imag(data) - imagModel)/imagErrors)**2)
     return np.sum(np.log(2*np.pi*realErrors**2)) + np.sum(np.log(2*np.pi*imagErrors**2)) + chiSq + DoF*np.log(2*len(data))
 
-def findBestModel(x, data, realErrors, imagErrors, degreeRange):
+def findBestModel(x, data, realErrors, imagErrors, degreeRange, fullx):
     BICs = []
     for degree in degreeRange:
         realModel = cosineFit(x, np.real(data), realErrors, degree)
@@ -232,14 +256,20 @@ def findBestModel(x, data, realErrors, imagErrors, degreeRange):
         BICs.append(BIC(data, realModel, imagModel, realErrors, imagErrors, DoF=2*degree+2))
     bestDegree = (degreeRange[BICs==np.min(BICs)][0])
     bestModel = cosineFit(x, np.real(data), realErrors, bestDegree) + 1.0j * cosineFit(x, np.imag(data), imagErrors, bestDegree)
+    fullModel = cosineFit(x, np.real(data), realErrors, bestDegree, fullx=fullx) + 1.0j * cosineFit(x, np.imag(data), imagErrors, bestDegree, fullx=fullx)
     bestChiSqPerDoF = (np.sum(((np.real(data) - np.real(bestModel))/realErrors)**2) + np.sum(((np.imag(data) - np.imag(bestModel))/imagErrors)**2))/(len(data)*2)
-    return bestModel, BICs, bestDegree, bestChiSqPerDoF
+    return bestModel, fullModel, BICs, bestDegree, bestChiSqPerDoF
 
 degreeRange = np.arange(60,120,2)
 observedRealErrors = np.std(np.real(np.asarray(bootstrapBetas).T),axis=1)
 observedImagErrors = np.std(np.imag(np.asarray(bootstrapBetas).T),axis=1)
 modelRealErrors = np.abs(betas)*((np.diag(np.linalg.pinv(uCal.AtNinvA))[0:2*uCal.nChans:2]))**.5
 modelImagErrors = np.abs(betas)*((np.diag(np.linalg.pinv(uCal.AtNinvA))[1:2*uCal.nChans:2]))**.5
-model, BICs, bestDegree, bestChiSqPerDoF = findBestModel(freqs[uCal.chans] - .1, betas*freqs[uCal.chans]**2.55, modelRealErrors*freqs[uCal.chans]**2.55, modelImagErrors*freqs[uCal.chans]**2.55, degreeRange)
+model, fullModel, BICs, bestDegree, bestChiSqPerDoF = findBestModel(freqs[uCal.chans] - .1, betas*freqs[uCal.chans]**2.55, modelRealErrors*freqs[uCal.chans]**2.55, modelImagErrors*freqs[uCal.chans]**2.55, degreeRange, freqs-.1)
 if verbose: print 'The fourier mode limit with the lowest BIC is ' + str(bestDegree) + ' with a fit chi^2 per DoF of ' + str(bestChiSqPerDoF)
 
+#%%##########################################
+#   Save Results
+#############################################
+
+uc.save2npz(dataFiles[0].replace('.npz', '.uCalResults.npz'), dataFiles, chans, uCal.chans, betas*freqs[uCal.chans]**2.55, fullModel)
