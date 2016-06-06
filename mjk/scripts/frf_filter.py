@@ -14,8 +14,8 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, ant=True, pol=True,chan=True)
 o.add_option('--outpath', action='store',
     help='Output path to write to.')
-o.add_option('--bl_scale',type=float,default='1.0',help='makes the baseline used in fringe rate filter creation longer by this factor')
-o.add_option('--fr_width_scale', type=float, default='1.0',
+o.add_option('--bl_scale',type=float,default=1.0,help='makes the baseline used in fringe rate filter creation longer by this factor')
+o.add_option('--fr_width_scale', type=float, default=1.0,
         help='Artificially inflates width of Fringe Rate Filter by scale factor')
 o.add_option('--alietal', action='store_true',
         help='Uses normalization for alietal frf,(default=False)')
@@ -27,6 +27,8 @@ o.add_option('--teff', type='float',
     help='Set length of boxcar to integrate data')
 o.add_option('--fringe_rate_centered',action='store_true',dest='frc',
         help='center the boxcar around Fringe Rate of maximum optimal FRP')
+o.add_option('--maxfr',default=None,type=float,
+        help="maximum allowed fringe rate. default=maximum possible sidereal fringe rate. units=Hz")
 opts,args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
@@ -70,7 +72,7 @@ baselines = ''.join(sep2ij[sep] for sep in seps)
 times, data, flags = zsa.get_dict_of_uv_data(args, baselines, pol, verbose=True)
 
 ##use calculated inttime to generate correct frf bins
-frbins = fringe.gen_frbins(inttime)
+frbins = fringe.gen_frbins(inttime,fringe_res=1./(inttime*len(times)))
 #frbins = n.arange( -.5/inttime+5e-5/2, .5/inttime,5e-5)
 #DEFAULT_FRBINS = n.arange(-.01+5e-5/2,.01,5e-5) # Hz
 
@@ -82,9 +84,10 @@ for sep in seps:
         bl = a.miriad.ij2bl(*ij)
         if blconj[bl]: c+=1
         else: break
-
-    frp, bins = fringe.aa_to_fr_profile(aa, ij, mychan, bins=frbins, bl_scale=opts.bl_scale)
-    timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan], bl_scale=opts.bl_scale, fr_width_scale = opts.fr_width_scale, alietal = opts.alietal)
+    print mychan,ij,opts.bl_scale
+    frp, bins = fringe.aa_to_fr_profile(aa, ij, mychan, bins=frbins,pol=opts.pol,bl_scale=opts.bl_scale)
+    timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],
+         bl_scale=opts.bl_scale, fr_width_scale = opts.fr_width_scale, alietal = opts.alietal,maxfr=opts.maxfr)
 
     frp = fringe.fir_to_frp(firs[sep])
     if opts.boxcar:
