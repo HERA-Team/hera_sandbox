@@ -14,8 +14,8 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, ant=True, pol=True,chan=True)
 o.add_option('--outpath', action='store',
     help='Output path to write to.')
-o.add_option('--bl_scale',type='string',default='1.0',help='makes the baseline used in fringe rate filter creation longer by this factor')
-o.add_option('--fr_width_scale', type='string', default='1.0',
+o.add_option('--bl_scale',type=float,default='1.0',help='makes the baseline used in fringe rate filter creation longer by this factor')
+o.add_option('--fr_width_scale', type=float, default='1.0',
         help='Artificially inflates width of Fringe Rate Filter by scale factor')
 o.add_option('--alietal', action='store_true',
         help='Uses normalization for alietal frf,(default=False)')
@@ -70,7 +70,7 @@ baselines = ''.join(sep2ij[sep] for sep in seps)
 times, data, flags = zsa.get_dict_of_uv_data(args, baselines, pol, verbose=True)
 
 ##use calculated inttime to generate correct frf bins
-frbins = fringe.gen_frbins(inttime,fringe_res=1./(inttime*len(times)))
+frbins = fringe.gen_frbins(inttime)
 #frbins = n.arange( -.5/inttime+5e-5/2, .5/inttime,5e-5)
 #DEFAULT_FRBINS = n.arange(-.01+5e-5/2,.01,5e-5) # Hz
 
