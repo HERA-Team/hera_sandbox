@@ -2,12 +2,12 @@
 
 seps='sep0,1 sep1,1 sep-1,1'
 cal=psa6240_v003
-out='/home/mkolopanis/psa64/exp_vs_inttime/lstbin_psa64_data_pad1.3_frf0'
+out='/home/mkolopanis/psa64/exp_vs_inttime/lstbin_psa64_data_frwidth10.0'
 appelation='uvGA'
 chan='101'
 
 bl_scale='1.0'
-fr_width='1.3'
+fr_width='10.0'
 alietal=false
 
 declare -A ants
@@ -63,12 +63,12 @@ for path in $paths; do
 
             printf '/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py -C %s  --alietal -a %s -c %s --bl_scale %s --fr_width_scale %s --outpath=%s/'  $cal ${ants[$sep]} $chan $bl_scale $fr_width ${out} 
             printf '%s\n' $path/$sep
-            "/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py" -C $cal -a ${ants[$sep]} -C $cal --alietal --bl_scale $bl_scale --fr_width_scale $fr_width $files --outpath=${out} -c $chan 
+            "/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py" -C $cal -a ${ants[$sep]} -C $cal --alietal --bl_scale ${bl_scale} --fr_width_scale=${fr_width} $files --outpath=${out} -c $chan 
 
         else
-            printf '/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py -C %s   -a %s -c %s --bl_scale %s --fr_width_scale --outpath=%s/'  $cal ${ants[$sep]} $chan $bl_scale $fr_width ${out} 
+            printf '/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py -C %s   -a %s -c %s --bl_scale %s --fr_width_scale %s --outpath=%s/'  $cal ${ants[$sep]} $chan ${bl_scale} ${fr_width} ${out} 
             printf '%s\n' $path/$sep
-            "/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py" -C $cal -a ${ants[$sep]} -C $cal  --bl_scale $bl_scale --fr_width_scale $fr_width $files --outpath=${out} -c $chan 
+            "/home/mkolopanis/src/capo/mjk/scripts/frf_filter.py" -C $cal -a ${ants[$sep]} -C $cal  --bl_scale=${bl_scale} --fr_width_scale=${fr_width} $files --outpath=${out} -c $chan 
 
         fi
     done
