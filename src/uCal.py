@@ -68,7 +68,7 @@ class uCalibrator():
     def computeVisibilityCorrelations(self, data, samples, verbose=True):
         """This function computes visibility correlations from data dictionaries and samples dictionaries (which reflects flags and redundancies).
         These dictionaries must be in the standard PAPER format. The results are stored inside self.blChanPairs with keys 'visCorr' and 'samples'."""
-        oldChans = sorted(np.unique([[ch1,ch2] for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]))
+        oldChans = sorted(np.unique(np.asarray([[ch1,ch2] for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()])))
         oldPairs = len(self.blChanPairs)
         for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys():
             w = np.logical_and(samples[bl1][:,ch1] != 0, samples[bl2][:,ch2] != 0)
@@ -78,7 +78,7 @@ class uCalibrator():
                 self.blChanPairs[(ch1,bl1,ch2,bl2)]['visCorr'] = np.average((data[bl1][:,ch1]*np.conj(data[bl2][:,ch2]))[w])
                 self.blChanPairs[(ch1,bl1,ch2,bl2)]['samples'] = np.sum((samples[bl1][:,ch1] * samples[bl2][:,ch2])[w])
         self.nPairs = len(self.blChanPairs)
-        self.chans = sorted(np.unique([[ch1,ch2] for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]))
+        self.chans = sorted(np.unique(np.asarray([[ch1,ch2] for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()])))
         self.nChans = len(self.chans)
         if verbose: print '    Removed ' + str(oldPairs - self.nPairs) + ' unobserved baselines-frequency pairs. ' + str(len(oldChans) - self.nChans) + ' channels flagged completely.'
         self.visibilitiesAreCorrelated = True
@@ -98,7 +98,7 @@ class uCalibrator():
     def setupBinning(self, uBinSize = .72**-.5, duBinSize = 5.0/203):
         """Given a size of each bin in u (in wavelengths) and each bin in Delta u (in wavelengths), this function initializes the proper """
         self.nPairs = len(self.blChanPairs)
-        self.chans = sorted(np.unique([[ch1,ch2] for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]))
+        self.chans = sorted(np.unique(np.asarray([[ch1,ch2] for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()])))
         self.nChans = len(self.chans)
         #Determine binning: first assign integers to u and du
         for key,value in self.blChanPairs.items():
