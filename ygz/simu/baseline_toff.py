@@ -8,7 +8,7 @@ bl1, bl2 = (0,26),(0,38)
 N = 10   #number of universes to average over
 
 VIS = False
-REDNORM = 1082680.50999
+REDNORM = 1195741.94103 #REDNORM is the peak of baseline_ton
 
 aa = a.cal.get_aa('psa6240_v003', n.array([fq]))
 #h = a.healpix.HealpixMap(nside=256)

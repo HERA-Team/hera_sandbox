@@ -12,7 +12,7 @@ cuedict = {'26_26':0.,'26_38': 0.032557,'26_46': -0.034, '26_50':0.073557,'13_32
 REDNORM = 756482.738272                 #peak of equivalent Opp
 #REDNORM = 1.  #to compute REDNORM
 #REDNORM = 2.51664842232e-05 #nside=128
-BLUENORM=0.18755
+#BLUENORM=0.18755
 COMPARE = True
 try: ver = cuedict[str(bl1[1])+'_'+str(bl2[1])]
 except(KeyError): ver = 0.
