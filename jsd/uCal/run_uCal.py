@@ -20,8 +20,8 @@ from scipy.optimize import curve_fit
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, pol=True)
-o.add_option('-b', '--nboot', type='int', default=40,
-    help='Number of bootstraps to normalize noise.  Default is 40')
+o.add_option('-b', '--nboot', type='int', default=24,
+    help='Number of bootstraps to normalize noise.  Default is 24')
 o.add_option('--verbose', action='store_true',
     help='Makes uCal verbose.')
 o.add_option('--sfreq', type='float', default=0.1,
@@ -44,7 +44,6 @@ o.add_option('--flagchan', type='string', default='74, 178, 166, 168, 102',
     help='Channels to always remove. Defaults are 74, 178, 166, 168, 102.')
 o.add_option('--loadpickle', action='store_true',
     help='Instead of reloading all the data, reloads the uCal objects from a pickle.')
-
 
 
 opts,args = o.parse_args(sys.argv[1:])
@@ -106,7 +105,7 @@ def loadVisibilitiesAndSamples(dataFiles, pol, blList, redundancyDict):
     files = []
     conjugate = [(0,101), (0,62), (0,100), (0,97), (12,43), (57,64)]
     for fl in dataFiles:
-        print '   Reading %s'%fl
+        print '    Reading %s'%fl
         meta,_,mdl,_ = omni.from_npz(fl)
         jd = meta['jds']
         lst = meta['lsts']
@@ -140,7 +139,7 @@ def harmonizeChannelFlags(chans, uCal, uCalBootstraps, verbose=False):
     toFlag = list(set(chans) - unflagged)
     uCal.applyChannelFlagCut(toFlag)
     for split in uCalBootstraps: split.applyChannelFlagCut(toFlag)
-    if verbose: print "After harmonizing channels flags, " + str(len(toFlag)) + " channels have been flagged for all bootstraps."
+    if verbose: print "After harmonizing channel flags, " + str(len(toFlag)) + " channels have been flagged for all bootstraps."
 
 
 #%%##########################################
@@ -168,8 +167,11 @@ else:
     uCal.computeVisibilityCorrelations(data, samples, verbose=verbose)
     uCalBootstraps = [uc.uCalibrator(uReds.getBlChanPairs()) for i in range(nBootstraps)]
     dataBootstraps, samplesBootstraps = dataAndSamplesBootstraps(data, samples, bls, nBootstraps)
-    for i in range(nBootstraps): uCalBootstraps[i].computeVisibilityCorrelations(dataBootstraps[i], samplesBootstraps[i], verbose=verbose)
+    for i in range(nBootstraps): 
+        if verbose: print 'Now computing visibility correlations for bootstrap ' + str(i) + ' of ' + str(nBootstraps) + '...'
+        uCalBootstraps[i].computeVisibilityCorrelations(dataBootstraps[i], samplesBootstraps[i], verbose=verbose)
     harmonizeChannelFlags(chans, uCal, uCalBootstraps, verbose=verbose)
+    if verbose: print 'Now saving intermediate data products to ' + pickleFileName + ' for easy rerunning...'
     pickle.dump([uReds, uCal, uCalBootstraps, dataFiles], open(pickleFileName, 'wb'))
 
 
@@ -228,6 +230,7 @@ if verbose: print '    ' + str(len(channelsToFlag)) + ' channels flagged manuall
    
 betas, Sigmas, Ds, noiseCovDiag = performuCal(uCal, verbose=True)
 for bootstrap in uCalBootstraps: uCalSetup(bootstrap, channelFlags=channelsToFlag)
+if verbose: print 'Now running ' + str(nBootstraps) + 'bootstraps through logcal and lincal...'
 bootstrapBetas, bootstrapSigmas, bootstrapDs =  [[None for i in range(nBootstraps)] for j in range(3)]
 parallelBootstrapResults = Parallel(n_jobs=multiprocessing.cpu_count())(delayed(performuCal)(uCalBootstraps[i], noiseVariance=noiseCovDiag) for i in range(nBootstraps))
 for i in range(nBootstraps): bootstrapBetas[i], bootstrapSigmas[i], bootstrapDs[i], dummy = parallelBootstrapResults[i]
@@ -270,6 +273,7 @@ def findBestModel(x, data, realErrors, imagErrors, degreeRange, fullx):
     return bestModel, fullModel, BICs, bestDegree, bestChiSqPerDoF
 
 degreeRange = np.arange(60,120,2)
+if verbose: print 'Now exploring between degree = ' + str(degreeRange[0]) + ' and degree = ' + str(degreeRange[-1]) + ' for the minimum BIC...'
 observedRealErrors = np.std(np.real(np.asarray(bootstrapBetas).T),axis=1)
 observedImagErrors = np.std(np.imag(np.asarray(bootstrapBetas).T),axis=1)
 modelRealErrors = np.abs(betas)*((np.diag(np.linalg.pinv(uCal.AtNinvA))[0:2*uCal.nChans:2]))**.5
@@ -286,4 +290,4 @@ uc.save2npz(dataFiles[0].replace('.npz', '.uCalResults.npz'), dataFiles, chans, 
 diagnosticResults = {var: eval(var) for var in ['dataFiles', 'uCal', 'betas', 'Sigmas', 'Ds', 'bootstrapBetas', 'bootstrapSigmas', 'bootstrapDs', 
                                             'freqs', 'observedRealErrors', 'observedImagErrors', 'model', 'noiseCovDiag', 'BICs', 'degreeRange']}
 pickle.dump(diagnosticResults, open(dataFiles[0].replace('.npz', '.diagnosticResults.p'),'wb'))
-
+if verbose: print '\nuCal complete! Results saved to ' + dataFiles[0].replace('.npz', '.diagnosticResults.p') + ' and ' + dataFiles[0].replace('.npz', '.uCalResults.p')
