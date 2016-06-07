@@ -169,7 +169,7 @@ else:
     uCalBootstraps = [uc.uCalibrator(uReds.getBlChanPairs()) for i in range(nBootstraps)]
     dataBootstraps, samplesBootstraps = dataAndSamplesBootstraps(data, samples, bls, nBootstraps)
     for i in range(nBootstraps): 
-        print 'Now computing visibility correlations for bootstrap ' + str(i) + ' of ' + str(nBootstraps) + '...'
+        if verbose: print 'Now computing visibility correlations for bootstrap ' + str(i) + ' of ' + str(nBootstraps) + '...'
         uCalBootstraps[i].computeVisibilityCorrelations(dataBootstraps[i], samplesBootstraps[i], verbose=verbose)
     harmonizeChannelFlags(chans, uCal, uCalBootstraps, verbose=verbose)
     pickle.dump([uReds, uCal, uCalBootstraps, dataFiles], open(pickleFileName, 'wb'))
@@ -230,6 +230,7 @@ if verbose: print '    ' + str(len(channelsToFlag)) + ' channels flagged manuall
    
 betas, Sigmas, Ds, noiseCovDiag = performuCal(uCal, verbose=True)
 for bootstrap in uCalBootstraps: uCalSetup(bootstrap, channelFlags=channelsToFlag)
+if verbose: print 'Now running ' + str(nBootstraps) + 'bootstraps through logcal and lincal...'
 bootstrapBetas, bootstrapSigmas, bootstrapDs =  [[None for i in range(nBootstraps)] for j in range(3)]
 parallelBootstrapResults = Parallel(n_jobs=multiprocessing.cpu_count())(delayed(performuCal)(uCalBootstraps[i], noiseVariance=noiseCovDiag) for i in range(nBootstraps))
 for i in range(nBootstraps): bootstrapBetas[i], bootstrapSigmas[i], bootstrapDs[i], dummy = parallelBootstrapResults[i]
