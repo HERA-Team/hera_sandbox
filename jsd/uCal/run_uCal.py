@@ -28,16 +28,21 @@ o.add_option('--sdf', type='float', default=0.1/203,
     help='Frequency channel width in GHz. Default is 0.1/203.')
 o.add_option('--nchan', type='int', default=203,
     help='Number of frequency channels. Default is 203.')
+o.add_option('--spindex', type='float', default=2.55,
+    help='Foreground spectral index used for noise model and final bandpass. Default is 2.55.')
 o.add_option('--umin', type='float', default=25.0, 
     help='Minimum value of u (in wavelengths) used for uCal. Default is 25.0')
 o.add_option('--umax', type='float', default=100.0, 
     help='Maximum value of u (in wavelengths) used for uCal. Default is 100.0')
 o.add_option('--deltaumax', type='float', default=0.3, 
     help='Maximum value of Delta u (in wavelengths) for two bl-freq pairs to be considered redundant. Default is 0.3.')
+o.add_option('--ubinsize', type='float', default=0.5, 
+    help='Discretization of Sigma(u), the spatial term in uCal. Default is 0.5.')
 o.add_option('--flagchan', type='string', default='74, 178, 166, 168, 102',
     help='Channels to always remove. Defaults are 74, 178, 166, 168, 102.')
 o.add_option('--loadpickle', action='store_true',
     help='Instead of reloading all the data, reloads the uCal objects from a pickle.')
+
 
 
 opts,args = o.parse_args(sys.argv[1:])
@@ -45,10 +50,11 @@ dataFiles = args#["./Data/" + file for file in os.listdir("./Data") if file.ends
 nBootstraps = opts.nboot
 verbose = opts.verbose
 pol=opts.pol
+spectralIndex = opts.spindex
 freqs = np.arange(opts.sfreq, opts.sfreq+opts.sdf*opts.nchan, opts.sdf)
 chans = range(len(freqs))
 calFile = opts.cal
-uMin, uMax, maxDeltau = opts.umin, opts.umax, opts.deltaumax
+uMin, uMax, maxDeltau, uBinSize = opts.umin, opts.umax, opts.deltaumax, opts.ubinsize
 manualChannelFlags = [int(chan) for chan in opts.flagchan.split(',')]
 loadPickle = opts.loadpickle
 
@@ -172,10 +178,10 @@ else:
 def uCalSetup(uCal, channelFlags=[]):
     if len(channelFlags)> 0: uCal.applyChannelFlagCut(channelFlags)
     uCal.applyuCut(uMin=uMin, uMax=uMax)
-    uCal.setupBinning(uBinSize = .5, duBinSize = 5.0/203)
+    uCal.setupBinning(uBinSize=uBinSize, duBinSize=uBinSize/len(chans))
 
 def performuCal(uCal, noiseVariance=None, maxIterations = 40, verbose = False):
-    if not uCal.binningIsSetup: uCal.setupBinning(uBinSize = .5, duBinSize = 5.0/203)
+    if not uCal.binningIsSetup: uCal.setupBinning(uBinSize=uBinSize, duBinSize = uBinSize/len(chans))
     if verbose: print 'Now performing logcal...'
     betas, Sigmas, Ds = uCal.performLogcal()
     noiseCovDiag = uCal.generateNoiseCovariance(betas)
@@ -228,6 +234,7 @@ noiseCovDiag = renormalizeNoiseFromBootstraps(uCal, betas, Sigmas, Ds, noiseCovD
 betas, Sigmas, Ds, chiSqPerDoF = uCal.performLincalIteration(betas, Sigmas, Ds, noiseCovDiag, alpha = .5)
 if verbose: print 'Final chi^2/dof =', chiSqPerDoF 
 
+
 #%%##########################################
 #   Complex Fitting
 #############################################
@@ -265,11 +272,16 @@ observedRealErrors = np.std(np.real(np.asarray(bootstrapBetas).T),axis=1)
 observedImagErrors = np.std(np.imag(np.asarray(bootstrapBetas).T),axis=1)
 modelRealErrors = np.abs(betas)*((np.diag(np.linalg.pinv(uCal.AtNinvA))[0:2*uCal.nChans:2]))**.5
 modelImagErrors = np.abs(betas)*((np.diag(np.linalg.pinv(uCal.AtNinvA))[1:2*uCal.nChans:2]))**.5
-model, fullModel, BICs, bestDegree, bestChiSqPerDoF = findBestModel(freqs[uCal.chans] - .1, betas*freqs[uCal.chans]**2.55, modelRealErrors*freqs[uCal.chans]**2.55, modelImagErrors*freqs[uCal.chans]**2.55, degreeRange, freqs-.1)
+model, fullModel, BICs, bestDegree, bestChiSqPerDoF = findBestModel(freqs[uCal.chans] - .1, betas*freqs[uCal.chans]**spectralIndex, modelRealErrors*freqs[uCal.chans]**spectralIndex, modelImagErrors*freqs[uCal.chans]**spectralIndex, degreeRange, freqs-.1)
 if verbose: print 'The fourier mode limit with the lowest BIC is ' + str(bestDegree) + ' with a fit chi^2 per DoF of ' + str(bestChiSqPerDoF)
+
 
 #%%##########################################
 #   Save Results
 #############################################
 
-uc.save2npz(dataFiles[0].replace('.npz', '.uCalResults.npz'), dataFiles, chans, uCal.chans, betas*freqs[uCal.chans]**2.55, fullModel)
+uc.save2npz(dataFiles[0].replace('.npz', '.uCalResults.npz'), dataFiles, chans, uCal.chans, betas*freqs[uCal.chans]**spectralIndex, fullModel)
+diagnosticResults = {var: eval(var) for var in ['dataFiles', 'uCal', 'betas', 'Sigmas', 'Ds', 'bootstrapBetas', 'bootstrapSigmas', 'bootstrapDs', 
+                                            'freqs', 'observedRealErrors', 'observedImagErrors', 'model', 'noiseCovDiag', 'BICs', 'degreeRange']}
+pickle.dump(diagnosticResults, open(dataFiles[0].replace('.npz', '.diagnosticResults.p'),'wb'))
+

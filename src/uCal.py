@@ -276,22 +276,14 @@ class uCalibrator():
         for f1,f2,error,Nii in zip(ch1List,ch2List,errorList,noiseCovDiag):
             chanCompiledList[f1].append(np.abs(error)**2/((2*Nii)))
             chanCompiledList[f2].append(np.abs(error)**2/((2*Nii)))
-        chanAvgErrors = np.asarray([np.mean(np.asarray(chanCompiledList[chan]))**.5 for chan in self.chans])
-        return np.asarray(self.chans)[(chanAvgErrors > maxAvgError) * (chanAvgErrors > cutUpToThisFracOfMaxError * np.max(chanAvgErrors))]
-
+        self.chanAvgErrors = np.asarray([np.mean(np.asarray(chanCompiledList[chan]))**.5 for chan in self.chans])
+        return np.asarray(self.chans)[(self.chanAvgErrors > maxAvgError) * (self.chanAvgErrors > cutUpToThisFracOfMaxError * np.max(self.chanAvgErrors))]
 
 def save2npz(outfilename, dataFiles, allChans, unflaggedChans, bandpass, bandpassFit):
     """Saves a .npz with the list of input data files, the complex bandpass result, and the bandpass fit evaluated on the channels."""
     fullBandpass = np.zeros(len(allChans), dtype=complex)
     fullBandpass[unflaggedChans] = bandpass
-    maskedBandpass = np.ma.masked_equal(fullBandpass, 0)
-    np.savez(outfilename, dataFiles=dataFiles, bandpass=maskedBandpass, bandpassFit=bandpassFit)
-
-
-def saveDiagnosticData():
-    """ This funciton is not done!!!"""
-    return None
-
+    np.savez(outfilename, dataFiles=dataFiles, bandpass=fullBandpass, bandpassFit=bandpassFit)
 
 
 
