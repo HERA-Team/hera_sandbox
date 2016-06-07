@@ -46,7 +46,6 @@ o.add_option('--loadpickle', action='store_true',
     help='Instead of reloading all the data, reloads the uCal objects from a pickle.')
 
 
-
 opts,args = o.parse_args(sys.argv[1:])
 dataFiles = args#["./Data/" + file for file in os.listdir("./Data") if file.endswith("uvcRRE.npz")]
 nBootstraps = opts.nboot
@@ -172,6 +171,7 @@ else:
         if verbose: print 'Now computing visibility correlations for bootstrap ' + str(i) + ' of ' + str(nBootstraps) + '...'
         uCalBootstraps[i].computeVisibilityCorrelations(dataBootstraps[i], samplesBootstraps[i], verbose=verbose)
     harmonizeChannelFlags(chans, uCal, uCalBootstraps, verbose=verbose)
+    if verbose: print 'Now saving intermediate data products to ' + pickleFileName + ' for easy rerunning...'
     pickle.dump([uReds, uCal, uCalBootstraps, dataFiles], open(pickleFileName, 'wb'))
 
 
@@ -273,6 +273,7 @@ def findBestModel(x, data, realErrors, imagErrors, degreeRange, fullx):
     return bestModel, fullModel, BICs, bestDegree, bestChiSqPerDoF
 
 degreeRange = np.arange(60,120,2)
+if verbose: print 'Now exploring between degree = ' + str(degreeRange[0]) + ' and degree = ' + str(degreeRange[-1]) + ' for the minimum BIC...'
 observedRealErrors = np.std(np.real(np.asarray(bootstrapBetas).T),axis=1)
 observedImagErrors = np.std(np.imag(np.asarray(bootstrapBetas).T),axis=1)
 modelRealErrors = np.abs(betas)*((np.diag(np.linalg.pinv(uCal.AtNinvA))[0:2*uCal.nChans:2]))**.5
@@ -289,4 +290,4 @@ uc.save2npz(dataFiles[0].replace('.npz', '.uCalResults.npz'), dataFiles, chans, 
 diagnosticResults = {var: eval(var) for var in ['dataFiles', 'uCal', 'betas', 'Sigmas', 'Ds', 'bootstrapBetas', 'bootstrapSigmas', 'bootstrapDs', 
                                             'freqs', 'observedRealErrors', 'observedImagErrors', 'model', 'noiseCovDiag', 'BICs', 'degreeRange']}
 pickle.dump(diagnosticResults, open(dataFiles[0].replace('.npz', '.diagnosticResults.p'),'wb'))
-
+if verbose: print '\nuCal complete! Results saved to ' + dataFiles[0].replace('.npz', '.diagnosticResults.p') + ' and ' + dataFiles[0].replace('.npz', '.uCalResults.p')
