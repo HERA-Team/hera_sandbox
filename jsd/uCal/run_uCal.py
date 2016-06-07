@@ -20,8 +20,8 @@ from scipy.optimize import curve_fit
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, cal=True, pol=True)
-o.add_option('-b', '--nboot', type='int', default=40,
-    help='Number of bootstraps to normalize noise.  Default is 40')
+o.add_option('-b', '--nboot', type='int', default=24,
+    help='Number of bootstraps to normalize noise.  Default is 24')
 o.add_option('--verbose', action='store_true',
     help='Makes uCal verbose.')
 o.add_option('--sfreq', type='float', default=0.1,
@@ -106,7 +106,7 @@ def loadVisibilitiesAndSamples(dataFiles, pol, blList, redundancyDict):
     files = []
     conjugate = [(0,101), (0,62), (0,100), (0,97), (12,43), (57,64)]
     for fl in dataFiles:
-        print '   Reading %s'%fl
+        print '    Reading %s'%fl
         meta,_,mdl,_ = omni.from_npz(fl)
         jd = meta['jds']
         lst = meta['lsts']
@@ -140,7 +140,7 @@ def harmonizeChannelFlags(chans, uCal, uCalBootstraps, verbose=False):
     toFlag = list(set(chans) - unflagged)
     uCal.applyChannelFlagCut(toFlag)
     for split in uCalBootstraps: split.applyChannelFlagCut(toFlag)
-    if verbose: print "After harmonizing channels flags, " + str(len(toFlag)) + " channels have been flagged for all bootstraps."
+    if verbose: print "After harmonizing channel flags, " + str(len(toFlag)) + " channels have been flagged for all bootstraps."
 
 
 #%%##########################################
@@ -168,7 +168,9 @@ else:
     uCal.computeVisibilityCorrelations(data, samples, verbose=verbose)
     uCalBootstraps = [uc.uCalibrator(uReds.getBlChanPairs()) for i in range(nBootstraps)]
     dataBootstraps, samplesBootstraps = dataAndSamplesBootstraps(data, samples, bls, nBootstraps)
-    for i in range(nBootstraps): uCalBootstraps[i].computeVisibilityCorrelations(dataBootstraps[i], samplesBootstraps[i], verbose=verbose)
+    for i in range(nBootstraps): 
+        print 'Now computing visibility correlations for bootstrap ' + str(i) + ' of ' + str(nBootstraps) + '...'
+        uCalBootstraps[i].computeVisibilityCorrelations(dataBootstraps[i], samplesBootstraps[i], verbose=verbose)
     harmonizeChannelFlags(chans, uCal, uCalBootstraps, verbose=verbose)
     pickle.dump([uReds, uCal, uCalBootstraps, dataFiles], open(pickleFileName, 'wb'))
 
