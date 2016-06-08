@@ -49,8 +49,37 @@ print opts.ants, opts.bls
 
     
 #hera info assuming a hex of 19 and 128 antennas
+ubls =[ (10,64),
+        (49,64),
+        (3,64),
+        (41,64),
+        (25,64),
+        (19,64),
+        (48,64),
+        (29,64),
+        (24,64),
+        (28,64),
+        (55,64)
+#        (34,64),
+#        (27,64),
+#        (51,64),
+#        (57,64),
+#        (64,65),
+#        (64,72),
+#        (80,64),
+#        (88,64),
+#        (96,64),
+#        (104,64),
+#        (9,64),
+#        (22,64),
+#        (20,64),
+#        (43,64),
+#        (53,64),
+#        (31,64)]
+]
 aa = a.cal.get_aa(opts.cal, n.array([.150]))
-info = omni.aa_to_info(aa, fcal=True, ex_ants=[81])
+ex_ants = [int(i) for i in opts.ex_ants.split(',')]
+info = omni.aa_to_info(aa, fcal=True, ex_ants=ex_ants, ubls=ubls)
 reds = flatten_reds(info.get_reds())
 print len(reds)
 
@@ -61,13 +90,14 @@ times, data, flags = arp.get_dict_of_uv_data(args, bl_string, opts.pol, verbose=
 dataxx = {}
 for (i,j) in data.keys():
     dataxx[(i,j)] = data[(i,j)]['xx']
-fqs = n.linspace(.1,.2,1024)
+nfqs = dataxx[(i,j)].shape[1]
+fqs = n.linspace(.1,.2,nfqs)
 dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, fqs[1]-fqs[0]))
 
 #gets phase solutions per frequency.
 fc = omni.FirstCal(dataxx,fqs,info)
-sols = fc.run(tune=True, verbose=True)
-#import IPython; IPython.embed()
+sols = fc.run(tune=True, verbose=False)
+import IPython; IPython.embed()
 #save solutions
 save_gains(sols,fqs, opts.pol)
 
