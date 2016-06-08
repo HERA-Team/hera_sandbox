@@ -43,8 +43,8 @@ sig_factor_interp = interp1d(pIs, pIs/pCs,kind='linear',bounds_error=False,fill_
 
 ### GETTING PSPEC DATA ###
 
-#npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_frfnew/pspec_pk_k3pk.npz')
-npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_noise/ns_and_eor/pspec_pk_k3pk.npz') #purely noise 
+npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_frfnew/pspec_pk_k3pk.npz')
+#npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_noise/ns_and_eor/pspec_pk_k3pk.npz') #purely noise 
 kpls,pks,errs = npz['kpl'], npz['pk'], npz['err']
 
 freq = npz['freq']
@@ -58,7 +58,7 @@ fig.subplots_adjust(left=.15, top=.95, bottom=.15, wspace=.15, hspace=.15, right
 
 #Plot 2
 p.figure(1)
-pklo,pkhi = 1e3,1e13
+pklo,pkhi = 1e1,1e12
 #pklo,pkhi = 1e-10,1e5 #for noise only
 p.subplot(gs[2])
 #p.loglog(pIs, pCs, 'k.')
@@ -75,6 +75,7 @@ for kpl,pk,err in zip(kpls,pks,errs):
     pkdn = max(pk-err,1e-6)
     print pkdn,pkup
     p.fill_between([pklo,pkhi], [pkdn,pkdn], [pkup,pkup], facecolor='gray', edgecolor='gray')
+
 #Plot 3    
 ax3 = p.subplot(gs[3])
 p.setp(ax3.get_yticklabels(), visible=False)
@@ -86,7 +87,7 @@ print "pC: ", pCs
 ax3.set_xscale('log')
 ax3.set_yscale('log')
 p.ylim(pklo, pkhi)
-p.xlim(1e-3,20)
+p.xlim(1e1,1e6)
 #p.xlim(1,10)
 p.grid()
 p.xlabel(r'$P_{\rm in}/P_{\rm out}-1$', fontsize=14)
@@ -95,7 +96,7 @@ sig_factors=[]
 for kpl,pk,err in zip(kpls,pks,errs):
     pkup = max(pk+err,1e-6)
     pkdn = max(pk-err,1e-6)
-    p.fill_between([1e-3,20], [pkdn,pkdn], [pkup,pkup], facecolor='gray', edgecolor='gray')
+    p.fill_between([1e-3,1e8], [pkdn,pkdn], [pkup,pkup], facecolor='gray', edgecolor='gray')
     if pkup > 1e-6 and kpl > .17:
         sig_factors.append( sig_factor_interp(pkup))
 
