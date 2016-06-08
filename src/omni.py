@@ -1,5 +1,4 @@
 import numpy as np, omnical, aipy, math
-import uvdata.uv as uvd
 import capo.red as red
 import numpy.linalg as la
 import warnings
@@ -102,7 +101,6 @@ def compute_reds(nant, pols, *args, **kwargs):
 def aa_to_info(aa, pols=['x'], fcal=False, **kwargs):
     '''Use aa.ant_layout to generate redundances based on ideal placement.
         The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
-    layout = aa.ant_layout
     nant = len(aa)
     try:
         antpos_ideal = aa.antpos_ideal
@@ -159,7 +157,6 @@ def aa_pos_to_info(aa, pols=['x'], **kwargs):
     info.init_from_reds(reds,antpos)
     return info
 ####################################################################################################
-
 
 
 def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
