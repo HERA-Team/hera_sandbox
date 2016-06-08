@@ -43,8 +43,8 @@ sig_factor_interp = interp1d(pIs, pIs/pCs,kind='linear',bounds_error=False,fill_
 
 ### GETTING PSPEC DATA ###
 
-#npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_frfnew/pspec.npz')
-npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_noise/pspec.npz') #purely noise 
+#npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_frfnew/pspec_pk_k3pk.npz')
+npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_noise/ns_and_eor/pspec_pk_k3pk.npz') #purely noise 
 kpls,pks,errs = npz['kpl'], npz['pk'], npz['err']
 
 freq = npz['freq']
