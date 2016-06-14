@@ -59,7 +59,7 @@ class DataSet:
             try:
                 if conj[k[1]]: self.x[k] = np.conj(self.x[k])
             except(TypeError,KeyError): pass
-    def lst_align(self, lst1, lst2, lstres=.001):
+    def lst_align(self, lst1, lst2, lstres=.001): #XXX only works for 2 groups
         # XXX super ugly brute force
         i1,i2 = [], []
         for i,L1 in enumerate(lst1):
