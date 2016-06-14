@@ -30,9 +30,9 @@ def save_gains(s,f,pol,filename=None,ubls=None,ex_ants=None):
     s2 = {}
     for k,i in s.iteritems():
         s2[str(k)] = omni.get_phase(f,i)
-    if ubls!=None: s2['ubls']=ubls
-    if ex_ants!=None: s2['ex_ants']=ex_ants
-    if filename!=None:
+    if not ubls is None: s2['ubls']=ubls
+    if not ex_ants is None: s2['ex_ants']=ex_ants
+    if not filename is None:
         outname='%s.fc.npz'%filename
     else:
         outname='fcgains.%s.npz'%pol
