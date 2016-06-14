@@ -8,6 +8,7 @@ Creates waterfall plot of N_obs for LSTs with below average observations from Mi
 
 
 import aipy as a, numpy as n, pylab as p, sys, optparse, glob, ipdb, ephem
+import capo
 from matplotlib.patches import Rectangle
 o=optparse.OptionParser()
 o.set_usage("plot_nobs.py [options]")
@@ -135,18 +136,30 @@ p.ylabel('lst')
 
 ind_min= n.where( flags['zero'] == n.amax(flags['zero']))[0]
 if True:
+
+    zs = n.array([6,7,8,9,10,11,12,13])
+    fs = capo.pspec.z2f(zs)
     fig = p.figure()
     ax = fig.add_subplot(111)
+    ax2 = ax.twiny()
+    ax2.set_xticks(fs*1e3)
+    ax2.set_xbound([fs[0]*1e3,fs[-1]*1e3])
+    ax2.set_xticklabels(zs)
+    #ax2.set_xticklabels(['{0:1.0f}'.format(z) for z in zs])
+    ax2.set_xlabel('z')
     mean_cnt= n.mean(cnt_plot,axis=0)
     ax.plot(freqs,mean_cnt/mean_cnt.max(),'k-')
     #for i in lst_bins[ind_min]:
     #    p.fill_between(freqs,cnt_plot[i,:]/n.max(cnt_plot[i,:]),alpha=.5)
     ax.axvspan(115,125,alpha=0.5,color='black')
+    ax.axvspan(125.5,135.5,alpha=0.5,color='black')
+#    ax.axvspan(137.5,147.5,alpha=.3,color='blue')
     ax.axvspan(147.5,157.5,alpha=0.5,color='black')
-    ax.axvspan(167.5, 175.5, alpha=0.5,color='black')
+    ax.axvspan(165, 175, alpha=0.5,color='black')
     ax.set_ylim([0,1.0])
     ax.set_xlabel('Frequncy [MHz]')
     ax.set_ylabel('count')
+    p.savefig('freq_select.png',format='png',dpi=400)
 
 else:
     p.figure()

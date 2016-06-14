@@ -271,14 +271,14 @@ print days==set(['even','odd'])
 print "estimating noise"    
 if set(['even','odd'])==set(days):
     print "differencing even odd days"
-    d = {}
+    eo = {}
     for bl in bls_master:
-        d[bl] = x['even'][bl] - x['odd'][bl]
-        Trms = n.sqrt(n.mean(d[bl][0,:]*n.conj(d[bl][0,:])).real)
+        eo[bl] = x['even'][bl] - x['odd'][bl]
+        Trms = n.sqrt(n.mean(eo[bl][0,:]*n.conj(eo[bl][0,:])).real)
         print bl,"Trms  = {Trms:3.2f}mK".format(Trms=Trms),
         print "Pk = {Pk:4e} mK^2/Mpc^3".format(Pk=Trms**2*scalar)
     #average over all baselines
-    diff_blavg = n.mean([d[bl] for bl in d],axis=0)
+    diff_blavg = n.mean([eo[bl] for bl in eo],axis=0)
     Trms = n.sqrt(n.mean(diff_blavg[0,:]*n.conj(diff_blavg[0,:])).real)
     print "Trms (bl avg) =",Trms
     print "Pk (bl avg) = {Pk:e} mK^2/Mpc^3".format(Pk=Trms**2*scalar)

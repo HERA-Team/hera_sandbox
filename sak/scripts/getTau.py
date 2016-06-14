@@ -20,8 +20,8 @@ from matplotlib import pylab
 o = optparse.OptionParser()
 o.set_usage('getTau.py [options] *xy.uv')
 o.set_description(__doc__)
-o.add_option('--taumax',dest='taumax',default=30.,help='delays -taumax<=t<=taumax will be investigated. Units: ns')
-o.add_option('--taures',dest='taures',default=0.01,help='resolution of delay sweep. Units: ns')
+o.add_option('--taumax',dest='taumax',default=30.,type='float',help='delays -taumax<=t<=taumax will be investigated. Units: ns')
+o.add_option('--taures',dest='taures',default=0.01,type='float',help='resolution of delay sweep. Units: ns')
 o.add_option('-A','--apply',dest='app',default=False,action='store_true',help='Create new yx file with optimal tau applied')
 opts,args = o.parse_args(sys.argv[1:])
 
@@ -53,7 +53,6 @@ for ii,f in enumerate(args):
     tf = '.'.join(tf)+'.npz'
     print 'Saving chisq %s'%tf
     np.savez(tf, chisq=chisquared, tlim=opts.taumax, tres=opts.taures)
-    import IPython; IPython.embed()
     del(dxy);del(dyx);del(fxy);del(fyx)
     
     if opts.app:
