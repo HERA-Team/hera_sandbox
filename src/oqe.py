@@ -59,9 +59,12 @@ class DataSet:
             try:
                 if conj[k[1]]: self.x[k] = np.conj(self.x[k])
             except(TypeError,KeyError): pass
-    def lst_align(self, lst1, lst2, lstres=.001): #XXX only works for 2 groups
-        # XXX super ugly brute force
-        i1,i2 = [], []
+    def lst_align(self, dsets, wgts=None, lst1=None, lst2=None, lstres=.001): #XXX only works for 2 groups
+        order_lst1 = np.argsort(lst1) #orders LSTs
+        order_lst2 = np.argsort(lst2)
+        lst1 = lst1[order_lst1]
+        lst2 = lst2[order_lst2] 
+        i1,i2 = [], [] #aligns LSTs
         for i,L1 in enumerate(lst1):
             for j,L2 in enumerate(lst2):
                 match = (np.abs(L1-L2) < lstres)
@@ -69,7 +72,13 @@ class DataSet:
             if match:
                 i1.append(i)
                 i2.append(j)
-        return np.array(i1), np.array(i2)
+        for k,key in enumerate(dsets):
+            if key[0] == 'even': ind = i1
+            elif key[0] == 'odd': ind = i2
+            dsets[key] = dsets[key][ind]
+            if wgts: wgts[key] = wgts[key][ind]
+        return dsets, wgts
+
     def clear_cache(self, keys=None):
         if keys is None: self._C, self._Ctrue, self._iC = {}, {}, {}
         else:
