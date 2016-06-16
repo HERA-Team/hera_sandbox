@@ -69,6 +69,7 @@ class DataSet:
             if i==0: lsts_final = np.intersect1d(lsts[lsts.keys()[i]],lsts[lsts.keys()[i+1]]) #XXX LSTs much match exactly
             else: lsts_final = np.intersect1d(lsts_final,lsts[lsts.keys()[i+1]])
             i += 1
+        if numkeys == 1: lsts_final = lsts[lsts.keys()[0]]
         ind = {}
         for k in lsts:
             ind[k] = lsts[k].searchsorted(lsts_final)
