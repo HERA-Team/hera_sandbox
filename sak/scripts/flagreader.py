@@ -65,7 +65,7 @@ for n,f in enumerate(args):
 	aipy.scripting.uv_selector(uv, opts.ant, opts.pol)
 	for preamble, data, flags in uv.all(raw=True):
 		uvw, t, (i,j) = preamble
-		if opts.verb: print t
+		#if opts.verb: print t
 		t_arr.append(t)
 		flg_arr.append(flags)
 	del(uv)
@@ -73,7 +73,7 @@ for n,f in enumerate(args):
 t_arr = np.array(t_arr)
 flg_arr=np.array(flg_arr)
 pcnt_t, pcnt_f = [],[]
-
+if opts.verb: print 'Calculating percantage occupations' #TODO: this is super inefficient
 for i in range(flg_arr.shape[1]): pcnt_f.append(100.*sum(flg_arr[:,i])/flg_arr.shape[0])
 for i in range(flg_arr.shape[0]): pcnt_t.append(100.*sum(flg_arr[i,:])/flg_arr.shape[1])
 
@@ -86,7 +86,7 @@ str_tms = jds2hrs(t_arr,hrs=True,sast=True)
 
 if opts.npz is not None: npzname=opts.npz+'.npz'
 else: npzname='%s_%s_%s_RFI.npz'%(jd,opts.ant,opts.pol)
-
+if opts.verb: print 'Writing data to %s'%npzname
 np.savez(npzname,grid=flg_arr,dJDs=t_arr,percent_f=pcnt_f,percent_t=pcnt_t)
 
 #If you don't want plots, let's save everyone a smidgen of time and quit now
@@ -95,6 +95,7 @@ if not opts.show and not opts.save_wfall and not opts.save_freq: sys.exit()
 ##Plotting freq occupancy
 
 if opts.save_freq or opts.show:
+    if opts.verb: print 'Plotting frequency-occupancy plot'
     pylab.step(fqs,pcnt_f,where='mid')
     pylab.fill_between(fqs,0,pcnt_f,color='blue',alpha=0.3)
     pylab.xlabel('Frequency [MHz]')
@@ -105,10 +106,8 @@ if opts.save_freq or opts.show:
     pylab.savefig('%s_%s_%s_F.png'%(jd,opts.ant,opts.pol))
     if opts.show: pylab.show()
 
-#import IPython;IPython.embed()
-
 ##Plotting waterfall
-
+if opts.verb: print 'Plotting occupancy waterfall'
 #Set-up plot format
 left, width = 0.1, 0.65
 bottom, height = 0.1, 0.65
