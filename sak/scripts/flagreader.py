@@ -74,8 +74,11 @@ t_arr = np.array(t_arr)
 flg_arr=np.array(flg_arr)
 pcnt_t, pcnt_f = [],[]
 if opts.verb: print 'Calculating percantage occupations' #TODO: this is super inefficient
-for i in range(flg_arr.shape[1]): pcnt_f.append(100.*sum(flg_arr[:,i])/flg_arr.shape[0])
-for i in range(flg_arr.shape[0]): pcnt_t.append(100.*sum(flg_arr[i,:])/flg_arr.shape[1])
+pcnt_f = 100.*np.sum(flg_arr,axis=0)/flg_arr.shape[0]
+pcnt_t = 100.*np.sum(flg_arr,axis=1)/flg_arr.shape[1]
+
+#for i in range(flg_arr.shape[1]): pcnt_f.append(100.*sum(flg_arr[:,i])/flg_arr.shape[0])
+#for i in range(flg_arr.shape[0]): pcnt_t.append(100.*sum(flg_arr[i,:])/flg_arr.shape[1])
 
 pcnt_t,pcnt_f=np.array(pcnt_t),np.array(pcnt_f)
 fqs = np.linspace(100.,200.,num=pcnt_f.shape[0])
