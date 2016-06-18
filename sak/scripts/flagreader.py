@@ -49,7 +49,14 @@ def jds2hrs(jdlist,hrs=False,sast=False):
             tm = T.iso.rsplit()[1]
             hr = int(tm.split(':')[0])
             if not sast: s.append(hr)
-            else: s.append(hr+2)
+            else:
+                if hr<22: s.append(hr+2)
+                else:
+                    #I'm feeling stupid today. I blame the heat
+                    if hr<22: s.append(hr+2)
+                    if hr==22: s.append(0)
+                    if hr==23: s.append(1)
+                    if hr==24: s.append(2)
     return s
     
 t_arr, flg_arr = [], []
