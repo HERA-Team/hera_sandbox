@@ -73,14 +73,10 @@ for n,f in enumerate(args):
 t_arr = np.array(t_arr)
 flg_arr=np.array(flg_arr)
 pcnt_t, pcnt_f = [],[]
-if opts.verb: print 'Calculating percantage occupations' #TODO: this is super inefficient
+if opts.verb: print 'Calculating percentage occupations'
 pcnt_f = 100.*np.sum(flg_arr,axis=0)/flg_arr.shape[0]
 pcnt_t = 100.*np.sum(flg_arr,axis=1)/flg_arr.shape[1]
 
-#for i in range(flg_arr.shape[1]): pcnt_f.append(100.*sum(flg_arr[:,i])/flg_arr.shape[0])
-#for i in range(flg_arr.shape[0]): pcnt_t.append(100.*sum(flg_arr[i,:])/flg_arr.shape[1])
-
-pcnt_t,pcnt_f=np.array(pcnt_t),np.array(pcnt_f)
 fqs = np.linspace(100.,200.,num=pcnt_f.shape[0])
 tms = np.linspace(t_arr[0],t_arr[len(t_arr)-1],num=t_arr.shape[0])
 str_tms = jds2hrs(t_arr,hrs=True,sast=True)
@@ -132,7 +128,14 @@ axHistx.fill_between(fqs,0,pcnt_f,color='blue',alpha=0.3)
 axHisty.plot(pcnt_t,tms,'b-')
 
 #More formatting
-axImshow.set_yticklabels(str_tms)
+FF = lambda m, n: [i*n//m + n//(2*m) for i in range(m)]
+new_str_tms,new_tms = [],[]
+for i in FF(12,len(str_tms)):
+    new_tms.append(tms[i])
+    new_str_tms.append(str_tms[i])
+
+axImshow.set_yticks(new_tms)
+axImshow.set_yticklabels(new_str_tms)
 
 axHistx.set_xlim( axImshow.get_xlim() )
 axHisty.set_ylim( axImshow.get_ylim() )
@@ -141,7 +144,7 @@ axHisty.set_xlim( (0.,100.) )
 axHistx.set_ylabel(r'% $\rm{flagged}$ $\nu\,\rm{over}\,t$')
 axHisty.set_xlabel(r'% $\rm{flagged}$ $t\,\rm{over}\,\nu$')
 axImshow.set_xlabel(r'Frequency [MHz]',size=15)
-axImshow.set_ylabel(r'Integration',size=15)
+axImshow.set_ylabel(r'SAST',size=15)
 gd = get_caldat(int(jd))
 axHisty.set_title('%i/%i/%i'%(gd[0],gd[1],gd[2])+'\n\n\n',size=18)
 
