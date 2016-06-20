@@ -49,7 +49,7 @@ def jds2hrs(jdlist,hrs=False,sast=False):
             tm = T.iso.rsplit()[1]
             hr = int(tm.split(':')[0])
             if not sast: s.append(hr)
-            else: s.append(hr+2)
+            else: s.append((hr+2)%24)
     return s
     
 t_arr, flg_arr = [], []
@@ -103,7 +103,10 @@ if opts.save_freq or opts.show:
     else: pylab.suptitle('%s - %s'%(file2jd(args[0]),file2jd(args[len(args)-1])),size=15)
     
     pylab.savefig('%s_%s_%s_F.png'%(jd,opts.ant,opts.pol))
-    if opts.show: pylab.show()
+    if opts.show:
+        pylab.show()
+    else:
+        pylab.close()
 
 ##Plotting waterfall
 if opts.verb: print 'Plotting occupancy waterfall'
@@ -128,6 +131,8 @@ axHistx.fill_between(fqs,0,pcnt_f,color='blue',alpha=0.3)
 axHisty.plot(pcnt_t,tms,'b-')
 
 #More formatting
+
+#Getting ticks in the right places
 FF = lambda m, n: [i*n//m + n//(2*m) for i in range(m)]
 new_str_tms,new_tms = [],[]
 for i in FF(12,len(str_tms)):
