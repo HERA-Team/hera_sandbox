@@ -17,9 +17,11 @@ o.set_usage('flagreader.py [options] *.uv')
 o.set_description(__doc__)
 aipy.scripting.add_standard_options(o, ant=True, pol=True)
 o.add_option('--verbose','-v',dest='verb',action='store_true',help='print intermediate info')
-o.add_option('--npz','-N',dest='npz',default=None,help='Name of output .npz (neglecting the ".npz" ending) with flag grid and percentage info. Default will be <JD>_<ant>_<pol>_RFI.npz')
-o.add_option('--wfall','-W',dest='save_wfall',action='store_true',help='Save occupancy waterfall .png file? Same naming convention as default .npz file.')
+o.add_option('--wfall','-W',dest='save_wfall',action='store_true',help='Save occupancy waterfall .png file?')
 o.add_option('--focc','-F',dest='save_freq',action='store_true',help='Save frequency occupancy .png file? Same naming convention as default .npz file.')
+o.add_option('--npz','-N',dest='npz',default=None,help='Name of output .npz (neglecting the ".npz" ending) with flag grid and percentage info. Default will be <JD>_<ant>_<pol>_RFI.npz')
+o.add_option('--wimg',dest='wimg',default=None,help='Name of waterfall .png file. Default will be same naming convention as default .npz file.')
+o.add_option('--fimg',dest='fimg',default=None,help='Name of waterfall .png file. Default will be <first file>_f.png .')
 o.add_option('--show','-S',dest='show',action='store_true',help='Show image.')
 opts, args = o.parse_args(sys.argv[1:])
 
@@ -85,6 +87,7 @@ str_tms = jds2hrs(t_arr,hrs=True,sast=True)
 
 if opts.npz is not None: npzname=opts.npz+'.npz'
 else: npzname='%s_%s_%s_RFI.npz'%(jd,opts.ant,opts.pol)
+
 if opts.verb: print 'Writing data to %s'%npzname
 np.savez(npzname,grid=flg_arr,dJDs=t_arr,percent_f=pcnt_f,percent_t=pcnt_t)
 
@@ -102,7 +105,10 @@ if opts.save_freq or opts.show:
     if len(args)==1: pylab.suptitle(file2jd(args[0]),size=15)
     else: pylab.suptitle('%s - %s'%(file2jd(args[0]),file2jd(args[len(args)-1])),size=15)
     
-    pylab.savefig('%s_%s_%s_F.png'%(jd,opts.ant,opts.pol))
+    #pylab.savefig('%s_%s_%s_F.png'%(jd,opts.ant,opts.pol)) #hard to plug into RTP
+    if not opts.fimg is None: pylab.savefig(opts.fimg)
+    else: pylab.savefig('%s_f.png'%args[0]) #zen.2451234.12345.xx.HH.uvcR_f.png 
+    #^ it's being run on each uvcR file in the RTP system
     if opts.show:
         pylab.show()
     else:
@@ -153,6 +159,8 @@ axImshow.set_ylabel(r'SAST',size=15)
 gd = get_caldat(int(jd))
 axHisty.set_title('%i/%i/%i'%(gd[0],gd[1],gd[2])+'\n\n\n',size=18)
 
-if opts.save_wfall: pylab.savefig('%s_%s_%s_RFI.png'%(jd,opts.ant,opts.pol))
+if opts.save_wfall:
+    if not opts.wimg is None: pylab.savefig(opts.wimg)
+    else: pylab.savefig('%s_%s_%s_RFI.png'%(jd,opts.ant,opts.pol))
 if opts.show: pylab.show()
 pylab.close()
