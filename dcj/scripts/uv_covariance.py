@@ -7,7 +7,7 @@ from matplotlib.pyplot import *
 def cov(m):
     '''Because numpy.cov is stupid and casts as float.'''
     #return n.cov(m)
-    X = n.array(m, ndmin=2, dtype=n.complex)
+    X = n.array(m, ndmin=2, dtype=n.complex128)
     X -= X.mean(axis=1)[(slice(None),n.newaxis)]
     N = X.shape[1]
     fact = float(N - 1) #normalization
@@ -33,12 +33,10 @@ for bl in data:
     for pol in data[bl]:
         if chans is None:
             chans = a.scripting.parse_chans(opts.chan,data[bl][pol].shape[1])
-        D = data[bl][pol][:,chans].T
+        D = data[bl][pol][:,chans].T.astype(np.complex128)
         C = cov(D)
-        U,S,V = n.linalg.svd(C)
-        #subplot(122)
+        U,S,V = n.linalg.svd(C.conj())
         _C = n.einsum('ij,j,jk', V.T, 1./S, U.T)
-        #imshow(n.log(n.abs(_C)))
         #show()
         Cs.append(C)
         conds.append(n.log(n.abs(n.linalg.cond(C))/n.log(2)))
