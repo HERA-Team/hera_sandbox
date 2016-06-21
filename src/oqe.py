@@ -169,7 +169,7 @@ class DataSet:
             #iC1 = np.linalg.inv(self.C(k1) * np.identity(nchan))
             #iC2 = np.linalg.inv(self.C(k2) * np.identity(nchan))
             iC1 = iC2 = np.identity(nchan, dtype=F.dtype)
-            Ctrue1 = Ctrue2 = np.identity(nchan, dtype=F.dtype) # XXX why do this
+            Ctrue1 = Ctrue2 = np.identity(nchan, dtype=F.dtype) # do this to get the effective F (see below)
         #Ctrue1, Ctrue2 = self.Ctrue(k1), self.Ctrue(k2)
         if False: # This is for the "true" Fisher matrix
             CE1, CE2 = {}, {}

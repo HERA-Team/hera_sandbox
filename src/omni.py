@@ -1,7 +1,10 @@
-import numpy as np, omnical
+import warnings
+import numpy as np
+try: import omnical
+except(ImportError):
+    warnings.warn("Warning: Omnical not installed")
 import capo.red as red
 import numpy.linalg as la
-import warnings
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore",category=DeprecationWarning)
     import scipy.sparse as sps
