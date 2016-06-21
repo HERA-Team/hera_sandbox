@@ -59,15 +59,12 @@ def get_colors(N):
 def noise(size):
     return n.random.random(size=size) * n.exp(1j*n.random.uniform(0,2*n.pi,size=size))
 def noise_equivalent_bandwidth(t,H):
-<<<<<<< Updated upstream
     #return 1/n.max(n.abs(H))**2 * n.sum(n.abs(H)**2)*n.diff(t)[0]
     #peak normalize
     H /= n.abs(H).max()
     return n.sum(n.abs(H)**2)*n.diff(t)[0]
     #return n.sum(H*H.conj())/(n.sum(H)*n.sum(H.conj()))
-=======
-    return 1/n.max(n.abs(H))**2 * n.sum(n.abs(H)**2)*n.diff(t)[0]
->>>>>>> Stashed changes
+
 
 freqs = n.linspace(0.1,0.2,num=203)
 aa = a.cal.get_aa(opts.cal, freqs)
@@ -155,7 +152,6 @@ for cnt,pad in enumerate(frpads):
 
     #print the effective integration time for each seperation
     for sep in seps:
-<<<<<<< Updated upstream
         print "sep",sep
         print "   NEBW T_eff = ",
         print 1.2/noise_equivalent_bandwidth(frp_freqs,frps[sep][mychan])
@@ -199,23 +195,6 @@ for cnt,pad in enumerate(frpads):
                p.ylabel('Phase')
                p.suptitle('%d_%d'%a.miriad.bl2ij(bl))
             print '[Done]'
-=======
-        if PLOT:
-            ax_frp.plot(frp_freqs*1e3,frps[sep][mychan]/n.max(frps[sep][mychan]), 
-                            label='{0}'.format(pad),color=cmap(cnt))
-            ax_firs.plot(timebins,n.abs(firs[sep][mychan]),
-                            label='{0}'.format(pad),color=cmap(cnt))
-            ax_firs.set_xlabel('s')
-        envelope = n.abs(firs[sep][mychan])
-        envelope /= n.max(envelope)
-        dt = n.sqrt(n.sum(envelope*timebins**2)/n.sum(envelope))
-        dt_50 = (timebins[envelope>0.5].max() - timebins[envelope>0.5].min())
-        print "pad = ", pad, "variance width = ",sep, 
-        print " [s]:",int(n.round(dt)),
-        print "50% width = ",int(n.round(dt_50)),
-        print "NEQW (frp) = ",1/noise_equivalent_bandwidth(frp_freqs,frps[sep][mychan]),
-        print "NEQW (time) = ",noise_equivalent_bandwidth(timebins,firs[sep][mychan])
->>>>>>> Stashed changes
     if opts.output: 
         filename = 'fringe_rate_profile_pad{pad}_int{inttime}_chan{chan:d}_pol{pol}.pkl'.format(pad=pad,inttime=opts.inttime,chan=int(mychan),pol=opts.pol)
         print("saving to: {filename}".format(filename=filename))
