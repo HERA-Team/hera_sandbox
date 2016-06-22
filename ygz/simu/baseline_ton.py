@@ -5,7 +5,7 @@ import aipy as a, numpy as n, capo as C, pylab as p
 #fqs = n.linspace(.1,.2,203)
 fq = .15
 bl1, bl2 = (0,26),(0,26)
-N = 1   #number of universes to average over
+N = 2   #number of universes to average over
 
 VIS = False
 REDNORM = 1.

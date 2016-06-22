@@ -5,7 +5,7 @@ from scipy import signal
 #@p.ion()
 #fqs = n.linspace(.1,.2,203)
 fq = .15
-bl1, bl2 = (0,26),(0,38)
+bl1, bl2 = (62,50),(44,23)
 #cuedict = {'26_23':0.125, '26_38': 0.042, '26_50': 0.083,'26_26':0., '50_57':0.122}
 cuedict = {'26_26':0.,'26_38': 0.032557,'26_46': -0.034, '26_50':0.073557,'13_32':0.030557,'13_14':0.066557,'50_59':0.071557}
 #REDNORM = 0.000150070063408  #peak of bl1=bl2
@@ -13,7 +13,7 @@ REDNORM = 756482.738272                 #peak of equivalent Opp
 #REDNORM = 1.  #to compute REDNORM
 #REDNORM = 2.51664842232e-05 #nside=128
 #BLUENORM=0.18755
-COMPARE = True
+COMPARE = False
 try: ver = cuedict[str(bl1[1])+'_'+str(bl2[1])]
 except(KeyError): ver = 0.
 print 'DelT = ', ver
