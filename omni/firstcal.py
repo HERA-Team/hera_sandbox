@@ -2,6 +2,7 @@
 import capo.hex as hx, capo.arp as arp, capo.red as red, capo.omni as omni
 import numpy as n, pylab as p, aipy as a
 import sys,optparse
+import numpy as np
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o,cal=True,pol=True)
@@ -71,11 +72,11 @@ print 'Number of redundant baselines:',len(reds)
 #Read in data here.
 ant_string =','.join(map(str,info.subsetant))
 bl_string = ','.join(['_'.join(map(str,k)) for k in reds])
-times, data, flags = arp.get_dict_of_uv_data(args, bl_string, opts.pol, verbose=True)
+info, data, flags = arp.get_dict_of_uv_data(args, bl_string, opts.pol, verbose=True)
 dataxx = {} #not necessarily xx data inside
 for (i,j) in data.keys():
     dataxx[(i,j)] = data[(i,j)][opts.pol]
-fqs = n.linspace(.1,.2,203) #XXX
+fqs = info['freqs']
 dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, fqs[1]-fqs[0]))
 
 #gets phase solutions per frequency.
