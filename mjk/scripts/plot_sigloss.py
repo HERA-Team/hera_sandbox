@@ -61,7 +61,8 @@ p.xlabel(r'$P_{\rm in}(k)\ [{\rm mK}^2\ (h^{-1}\ {\rm Mpc})^3]$', fontsize=14)
 p.ylabel(r'$P_{\rm out}(k)\ [{\rm mK}^2\ (h^{-1}\ {\rm Mpc})^3]$', fontsize=14)
 p.grid()
 
-npz = n.load('/home/mkolopanis/psa64/pspec_Apr1_psa64_zbins_frf_1_'+chan+'_I.npz')
+#npz = n.load('/home/mkolopanis/psa64/psa64_multiz/data/pspec_Nov18_vanilla_skew_frpad_2_'+chan+'_I.npz')
+npz = n.load('/home/mkolopanis/psa64/pspec_Dec16_vanilla_optimal_frf_'+chan+'_I.npz')
 print npz.files
 kpls,pks,errs = npz['kpl'], npz['pk'], npz['err']
 for kpl,pk,err in zip(kpls,pks,errs):

@@ -20,15 +20,14 @@ import pyfits
 import matplotlib.pyplot as plt
 import optparse
 import os, sys
-import healpy
 import scipy
 from scipy.interpolate import interp1d
 from scipy import integrate
 
 o = optparse.OptionParser()
-o.set_usage('fitstopng.py [options]')
+o.set_usage('pspec_sim_test.py [options]')
 o.set_description(__doc__)
-o.add_option('--pspec', dest='pspec', default='pspec50lmax200',
+o.add_option('--pspec', dest='pspec', default='/Users/carinacheng/capo/ctc/images/pspecs/pspec203lmax200',
              help='Directory where pspec images are contained.')
 o.add_option('--nchan', dest='nchan', default=203, type='int',
              help='Number of channels in simulated data. Default is 203.')
@@ -40,7 +39,7 @@ o.add_option('--lmax', dest='lmax', default=5, type='int',
              help='Maximum l value. Default is 5.')
 opts, args = o.parse_args(sys.argv[1:])
 
-path = '/Users/carinacheng/capo/ctc/images/pspecs/' + opts.pspec
+path = opts.pspec
 
 """
 ###plot one pixel value vs. frequency of maps
@@ -60,8 +59,6 @@ plt.xlabel('frequency [GHz]')
 plt.ylabel('pixel value')
 plt.show()
 """
-
-###get C_l estimators to compare with theoretical values
 
 #cosmology parameters
 
@@ -113,6 +110,9 @@ def C_l(freq1, freq2, Pk_interp, l_vals): #freqs are entered in GHz
         C_ls.append(ans2)
 
     return C_ls
+
+##### P(k) INPUT DATA #####
+
 """
 ###if using P(k) function
 
@@ -121,28 +121,31 @@ Pk_data = P_k(k_data)
 Pk_interp = interp1d(k_data, Pk_data, kind='linear')
 
 """
+"""
 ###if using P(k) points
 
-#delta_sq = numpy.array([0.9413099, 2.047375, 5.35123, 9.884925, 19.12472, 24.78529, 28.9412, 29.81639, 29.235, 29.36708, 34.75652, 54.99383, 87.24504])
-#ks = numpy.array([0.0281599, 0.04730816, 0.06677343, 0.09664913, 0.144889, 0.21846043, 0.327466, 0.49140543, 0.73756543, 1.10653729, 1.65998857, 2.39712429, 3.13152])
-#Pk_data = delta_sq*(2*numpy.pi**2)/(ks**3)
+delta_sq = numpy.array([0.9413099, 2.047375, 5.35123, 9.884925, 19.12472, 24.78529, 28.9412, 29.81639, 29.235, 29.36708, 34.75652, 54.99383, 87.24504])
+ks = numpy.array([0.0281599, 0.04730816, 0.06677343, 0.09664913, 0.144889, 0.21846043, 0.327466, 0.49140543, 0.73756543, 1.10653729, 1.65998857, 2.39712429, 3.13152])
+Pk_data = delta_sq*(2*numpy.pi**2)/(ks**3)
+Pk_interp = interp1d(ks, Pk_data, kind='linear')
 
-#Pk_interp = interp1d(ks, Pk_data, kind='linear')
+"""
 
+### flat delta^2 points
 k_data = numpy.arange(0.001,0.6,0.01) #edit this and make sure the range is larger than k-range used so that interpolation works
-delta_sq = .000505
+delta_sq = 505 #mK^2 .000505 #K^2
 Pk_data = delta_sq*(2*numpy.pi**2)/(k_data**3)
 Pk_interp = interp1d(k_data,Pk_data,kind='linear')
 
+l_vals = numpy.arange(0,opts.lmax,1)
 
-###start of checks
 
-l_vals = numpy.arange(0,opts.lmax,1) 
+##### CHECK SINGLE FREQ and CORRELATED FREQ MAPS #####
 
+"""
 FREQ1 = 0.15 #change these if needed
 FREQ2 = 0.15
 
-"""
 #check single freq maps
 
 Cl_th = C_l(FREQ1,FREQ1,Pk_interp,l_vals)
@@ -261,19 +264,17 @@ plt.show()
 """
 
 
-###Check P(k) from maps
+##### Check P(k) from maps #####
 
-#box parameters
-
-num_maps = opts.nchan
-
-###VARIABLES TO EDIT
+# BOX PARAMETERS TO EDIT
 deltax = 103 #63 #103 #step size in real space [Mpc]    #when choosing these, delta*N < Dc_range_in_box
 deltay = 103 #63 #103
 deltaz = 6
 Nx = 1 #15 #box size [pixels] #MUST BE ODD
 Ny = 1 #15
 Nz = 191 #19
+min_freq = 0.1
+max_freq = 0.199
 ###
 
 Lx = Nx*deltax #size range in real space [Mpc]
@@ -297,17 +298,12 @@ def D_c(freq):
 def delta_freq(delta_Dc,z):
     return (delta_Dc*H0*nu21/c)*(numpy.sqrt(omg_m*(1+z)**3+omg_lambda))/(1+z)**2
 
-freqs_range = numpy.arange(0.05,0.25,0.001)
+freqs_range = numpy.arange(0.0001,max_freq+0.05,0.001)
 Dcs = []
 for i in range(len(freqs_range)):
     Dcs.append(D_c(freqs_range[i]))
 
 freq_interp = interp1d(Dcs[::-1],freqs_range[::-1],kind='linear')
-
-###VARIABLES TO EDIT
-min_freq = 0.1 #0.14679803 
-max_freq = 0.199 #0.1555 
-###
 
 max_Dc = D_c(min_freq)
 min_Dc = D_c(max_freq)
@@ -327,11 +323,11 @@ z_center = (nu21/(f_center*10**9))-1
 
 print 'Reading in maps...'
 
-freqs = numpy.round(numpy.linspace(opts.sfreq,opts.sfreq+opts.sdf*opts.nchan,num=opts.nchan, endpoint=False),decimals=3) #array of frequencies of maps
-map_nums = numpy.arange(1,opts.nchan+1,1)
-all_maps = []
+#freqs = numpy.round(numpy.linspace(opts.sfreq,opts.sfreq+opts.sdf*opts.nchan,num=opts.nchan, endpoint=False),decimals=3) #array of frequencies of maps
 
-"""
+""" #opens and saves maps (takes a lot of memory though)
+all_maps = []
+map_nums = numpy.arange(1,opts.nchan+1,1)
 for f in range(len(map_nums)):
 
     print '   '+str(map_nums[f])+'/'+str(len(map_nums))
@@ -345,6 +341,17 @@ print 'Filling cube...'
 
 #testmap = aipy.map.Map(nside=512)
 
+#theta coordinates go from [0,pi]
+#phi coordinates go from [0,2pi]
+
+#offset_thetas = numpy.arange(0,numpy.pi,0.3)
+#offset_phis = numpy.arange(0,2*numpy.pi,0.3)
+costhetas = numpy.random.rand(20)*2-1
+offset_thetas = numpy.arccos(costhetas) #evenly sampled in cos(theta)
+offset_phis = numpy.random.uniform(size=20)*2*numpy.pi
+#offset_thetas = numpy.array([0])
+#offset_phis = numpy.array([0])
+
 for i in range(Nx):
     print '   '+str(i+1)+'/'+str(Nx)
     for j in range(Ny):
@@ -357,21 +364,22 @@ for i in range(Nx):
             delta_x = px_x*deltax #physical distance moved from origin
             delta_y = px_y*deltay
             delta_z = px_z*deltaz
-
+            
             delta_xyz = numpy.sqrt(delta_x**2+delta_y**2+delta_z**2)    
 
-            Dc = numpy.sqrt(Dc_center**2+delta_xyz**2-(2*Dc_center*(-delta_z)))
+            Dc = numpy.sqrt(Dc_center**2+delta_xyz**2-(2*Dc_center*(-delta_z))) #LOS distance to pixel
             #note: when delta_z is negative, looking at bottom half of cube
 
-            delta_f = delta_freq(Dc-Dc_center,z_center) #[Hz]
-
+            #delta_f = delta_freq(Dc-Dc_center,z_center) #[Hz]
+            delta_f = delta_freq(delta_z,z_center) 
+            
             #f = numpy.round(f_center-delta_f*10**-9,decimals=3)
             f = f_center-delta_f*10**-9
             f_string = str(f)[:len(str(opts.sdf))] #interpolating between 2 freqs
             f_lower = float(f_string)
             f_upper = f_lower+opts.sdf
-            phi = numpy.arctan2(delta_y,delta_x)
-            theta = numpy.arccos((Dc_center+delta_z)/Dc)
+            phi = numpy.arctan2(delta_y,delta_x) 
+            theta = numpy.arccos((Dc_center+delta_z)/Dc) 
 
             #print px_x, px_y, px_z, delta_x, delta_y, delta_z, f
 
@@ -384,17 +392,27 @@ for i in range(Nx):
             #img_upper = all_maps[map_num_upper]#-1]
             img_lower = aipy.map.Map(fromfits=path+'/pspec1'+("%03i" % (map_num_lower+1))+'.fits') #if too many maps to store
             img_upper = aipy.map.Map(fromfits=path+'/pspec1'+("%03i" % (map_num_upper+1))+'.fits')
-            value_lower = img_lower[theta,phi]
-            value_upper = img_upper[theta,phi]
-            finterp = interp1d([f_lower,f_upper],[value_lower[0],value_upper[0]],kind='linear')
+            #value_lower = img_lower[theta,phi][0]
+            #value_upper = img_upper[theta,phi][0]
+            img_lows = []
+            img_highs = []
+            for t in range(len(offset_thetas)):
+                for p in range(len(offset_phis)):
+                    theta = theta + offset_thetas[t]
+                    phi = phi + offset_phis[p]
+                    img_lows.append(img_lower[theta,phi][0])
+                    img_highs.append(img_upper[theta,phi][0])
+                    #print img_lower[theta,phi][0]
+            value_lower = numpy.mean(img_lows)
+            value_upper = numpy.mean(img_highs) 
+
+            finterp = interp1d([f_lower,f_upper],[value_lower,value_upper],kind='linear')
             T_r[i][j][k] = finterp(f)
  
 #print T_r
 
 numpy.save('Tr_test.npy',T_r)
 T_r = numpy.load('Tr_test.npy')
-
-#print T_r 
 
 ###plot slice of cube
 
@@ -419,6 +437,7 @@ plt.imshow(numpy.real(otherslice2))
 T_q = numpy.fft.fftn(T_r)
 numpy.save('Tq_test.npy',T_q)
 T_q = numpy.load('Tq_test.npy')
+
 kx = numpy.fft.fftfreq(Nx,deltax)*2*numpy.pi 
 ky = numpy.fft.fftfreq(Ny,deltay)*2*numpy.pi
 kz = numpy.fft.fftfreq(Nz,deltaz)*2*numpy.pi
@@ -428,13 +447,13 @@ kz = kz.copy(); kz.shape = (1,1,kz.size)
 k_cube = numpy.sqrt(kx**2+ky**2+kz**2)
 #print kx,ky,kz
 #ks = numpy.fft.fftfreq(N,delta)*2*numpy.pi #stores k's in 1D array
-
+#print k_cube
 #T_tilde = T_q*delta**3
 T_tilde = T_q*deltax*deltay*deltaz
 
 #binning
 
-k_sampling = 0.05
+k_sampling = 0.03
 k_bins = numpy.arange(0,numpy.max(k_cube)+k_sampling,k_sampling)
 num_bins = len(k_bins)-1
 print num_bins
@@ -442,7 +461,6 @@ temp_squared = numpy.zeros(num_bins)
 num_in_bins = numpy.zeros(num_bins)
 
 #cutoff = numpy.max(ks) #edit this depending on what lmax is simulated up to
-
 for i in range(Nx):
     for j in range(Ny):
         for k in range(Nz):
@@ -452,38 +470,42 @@ for i in range(Nx):
                 if k_val >= k_bins[b] and k_val < k_bins[b+1]:
                     temp_squared[b] += numpy.abs(T_tilde[i][j][k]*numpy.conj(T_tilde[i][j][k]))
                     num_in_bins[b] += 1
-
 #Pk = (temp_squared/num_in_bins)/(delta*N)**3
 Pk = (temp_squared/num_in_bins)/(deltax*Nx*deltay*Ny*deltaz*Nz)
+Pk = Pk*(1000**2) #K^2 to mK^2
 
 print num_in_bins
-#print Lx,Ly,Lz
+
 plt.clf()
 
 final_ks = []
-print 'Sky Map P(k):'
+print 'Sky Map P(k): [mK^2 (h^-1 Mpc)^3]'
 for i in range(len(k_bins)-1):
     print k_bins[i],'<k<',k_bins[i+1],'   P(k)=',Pk[i]
     k = (k_bins[i+1]+k_bins[i])/2
     final_ks.append(k)
     y_err = numpy.sqrt(2/num_in_bins[i])*Pk_interp(k)
-    #plt.errorbar((k_bins[i+1]+k_bins[i])/2,Pk[i],xerr=1/Lz,yerr=y_err,fmt='.')
-    plt.errorbar((k_bins[i+1]+k_bins[i])/2,numpy.log10(Pk[i]),xerr=1/Lz,yerr=0.434*(y_err/Pk[i]),fmt='.')    #log plot on y-axis
-
+    plt.subplot(121)
+    #plt.errorbar(k,numpy.log10(Pk[i]),xerr=1/Lz,yerr=y_err,fmt='r.')
+    #plt.errorbar(k,numpy.log10(Pk[i]),xerr=1/Lz,yerr=0.434*(y_err/Pk[i]),fmt='r.')    #log plot on y-axis
+    plt.plot(k,numpy.log10(Pk[i]),'r.')
+    plt.subplot(122)
+    plt.plot(k,(k**3/(2*numpy.pi**2))*Pk[i],'r.') 
 print '['+','.join(map(str,final_ks))+']'
-print '['+','.join(map(str,Pk*(1000**2)))+']'
+print '['+','.join(map(str,Pk))+']'
 
-#print 'Original P(k):'
-#for i in range(len(k_data)):
-    #print 'k=',("%0.5f" % k_data[i]),'   P(k)=', Pk_interp(k_data[i]) #Pk_data[i]
-    #plt.plot(k_data[i],Pk_interp(k_data[i]),'k.')
-
-print 'Original P(k):'
+print 'Original P(k): [mK^2 (h^-1 Mpc)^3]'
 for i in range(len(k_bins)-1):
     k=(k_bins[i+1]+k_bins[i])/2
     print 'k=',k,'   P(k)=', Pk_interp(k)
-    #plt.plot(k,Pk_interp(k),'k.')
+    plt.subplot(121)
     plt.plot(k,numpy.log10(Pk_interp(k)),'k.')    #log plot on y-axis
+    plt.xlabel('k [$h Mpc^{-1}$]')
+    plt.ylabel('P(k) [$mK^{2} (h^{-1} Mpc)^{3}$]')
+    plt.subplot(122)
+    plt.plot(k,(k**3/(2*numpy.pi**2))*Pk_interp(k),'k.')
+    plt.xlabel('k [$h Mpc^{-1}$]')
+    plt.ylabel('$\Delta^{2}(k) [mK^{2}]$')
 
 plt.show()
 

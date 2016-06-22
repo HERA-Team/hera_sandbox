@@ -16,7 +16,10 @@ if opts.scale is None:
 def mfunc(uv, p, d, f):
     uvw,t,(ij) = p
     d = d*opts.scale
-    uv['var'] = uv['var']* opts.scale**2
+    try:
+        uv['var'] = uv['var']* opts.scale**2
+    except(KeyError):
+        pass
     
     #for stat in stats:
     #    if stat in uv.vartable.keys():uv[stat] = (uv[stat]* opts.scale).astype(n.double)

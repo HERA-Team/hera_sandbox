@@ -169,7 +169,8 @@ for filename in args:
             RS_VS_KPL_FOLD[filename][_kpl] = (_pk, _err)
             dsum_fold[_kpl] = dsum_fold.get(_kpl, 0) + _pk / _err**2
             dwgt_fold[_kpl] = dwgt_fold.get(_kpl, 0) + 1 / _err**2
-freq = f['freq']
+#freq = f['freq']
+freq=0.151
 #RS_VS_KPL = {}
 if True:
     RS_VS_KPL['total'] = {}
