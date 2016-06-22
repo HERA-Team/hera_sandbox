@@ -1,8 +1,5 @@
 import warnings
 import numpy as np
-try: import omnical
-except(ImportError):
-    warnings.warn("Warning: Omnical not installed")
 import capo.red as red
 import numpy.linalg as la
 with warnings.catch_warnings():
