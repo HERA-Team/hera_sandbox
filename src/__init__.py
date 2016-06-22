@@ -1,4 +1,4 @@
-import gb_weather, pfb, pspec, dspec, red, fringe, omni, frf_conv, uCal
+import gb_weather, pfb, pspec, dspec, red, fringe, frf_conv, uCal
 import oqe
 try: import omni
 except(ImportError,NameError):
