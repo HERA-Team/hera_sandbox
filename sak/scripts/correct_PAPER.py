@@ -22,8 +22,8 @@ opts,args = o.parse_args(sys.argv[1:])
 
 aa = a.phs.ArrayLocation(('-30:43:17.5', '21:25:41.9')) # Karoo, ZAR, GPS. #elevation=1085m
 
-rmants = map(int,opts.rmants.split(','))
-flipants = map(int,opts.flipants.split(','))
+if len(opts.rmants) > 0: opts.rmants = map(int,opts.rmants.split(','))
+if len(opts.flipants) > 0: opts.flipants = map(int,opts.flipants.split(','))
 #rewireants=map(int,opts.rewire.split(','))
 
 for filename in args:
@@ -40,13 +40,13 @@ for filename in args:
         crd,t,(i,j) = p
         p1,p2 = a.miriad.pol2str[uv['pol']]
         
-        if i in rmants or j in rmants: return p, None, None
+        if i in opts.rmants or j in opts.rmants: return p, None, None
         # prevent multiple entries arising from xy and yx on autocorrelations
         if i == j and (p1,p2) == ('y','x'): return p, None, None
         if opts.conj: #!!! CAUTION !!!
             if i > j: 
                 i,j,d = j,i,n.conjugate(d)
-        if i in flipants or j in flipants: d = -d  # I think the dipole for this antenna is rotated 180 deg
+        if i in opts.flipants or j in opts.flipants: d = -d  # I think the dipole for this antenna is rotated 180 deg
         if t != curtime:
             aa.set_jultime(t)
             uvo['lst'] = uvo['ra'] = uvo['obsra'] = aa.sidereal_time()
@@ -61,8 +61,8 @@ for filename in args:
         'dec': aa.lat,
         'obsdec': aa.lat,
         'longitu': aa.long,
-        'nants': uvi['nants']-len(rmants),
-        'ngains': uvi['nants']-len(rmants),
+        'nants': uvi['nants']-len(opts.rmants),
+        'ngains': uvi['nants']-len(opts.rmants),
         'telescop':'PAPER',
     }
     uvo.init_from_uv(uvi, override=override)
