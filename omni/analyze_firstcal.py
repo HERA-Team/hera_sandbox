@@ -11,7 +11,9 @@ o = optparse.OptionParser()
 o.add_option('--statfile',help='Full path and name of file to output mean and s.d. of delay solutions per antenna')
 o.add_option('--badantsin',help='Full path and name of badantfile for previous analyze_firstcal run')
 o.add_option('--badantsout',help='Full path and name of file to output list of bad antennae to')
+#o.add_option('--makeplots',help='Full path to file to plot stats in.')
 o.add_option('--verbose','-V',action='store_true',help='toggle verbosity')
+
 opts,args = o.parse_args(sys.argv[1:])
 
 #get initial parameters: assumes all npz files given have same badants
