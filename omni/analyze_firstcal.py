@@ -31,7 +31,8 @@ for npzfile in args:
     d = np.load(npzfile)
     for k in d.keys():
         if k.isdigit():
-            DD[k].append(d[k+'d'][0])
+            try: DD[k].append(d[k+'d'][0])
+            except KeyError: print 'Key error %s ???'%k
 
 stds = []
 #save antenna stats
