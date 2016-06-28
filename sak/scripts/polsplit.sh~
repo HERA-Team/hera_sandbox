@@ -1,0 +1,16 @@
+#! /bin/bash
+
+ARGS=$*
+declare -a POLS=( "xx" "yy" "xy" "yx" )
+
+for FILE in ${ARGS}; do
+	F=$(basename $FILE) 
+	echo $F
+	for POL in "${POLS[@]}"; do
+		echo $POL
+		echo pull_antpols.py $F -p $POL
+		pull_antpols.py $F -p $POL
+		echo mv ${F}A ${F:0:18}${POL}${F:17}
+		mv ${F}A ${F:0:18}${POL}${F:17}
+	done
+done

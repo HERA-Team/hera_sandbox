@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+# ! /usr/bin/env python
 import matplotlib
 matplotlib.use('Agg')
 import numpy as n, pylab as p
@@ -6,12 +6,20 @@ from matplotlib import gridspec
 import glob
 import sys, optparse
 import ipdb
+from capo.pspec import f2z
+from scipy.interpolate import interp1d
 
 fig = p.figure(1, figsize=(7,7))
 gs = gridspec.GridSpec(2,2, width_ratios=[1,.4], height_ratios=[.4,1])
 fig.subplots_adjust(left=.15, top=.95, bottom=.15, wspace=.15, hspace=.15, right=0.95)
 
 o=optparse.OptionParser()
+o.add_option('--path',dest='path', action='store', type='string',\
+        default='',help='Provide output folder to find power spectrum for comparison')
+o.add_option('--pspec',dest='pspec', action='store', type='string',\
+        default='',help='Provide output prefix to find power spectrum for comparison')
+o.add_option('--pol',dest='pol', action='store', type='string',\
+        default='',help='Provide polarization prefix to find power spectrum for comparison')
 opts,args=o.parse_args(sys.argv[1:])
 #fig2 = p.figure(2)
 pCs,pIs = [],[]
@@ -61,10 +69,20 @@ p.xlabel(r'$P_{\rm in}(k)\ [{\rm mK}^2\ (h^{-1}\ {\rm Mpc})^3]$', fontsize=14)
 p.ylabel(r'$P_{\rm out}(k)\ [{\rm mK}^2\ (h^{-1}\ {\rm Mpc})^3]$', fontsize=14)
 p.grid()
 
+
 #npz = n.load('/home/mkolopanis/psa64/psa64_multiz/data/pspec_Nov18_vanilla_skew_frpad_2_'+chan+'_I.npz')
-npz = n.load('/home/mkolopanis/psa64/pspec_Dec16_vanilla_optimal_frf_'+chan+'_I.npz')
-print npz.files
+
+sig_factor_interp = interp1d(pIs, pIs/pCs,kind='linear',bounds_error=False,fill_value=0)
+
+npz_file = opts.path+'/pspec_'+opts.pspec+'_'+chan+'_'+opts.pol+'.npz'
+npz = n.load(npz_file)
+#npz = n.load('/home/mkolopanis/psa64/pspec_Mar17_vanilla_ali_frf_recon_'+chan+'_I.npz')
+#print npz.files
 kpls,pks,errs = npz['kpl'], npz['pk'], npz['err']
+freq = npz['freq']
+z_bin = f2z(freq)
+
+sig_factors= []
 for kpl,pk,err in zip(kpls,pks,errs):
     #p.([pklo,pkhi], [pk,pk], 'r')
     pkup = max(pk+err,1e-6)
@@ -73,14 +91,18 @@ for kpl,pk,err in zip(kpls,pks,errs):
     p.fill_between([pklo,pkhi], [pkdn,pkdn], [pkup,pkup], facecolor='gray', edgecolor='gray')
     p.subplot(gs[3])
     p.fill_between([1e-3,20], [pkdn,pkdn], [pkup,pkup], facecolor='gray', edgecolor='gray')
+    if pkup > 1e-6:
+        sig_factors.append( sig_factor_interp(pkup))
+
+sig_factors = n.array(sig_factors)
 
 ax3 = p.subplot(gs[3])
 p.setp(ax3.get_yticklabels(), visible=False)
 #p.loglog(n.clip(pIs/pCs - 1, 1e-3,n.Inf), pCs, 'k.')
 #p.loglog(n.abs(pIs/pCs - 1), pCs, 'k.')
 p.errorbar(pIs/pCs - 1, pCs, xerr=2*pIs_err/pCs, yerr=2*pCs_err, fmt='k.', capsize=0)
-print pIs/pCs - 1
-print pCs
+#print pIs/pCs - 1
+#print pCs
 ax3.set_xscale('log')
 ax3.set_yscale('log')
 p.ylim(pklo, pkhi)
@@ -98,5 +120,14 @@ p.xlim(pklo, pkhi)
 p.ylim(0,1.1)
 p.grid()
 p.ylabel(r'$P_{\rm out}/P_{\rm in}$', fontsize=14)
+
+
+p.title('z = {0:.2f}'.format(z_bin))
+
 p.savefig('sigloss.png',format='png')
+
+print "Max sigloss factor z={0:.2f}:  {1:.2f}".format(z_bin,n.max(sig_factors))
+
 p.show()
+
+

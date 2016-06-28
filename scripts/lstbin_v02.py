@@ -181,7 +181,7 @@ if os.path.exists(opts.outpath+'/'+filename):
     print opts.outpath+'/'+filename,"exists"
     sys.exit(1)
 uvo = a.miriad.UV(opts.outpath+'/'+filename, status='new')
-uvo.init_from_uv(uvi)
+uvo.init_from_uv(uvi,override={'inttime':opts.lst_res})
 
 # What to write in the case of zero data in an lst bin
 dzero = n.zeros(uvi['nchan'], dtype=n.complex64)

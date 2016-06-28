@@ -16,7 +16,7 @@ o.add_option('--nogain', dest='nogain', action='store_true',
     help='Do not normalize gain.')
 o.add_option('--window', dest='window', default='none',
     help='DSP window to use.  Default: none')
-o.add_option('--offset', dest='offset', type=float, default=0.,
+o.add_option('--horizon', dest='offset', type=float, default=0.,
     help='An additional additive term (in ns) applied to the baseline length to determine horizon cutoff.  Default is 0.')
 o.add_option('--clean', dest='clean', type='float', default=1e-5,
     help='Deconvolve delay-domain data by the response that results from flagged data.  Specify a tolerance for termination.  Default 1e-5')
