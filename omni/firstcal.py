@@ -72,11 +72,11 @@ print 'Number of redundant baselines:',len(reds)
 #Read in data here.
 ant_string =','.join(map(str,info.subsetant))
 bl_string = ','.join(['_'.join(map(str,k)) for k in reds])
-info, data, flags = arp.get_dict_of_uv_data(args, bl_string, opts.pol, verbose=True)
+datainfo, data, flags = arp.get_dict_of_uv_data(args, bl_string, opts.pol, verbose=True)
 dataxx = {} #not necessarily xx data inside
 for (i,j) in data.keys():
     dataxx[(i,j)] = data[(i,j)][opts.pol]
-fqs = info['freqs']
+fqs = datainfo['freqs']
 dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, fqs[1]-fqs[0]))
 
 #gets phase solutions per frequency.
