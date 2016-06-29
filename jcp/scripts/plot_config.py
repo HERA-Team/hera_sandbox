@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import numpy as n, pylab as p
+import numpy as n, pylab as p, sys
 import matplotlib as mpl
 
 hera = n.loadtxt('HERA352_UTM.dat')
@@ -9,6 +9,46 @@ paper = n.loadtxt('psa128.dat')
 herasize = 14.6
 papersize = 4.
 
+#=============================== VERSION 0 ====================================
+fig = p.figure()
+ax = fig.add_subplot(111,aspect='equal')
+
+#hera
+for x,y in zip(hera[:,0],hera[:,1]):
+    ax.add_artist(mpl.patches.Circle((x,y),color='tomato',radius=herasize/2.,fill=True))
+    p.plot(x,y,color='white')
+for x,y in zip(hera[:,0],hera[:,1]):
+    ax.add_artist(mpl.patches.Circle((x,y),color='black',radius=herasize/2.,fill=False))
+    p.plot(x,y,color='white')
+
+#hera19
+hera19ants = [0,1,2,11,12,13,14,23,24,25,26,27,37,38,39,40,52,53,54]
+for x,y in zip(hera[hera19ants,0],hera[hera19ants,1]):
+    ax.add_artist(mpl.patches.Circle((x,y),color='black',radius=herasize/2.,fill=True))
+    p.plot(x,y,color='white')
+hera19ants = [0,1,2,11,12,13,14,23,24,25,26,27,37,38,39,40,52,53,54]
+for x,y in zip(hera[hera19ants,0],hera[hera19ants,1]):
+    ax.add_artist(mpl.patches.Circle((x,y),color='cyan',radius=herasize/2.,fill=False))
+    p.plot(x,y,color='white')
+
+
+#hera37
+hera37ants = [3,15,28,36,41,42,51,55,56,67,68,69,70,71,84,85,86,87]
+for x,y in zip(hera[hera37ants,0],hera[hera37ants,1]):
+    ax.add_artist(mpl.patches.Circle((x,y),color='gray',radius=herasize/2.,fill=True))
+    p.plot(x,y,color='white')
+hera37ants = [3,15,28,36,41,42,51,55,56,67,68,69,70,71,84,85,86,87]
+for x,y in zip(hera[hera37ants,0],hera[hera37ants,1]):
+    ax.add_artist(mpl.patches.Circle((x,y),color='orange',radius=herasize/2.,fill=False))
+    p.plot(x,y,color='white')
+
+
+
+p.xlim(540800,541150)
+p.ylim(6.6e6 + 1050, 6.6e6 + 1350)
+p.show()
+
+sys.exit()
 
 #=============================== VERSION 1 ====================================
 fig = p.figure()
