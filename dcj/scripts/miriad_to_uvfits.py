@@ -2,6 +2,7 @@
 import aipy as a, numpy as np
 import optparse, sys, os
 import uvdata
+from matplotlib.pyplot import *
 o = optparse.OptionParser()
 o.set_usage('miriad_to_uvfits.py  *.uv')
 o.set_description(__doc__)
@@ -12,6 +13,7 @@ for filename in args:
     UV = uvdata.uv.UVData()
     UV.read_miriad(filename,'miriad')
     outfilename = filename+'.uvfits'
-    UV.write_uvfits(outfilename,'uvfits',force_phase=True)
-
+    UV.phase(time=UV.time_array[0])
+    UV.write_uvfits(outfilename,'uvfits')
+show()
 
