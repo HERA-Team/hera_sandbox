@@ -20,7 +20,7 @@ del(uv)
 bad_ants = {
     19:['x'],
     18:['y'],
-    }
+}
 
 curtime = None
 for filename in args:
@@ -39,7 +39,6 @@ for filename in args:
         print "opts.onesrc is True: setting phase to %s_%s"%(RA,dec)
         opts.src = RA+'_'+dec
         epoch = aa.epoch
-        #print opts.src
     
     if not opts.src is None:
         if not opts.src.startswith('zen'):
@@ -58,14 +57,14 @@ for filename in args:
             print t
             if not src is None and not type(src) == str: src.compute(aa)
         if i == j: continue
-    
+        
         try:
             _d = d.copy()
             d = aa.phs2src(d,src,i,j)
             d /= aa.passband(i,j)
             uvw = aa.get_baseline(i,j,src=src)
         except(a.phs.PointingError): d *= 0
-        
+    
         bl = a.miriad.ij2bl(i,j)
         p = (uvw,t,(i,j))
         if not t in D.keys(): D[t] = {}
@@ -74,7 +73,7 @@ for filename in args:
 
     antpos = np.array([ant.pos for ant in aa])
     antpos.shape = antpos.shape[0]*antpos.shape[1]
-    
+
     uvo = a.pol.UV(filename+'M',status='new')
     ra = src.get_params()['ra']
     uvo.init_from_uv(uvi,override={'antpos':antpos,'obsra':ra,'ra':ra,'epoch':epoch*2000/36525.})
@@ -93,12 +92,11 @@ for filename in args:
                     print bad_ants
                     if i in bad_ants.keys() and any([x in bad_ants[i] for x in [pi,pj]]): f += 1
                     if j in bad_ants.keys() and any([x in bad_ants[j] for x in [pi,pj]]): f += 1
-
                 uvo.write_pol(a.miriad.pol2str[pol])
                 uvo.write(p,d,f)
     uvo._wrhd('history',uvo['history'] + 'FHD_prep:'+' '.join(sys.argv)+'\n')
     del uvo,uvi
 
-if opts.uvfits: 
+if opts.uvfits:
     for filename in args:
         os.system('fits in=%s op=uvout out=%s'%(filename+'M',filename+'M.uvfits'))
