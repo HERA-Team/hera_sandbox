@@ -25,7 +25,6 @@ for uvfile in args:
         global nints
         uvw, t, (i,j) = preamble
         uvw = aa.get_baseline(i,j,'z')
-        print uvw
         preamble = (uvw, t, (i,j))
         return preamble, data, flags
 
