@@ -59,6 +59,16 @@ class DataSet:
             try:
                 if conj[k[1]]: self.x[k] = np.conj(self.x[k])
             except(TypeError,KeyError): pass
+    def add_data(self, dsets, wgts=None, conj=None):
+        if type(dsets.values()[0]) == dict:
+            dsets,wgts = self.flatten_data(dsets), self.flatten_data(wgts)
+        for k in dsets:
+            self.x[k] = dsets[k].T
+            try: self.w[k] = wgts[k].T
+            except(TypeError): self.w[k] = np.ones_like(self.x[k])
+            try:
+                if conj[k[1]]: self.x[k] = np.conj(self.x[k])
+            except(TypeError,KeyError): pass
     def lst_align(self, lsts, dsets, wgts=None):
         for k in lsts: #orders LSTs
             order = np.argsort(lsts[k])
