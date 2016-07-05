@@ -28,7 +28,7 @@ LST_STATS = False
 DELAY = False
 NGPS = 5
 INJECT_SIG = opts.inject_sig
-FRF_WIDTH = 401
+#FRF_WIDTH = 401
 NOISE = .0
 PLOT = opts.plot
 
@@ -232,7 +232,7 @@ else: fir = {(ij[0],ij[1],POL):firs}
 #Extract frequency range of data 
 xi = {}
 f = {}
-NOISE = frf((len(chans),len(lsts)),loc=0,scale=1) #same noise on each bl
+#NOISE = frf((len(chans),len(lsts)),loc=0,scale=1) #same noise on each bl
 for k in days:
     xi[k] = {}
     f[k] = {}
@@ -242,7 +242,7 @@ for k in days:
         if conj[bl]: d = n.conj(d) #conjugate if necessary
         shape = d.shape #(times,freqs)
         if opts.noise_only:
-            xi[k][bl] = NOISE #frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
+            xi[k][bl] = frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
         else:
              xi[k][bl] = n.transpose(d, [1,0]) #swap time and freq axes
         f[k][bl] = n.transpose(flg, [1,0])
@@ -567,7 +567,7 @@ for boot in xrange(opts.nboot):
     MC /= norm; WC = n.dot(MC, FC)
 
     print '   Generating ps'
-    if opts.noise_only: scalar = 1
+    #if opts.noise_only: scalar = 1
     pC = n.dot(MC, qC) * scalar
     pI = n.dot(MI, qI) * scalar 
 
