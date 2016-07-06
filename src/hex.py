@@ -25,6 +25,19 @@ def hex_to_info(hexnum, pols=['x'], **kwargs):
     info.init_from_reds(reds,antpos)
     return info
 
+def get_hex_pos(hexnum, scale=1):
+    nant = 3*hexnum**2 - 3*hexnum + 1
+    antpos = -np.ones((nant, 3))
+    ant = 0
+    for row in range(hexnum-1, -(hexnum), -1):
+        for col in range(2*hexnum-abs(row)-1):
+            x = ((-(2*hexnum-abs(row))+2)/2.0 + col) * scale
+            y = row*-1*np.sqrt(3)/2 * scale
+            antpos[ant,0],antpos[ant,1],antpos[ant,2] = x,y,1 #zcomponent is 1
+            ant+=1
+    return antpos
+
+
 def hera_to_info(hexnum, nant, pols=['x'], connections=None, red_type=[], **kwargs):
     '''Go from hera array to info.
        connections is a txt file that has the hera ant numbers and paper antenna numbers.
@@ -51,7 +64,32 @@ def hera_to_info(hexnum, nant, pols=['x'], connections=None, red_type=[], **kwar
     info.init_from_reds(reds,antpos)
     return info
 
-    
+def aa_to_info_hera(aa, pols=['x'], fcal=False, **kwargs):
+    nant = len(aa)
+    try:
+        antpos_ideal = aa.antpos_ideal
+        xs,ys,zs = antpos_ideal.T
+        layout = np.arange(len(xs))
+        #antpos = np.concatenat([antpos_ideal for i in len(pols)])
+    except(AttributeError):
+        layout = aa.ant_layout
+        xs,ys = np.indices(layout.shape)
+    antpos = -np.ones((nant*len(pols),3)) #remake antpos with pol information. -1 to flag
+    for ant,x,y in zip(layout.flatten(), xs.flatten(), ys.flatten()):
+        for z, pol in enumerate(pols):
+            z = 2**z
+            i = omni.Antpol(ant, pol, len(aa))
+            antpos[i,0], antpos[i,1], antpos[i,2] = x,y,z
+    reds = omni.compute_reds(nant, pols, antpos[:nant], tol=.1)
+    ex_ants = [omni.Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] == -1]
+    kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
+    reds = omni.filter_reds(reds, **kwargs)
+    if fcal:
+        info = omni.FirstCalRedundantInfo(nant)
+    else:
+        info = omni.RedundantInfo(nant)
+    info.init_from_reds(reds,antpos)
+    return info
  
 def get_paper_ants(connection_file):
     '''Get the PAPER antenna numbers for a hex grid.
