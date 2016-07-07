@@ -219,6 +219,14 @@ lsts = lsts.values()[0] #same set of LST values for both even/odd data
 daykey = data.keys()[0]
 blkey = data[daykey].keys()[0]
 ij = a.miriad.bl2ij(blkey)
+if blconj[bl]: ij = (ij[1], ij[0])
+#sep = bl2sep[all_bls[0]]
+#ij_array =  sep2ij[sep].split(',')
+#while True:
+#    ij = map( int, ij_array.pop().split('_') )
+#    bl = a.miriad.ij2bl(*ij )
+#    if not blconj[bl]: break
+print 'Using Baseline for FRP:',ij
 #ij = (64, 49) 
 
 #Prep FRF Stuff
@@ -233,6 +241,7 @@ else: fir = {(ij[0],ij[1],POL):firs}
 xi = {}
 f = {}
 NOISE = frf((len(chans),len(lsts)),loc=0,scale=1) #same noise on each bl
+if opts.noise_only: print 'Replacing data with Noise'
 for k in days:
     xi[k] = {}
     f[k] = {}
@@ -407,8 +416,8 @@ for boot in xrange(opts.nboot):
     pI = n.dot(MI, qI) * scalar 
 
     #XXX Overwriting to new variables
-    pCv = pC
-    pIv = pI
+    pCv = pC.copy()
+    pIv = pI.copy()
 
     
     ### Loop to calculate pC of (data/noise+eor) and pI of eor ###
@@ -420,7 +429,9 @@ for boot in xrange(opts.nboot):
         x = {}
         for k in days:
             x[k] = {}
-            for bl in xi[k]: x[k][bl] = xi[k][bl] + eor #add injected signal to data
+            for bl in xi[k]:
+                #eor[k][bl] = frf((shape[1],shape[0]),loc=0,scale=1) * INJECT_SIG #create FRF-ered noise
+                x[k][bl] = xi[k][bl] + eor #add injected signal to data
         if False and PLOT:
             p.subplot(211); capo.arp.waterfall(eor1, mode='real'); p.colorbar()
             p.subplot(212); capo.arp.waterfall(eor2, mode='real'); p.colorbar(); p.show()
@@ -579,11 +590,11 @@ for boot in xrange(opts.nboot):
         p.show()
 
     #XXX Overwriting to new variables
-    pCr = pC
-    pIe = pI
+    pCr = pC.copy()
+    pIe = pI.copy()
     #XXX Final variables
-    pI = pIe
-    pC = pCr - pCv
+    pI = pIe.copy()
+    pC = n.copy(pCr - pCv)
 
     print 'pI=', n.average(pI.real), 'pC=', n.average(pC.real), 'pI/pC=', n.average(pI.real)/n.average(pC.real)
    
