@@ -43,8 +43,10 @@ sig_factor_interp = interp1d(pIs, pIs/pCs,kind='linear',bounds_error=False,fill_
 
 ### GETTING PSPEC DATA ###
 
-npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_frfnew/pspec_pk_k3pk.npz')
-#npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_noise/ns_and_eor/pspec_pk_k3pk.npz') #purely noise 
+#npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_frfnew/pspec_pk_k3pk.npz')
+#npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_noise/pspec_pk_k3pk.npz') #purely noise 
+npz = n.load('/home/cacheng/capo/ctc/matt_data/noise_diffbls/pspec_pk_k3pk.npz') #matt's data
+
 kpls,pks,errs = npz['kpl'], npz['pk'], npz['err']
 
 freq = npz['freq']
@@ -53,16 +55,17 @@ z_bin = f2z(freq)
 ### PLOTTING ###
 
 fig = p.figure(1, figsize=(7,7))
-gs = gridspec.GridSpec(2,2, width_ratios=[1,.4], height_ratios=[.4,1])
-fig.subplots_adjust(left=.15, top=.95, bottom=.15, wspace=.15, hspace=.15, right=0.95)
+gs = gridspec.GridSpec(2,3,width_ratios=[.4,1.2,.4],height_ratios=[.4,1]) #used to be 2,2
+fig.subplots_adjust(left=.15, top=.95, bottom=.15, wspace=.35, hspace=.15, right=0.95)
 
 #Plot 2
 p.figure(1)
 pklo,pkhi = 1e1,1e12
 #pklo,pkhi = 1e-10,1e5 #for noise only
-p.subplot(gs[2])
+ax2 = p.subplot(gs[4]) #used to be 2
 #p.loglog(pIs, pCs, 'k.')
-p.errorbar(pIs, pCs, xerr=2*pIs_err, yerr=2*pCs_err, capsize=0, fmt='k.')
+p.setp(ax2.get_yticklabels(), visible=False) #uncomment if no left-hand P(k) plot
+p.errorbar(pIs, n.abs(pCs), xerr=2*pIs_err, yerr=2*pCs_err, capsize=0, fmt='k.')
 p.loglog([pklo,pkhi],[pklo,pkhi], 'k-')
 p.xlim(pklo, pkhi)
 p.ylim(pklo, pkhi)
@@ -77,17 +80,17 @@ for kpl,pk,err in zip(kpls,pks,errs):
     p.fill_between([pklo,pkhi], [pkdn,pkdn], [pkup,pkup], facecolor='gray', edgecolor='gray')
 
 #Plot 3    
-ax3 = p.subplot(gs[3])
+ax3 = p.subplot(gs[5]) #used to be 3
 p.setp(ax3.get_yticklabels(), visible=False)
 #p.loglog(n.clip(pIs/pCs - 1, 1e-3,n.Inf), pCs, 'k.')
 #p.loglog(n.abs(pIs/pCs - 1), pCs, 'k.')
-p.errorbar(pIs/pCs - 1, pCs, xerr=2*pIs_err/pCs, yerr=2*pCs_err, fmt='k.', capsize=0)
+p.errorbar(n.abs(pIs/pCs - 1), n.abs(pCs), xerr=2*pIs_err/pCs, yerr=2*pCs_err, fmt='k.', capsize=0)
 print "pI/pC : ", pIs/pCs - 1
 print "pC: ", pCs
 ax3.set_xscale('log')
 ax3.set_yscale('log')
 p.ylim(pklo, pkhi)
-p.xlim(1e1,1e6)
+p.xlim(1e-2,1e4)
 #p.xlim(1,10)
 p.grid()
 p.xlabel(r'$P_{\rm in}/P_{\rm out}-1$', fontsize=14)
@@ -101,7 +104,7 @@ for kpl,pk,err in zip(kpls,pks,errs):
         sig_factors.append( sig_factor_interp(pkup))
 
 #Plot 1
-ax0 = p.subplot(gs[0])
+ax0 = p.subplot(gs[1]) #used to be 0
 p.setp(ax0.get_xticklabels(), visible=False)
 p.errorbar(pIs, pCs/pIs, xerr=2*pIs_err, yerr=2*pCs_err/pIs, fmt='k.', capsize=0)
 ax0.set_xscale('log')
@@ -110,8 +113,19 @@ p.xlim(pklo, pkhi)
 p.ylim(0,1.1)
 p.grid()
 p.ylabel(r'$P_{\rm out}/P_{\rm in}$', fontsize=14)
+
 p.title('z = {0:.2f}'.format(z_bin))
 p.savefig('sigloss.png',format='png')
+
+#P(k) plot on left side
+ax4 = p.subplot(gs[3])
+p.setp(ax4.get_yticklabels())#, visible=False)
+ax4.set_xscale('log')
+ax4.set_yscale('log')
+p.ylim(pklo, pkhi)
+p.errorbar(kpls, n.abs(pks), yerr=errs, fmt='k.', capsize=0)
+p.grid()
+
 
 p.show()
 
