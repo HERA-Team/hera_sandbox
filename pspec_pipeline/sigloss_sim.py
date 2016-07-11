@@ -28,8 +28,6 @@ LST_STATS = False
 DELAY = False
 NGPS = 5
 INJECT_SIG = opts.inject_sig
-#FRF_WIDTH = 401
-NOISE = .0
 PLOT = opts.plot
 
 ### FUNCTIONS ###
@@ -402,7 +400,7 @@ for boot in xrange(opts.nboot):
     MC /= norm; WC = n.dot(MC, FC)
 
     print '   Generating ps'
-    if opts.noise_only: scalar = 1
+    #if opts.noise_only: scalar = 1
     pC = n.dot(MC, qC) * scalar
     pI = n.dot(MI, qI) * scalar 
 
