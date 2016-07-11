@@ -70,9 +70,10 @@ class DataSet:
                 if conj[k[1]]: self.x[k] = np.conj(self.x[k])
             except(TypeError,KeyError): pass
     def lst_align(self, lsts, dsets, wgts=None):
-        for k in lsts: #orders LSTs
-            order = np.argsort(lsts[k])
-            lsts[k] = lsts[k][order]
+        order = {}
+        for k in lsts: #orders LSTs to find overlap
+            order[k] = np.argsort(lsts[k])
+            lsts[k] = lsts[k][order[k]]
         numkeys = len(lsts.keys())
         i=0 
         while i < numkeys-1: #aligns LSTs
@@ -81,7 +82,10 @@ class DataSet:
             i += 1
         if numkeys == 1: lsts_final = lsts[lsts.keys()[0]]
         ind = {}
-        for k in lsts:
+        for k in dsets: #orders data correctly
+            dsets[k] = dsets[k][order[k[0]]]
+            wgts[k] = wgts[k][order[k[0]]]
+        for k in lsts: #selects correct LSTs from data
             ind[k] = lsts[k].searchsorted(lsts_final)
         for k in dsets:
             dsets[k] = dsets[k][ind[k[0]]]
