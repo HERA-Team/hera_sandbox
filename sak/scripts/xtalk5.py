@@ -33,7 +33,7 @@ sa.lat = aa.lat
 julDelta = 2415020.
 
 for uvfile in args:
-	if uvfile[0:3]=='zen': JD = float(uvfile[4:17])
+	if uvfile[0:3]=='zen' or uvfile[0:3]=='lst': JD = float(uvfile[4:17])
 	elif uvfile[0:3]=='psa' or uvfile[0:3]=='245': JD = float(uvfile[12:25])
 	else: print 'JD issue!';sys.exit()
 	sa.date = JD-julDelta

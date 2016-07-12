@@ -10,6 +10,7 @@ import glob
 
 pCs,pIs,pCvs = [],[],[]
 pCs_err,pIs_err = [],[]
+freq = []
 for inject in glob.glob('inject_*'):
     print 'Reading', inject
     pspecs = glob.glob(inject + '/pspec_boot*.npz') 
@@ -18,6 +19,8 @@ for inject in glob.glob('inject_*'):
     pC_spec, pI_spec = [], []
     for pspec in pspecs:
         npz = n.load(pspec)
+        try: freq = npz['freq']
+        except: pass
         pC,pI,pCv = npz['pk_vs_t'], npz['nocov_vs_t'], npz['pCv'] #(#chan, #times)
         kpls = n.array(npz['kpl'])
         pC_avg.append(n.average(pC.real)) #avg over freq and time
@@ -37,22 +40,27 @@ for inject in glob.glob('inject_*'):
     #p.figure(1)
     #p.subplot(211); p.loglog([pI_avg], [pC_avg], 'k.')
     #p.subplot(212); p.loglog([pC_avg], [pI_avg/pC_avg], 'k.')
+
 pIs,pCs,pCvs = n.array(pIs), n.array(pCs), n.array(n.average(pCvs,axis=0)) #avg over inject #s
 pIs_err,pCs_err = n.array(pIs_err), n.array(pCs_err)
 
 ###Build an interpolator to find sigloss factors###
-sig_factor_interp = interp1d(pIs, pIs/pCs,kind='linear',bounds_error=False,fill_value=0)
+sig_factor_interp = interp1d(pCs, pIs/pCs,kind='linear',bounds_error=False,fill_value=0)
 
 ### GETTING PSPEC DATA ###
 # XXX only used to get 'freq' variable
 
 #npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_frfnew/pspec_pk_k3pk.npz')
-npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_noise/diff_bls/pspec_pk_k3pk.npz') #purely noise 
+try:
+    z_bin = f2z(freq)
+except:
+    print 'frequency not found in boots. Searching in pspec.npz'
+    npz = n.load('/home/mkolopanis/psa64/sigloss_verification/Jul6_noise_3Jy_inttime_44/95_115/I/pspec_Jul6_noise_3Jy_inttime_44_95_115_I.npz') #matt's dat
+    freq = npz['freq']
+    z_bin = f2z(freq)
 #npz = n.load('/home/cacheng/capo/ctc/matt_data/noise_diffbls/pspec_pk_k3pk.npz') #matt's data
 
 #kpls,pks,errs = npz['kpl'], npz['pk'], npz['err']
-freq = npz['freq']
-z_bin = f2z(freq)
 
 ### PLOTTING ###
 
@@ -62,7 +70,7 @@ fig.subplots_adjust(left=.15, top=.95, bottom=.15, wspace=.35, hspace=.15, right
 
 #Plot 2
 p.figure(1)
-pklo,pkhi = 1e-6,1e10
+pklo,pkhi = 1e-6,1e20
 #pklo,pkhi = 1e-10,1e5 #for noise only
 ax2 = p.subplot(gs[4]) #used to be 2
 #p.loglog(pIs, pCs, 'k.')
@@ -138,8 +146,8 @@ p.plot(kpls,n.abs(pCvs),'k.')
 p.grid()
 
 
+print "Max sigloss factor z={0:.2f}:  {1:.2f}".format(z_bin,n.max(sig_factors))
 p.show()
 
-print "Max sigloss factor z={0:.2f}:  {1:.2f}".format(z_bin,n.max(sig_factors))
 
 

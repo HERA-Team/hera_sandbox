@@ -2,7 +2,7 @@
 import numpy as n
 import capo as C
 import aipy as a
-import pylab as p
+from matplotlib import pylab as p
 import scipy
 import capo.frf_conv as fringe
 
@@ -11,7 +11,7 @@ def beam_area(hmap):
     return 4*n.pi*n.sum(hmap)/h.npix()
 
 #get antenna array
-aa = a.cal.get_aa('psa6622_v003', n.array([.159])) #XXX hard-coded
+aa = a.cal.get_aa('psa6240_v003', n.array([.159])) #XXX hard-coded
 
 h = a.healpix.HealpixMap(nside=64) #healpix map for the beam
 xyz = h.px2crd(n.arange( h.npix() ), ncrd=3)
@@ -22,6 +22,7 @@ bmI = 0.5 * (_bmx**2 + _bmy**2)
 bmI = n.where(tz > 0, bmI, 0) # only use beam values above the horizon.
 
 bl = aa.get_baseline(0,26,'r') * .151 #baseline length in frequency.
+print aa.get_baseline(0,26,'r')
 fng = C.frf_conv.mk_fng(bl, xyz)
 
 #get the fringe rate filter in frf_conv. aa only has one channel in it.

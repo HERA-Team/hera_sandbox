@@ -3,7 +3,8 @@ import capo as C
 import aipy as a, numpy as n
 import pylab as p
 from mpl_toolkits.basemap import Basemap
-import capo.frf_conv as fringe
+import capo.fringe as fringe
+#import capo.frf_conv as fringe
 
 
 class TestFRFilter(unittest.TestCase):
@@ -19,6 +20,8 @@ class TestFRFilter(unittest.TestCase):
         p.plot(t, n.abs(firs[160]))
         p.subplot(122)
         p.plot(frbins, frspace[160])
+        p.xlim(-.0005,.0020)
+        p.ylim(0.0,1.0)
         p.show()
     def test_get_optimal_kernel_at_ref(self):
         ch = 100
