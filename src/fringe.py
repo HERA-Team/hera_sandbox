@@ -97,9 +97,9 @@ def get_oldfilter(aa, (bli,blj), inttime, nints, freqs):
     return time_bins, kernels, \
            fr_bins, windowed_bwfrs
      
-#def mk_fng(bl, ex, ey, ez):
-#    return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
 def mk_fng(bl, ex, ey, ez):
+    return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
+def mk_fng_fixed(bl, ex, ey, ez):
     return -2*n.pi/a.const.sidereal_day * n.dot(n.cross(n.array([0,0,1.]),bl), n.array([ex,ey,ez]))
 
 def get_optimal_kernel_at_ref(aa, ch, (bli, blj), binwidth=.00005):
@@ -123,7 +123,7 @@ def get_optimal_kernel_at_ref(aa, ch, (bli, blj), binwidth=.00005):
     bmyy = n.where(top_z > 0, _bmy**2, 0)
     bm_I = 0.5 * (bmxx + bmyy)
 
-    #xyz = (xyz[1], xyz[0], xyz[2])
+    xyz = (xyz[1], xyz[0], xyz[2])
     bl = aa.get_baseline(bli,blj,'r') * freq
     print 'Baseline:', bl
     fng = mk_fng(bl, *xyz) 
@@ -148,6 +148,54 @@ def get_optimal_kernel_at_ref(aa, ch, (bli, blj), binwidth=.00005):
     h_I_fit_prms = (cen,wid)
 
     return h_I, bins, wgt, h_I_fit_prms
+
+def get_optimal_kernel_at_ref_fixed(aa, ch, (bli, blj), binwidth=.00005):
+    '''
+        Generate optimal convolution kernel for data using beam 
+        weightning.
+    '''
+    freq = aa.get_afreqs()[ch]
+    print 'freq = ', freq
+    bin_edges = n.arange(-.01+binwidth/2,.01,binwidth) 
+    nbins = len(bin_edges)
+   
+    #create healpix map for pointings.
+    h = a.healpix.HealpixMap(nside=64)
+    #get xyz cords of all patches.
+    xyz = h.px2crd(n.arange(h.map.size), ncrd=3)
+    top_x, top_y, top_z = n.dot(aa._eq2zen, xyz)
+    _bmx = aa[0].bm_response((top_x,top_y,top_z), pol='x')[ch]
+    _bmy = aa[0].bm_response((top_x,top_y,top_z), pol='y')[ch]
+    bmxx = n.where(top_z > 0, _bmx**2, 0)
+    bmyy = n.where(top_z > 0, _bmy**2, 0)
+    bm_I = 0.5 * (bmxx + bmyy)
+
+    xyz = (xyz[1], xyz[0], xyz[2])
+    bl = aa.get_baseline(bli,blj,'r') * freq
+    print 'Baseline:', bl
+    fng = mk_fng(bl, *xyz) 
+
+    #h_I, bin_edges = n.histogram(fng, bins=bin_edges, weights=bm_I) # This is wrong
+    h_I, bin_edges = n.histogram(fng, bins=bin_edges, weights=bm_I**2) 
+    h_I = n.sqrt(h_I)
+    #square the power beam.Dont do this. Only need to put in one factor 
+    #of the beam. The measurement contains the other.
+#    h_I = h_I**2
+
+    #normalize the beam
+    h_I /= h_I.max()
+    bins = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+    wgt = scipy.interpolate.interp1d(bins, h_I, kind='linear')
+    
+    (cen,wid), score = a.optimize.fmin(lambda prms:
+        fit_gaussian(h_I,prms,fng, bins), [.001,.0001], full_output=1,
+        disp=0, maxfun=1000, maxiter=n.Inf, ftol=1e-6, xtol=1e-6)[:2]
+
+    print 'Fit for gaussian: cen = %f,wid = %f, score = %f'%(cen,wid,score)
+    h_I_fit_prms = (cen,wid)
+
+    return h_I, bins, wgt, h_I_fit_prms
+
 
 def get_beam_w_fr(aa, (bli, blj), timespan=86240*6, ref_chan=160):
     '''
@@ -188,6 +236,7 @@ def get_beam_w_fr(aa, (bli, blj), timespan=86240*6, ref_chan=160):
     zero_bin = nz_inds[-1] + 1
     zero_bin_fr = bins[zero_bin]
     print zero_bin_fr
+    print fr_bins, len(fr_bins)
 
     #get fits for all freqs by changing gaussian params
     gfits = n.array([scipy.interpolate.interp1d(fr_bins,gauss(
