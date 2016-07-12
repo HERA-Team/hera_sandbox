@@ -28,3 +28,4 @@ for inject in `python -c "import numpy; print ' '.join(map(str, numpy.logspace(-
     mv *bootsigloss*.npz inject_sep${SEP}_${inject}/.
 done
 
+~/capo/pspec_pipeline/plot_sigloss.py
