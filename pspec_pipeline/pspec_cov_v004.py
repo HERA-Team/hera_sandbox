@@ -34,7 +34,6 @@ LST_STATS = False
 DELAY = False
 NGPS = 5 #number of groups to break the random sampled bls into
 INJECT_SIG = 0.
-SAMPLE_WITH_REPLACEMENT = False
 PLOT = opts.plot
 
 """
@@ -142,7 +141,7 @@ if opts.noise_only:
     timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
     if blconj[a.miriad.ij2bl(ij[0],ij[1])]: fir = {(ij[0],ij[1],POL):n.conj(firs)}
     else: fir = {(ij[0],ij[1],POL):firs}
-    NOISE = frf((len(chans),timelen),loc=0,scale=1)
+    NOISE = frf((len(chans),timelen),loc=0,scale=1) #same noise on all bls
 
 #Acquire data
 data_dict = {}
@@ -159,10 +158,7 @@ for k in days:
         d = n.array(data[k][bl][POL])[:,chans] * jy2T  #extract frequency range
         flg = n.array(flgs[k][bl][POL])[:,chans]
         key = (k,bl,POL)
-        if opts.noise_only: 
-            data_dict[key] = NOISE.T
-            flg = n.zeros_like(data_dict[key])
-        else: data_dict[key] = d 
+        data_dict[key] = d
         flg_dict[key] = n.logical_not(flg)
         conj_dict[key[1]] = conj[a.miriad.ij2bl(bl[0],bl[1])]
 keys = data_dict.keys()
@@ -170,11 +166,14 @@ bls_master = []
 for key in keys: bls_master.append(key[1])
 bls_master = n.unique(bls_master)
 print 'Baselines:', len(bls_master)
-
 #Align and create dataset
 ds = oqe.DataSet()
-if not opts.noise_only: lsts,data_dict,flg_dict = ds.lst_align(lsts,dsets=data_dict,wgts=flg_dict) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
-ds.set_data(dsets=data_dict,conj=conj_dict,wgts=flg_dict)
+lsts,data_dict,flg_dict = ds.lst_align(lsts,dsets=data_dict,wgts=flg_dict) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
+if opts.noise_only: #replace data with noise
+    for key in data_dict:
+        data_dict[key] = NOISE.T
+        flg_dict[key] = n.ones_like(data_dict[key])
+ds.set_data(dsets=data_dict,conj=conj_dict)#,wgts=flg_dict)
 
 #Get some statistics
 if LST_STATS:
@@ -211,29 +210,53 @@ if PLOT and False:
 #Make boots        
 for boot in xrange(opts.nboot):
     print 'Bootstrap %d / %d' % (boot+1,opts.nboot)
-    
-    #Shuffle baselines and make groups
-    #random.shuffle(keys) 
-    #gps = [keys[i::NGPS] for i in range(NGPS)] #divide keys into groups w/no repeats
-    #gps = [[random.choice(gp) for bl in gp] for gp in gps] #sample w/replacement inside each group
-    ### Want to sum up things in each group and then loop through each group with the other group... but how to check for even w/even biases, etc.? Not easily done because each group will surely have both even and odd keys. Do the groups need to be made separately for even and odd?
-    
-    #No groups
-    keys = [random.choice(keys) for key in keys] #sample /replacement for bootstrapping
+ 
+    if True: #shuffle and group baselines for bootstrapping
+        random.shuffle(bls_master)
+        gps = [bls_master[i::NGPS] for i in range(NGPS)]
+        gps = [[random.choice(gp) for bl in gp] for gp in gps] #sample w/replacement inside each group
+        newkeys = []
+        data_dict2, data_dict3 = {},{}
+        iCsum,iCxsum,Ixsum,Isum = {},{},{},{}
+        for day in days: #summing up data for each group and making new keys
+            for gp in range(len(gps)):
+                newkey = (day,gp)
+                newkeys.append(newkey)
+                iCsum[newkey] = n.zeros_like(ds.iC(keys[0]))
+                iCxsum[newkey] = n.zeros_like(ds.x[keys[0]])
+                Isum[newkey] = n.zeros_like(ds.C(keys[0]))
+                Ixsum[newkey] = n.zeros_like(ds.x[keys[0]])
+                for bl in gps[gp]:
+                    iCsum[newkey] += ds.iC((day,(bl[0],bl[1]),POL))
+                    iCxsum[newkey] += n.dot(ds.iC((day,(bl[0],bl[1]),POL)),ds.x[(day,(bl[0],bl[1]),POL)])
+                    Isum[newkey] += n.identity(nchan)
+                    Ixsum[newkey] += ds.x[(day,(bl[0],bl[1]),POL)]
+                data_dict2[newkey] = n.dot(n.linalg.inv(iCsum[newkey]),iCxsum[newkey]).T #finding effective summed up x based on iCsum and iCxsum
+                data_dict3[newkey] = n.dot(n.linalg.inv(Isum[newkey]),Ixsum[newkey]).T #finding effective summed up x based on Isum and Ixsum
+        ds.add_data(dsets=data_dict2)
+        dsI = oqe.DataSet(); dsI.set_data(dsets=data_dict3)
+        keys = newkeys #override
+        ds.set_iC(iCsum) #override since if they're computed from x, they're incorrect
+        ds.set_I(Isum)
+    else: #no groups (slower)
+        keys = [random.choice(keys) for key in keys] #sample w/replacement for bootstrapping
+        dsI = ds #identity case dataset is the same
 
     #OQE Stuff
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex)
+    qI = n.zeros((nchan,data_dict[key].shape[0]), dtype=n.complex)
+    qC = n.zeros((nchan,data_dict[key].shape[0]), dtype=n.complex)
     for k,key1 in enumerate(keys):
-        print '   ',k+1,'/',len(keys)
-        for key2 in keys:
+        #print '   ',k+1,'/',len(keys)
+        for key2 in keys[k:]:
             if key1[0] == key2[0] or key1[1] == key2[1]: 
                 continue #don't do even w/even or bl w/same bl
             else:
                 FC += ds.get_F(key1,key2)
-                FI += ds.get_F(key1,key2,use_cov=False)    
-                qC = ds.q_hat(key1,key2)
-                qI = ds.q_hat(key1,key2,use_cov=False) 
+                FI += dsI.get_F(key1,key2,use_cov=False)    
+                qC += ds.q_hat(key1,key2)
+                qI += dsI.q_hat(key1,key2,use_cov=False) 
 
     if PLOT:
         p.subplot(121); capo.arp.waterfall(FC, drng=4)
@@ -242,11 +265,13 @@ for boot in xrange(opts.nboot):
         p.title('FI')
         p.show()
     
-    MC,WC = ds.get_MW(FC)
-    MI,WI = ds.get_MW(FI)
+    MC,WC = ds.get_MW(FC,mode='L^-1') #Cholesky decomposition
+    MI,WI = ds.get_MW(FI,mode='I')
     pC = ds.p_hat(MC,qC,scalar=scalar)
     pI = ds.p_hat(MI,qI,scalar=scalar)
-
+    print 'pC ~ ', n.median(pC)
+    print 'pI ~ ', n.median(pI)
+ 
     if PLOT:
         p.subplot(411); capo.arp.waterfall(qC, mode='real'); p.colorbar(shrink=.5); p.title('qC')
         p.subplot(412); capo.arp.waterfall(pC, mode='real'); p.colorbar(shrink=.5); p.title('pC')
