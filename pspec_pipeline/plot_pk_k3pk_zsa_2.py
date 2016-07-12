@@ -1,7 +1,8 @@
 #! /usr/bin/env python
 import matplotlib
 matplotlib.use('Agg')
-import aipy as a, numpy as n, pylab as p
+import aipy as a, numpy as n
+from matplotlib import pylab as p
 import capo as C
 import sys, optparse, re, os
 
@@ -30,12 +31,12 @@ print args
 
 def noise_level(freq=None):
     tsys = 500e3 #mK
-    inttime = 2477. #seconds. XXX fix with new integration. get it from frfilter_numbers.py
-    nbls=59 #number of baselines used (if using multiple seps, average the numbers?)
-    ndays = 31 #effectively this many days
-    nseps = 1 #number of seps used
+    inttime = 3362. #seconds.#SK # XXX fix with new integration. get it from frfilter_numbers.py
+    nbls=41#SK #number of baselines used (if using multiple seps, average the numbers?)
+    ndays = 112 #What does effectively mean here? -->#effectively this many days
+    nseps = 3 #number of seps used
     folding = 2
-    nlsts = 6 #number of LST hours in time-range
+    nlsts = 8#SK #number of LST hours in time-range
     nmodes = (nseps*folding*nlsts*60*60/inttime)**.5
     pol = 2
     real = 2 #??? what is this again?

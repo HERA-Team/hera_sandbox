@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 import os, sys, glob
 
 pols = ['xx','xy','yx','yy']
