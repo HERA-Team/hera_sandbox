@@ -93,12 +93,14 @@ class DataSet:
         return lsts[k[0]][ind[k[0]]], dsets, wgts #lsts computed from last k but it doesn't matter
 
     def clear_cache(self, keys=None):
-        if keys is None: self._C, self._Ctrue, self._iC = {}, {}, {}
+        if keys is None: self._C, self._Ctrue, self._I, self._iC = {}, {}, {}, {}
         else:
             for k in keys:
                 try: del(self._C[k])
                 except(KeyError): pass
                 try: del(self._Ctrue[k])
+                except(KeyError): pass
+                try: del(self._I[k])
                 except(KeyError): pass
                 try: del(self._iC[k])
                 except(KeyError): pass
@@ -113,6 +115,14 @@ class DataSet:
     def Ctrue(self, k):
         if not self._Ctrue.has_key(k): self._Ctrue[k] = cov(self.x[k], self.w[k]) # must be actual covariance, no overwriting
         return self._Ctrue[k]
+    def I(self, k):
+        if not self._I.has_key(k):
+            nchan = self.x[k].shape[0]
+            self.set_I({k:np.identity(nchan)})
+        return self._I[k]
+    def set_I(self, d):
+        #self.clear_cache(d.keys()) #XXX commented out or else it clears C's (can't set both C's and then I's if clear_cache is called for both)
+        for k in d: self._I[k] = d[k]
     def iC(self, k):
         if not self._iC.has_key(k):
             C = self.C(k)
@@ -168,11 +178,11 @@ class DataSet:
         else:
             #iC1 = np.linalg.inv(self.C(k1) * np.identity(nchan))
             #iC2 = np.linalg.inv(self.C(k2) * np.identity(nchan))
-            iC1 = iC2 = np.identity(nchan)
+            iC1, iC2 = self.I(k1), self.I(k2) #np.identity(nchan)
         if use_fft:
             iC1x, iC2x = np.dot(iC1, self.x[k1]), np.dot(iC2, self.x[k2])
             _iC1x, _iC2x = np.fft.fft(iC1x.conj(), axis=0), np.fft.fft(iC2x.conj(), axis=0)
-            return np.fft.fftshift(_iC1x,axes=0).conj() * np.fft.fftshift(_iC2x,axes=0)
+            return np.conj(np.fft.fftshift(_iC1x,axes=0).conj() * np.fft.fftshift(_iC2x,axes=0)) #XXX added conj around the whole thing because it was inconsistent with pspec_cov_v003 by a conjugation
         else: # slow, used to explicitly cross-check fft code
             q = []
             for i in xrange(nchan):
@@ -190,8 +200,8 @@ class DataSet:
         else:
             #iC1 = np.linalg.inv(self.C(k1) * np.identity(nchan))
             #iC2 = np.linalg.inv(self.C(k2) * np.identity(nchan))
-            iC1 = iC2 = np.identity(nchan, dtype=F.dtype)
-            Ctrue1 = Ctrue2 = np.identity(nchan, dtype=F.dtype) # XXX why do this
+            iC1, iC2 = self.I(k1), self.I(k2) #np.identity(nchan, dtype=F.dtype)
+            Ctrue1, Ctrue2 = self.I(k1), self.I(k2) #np.identity(nchan, dtype=F.dtype) # XXX why do this
         #Ctrue1, Ctrue2 = self.Ctrue(k1), self.Ctrue(k2)
         if False: # This is for the "true" Fisher matrix
             CE1, CE2 = {}, {}
