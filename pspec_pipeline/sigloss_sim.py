@@ -598,7 +598,7 @@ for boot in xrange(opts.nboot):
     if len(opts.output) > 0: outpath = opts.output+'/pspec_bootsigloss%04d.npz' % boot
     else: outpath = 'pspec_bootsigloss%04d.npz' % boot
     n.savez(outpath, kpl=kpl, scalar=scalar, times=n.array(lsts),
-        pk_vs_t=pC, pCv = pCv, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
+        pk_vs_t=pC, pCv = pCv, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI, freq=fq,
         cmd=' '.join(sys.argv))
 
 
