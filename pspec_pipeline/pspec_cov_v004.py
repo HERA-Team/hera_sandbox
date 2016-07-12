@@ -4,6 +4,7 @@ import aipy as a, numpy as n, pylab as p, capo, capo.frf_conv as fringe
 import glob, optparse, sys, random
 from scipy.linalg import fractional_matrix_power
 import capo.zsa as zsa
+import capo.oqe as oqe
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
@@ -15,16 +16,10 @@ o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 o.add_option('--sep', default='sep0,1', action='store',
     help='Which separation directory to use for signal loss data.')
-o.add_option('--loss', action='store', 
-    help='Uses signal loss mode to measure the signal loss. Uses default data in my path. Give it the path to the simulated signal data.')
-o.add_option('--level', type='float', default=-1.0,
-    help='Scalar by which to multiply the default signal level for simulation runs.')
-o.add_option('--rmbls', dest='rmbls',type='string', 
-    help='List of baselines (ex:1_4,2_33) to remove from the power spectrum analysis.')
-#o.add_option('--noise', type='float', default=0.0,
-#    help='amplitude of noise to inject into data')
-#o.add_option('--filter_noise',action='store_true',
-#    help='Apply fringe rate filter to injected noise')
+#o.add_option('--loss', action='store', 
+#    help='Uses signal loss mode to measure the signal loss. Uses default data in my path. Give it the path to the simulated signal data.')
+#o.add_option('--level', type='float', default=-1.0,
+#    help='Scalar by which to multiply the default signal level for simulation runs.')
 o.add_option('--noise_only',action='store_true',
     help='Instead of injecting noise, Replace data with noise')
 o.add_option('--output', type='string', default='',
@@ -39,22 +34,9 @@ LST_STATS = False
 DELAY = False
 NGPS = 5 #number of groups to break the random sampled bls into
 INJECT_SIG = 0.
-SAMPLE_WITH_REPLACEMENT = False
-#NOISE = opts.noise
 PLOT = opts.plot
 
-#Remove baselines if specified
-try:
-    rmbls = []
-    rmbls_list = opts.rmbls.split(',')
-    for bl in rmbls_list:
-        i,j = bl.split('_')
-        rmbls.append(a.miriad.ij2bl(int(i),int(j)))   
-    print 'Removing baselines:',rmbls
-    #rmbls = map(int, opts.rmbls.split(','))
-except:
-    rmbls = []
-
+"""
 #Set up signal loss mode if specified
 if opts.loss:
     if opts.level >= 0.0:
@@ -63,19 +45,13 @@ if opts.loss:
     else:
         print 'Exiting. If in signal loss mode, need a signal level to input.'
         exit()
-
+"""
 
 ### FUNCTIONS ###
 
 def frf(shape,loc=0,scale=1): #FRF NOISE
     shape = shape[1]*2,shape[0] #(2*times,freqs)
-    dij = noise(shape,loc=loc,scale=scale)
-    #bins = fringe.gen_frbins(inttime)
-    #frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
-    #timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
-    #_,blconj,_ = zsa.grid2ij(aa.ant_layout)
-    #if blconj[a.miriad.ij2bl(ij[0],ij[1])]: fir = {(ij[0],ij[1],POL):n.conj(firs)}
-    #else: fir = {(ij[0],ij[1],POL):firs}
+    dij = oqe.noise(size=shape)
     wij = n.ones(shape,dtype=bool) #XXX flags are all true (times,freqs)
     #dij and wij are (times,freqs)
     _d,_w,_,_ = fringe.apply_frf(aa,dij,wij,ij[0],ij[1],pol=POL,bins=bins,firs=fir)
@@ -83,64 +59,13 @@ def frf(shape,loc=0,scale=1): #FRF NOISE
     _d = _d[:,shape[0]/4:shape[0]/2+shape[0]/4]
     return _d
 
-def frf_data(data): #FRF FULL LENGTH DATA
-    aa2 = a.cal.get_aa(opts.cal, freqs) #All freqs for data instead of subset
-    bins = fringe.gen_frbins(inttime)
-    frp, bins = fringe.aa_to_fr_profile(aa2, ij, len(freqs)/2, bins=bins)
-    timebins, firs = fringe.frp_to_firs(frp, bins, aa2.get_freqs(), fq0=aa2.get_freqs()[len(freqs)/2])
-    _,blconj,_ = zsa.grid2ij(aa2.ant_layout)
-    if blconj[a.miriad.ij2bl(ij[0],ij[1])]: fir = {(ij[0],ij[1],POL):n.conj(firs)}
-    else: fir = {(ij[0],ij[1],POL):firs}
-    dij = n.transpose(data)
-    wij = n.ones(dij.shape,dtype=bool) #XXX flags are all true (times,freqs)
-    #dij and wij are (times,freqs)
-    _d,_w,_,_ = fringe.apply_frf(aa2,dij,wij,ij[0],ij[1],pol=POL,bins=bins,firs=fir)
-    _d = n.transpose(_d)
-    return _d
-
-def get_data(filenames, antstr, polstr, rmbls, verbose=False):
-    # XXX could have this only pull channels of interest to save memory
-    lsts, dat, flg = [], {}, {}
-    if type(filenames) == 'str': filenames = [filenames]
-    for filename in filenames:
-        if verbose: print '   Reading', filename
-        uv = a.miriad.UV(filename)
-        a.scripting.uv_selector(uv, antstr, polstr)
-        for (crd,t,(i,j)),d,f in uv.all(raw=True):
-            bl = a.miriad.ij2bl(i,j)
-            #print bl,uv['pol']
-            if bl in rmbls: continue
-            lst = uv['lst']
-            if len(lsts) == 0 or lst != lsts[-1]: lsts.append(lst)
-            if not dat.has_key(bl): dat[bl],flg[bl] = [],[]
-            dat[bl].append(d)
-            flg[bl].append(f)
-            #if not dat.has_key(bl): dat[bl],flg[bl] = {},{}
-            #pol = a.miriad.pol2str[uv['pol']]
-            #if not dat[bl].has_key(pol):
-            #    dat[bl][pol],flg[bl][pol] = [],[]
-            #dat[bl][pol].append(d)
-            #flg[bl][pol].append(f)
-    #print len(dat[bl]),len(lsts)
-    order_lst = n.argsort(lsts) #sometimes data is not in LST order!
-    lsts = n.array(lsts)[order_lst]
-    for bl in dat:
-        dat[bl] = n.array(dat[bl])[order_lst]
-        flg[bl] = n.array(flg[bl])[order_lst]
-    return lsts, dat, flg
-    
 def cov(m):
     '''Because numpy.cov is stupid and casts as float.'''
-    #return n.cov(m)
     X = n.array(m, ndmin=2, dtype=n.complex)
     X -= X.mean(axis=1)[(slice(None),n.newaxis)]
     N = X.shape[1]
     fact = float(N - 1) #normalization
     return (n.dot(X, X.T.conj()) / fact).squeeze()
-
-def noise(size,loc=0,scale=1): #loc is mean, scale is stdev (sqrt(var))
-    #return n.random.normal(size=size) * n.exp(1j*n.random.uniform(0,2*n.pi,size=size))
-    return (n.random.normal(size=size,scale=scale) * n.exp(1j*n.random.uniform(0,2*n.pi,size=size))) + loc
 
 def get_Q(mode, n_k): #encodes the fourier transform from freq to delay
     if not DELAY:
@@ -155,27 +80,14 @@ def get_Q(mode, n_k): #encodes the fourier transform from freq to delay
         Q[mode,mode] = 1
         return Q
 
-
 SEP = opts.sep #XXX used only for signal loss paths?
 
 #Read even&odd data
 dsets = {
-    #'only': glob.glob('sep0,1/*242.[3456]*uvL'),
-    #'vissim1' : glob.glob('/home/cacheng/capo/ctc/tables/203files/pspec_Jy.uv'), 
-    #'vissim2' : glob.glob('/home/cacheng/capo/ctc/tables/203files/pspec_Jy.uv'),
-    #vissim3' : glob.glob('/home/cacheng/capo/ctc/tables/203files/gsm_K_2.uv'),
-    #'vissim4' : glob.glob('/home/cacheng/capo/ctc/tables/203files/gsm_K_2.uv'),
     'even': [x for x in args if 'even' in x],
     'odd' : [x for x in args if 'odd' in x]
 }
 print dsets
-
-#Read signal loss data
-if opts.loss:
-    dsets = {
-    'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/data/even/*242.[3456]*uvALG'),
-    'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/data/odd/*243.[3456]*uvALG'),
-}
 
 #Get uv file info
 WINDOW = opts.window
@@ -183,14 +95,6 @@ uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
-
-#manually calculate the inttime based off time difference in data
-#(uvw,t1,(i,j)),d = uv.read()
-#(uvw,t2,(i,j)),d = uv.read()
-#while t1 == t2: (uvw,t2,(i,j)),d = uv.read()
-#inttime = (t2-t1)* (3600*24)
-#del(uv)
-
 inttime = uv['inttime']
 
 afreqs = freqs.take(chans)
@@ -212,11 +116,9 @@ if not WINDOW == 'none': window.shape=(nchan,1)
 # XXX NEED TO FIGURE OUT BW NORMALIZATION
 B = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW] #proper normalization
 etas = n.fft.fftshift(capo.pspec.f2eta(afreqs)) #create etas (fourier dual to frequency)
-#etas = capo.pspec.f2eta(afreqs) #create etas (fourier dual to frequency)
 kpl = etas * capo.pspec.dk_deta(z) 
-#print kpl
 if True:
-    bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 # correction for beam^2
+    bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 #correction for beam^2
     scalar = capo.pspec.X2Y(z) * bm * B
 else: scalar = 1
 if not DELAY:
@@ -229,16 +131,49 @@ print 'B:', B
 print 'scalar:', scalar
 sys.stdout.flush()
 
+#If data is replaced by noise
+if opts.noise_only:
+    ij = (1,4) #XXX
+    timelen = 652 #XXX 
+    #Prep FRF Stuff
+    bins = fringe.gen_frbins(inttime)
+    frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
+    timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
+    if blconj[a.miriad.ij2bl(ij[0],ij[1])]: fir = {(ij[0],ij[1],POL):n.conj(firs)}
+    else: fir = {(ij[0],ij[1],POL):firs}
+    NOISE = frf((len(chans),timelen),loc=0,scale=1) #same noise on all bls
+
 #Acquire data
-#antstr = '41_49,3_10,9_58,22_61,20_63,2_43,21_53,31_45,41_47,3_25,1_58,35_61,42_63,2_33'
+data_dict = {}
+flg_dict = {}
+conj_dict = {}
 antstr = 'cross'
-lsts,data,flgs = {},{},{}
+_,blconj,_ = zsa.grid2ij(aa.ant_layout)
 days = dsets.keys()
+lsts,data,flgs = {},{},{}
 for k in days:
-    lsts[k],data[k],flgs[k] = get_data(dsets[k], antstr=antstr, polstr=POL, rmbls=rmbls, verbose=True) 
-    #data has keys 'even' and 'odd'
-    #inside that are baseline keys
-    #inside that has shape (#lsts, #freqs)
+    lsts[k],data[k],flgs[k] = capo.miriad.read_files(dsets[k], antstr=antstr, polstr=POL, verbose=True)
+    lsts[k] = n.array(lsts[k]['lsts'])
+    for bl in data[k]:
+        d = n.array(data[k][bl][POL])[:,chans] * jy2T  #extract frequency range
+        flg = n.array(flgs[k][bl][POL])[:,chans]
+        key = (k,bl,POL)
+        data_dict[key] = d
+        flg_dict[key] = n.logical_not(flg)
+        conj_dict[key[1]] = conj[a.miriad.ij2bl(bl[0],bl[1])]
+keys = data_dict.keys()
+bls_master = []
+for key in keys: bls_master.append(key[1])
+bls_master = n.unique(bls_master)
+print 'Baselines:', len(bls_master)
+#Align and create dataset
+ds = oqe.DataSet()
+lsts,data_dict,flg_dict = ds.lst_align(lsts,dsets=data_dict,wgts=flg_dict) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
+if opts.noise_only: #replace data with noise
+    for key in data_dict:
+        data_dict[key] = NOISE.T
+        flg_dict[key] = n.ones_like(data_dict[key])
+ds.set_data(dsets=data_dict,conj=conj_dict)#,wgts=flg_dict)
 
 #Get some statistics
 if LST_STATS:
@@ -247,211 +182,121 @@ if LST_STATS:
     for filename in dsets.values()[0]:
         print 'Reading', filename
         uv = a.miriad.UV(filename)
-        a.scripting.uv_selector(uv, '64_49', POL)
+        a.scripting.uv_selector(uv, '64_49', POL) #XXX
         for (uvw,t,(i,j)),d,f in uv.all(raw=True):
             bl = '%d,%d,%d' % (i,j,uv['pol'])
             cnt[bl] = cnt.get(bl, []) + [uv['cnt']]
             var[bl] = var.get(bl, []) + [uv['var']]
     cnt = n.array(cnt.values()[0]) #all baselines should be the same
     var = n.array(var.values()[0]) #all baselines should be the same
-else: cnt,var = n.ones_like(lsts.values()[0]), n.ones_like(lsts.values()[0])
+else: cnt,var = n.ones_like(lsts), n.ones_like(lsts)
 
-#Align data in LST (even/odd data might have a different number of LSTs)
-if True:
-#if False:
-    #print [lsts[k][0] for k in days] #initial lst for even/odd data
-    lstmax = max([lsts[k][0] for k in days]) #the larger of the  initial lsts
-    for k in days:
-        for i in xrange(len(lsts[k])):
-            #allow for small numerical differences (which shouldn't exist!)
-            if lsts[k][i] >= lstmax - .001: break
-        lsts[k] = lsts[k][i:]
-        for bl in data[k]:
-            data[k][bl],flgs[k][bl] = data[k][bl][i:],flgs[k][bl][i:]
-    j = min([len(lsts[k]) for k in days]) 
-    for k in days:
-        lsts[k] = lsts[k][:j]
-        for bl in data[k]:
-            data[k][bl],flgs[k][bl] = n.array(data[k][bl][:j]),n.array(flgs[k][bl][:j])
-else:
-    for k in days:
-        for bl in data[k]:
-            data[k][bl], flgs[k][bl] = n.array(data[k][bl][:]), n.array(flgs[k][bl][:])
-
-lsts = lsts.values()[0] #same set of LST values for both even/odd data
-daykey = data.keys()[0]
-blkey = data[daykey].keys()[0]
-ij = a.miriad.bl2ij(blkey)
-
-#Prep FRF Stuff
-bins = fringe.gen_frbins(inttime)
-frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
-timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
-_,blconj,_ = zsa.grid2ij(aa.ant_layout)
-if blconj[a.miriad.ij2bl(ij[0],ij[1])]: fir = {(ij[0],ij[1],POL):n.conj(firs)}
-else: fir = {(ij[0],ij[1],POL):firs}
-
-"""
-#FRF data #XXX
-for k in days:
-    for bl in data[k]:
-        d = frf_data(n.transpose(data[k][bl]))
-        d = n.transpose(d)
-        data[k][bl] = d
-"""
-
-#Extract frequency range of data
-x = {}
-#NOISE = frf((len(chans),len(lsts)),loc=0,scale=1) #same noise for all bl
-for k in days:
-    x = {}
-    f = {}
-    for k in days:
-        x[k] = {}
-        f[k] = {}
-        for bl in data[k]:
-            d = data[k][bl][:,chans] * jy2T
-            flg = flgs[k][bl][:,chans]
-            if conj[bl]: d = n.conj(d) #conjugate if necessary
-            if opts.noise_only:
-                x[k][bl] = frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
-            else:
-                d = n.transpose(d) #now (freqs,times)
-                x[k][bl] = d 
-            f[k][bl] = n.transpose(flg, [1,0])
-bls_master = x.values()[0].keys()
-#bls_master = bls_master[:5] #XXX
-nbls = len(bls_master)
-print 'Baselines:', nbls
-
-"""
-#Inject fake EoR signal
-if INJECT_SIG > 0.: 
-    print 'INJECTING SIMULATED SIGNAL'
-    eor_sets = {
-    #    'only': glob.glob('sep0,1/*242.[3456]*uvL'),
-#        'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_even/'+SEP+'/*242.[3456]*uvALG_signalL'),
-#        'odd' : glob.glob('/Users/sherlock/projects/paper/analysis/psa64/lstbin_odd/'+SEP+'/*243.[3456]*uvALG_signalL'),
-        'even': glob.glob(opts.loss+'/even/*242.[3456]*uvALG_signalL'),
-        'odd' : glob.glob(opts.loss+'/odd/*242.[3456]*uvALG_signalL'),
-    }
-    eorlsts,eordata,eorflgs = {},{},{}
-    for k in days:
-        eorlsts[k],eordata[k],eorflgs[k] = get_data(eor_sets[k], antstr=antstr, polstr=POL, verbose=True)
-        #cut with same lst cut
-        for bl in eordata[k]:
-            eordata[k][bl], eorflgs[k][bl] = n.array(eordata[k][bl][:j]), n.array(eorflgs[k][bl][:j])
-    eor = {}
-    for k in days:
-        eor[k] = {}
-        for bl in eordata[k]:
-            ed = eordata[k][bl][:,chans] * jy2T * INJECT_SIG
-            if conj[bl]: ed = n.conj(ed)
-            eor[k][bl] = n.transpose(ed, [1,0]) 
-
-    for k in days:
-        for bl in x[k]:
-            x[k][bl] += eor[k][bl] 
-    
-    if PLOT:
-        capo.arp.waterfall(x[k][bl], mode='real'); p.colorbar(); p.show()
-""" 
-"""
-if NOISE > 0.: # Create a fake EoR signal to inject
-    print 'INJECTING WHITE NOSIE at {0}Jy ...'.format(NOISE) ,
-    sys.stdout.flush()
-    noise_array = {}
-    if opts.filter_noise:
-        sep = bl2sep[bls_master[0]]
-        c=0
-        while c != -1:
-            ij = map(int, sep2ij[sep].split(',')[c].split('_'))
-            bl1 = a.miriad.ij2bl(*ij)
-            if blconj[bl1]: c+=1
-            else: break
-        bl_ij= a.miriad.bl2ij(bl1)
-        frbins = capo.frf_conv.gen_frbins(inttime)
-        #frbins = n.arange( -.5/inttime+5e-5/2, .5/inttime,5e-5)
-        #use channel 101 like in the frf_filter script
-        frp, bins = capo.frf_conv.aa_to_fr_profile(aa, bl_ij,101, bins= frbins)
-        timebins, firs = capo.frf_conv.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[101])
-
-    for k in days:
-        noise_array[k] = {}
-        for bl in x[k]:
-
-            ns = noise(x[k][bls_master[0]].shape) * NOISE
-            wij = n.transpose(f[days[0]][bls_master[0]], [1,0]) #flags (time,freq)
-
-            if opts.filter_noise:
-                if blconj[a.miriad.ij2bl(ij[0],ij[1])]: fir = {(ij[0],ij[1],POL):n.conj(firs)} #conjugate fir if needed
-                else: fir = {(ij[0],ij[1],POL):firs}
-                dij,wij = n.transpose(ns, [1,0]),n.logical_not(wij)
-                ns,_w,_,_ = fringe.apply_frf(aa,dij,wij,ij[0],ij[1],pol=POL,bins=bins,firs=fir)
-                ns = n.transpose(ns, [1,0])
-
-
-            if conj[bl]: ns = n.conj(ns)
-            noise_array[k][bl] = n.transpose( ns.T * jy2T, [1,0])
-
-    for k in days:
-        for bl in x[k]:
-            if opts.noise_only: x[k][bl] = n.copy( noise_array[k][bl])
-            else: x[k][bl] += noise_array[k][bl]
-            if PLOT and True:
-               fig,axes = p.subplots(nrows=2,ncols=1)
-               p.subplot(211); capo.arp.waterfall(x[k][bl], mode='real',mx=16,drng=32); #p.colorbar();
-               p.ylabel('Data + Noise')
-               p.subplot(212); im=  capo.arp.waterfall(noise_array[k][bl], mode='real',mx=16,drng=32); #p.colorbar(); p.show()
-               p.ylabel('Noise')
-               cbar_ax =fig.add_axes([.85,0.15,.05,.7])
-               fig.subplots_adjust(right=.8)
-               cbar=fig.colorbar(im,cax=cbar_ax)
-               cbar.set_label('K')
-               p.suptitle('%d_%d'%a.miriad.bl2ij(bl))
-               p.show()
-    print '[Done]'
-sys.stdout.flush()
-"""
-
-#Power spectrum stuff
-Q = [get_Q(i,nchan) for i in xrange(nchan)] #get Q matrix (does FT from freq to delay)
-
-#Compute baseline auto-covariances and apply inverse to data
-I,_I,_Ix = {},{},{}
-C,_C,_Cx = {},{},{}
-for k in days:
-    I[k],_I[k],_Ix[k] = {},{},{}
-    C[k],_C[k],_Cx[k] = {},{},{}
-    for bl in bls_master:
-        C[k][bl] = cov(x[k][bl])
-        I[k][bl] = n.identity(C[k][bl].shape[0])
-        #C[k][bl] = C[k][bl] + 1*I[k][bl] #C+NI noise
-        U,S,V = n.linalg.svd(C[k][bl].conj()) #singular value decomposition
-        _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
-        _I[k][bl] = n.identity(_C[k][bl].shape[0])
-        _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
-        _Ix[k][bl] = x[k][bl].copy()
-        if PLOT and True:
-            #p.plot(S); p.show()
-            p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')#,drng=0.5,mx=0)
-            p.colorbar()
-            p.title('Data x')
-            p.subplot(323); capo.arp.waterfall(C[k][bl])
-            p.colorbar()
-            p.title('C')
-            p.subplot(324); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
-            p.subplot(313); capo.arp.waterfall(_Cx[k][bl], mode='real')#,drng=6000,mx=3000)
-            p.colorbar()
-            p.title('C^-1 x')
-            p.suptitle('%d_%d'%a.miriad.bl2ij(bl)+' '+k)
-            #p.figure(2); p.plot(n.diag(S))
-            p.tight_layout()
-            p.show()
+if PLOT and False:
+    for key in keys:
+        p.subplot(311); capo.arp.waterfall(ds.x[key], mode='real')
+        p.colorbar()
+        p.title('Data x')
+        p.subplot(323); capo.arp.waterfall(ds.C(key))
+        p.colorbar()
+        p.title('C')
+        #p.subplot(324); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
+        p.subplot(313); capo.arp.waterfall(n.dot(ds.iC(key),ds.x[key]), mode='real')#,drng=6000,mx=3000)
+        p.colorbar()
+        p.title('C^-1 x')
+        p.suptitle(key)
+        p.tight_layout()
+        p.show()
 
 #Make boots        
 for boot in xrange(opts.nboot):
-    print '%d / %d' % (boot+1,opts.nboot)
+    print 'Bootstrap %d / %d' % (boot+1,opts.nboot)
+ 
+    if True: #shuffle and group baselines for bootstrapping
+        random.shuffle(bls_master)
+        gps = [bls_master[i::NGPS] for i in range(NGPS)]
+        gps = [[random.choice(gp) for bl in gp] for gp in gps] #sample w/replacement inside each group
+        newkeys = []
+        data_dict2, data_dict3 = {},{}
+        iCsum,iCxsum,Ixsum,Isum = {},{},{},{}
+        for day in days: #summing up data for each group and making new keys
+            for gp in range(len(gps)):
+                newkey = (day,gp)
+                newkeys.append(newkey)
+                iCsum[newkey] = n.zeros_like(ds.iC(keys[0]))
+                iCxsum[newkey] = n.zeros_like(ds.x[keys[0]])
+                Isum[newkey] = n.zeros_like(ds.C(keys[0]))
+                Ixsum[newkey] = n.zeros_like(ds.x[keys[0]])
+                for bl in gps[gp]:
+                    iCsum[newkey] += ds.iC((day,(bl[0],bl[1]),POL))
+                    iCxsum[newkey] += n.dot(ds.iC((day,(bl[0],bl[1]),POL)),ds.x[(day,(bl[0],bl[1]),POL)])
+                    Isum[newkey] += n.identity(nchan)
+                    Ixsum[newkey] += ds.x[(day,(bl[0],bl[1]),POL)]
+                data_dict2[newkey] = n.dot(n.linalg.inv(iCsum[newkey]),iCxsum[newkey]).T #finding effective summed up x based on iCsum and iCxsum
+                data_dict3[newkey] = n.dot(n.linalg.inv(Isum[newkey]),Ixsum[newkey]).T #finding effective summed up x based on Isum and Ixsum
+        ds.add_data(dsets=data_dict2)
+        dsI = oqe.DataSet(); dsI.set_data(dsets=data_dict3)
+        keys = newkeys #override
+        ds.set_iC(iCsum) #override since if they're computed from x, they're incorrect
+        ds.set_I(Isum)
+    else: #no groups (slower)
+        keys = [random.choice(keys) for key in keys] #sample w/replacement for bootstrapping
+        dsI = ds #identity case dataset is the same
+
+    #OQE Stuff
+    FI = n.zeros((nchan,nchan), dtype=n.complex)
+    FC = n.zeros((nchan,nchan), dtype=n.complex)
+    qI = n.zeros((nchan,data_dict[key].shape[0]), dtype=n.complex)
+    qC = n.zeros((nchan,data_dict[key].shape[0]), dtype=n.complex)
+    for k,key1 in enumerate(keys):
+        #print '   ',k+1,'/',len(keys)
+        for key2 in keys[k:]:
+            if key1[0] == key2[0] or key1[1] == key2[1]: 
+                continue #don't do even w/even or bl w/same bl
+            else:
+                FC += ds.get_F(key1,key2)
+                FI += dsI.get_F(key1,key2,use_cov=False)    
+                qC += ds.q_hat(key1,key2)
+                qI += dsI.q_hat(key1,key2,use_cov=False) 
+
+    if PLOT:
+        p.subplot(121); capo.arp.waterfall(FC, drng=4)
+        p.title('FC')
+        p.subplot(122); capo.arp.waterfall(FI, drng=4)
+        p.title('FI')
+        p.show()
+    
+    MC,WC = ds.get_MW(FC,mode='L^-1') #Cholesky decomposition
+    MI,WI = ds.get_MW(FI,mode='I')
+    pC = ds.p_hat(MC,qC,scalar=scalar)
+    pI = ds.p_hat(MI,qI,scalar=scalar)
+    print 'pC ~ ', n.median(pC)
+    print 'pI ~ ', n.median(pI)
+ 
+    if PLOT:
+        p.subplot(411); capo.arp.waterfall(qC, mode='real'); p.colorbar(shrink=.5); p.title('qC')
+        p.subplot(412); capo.arp.waterfall(pC, mode='real'); p.colorbar(shrink=.5); p.title('pC')
+        p.subplot(413); capo.arp.waterfall(qI, mode='real'); p.colorbar(shrink=.5); p.title('qI')
+        p.subplot(414); capo.arp.waterfall(pI, mode='real'); p.colorbar(shrink=.5); p.title('pI')
+        p.show()
+
+    if PLOT:
+        p.plot(kpl, n.average(pC.real, axis=1), 'b.-', label='pC')
+        p.plot(kpl, n.average(pI.real, axis=1), 'k.-', label='pI')
+        p.legend()
+        p.show()
+
+    #Save Output
+    if len(opts.output) > 0: outpath = opts.output+'/pspec_boot%04d.npz' % boot
+    else: outpath = 'pspec_boot%04d.npz' % boot
+    print '   Writing '+outpath
+    n.savez(outpath, kpl=kpl, scalar=scalar, times=n.array(lsts),
+        pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
+        afreqs=afreqs,chans=chans,cmd=' '.join(sys.argv))
+
+"""
+
+### OLD CODE
+
     bls = bls_master[:]
     if True: #shuffle and group baselines for bootstrapping
         if not SAMPLE_WITH_REPLACEMENT:
@@ -618,4 +463,4 @@ for boot in xrange(opts.nboot):
         pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
         afreqs=afreqs,chans=chans,cmd=' '.join(sys.argv))
 
-
+"""
