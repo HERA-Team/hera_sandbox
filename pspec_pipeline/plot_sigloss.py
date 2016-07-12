@@ -45,7 +45,8 @@ sig_factor_interp = interp1d(pIs, pIs/pCs,kind='linear',bounds_error=False,fill_
 
 #npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_frfnew/pspec_pk_k3pk.npz')
 #npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_noise/pspec_pk_k3pk.npz') #purely noise 
-npz = n.load('/home/cacheng/capo/ctc/matt_data/noise_diffbls/pspec_pk_k3pk.npz') #matt's data
+#npz = n.load('/home/cacheng/capo/ctc/matt_data/noise_diffbls/pspec_pk_k3pk.npz') #matt's data
+npz = n.load('/home/mkolopanis/psa64/sigloss_verification/Jul6_noise_3Jy_inttime_44/95_115/I/pspec_Jul6_noise_3Jy_inttime_44_95_115_I.npz') #matt's data
 
 kpls,pks,errs = npz['kpl'], npz['pk'], npz['err']
 
@@ -60,7 +61,7 @@ fig.subplots_adjust(left=.15, top=.95, bottom=.15, wspace=.35, hspace=.15, right
 
 #Plot 2
 p.figure(1)
-pklo,pkhi = 1e1,1e12
+pklo,pkhi = 1e-20,1e20
 #pklo,pkhi = 1e-10,1e5 #for noise only
 ax2 = p.subplot(gs[4]) #used to be 2
 #p.loglog(pIs, pCs, 'k.')
@@ -115,17 +116,17 @@ p.grid()
 p.ylabel(r'$P_{\rm out}/P_{\rm in}$', fontsize=14)
 
 p.title('z = {0:.2f}'.format(z_bin))
-p.savefig('sigloss.png',format='png')
 
 #P(k) plot on left side
 ax4 = p.subplot(gs[3])
-p.setp(ax4.get_yticklabels())#, visible=False)
+p.setp(ax4.get_xticklabels(), visible=True)
 ax4.set_xscale('log')
 ax4.set_yscale('log')
 p.ylim(pklo, pkhi)
 p.errorbar(kpls, n.abs(pks), yerr=errs, fmt='k.', capsize=0)
 p.grid()
 
+p.savefig('sigloss.png',format='png')
 
 p.show()
 

@@ -230,9 +230,9 @@ for boot in xrange(opts.nboot):
             if key1[0] == key2[0] or key1[1] == key2[1]: 
                 continue #don't do even w/even or bl w/same bl
             else:
-                FC += ds.get_F(key1,key2)
+                FC += ds.get_F(key1,key2)   #this is summed.. but qc isn't..
                 FI += ds.get_F(key1,key2,use_cov=False)    
-                qC = ds.q_hat(key1,key2)
+                qC = ds.q_hat(key1,key2)    #why not summed? not using groups?
                 qI = ds.q_hat(key1,key2,use_cov=False) 
 
     if PLOT:
