@@ -162,16 +162,21 @@ class DataSet:
         self.dsets = dsets.keys()
         self.bls = bls.keys()
         self.pols = pols.keys()
-    def gen_bl_boots(self, nboots, ngps=5):
-        _bls = {}
-        for k in self.x: _bls[k[1]] = None
-        for boot in xrange(nboots):
-            bls = _bls.keys()[:]
-            random.shuffle(bls)
-            gps = [bls[i::ngps] for i in range(ngps)]
-            gps = [[random.choice(gp) for bl in gp] for gp in gps]
-            yield gps
-        return
+    #def gen_bl_boots(self, nboots, ngps=5):
+    #    _bls = {}
+    #    for k in self.x: _bls[k[1]] = None
+    #    for boot in xrange(nboots):
+    #        bls = _bls.keys()[:]
+    #        random.shuffle(bls)
+    #        gps = [bls[i::ngps] for i in range(ngps)]
+    #        gps = [[random.choice(gp) for bl in gp] for gp in gps]
+    #        yield gps
+    #    return
+    def gen_gps(self, bls, ngps=5):
+        random.shuffle(bls)
+        gps = [bls[i::ngps] for i in range(ngps)]
+        gps = [[random.choice(gp) for bl in gp] for gp in gps] #sample w/replacement inside each group
+        return gps
     def q_hat(self, k1, k2, use_cov=True, use_fft=True):
         nchan = self.x[k1].shape[0]
         if use_cov: iC1,iC2 = self.iC(k1), self.iC(k2)
