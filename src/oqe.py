@@ -195,7 +195,7 @@ class DataSet:
                 dsC_data[newkey] = np.dot(np.linalg.inv(iCsum[newkey]),iCxsum[newkey]).T #finding effective summed up x based on iCsum and iCxsum
                 dsI_data[newkey] = np.dot(np.linalg.inv(Isum[newkey]),Ixsum[newkey]).T #finding effective summed up x based on Isum and Ixsum
         dsC = DataSet(); dsC.add_data(dsets=dsC_data)
-        dsI = DataSet(); dsI.set_data(dsets=dsI_data)
+        dsI = DataSet(); dsI.set_data(dsets=dsI_data) #I has to be a separate dataset because it has different x's populated into it
         dsC.set_iC(iCsum) #override since if they're computed from x, they're incorrect
         dsI.set_I(Isum)
         return newkeys, dsC, dsI
