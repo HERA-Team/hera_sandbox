@@ -180,6 +180,7 @@ class DataSet:
     def group_data(self, keys, gps): #XXX keys have format (k,bl,POL)
         ks = np.unique([key[0] for key in keys]) 
         POL = keys[0][2]
+        nchan = self.x[keys[0]].shape[0]
         newkeys = []
         dsC_data, dsI_data = {},{}
         iCsum,iCxsum,Ixsum,Isum = {},{},{},{}
@@ -189,7 +190,7 @@ class DataSet:
                 newkeys.append(newkey)
                 iCsum[newkey] = sum([self.iC((k,(bl[0],bl[1]),POL)) for bl in gps[gp]])
                 iCxsum[newkey] = sum([np.dot(self.iC((k,(bl[0],bl[1]),POL)),self.x[(k,(bl[0],bl[1]),POL)]) for bl in gps[gp]])
-                Isum[newkey] = sum([self.iC((k,(bl[0],bl[1]),POL)) for bl in gps[gp]])
+                Isum[newkey] = sum([np.identity(nchan) for bl in gps[gp]])
                 Ixsum[newkey] = sum([self.x[(k,(bl[0],bl[1]),POL)] for bl in gps[gp]])
                 dsC_data[newkey] = np.dot(np.linalg.inv(iCsum[newkey]),iCxsum[newkey]).T #finding effective summed up x based on iCsum and iCxsum
                 dsI_data[newkey] = np.dot(np.linalg.inv(Isum[newkey]),Ixsum[newkey]).T #finding effective summed up x based on Isum and Ixsum
