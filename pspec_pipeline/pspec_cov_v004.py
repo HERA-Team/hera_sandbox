@@ -16,10 +16,6 @@ o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 o.add_option('--sep', default='sep0,1', action='store',
     help='Which separation directory to use for signal loss data.')
-#o.add_option('--loss', action='store', 
-#    help='Uses signal loss mode to measure the signal loss. Uses default data in my path. Give it the path to the simulated signal data.')
-#o.add_option('--level', type='float', default=-1.0,
-#    help='Scalar by which to multiply the default signal level for simulation runs.')
 o.add_option('--noise_only',action='store_true',
     help='Instead of injecting noise, Replace data with noise')
 o.add_option('--output', type='string', default='',
@@ -29,23 +25,12 @@ opts,args = o.parse_args(sys.argv[1:])
 
 #Basic parameters
 random.seed(0)
-POL = opts.pol #'xx'
+POL = opts.pol 
 LST_STATS = False
 DELAY = False
 NGPS = 5 #number of groups to break the random sampled bls into
 INJECT_SIG = 0.
 PLOT = opts.plot
-
-"""
-#Set up signal loss mode if specified
-if opts.loss:
-    if opts.level >= 0.0:
-        INJECT_SIG = opts.level
-        print 'Running in signal loss mode, with an injection signal of %s*default level'%(opts.level)
-    else:
-        print 'Exiting. If in signal loss mode, need a signal level to input.'
-        exit()
-"""
 
 ### FUNCTIONS ###
 
@@ -79,8 +64,6 @@ def get_Q(mode, n_k): #encodes the fourier transform from freq to delay
         Q = n.zeros_like(C)
         Q[mode,mode] = 1
         return Q
-
-SEP = opts.sep #XXX used only for signal loss paths?
 
 #Read even&odd data
 dsets = {
@@ -163,9 +146,10 @@ for k in days:
         conj_dict[key[1]] = conj[a.miriad.ij2bl(bl[0],bl[1])]
 keys = data_dict.keys()
 bls_master = []
-for key in keys: bls_master.append(key[1])
-bls_master = n.unique(bls_master)
+for key in keys: #populate list of baselines
+    if key[0] == keys[0][0]: bls_master.append(key[1])
 print 'Baselines:', len(bls_master)
+
 #Align and create dataset
 ds = oqe.DataSet()
 lsts,data_dict,flg_dict = ds.lst_align(lsts,dsets=data_dict,wgts=flg_dict) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
@@ -207,57 +191,40 @@ if PLOT and False:
         p.tight_layout()
         p.show()
 
-#Make boots        
+#Bootstrapping        
 for boot in xrange(opts.nboot):
     print 'Bootstrap %d / %d' % (boot+1,opts.nboot)
  
     if True: #shuffle and group baselines for bootstrapping
-        random.shuffle(bls_master)
-        gps = [bls_master[i::NGPS] for i in range(NGPS)]
-        gps = [[random.choice(gp) for bl in gp] for gp in gps] #sample w/replacement inside each group
-        newkeys = []
-        data_dict2, data_dict3 = {},{}
-        iCsum,iCxsum,Ixsum,Isum = {},{},{},{}
-        for day in days: #summing up data for each group and making new keys
-            for gp in range(len(gps)):
-                newkey = (day,gp)
-                newkeys.append(newkey)
-                iCsum[newkey] = n.zeros_like(ds.iC(keys[0]))
-                iCxsum[newkey] = n.zeros_like(ds.x[keys[0]])
-                Isum[newkey] = n.zeros_like(ds.C(keys[0]))
-                Ixsum[newkey] = n.zeros_like(ds.x[keys[0]])
-                for bl in gps[gp]:
-                    iCsum[newkey] += ds.iC((day,(bl[0],bl[1]),POL))
-                    iCxsum[newkey] += n.dot(ds.iC((day,(bl[0],bl[1]),POL)),ds.x[(day,(bl[0],bl[1]),POL)])
-                    Isum[newkey] += n.identity(nchan)
-                    Ixsum[newkey] += ds.x[(day,(bl[0],bl[1]),POL)]
-                data_dict2[newkey] = n.dot(n.linalg.inv(iCsum[newkey]),iCxsum[newkey]).T #finding effective summed up x based on iCsum and iCxsum
-                data_dict3[newkey] = n.dot(n.linalg.inv(Isum[newkey]),Ixsum[newkey]).T #finding effective summed up x based on Isum and Ixsum
-        ds.add_data(dsets=data_dict2)
-        dsI = oqe.DataSet(); dsI.set_data(dsets=data_dict3)
-        keys = newkeys #override
-        ds.set_iC(iCsum) #override since if they're computed from x, they're incorrect
-        ds.set_I(Isum)
+        gps = ds.gen_gps(bls_master, ngps=NGPS)
+        newkeys,dsC,dsI = ds.group_data(keys,gps) 
     else: #no groups (slower)
-        keys = [random.choice(keys) for key in keys] #sample w/replacement for bootstrapping
-        dsI = ds #identity case dataset is the same
+        newkeys = [random.choice(keys) for key in keys] #sample w/replacement for bootstrapping
+        dsI,dsC = ds,ds #identity and covariance case dataset is the same
 
     #OQE Stuff
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex)
     qI = n.zeros((nchan,data_dict[key].shape[0]), dtype=n.complex)
     qC = n.zeros((nchan,data_dict[key].shape[0]), dtype=n.complex)
-    for k,key1 in enumerate(keys):
+    for k,key1 in enumerate(newkeys):
         #print '   ',k+1,'/',len(keys)
-        for key2 in keys[k:]:
+        for key2 in newkeys[k:]:
             if key1[0] == key2[0] or key1[1] == key2[1]: 
                 continue #don't do even w/even or bl w/same bl
             else:
-                FC += ds.get_F(key1,key2)
+                FC += dsC.get_F(key1,key2)
                 FI += dsI.get_F(key1,key2,use_cov=False)    
-                qC += ds.q_hat(key1,key2)
+                qC += dsC.q_hat(key1,key2)
                 qI += dsI.q_hat(key1,key2,use_cov=False) 
 
+    MC,WC = dsC.get_MW(FC,mode='L^-1') #Cholesky decomposition
+    MI,WI = dsI.get_MW(FI,mode='I')
+    pC = dsC.p_hat(MC,qC,scalar=scalar)
+    pI = dsI.p_hat(MI,qI,scalar=scalar)
+    print 'pC ~ ', n.median(pC)
+    print 'pI ~ ', n.median(pI)
+ 
     if PLOT:
         p.subplot(121); capo.arp.waterfall(FC, drng=4)
         p.title('FC')
@@ -265,13 +232,6 @@ for boot in xrange(opts.nboot):
         p.title('FI')
         p.show()
     
-    MC,WC = ds.get_MW(FC,mode='L^-1') #Cholesky decomposition
-    MI,WI = ds.get_MW(FI,mode='I')
-    pC = ds.p_hat(MC,qC,scalar=scalar)
-    pI = ds.p_hat(MI,qI,scalar=scalar)
-    print 'pC ~ ', n.median(pC)
-    print 'pI ~ ', n.median(pI)
- 
     if PLOT:
         p.subplot(411); capo.arp.waterfall(qC, mode='real'); p.colorbar(shrink=.5); p.title('qC')
         p.subplot(412); capo.arp.waterfall(pC, mode='real'); p.colorbar(shrink=.5); p.title('pC')
@@ -292,175 +252,3 @@ for boot in xrange(opts.nboot):
     n.savez(outpath, kpl=kpl, scalar=scalar, times=n.array(lsts),
         pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
         afreqs=afreqs,chans=chans,cmd=' '.join(sys.argv))
-
-"""
-
-### OLD CODE
-
-    bls = bls_master[:]
-    if True: #shuffle and group baselines for bootstrapping
-        if not SAMPLE_WITH_REPLACEMENT:
-            random.shuffle(bls)
-            #bls = bls[:-5] # XXX
-        else: #sample with replacement (XXX could be biased)
-            bls = [random.choice(bls) for bl in bls]
-        gps = [bls[i::NGPS] for i in range(NGPS)]
-        gps = [[random.choice(gp) for bl in gp] for gp in gps]
-    else: #assign each baseline its own group
-        gps = [bls[i::NGPS] for i in range(NGPS)]
-    bls = [bl for gp in gps for bl in gp]
-    #print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps])    
-    _Iz,_Isum,_IsumQ = {},{},{}
-    _Cz,_Csum,_CsumQ = {},{},{}
-    print "   Getting C"
-    for k in days:
-        _Iz[k],_Isum[k],_IsumQ[k] = {},{},{}
-        _Cz[k],_Csum[k],_CsumQ[k] = {},{},{}
-        for i,gp in enumerate(gps): #sum things up over the groups
-            _Iz[k][i] = sum([_Ix[k][bl] for bl in gp])
-            _Cz[k][i] = sum([_Cx[k][bl] for bl in gp])
-            _Isum[k][i] = sum([_I[k][bl] for bl in gp])
-            _Csum[k][i] = sum([_C[k][bl] for bl in gp])
-            _IsumQ[k][i] = {}
-            _CsumQ[k][i] = {}
-            if DELAY: #this is much faster
-                _Iz[k][i] = n.fft.fftshift(n.fft.ifft(window*_Iz[k][i], axis=0), axes=0)
-                _Cz[k][i] = n.fft.fftshift(n.fft.ifft(window*_Cz[k][i], axis=0), axes=0)
-                #XXX need to take fft of _Csum, _Isum here
-            for ch in xrange(nchan): #XXX this loop makes computation go as nchan^3
-                _IsumQ[k][i][ch] = n.dot(_Isum[k][i], Q[ch])
-                _CsumQ[k][i][ch] = n.dot(_Csum[k][i], Q[ch]) #C^-1 Q
-        if PLOT:
-            NGPS = len(gps)
-            _Csumk = n.zeros((NGPS,nchan,NGPS,nchan), dtype=n.complex)
-            _Isumk = n.zeros((NGPS,nchan,NGPS,nchan), dtype=n.complex)
-            for i in xrange(len(gps)): _Isumk[i,:,i,:] = _Isum[k][i]
-            _Isumk.shape = (NGPS*nchan, NGPS*nchan)
-            #_Isum[k] = _Isumk
-            for i in xrange(len(gps)): _Csumk[i,:,i,:] = _Csum[k][i]
-            _Csumk.shape = (NGPS*nchan, NGPS*nchan)
-            #_Csum[k] = _Csumk
-            _Czk = n.array([_Cz[k][i] for i in _Cz[k]])
-            _Czk = n.reshape(_Czk, (_Czk.shape[0]*_Czk.shape[1], _Czk.shape[2]))
-            p.subplot(211); capo.arp.waterfall(_Czk, mode='real')
-            p.subplot(223); capo.arp.waterfall(_Csumk)
-            p.subplot(224); capo.arp.waterfall(cov(_Czk))
-            p.show()
-    print "   Getting F and q"
-    FI = n.zeros((nchan,nchan), dtype=n.complex)
-    FC = n.zeros((nchan,nchan), dtype=n.complex)
-    qI = n.zeros((nchan,_Iz.values()[0].values()[0].shape[1]), dtype=n.complex)
-    qC = n.zeros((nchan,_Cz.values()[0].values()[0].shape[1]), dtype=n.complex)
-    Q_Iz = {}
-    Q_Cz = {}
-    for cnt1,k1 in enumerate(days):
-        for k2 in days[cnt1:]: #loop over even with even, even with odd, etc.
-            if not Q_Iz.has_key(k2): Q_Iz[k2] = {}
-            if not Q_Cz.has_key(k2): Q_Cz[k2] = {}
-            for bl1 in _Cz[k1]:
-                for bl2 in _Cz[k2]:
-                    #if k1 == k2 and bl1 == bl2: continue #this results in a significant bias
-                    if k1 == k2 or bl1 == bl2: continue 
-                    #print k1, k2, bl1, bl2
-                    if PLOT and False:
-                        p.subplot(231); capo.arp.waterfall(C[m], drng=3)
-                        p.subplot(232); capo.arp.waterfall(_C[m], drng=3)
-                        p.subplot(233); capo.arp.waterfall(n.dot(C[m],_C[m]), drng=3)
-                        p.subplot(234); p.semilogy(S)
-                        p.subplot(236); capo.arp.waterfall(V, drng=3)
-                        p.show()
-                        p.subplot(311); capo.arp.waterfall(x[m], mode='real', mx=5, drng=10); p.colorbar(shrink=.5)
-                        p.subplot(312); capo.arp.waterfall(_Cx, mode='real'); p.colorbar(shrink=.5)
-                        p.subplot(313); capo.arp.waterfall(_Ix, mode='real'); p.colorbar(shrink=.5)
-                        p.show()
-                    if False: #use ffts to do q estimation fast
-                        qI += n.conj(_Iz[k1][bl1]) * _Iz[k2][bl2]
-                        qC += n.conj(_Cz[k1][bl1]) * _Cz[k2][bl2]
-                    else: #brute force with Q to ensure normalization
-                        #_qI = n.array([_Iz[k1][bl1].conj() * n.dot(Q[i], _Iz[k2][bl2]) for i in xrange(nchan)])
-                        #_qC = n.array([_Cz[k1][bl1].conj() * n.dot(Q[i], _Cz[k2][bl2]) for i in xrange(nchan)])
-                        if not Q_Iz[k2].has_key(bl2): Q_Iz[k2][bl2] = [n.dot(Q[i], _Iz[k2][bl2]) for i in xrange(nchan)]
-                        if not Q_Cz[k2].has_key(bl2): Q_Cz[k2][bl2] = [n.dot(Q[i], _Cz[k2][bl2]) for i in xrange(nchan)]
-                        _qI = n.array([_Iz[k1][bl1].conj() * Q_Iz[k2][bl2][i] for i in xrange(nchan)])
-                        qI += n.sum(_qI, axis=1)
-                        _qC = n.array([_Cz[k1][bl1].conj() * Q_Cz[k2][bl2][i] for i in xrange(nchan)]) #C^-1 Q C^-1
-                        qC += n.sum(_qC, axis=1)
-                    if DELAY: #by taking FFT of CsumQ above, each channel is already i,j separated
-                        FI += n.conj(_IsumQ[k1][bl1]) * _IsumQ[k2][bl2]
-                        FC += n.conj(_CsumQ[k1][bl1]) * _CsumQ[k2][bl2]
-                    else:
-                        for i in xrange(nchan):
-                            for j in xrange(nchan):
-                                FI[i,j] += n.einsum('ij,ji', _IsumQ[k1][bl1][i], _IsumQ[k2][bl2][j])
-                                FC[i,j] += n.einsum('ij,ji', _CsumQ[k1][bl1][i], _CsumQ[k2][bl2][j]) #C^-1 Q C^-1 Q
-
-    if PLOT:
-        p.subplot(121); capo.arp.waterfall(FC, drng=4)
-        p.subplot(122); capo.arp.waterfall(FI, drng=4)
-        p.show()
-
-    #print 'Psuedoinverse of FC'
-
-    #other choices for M
-    #U,S,V = n.linalg.svd(FC.conj())
-    #_S = n.sqrt(1./S)
-    # _S = 1./S
-    # _S = n.ones_like(S)
-    #MC = n.dot(n.transpose(V), n.dot(n.diag(_S), n.transpose(U)))
-    #order = n.array([10,11,9,12,8,13,7,14,6,15,5,16,4,17,3,18,2,19,1,20,0])
-    
-    print "   Getting M"
-    #Cholesky decomposition to get M
-    order = n.array([10,11,9,12,8,20,0,13,7,14,6,15,5,16,4,17,3,18,2,19,1])
-    iorder = n.argsort(order)
-    FC_o = n.take(n.take(FC,order, axis=0), order, axis=1)
-    L_o = n.linalg.cholesky(FC_o)
-    U,S,V = n.linalg.svd(L_o.conj())
-    MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
-    MC = n.take(n.take(MC_o,iorder, axis=0), iorder, axis=1)
-    MI  = n.identity(nchan, dtype=n.complex128)
-    #MC = n.linalg.inv(FC) #different choice for MC
-    #MI = MC #use this if always want MC instead of MI (can choose C=I later still though)
-
-    print "   Getting W"
-    #print 'Normalizing M/W'
-    WI = n.dot(MI, FI)
-    norm  = WI.sum(axis=-1); norm.shape += (1,)
-    #norm  = WI.max(axis=-1); norm.shape += (1,) # XXX
-    MI /= norm; WI = n.dot(MI, FI)
-    if PLOT:
-        capo.arp.waterfall(MI,mode='real');p.colorbar(shrink=.5)
-        p.show()
-    WC = n.dot(MC, FC)
-    norm  = WC.sum(axis=-1); norm.shape += (1,)
-    #norm  = WC.max(axis=-1); norm.shape += (1,) # XXX
-    MC /= norm; WC = n.dot(MC, FC)
-
-    print '   Generating ps'
-    #if opts.noise_only: scalar = 1
-    pC = n.dot(MC, qC) * scalar
-    #pC[m] *= 1.81 # signal loss, high-SNR XXX
-    #pC[m] *= 1.25 # signal loss, low-SNR XXX
-    
-    #MI = fractional_matrix_power(FI,-0.5)
-    pI = n.dot(MI, qI) * scalar 
-    if PLOT:
-        p.subplot(411); capo.arp.waterfall(qC, mode='real'); p.colorbar(shrink=.5)
-        p.subplot(412); capo.arp.waterfall(pC, mode='real'); p.colorbar(shrink=.5)
-        p.subplot(413); capo.arp.waterfall(qI, mode='real'); p.colorbar(shrink=.5)
-        p.subplot(414); capo.arp.waterfall(pI, mode='real'); p.colorbar(shrink=.5)
-        p.show()
-
-    if PLOT:
-        p.plot(kpl, n.average(pC.real, axis=1), 'b.-')
-        p.plot(kpl, n.average(pI.real, axis=1), 'k.-')
-        p.show()
-
-    if len(opts.output) > 0: outpath = opts.output+'/pspec_boot%04d.npz' % boot
-    else: outpath = 'pspec_boot%04d.npz' % boot
-    print '   Writing '+outpath
-    n.savez(outpath, kpl=kpl, scalar=scalar, times=n.array(lsts),
-        pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
-        afreqs=afreqs,chans=chans,cmd=' '.join(sys.argv))
-
-"""
