@@ -157,7 +157,7 @@ if opts.noise_only: #replace data with noise
     for key in data_dict:
         data_dict[key] = NOISE.T
         flg_dict[key] = n.ones_like(data_dict[key])
-ds.set_data(dsets=data_dict,conj=conj_dict)#,wgts=flg_dict)
+ds.set_data(dsets=data_dict,conj=conj_dict,wgts=flg_dict)
 
 #Get some statistics
 if LST_STATS:
