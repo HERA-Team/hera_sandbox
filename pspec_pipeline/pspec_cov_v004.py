@@ -2,7 +2,6 @@
 
 import aipy as a, numpy as n, pylab as p, capo, capo.frf_conv as fringe
 import glob, optparse, sys, random
-from scipy.linalg import fractional_matrix_power
 import capo.zsa as zsa
 import capo.oqe as oqe
 
@@ -16,8 +15,12 @@ o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 o.add_option('--sep', default='sep0,1', action='store',
     help='Which separation directory to use for signal loss data.')
-o.add_option('--noise_only',action='store_true',
+o.add_option('--noise_only', action='store_true',
     help='Instead of injecting noise, Replace data with noise')
+o.add_option('--same', action='store_true',
+    help='Noise is the same for all baselines.')
+o.add_option('--diff', action='store_true',
+    help='Noise is different for all baseline.') 
 o.add_option('--output', type='string', default='',
     help='Output directory for pspec_boot files (default "")')
 
@@ -114,18 +117,6 @@ print 'B:', B
 print 'scalar:', scalar
 sys.stdout.flush()
 
-#If data is replaced by noise
-if opts.noise_only:
-    ij = (1,4) #XXX
-    timelen = 652 #XXX 
-    #Prep FRF Stuff
-    bins = fringe.gen_frbins(inttime)
-    frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
-    timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
-    if blconj[a.miriad.ij2bl(ij[0],ij[1])]: fir = {(ij[0],ij[1],POL):n.conj(firs)}
-    else: fir = {(ij[0],ij[1],POL):firs}
-    NOISE = frf((len(chans),timelen),loc=0,scale=1) #same noise on all bls
-
 #Acquire data
 data_dict = {}
 flg_dict = {}
@@ -153,10 +144,30 @@ print 'Baselines:', len(bls_master)
 #Align and create dataset
 ds = oqe.DataSet()
 lsts,data_dict,flg_dict = ds.lst_align(lsts,dsets=data_dict,wgts=flg_dict) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
-if opts.noise_only: #replace data with noise
+
+#If data is replaced by noise
+if opts.noise_only:
+    if opts.same == None and opts.diff == None: 
+        print 'Need to specify if noise is the same on all baselines (--same) or different (--diff)'
+        sys.exit()
+    #Prep FRF Stuff
+    ij = bls_master[0] #ij = (1,4)
+    if blconj[a.miriad.ij2bl(ij[0],ij[1])]: #makes sure FRP will be the same whether bl is a conjugated one or not
+        if ij[0] < ij[1]: temp = (ij[1],ij[0]); ij=temp  
+    timelen = data_dict[keys[0]].shape[0] 
+    bins = fringe.gen_frbins(inttime)
+    frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
+    timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
+    fir = {(ij[0],ij[1],POL):firs}
+    if opts.same: NOISE = frf((len(chans),timelen),loc=0,scale=1) #same noise on all bls
     for key in data_dict:
-        data_dict[key] = NOISE.T
+        if opts.same: thing = NOISE.T
+        if opts.diff: thing = frf((len(chans),timelen),loc=0,scale=1).T
+        if blconj[a.miriad.ij2bl(key[1][0],key[1][1])]: data_dict[key] = n.conj(thing)
+        else: data_dict[key] = thing
         flg_dict[key] = n.ones_like(data_dict[key])
+
+#Set data
 ds.set_data(dsets=data_dict,conj=conj_dict,wgts=flg_dict)
 
 #Get some statistics
