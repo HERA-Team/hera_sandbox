@@ -276,31 +276,42 @@ def from_npz(filename, verbose=False):
         except(ValueError): pass
     return meta, gains, vismdl, xtalk
 
+def chisq_flagger(filename):
+    '''Flag model visibilities on the basis of the global omnical chi-sq visibilities.'''
+   
+
 class FirstCal(object):
-    def __init__(self, data, fqs, info):
+    def __init__(self, data, wgts, fqs, info):
         self.data = data
         self.fqs = fqs
         self.info = info
+        self.wgts = wgts
+        #if wgts != None: self.wgts = wgts
+        #else: self.wgts = np.ones_like(self.data)
     def data_to_delays(self, verbose=False, **kwargs):
         '''data = dictionary of visibilities. 
            info = FirstCalRedundantInfo class
            can give it kwargs:
                 supports 'window': window function for fourier transform. default is none
+                         'tune'  : to fit and remove a linear slope to phase.
+                         'plot'  : Low level plotting in the red.redundant_bl_cal_simple script.
            Returns a dictionary with keys baseline pairs and values delays.'''
         window=kwargs.get('window','none')
         tune=kwargs.get('tune','True')
+        plot=kwargs.get('plot','False')
+        clean=kwargs.get('clean',1e-4)
         self.blpair2delay = {}
         dd = self.info.order_data(self.data)
-#        ww = self.info.order_data(self.wgts)
+        ww = self.info.order_data(self.wgts)
         for (bl1,bl2) in self.info.bl_pairs:
             if verbose:
                 print (bl1, bl2)
             d1 = dd[:,:,self.info.bl_index(bl1)]
-#            w1 = ww[:,:,self.info.bl_index(bl1)]
+            w1 = ww[:,:,self.info.bl_index(bl1)]
             d2 = dd[:,:,self.info.bl_index(bl2)]
-#            w2 = ww[:,:,self.info.bl_index(bl2)]
-            #delay = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs)
-            delay = red.redundant_bl_cal_simple(d1,d2,self.fqs,window=window,tune=tune)
+            w2 = ww[:,:,self.info.bl_index(bl2)]
+            delay = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs,window=window,tune=tune,plot=plot,verbose=verbose,clean=clean)
+            #delay = red.redundant_bl_cal_simple(d1,d2,self.fqs,window=window,tune=tune, plot=plot)
             self.blpair2delay[(bl1,bl2)] = delay
         return self.blpair2delay
     def get_N(self,nblpairs):
