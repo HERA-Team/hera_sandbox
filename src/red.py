@@ -97,21 +97,26 @@ def fit_line(phs, fqs, valid):
     dt,off = n.linalg.lstsq(A,B)[0].flatten()
     return dt,off
 
-def redundant_bl_cal_simple(d1,d2,fqs, window='blackman-harris', tune=True, verbose=False, plot=False):
+def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True, verbose=False, plot=False, clean=1e-4):
     '''Given redundant measurements, get the phase difference between them.
        For use on raw data'''
     d12 = d2 * n.conj(d1)
     # For 2D arrays, assume first axis is time and integrate over it
-    if d12.ndim > 1: d12_sum= n.sum(d12,axis=0)
-    else: d12_sum = d12
+    if d12.ndim > 1: 
+        d12_sum= n.sum(d12,axis=0)
+        d12_wgt= n.sum(w1*w2,axis=0) 
+    else: 
+        d12_sum = d12
+        d12_wgt = w1*w2
     #normalize data to maximum so that we minimize fft articats from RFI
+    d12_sum *= d12_wgt
     d12_sum = d12_sum/n.where(n.abs(d12_sum)==0., 1., n.abs(d12_sum)) 
     window = a.dsp.gen_window(d12_sum.size, window=window)
     dlys = n.fft.fftfreq(fqs.size, fqs[1]-fqs[0])
     # FFT and deconvolve the weights to get the phs
     _phs = n.fft.ifft(window*d12_sum)
-#    _wgt = n.fft.ifft(window*d12_wgt)
-#    _phs,info = a.deconv.clean(_phs, _wgt, tol=clean)
+    _wgt = n.fft.ifft(window*d12_wgt)
+    _phs,info = a.deconv.clean(_phs, _wgt, tol=clean)
     _phs = n.abs(_phs)
     #get bin of phase
     mx = n.argmax(_phs)
@@ -136,16 +141,22 @@ def redundant_bl_cal_simple(d1,d2,fqs, window='blackman-harris', tune=True, verb
 #        off,dt = n.polyfit(dly,fqs_val,1)
         dt,off = fit_line(dly,fqs,valid)
         if plot:
-            p.plot(fqs,dly, linewidth=2)
-            p.plot(fqs,n.angle(d12_sum), linewidth=2)
+            #p.plot(fqs,n.unwrap(dly), linewidth=2)
+            p.subplot(211)
+            p.plot(fqs,n.unwrap(dly)+2*n.pi*tau*fqs, linewidth=2)
+            p.plot(fqs,2*n.pi*tau*fqs, linewidth=2)
+            ax = p.gca()
+            p.plot(fqs,off+dt*fqs)
+            p.subplot(212)
+            p.plot(dlys, _phs)
+            p.show()
+            #p.plot(fqs,n.angle(d12_sum), linewidth=2)
             p.xlabel('Frequency (GHz)', fontsize='large')
             p.ylabel('Phase (radians)', fontsize='large')
-            ax = p.gca()
-            #p.plot(fqs,off+dt*fqs)
             #p.plot(fqs,n.unwrap(dly))
 #        print off
 #    #    p.plot(fqs_val,pp[0] + pp[1]*fqs_val)
-            p.show()
+            #p.show()
     # Pull out an integral number of phase wraps
     #if verbose: print tau, dtau, mxs, dt, off
     info = {'dtau':dt, 'off':off, 'mx':mx} # Some information about last step, useful for detecting screwups
