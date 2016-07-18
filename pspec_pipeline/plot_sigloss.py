@@ -73,7 +73,7 @@ pklo,pkhi = 1e-4,1e10
 ax2 = p.subplot(gs[4]) #used to be 2
 #p.loglog(pIs, pCs, 'k.')
 p.setp(ax2.get_yticklabels(), visible=False) #uncomment if no left-hand P(k) plot
-p.errorbar(n.abs(pIs), n.abs(pCs), xerr=2*pIs_err, yerr=2*pCs_err, capsize=0, fmt='k.')
+p.errorbar(pIs, n.abs(pCs), xerr=2*pIs_err, yerr=2*pCs_err, capsize=0, fmt='k.')
 p.loglog([pklo,pkhi],[pklo,pkhi], 'k-')
 p.xlim(pklo, pkhi)
 p.ylim(pklo, pkhi)
@@ -99,6 +99,7 @@ p.setp(ax3.get_yticklabels(), visible=False)
 #p.loglog(n.abs(pIs/pCs - 1), pCs, 'k.')
 p.errorbar(n.abs(pIs/pCs - 1), n.abs(pCs), xerr=2*pIs_err/pCs, yerr=2*pCs_err, fmt='k.', capsize=0)
 print "pI/pC : ", pIs/pCs - 1
+print "pI: ", pIs
 print "pC: ", pCs
 ax3.set_xscale('log')
 ax3.set_yscale('log')
@@ -122,7 +123,7 @@ for kpl,pk,err in zip(kpls,pks,errs):
 #Plot 1
 ax0 = p.subplot(gs[1]) #used to be 0
 p.setp(ax0.get_xticklabels(), visible=False)
-p.errorbar(n.abs(pIs), n.abs(pCs/pIs), xerr=2*pIs_err, yerr=2*pCs_err/pIs, fmt='k.', capsize=0)
+p.errorbar(pIs, n.abs(pCs/pIs), xerr=2*pIs_err, yerr=2*pCs_err/pIs, fmt='k.', capsize=0)
 ax0.set_xscale('log')
 p.xlim(pklo, pkhi)
 #p.ylim(3e-2,3)
