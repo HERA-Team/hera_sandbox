@@ -272,16 +272,23 @@ for boot in xrange(opts.nboot):
         print '     INJECTING SIMULATED SIGNAL'
         eor = (frf((len(chans),timelen),loc=0,scale=1) * INJECT_SIG).T #create FRF-ered noise
         data_dict_2 = {}
+        data_dict_eor = {}
         for key in data_dict:
             data_dict_2[key] = data_dict[key].copy() + eor.copy() #add injected signal to data
+            data_dict_eor[key] = eor.copy()
 
     #Set data
-    ds2 = oqe.DataSet()
+    ds2 = oqe.DataSet() #data + eor
     ds2.set_data(dsets=data_dict_2,conj=conj_dict,wgts=flg_dict)
-    if True: newkeys,ds2C,ds2I = ds2.group_data(keys,gps) #group data (gps already determined before)
+    dse = oqe.DataSet() #just eor   
+    dse.set_data(dsets=data_dict_eor,conj=conj_dict,wgts=flg_dict)
+    if True:
+        newkeys,ds2C,ds2I = ds2.group_data(keys,gps) #group data (gps already determined before)
+        newkeys,dseC,dseI = dse.group_data(keys,gps)
     else: #no groups (slower)
-        ds2I,ds2C = ds,ds #identity and covariance case dataset is the same
-
+        ds2I,ds2C = ds2,ds2 #identity and covariance case dataset is the same
+        dseI,dseC = dse,dse
+    
     #OQE stuff
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex)
@@ -294,14 +301,14 @@ for boot in xrange(opts.nboot):
                 continue #don't do even w/even or bl w/same bl
             else:
                 FC += ds2C.get_F(key1,key2)
-                FI += ds2I.get_F(key1,key2,use_cov=False)
+                FI += dseI.get_F(key1,key2,use_cov=False) #only eor
                 qC += ds2C.q_hat(key1,key2)
-                qI += ds2I.q_hat(key1,key2,use_cov=False)
+                qI += dseI.q_hat(key1,key2,use_cov=False)
 
     MC,WC = ds2C.get_MW(FC,mode='L^-1') #Cholesky decomposition
-    MI,WI = ds2I.get_MW(FI,mode='I')
+    MI,WI = dseI.get_MW(FI,mode='I')
     pC = ds2C.p_hat(MC,qC,scalar=scalar)
-    pI = ds2I.p_hat(MI,qI,scalar=scalar)
+    pI = dseI.p_hat(MI,qI,scalar=scalar)
     #print 'pC ~ ', n.median(pC)
     #print 'pI ~ ', n.median(pI)
     
