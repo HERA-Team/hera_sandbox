@@ -18,13 +18,23 @@ def flatten_reds(reds):
         freds += r
     return freds
 
-def save_gains(s,f,pol):
+def save_gains(s,f,name='fcgains',verbose=False):
     s2 = {}
     for k,i in s.iteritems():
-        s2[str(k)] = omni.get_phase(f,i)
-    #s2['pol'] = pol #XXX not saving pol in npz file
-    print 'Saving fcgains.%s.npz'%pol
-    n.savez('fcgains.%s.npz'%pol,**s2)
+        if len(i)>1:
+            s2[str(k)] = omni.get_phase(f,i,offset=True)
+            s2['d'+str(k)] = i[0]
+            if verbose:
+                print 'dly=%f , off=%f '%i
+        else:    
+            s2[str(k)] = omni.get_phase(f,i)
+            s2['d'+str(k)] = i
+            if verbose:
+                print 'dly=%f  '%i 
+    import sys
+    cmd = sys.argv
+    s2['cmd'] = ' '.join(cmd)
+    n.savez('%s.npz'%name,**s2)
 
 def normalize_data(datadict):
     d = {}
@@ -65,7 +75,8 @@ dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, fqs[1]-fqs[0]))
 
 #gets phase solutions per frequency.
 fc = omni.FirstCal(dataxx,fqs,info)
-sols = fc.run()
+sols = fc.run(tune=True,verbose=False,offset=True,plot=False)
+save_gains(sols,fqs,name=args[0],verbose=True)
 
 #Save solutions
 #save_gains(sols,fqs, opts.pol) 
