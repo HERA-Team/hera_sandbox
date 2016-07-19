@@ -175,7 +175,7 @@ def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True,
     #if verbose: print tau, dtau, mxs, dt, off
     info = {'dtau':dt, 'off':off, 'mx':mx} # Some information about last step, useful for detecting screwups
     if verbose: print info, tau, tau+dt+off
-    return tau+dt#,off
+    return tau+dt,off
 
 
 

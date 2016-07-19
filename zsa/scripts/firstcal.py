@@ -19,12 +19,19 @@ def flatten_reds(reds):
         freds += r
     return freds
 
-def save_gains(s,f,name='fcgains'):
+def save_gains(s,f,name='fcgains',verbose=False):
     s2 = {}
     for k,i in s.iteritems():
-        s2[str(k)] = omni.get_phase(f,i)
-    for k,i in s.iteritems():
-        s2['d'+str(k)] = i
+        if len(i)>1:
+            s2[str(k)] = omni.get_phase(f,i,offset=True)
+            s2['d'+str(k)] = i[0]
+            if verbose:
+                print 'dly=%f , off=%f '%i
+        else:    
+            s2[str(k)] = omni.get_phase(f,i)
+            s2['d'+str(k)] = i
+            if verbose:
+                print 'dly=%f  '%i 
     import sys
     cmd = sys.argv
     s2['cmd'] = ' '.join(cmd)
@@ -60,10 +67,10 @@ dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, fqs[1]-fqs[0]))
 #gets phase solutions per frequency.
 fc = omni.FirstCal(dataxx,wgtsxx,fqs,info)
 #sols = fc.run(tune=True, verbose=True)
-sols = fc.run(tune=True,verbose=True,plot=False)
+sols = fc.run(tune=True,verbose=True,offset=True,plot=False)
 #save solutions
 fname = args[0]
-#save_gains(sols,fqs,name=fname)
+save_gains(sols,fqs,name=fname,verbose=True)
 
 
 if PLOT:
