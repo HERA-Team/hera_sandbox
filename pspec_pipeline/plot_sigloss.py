@@ -45,7 +45,10 @@ pIs,pCs,pCvs = n.array(pIs), n.array(pCs), n.array(n.average(pCvs,axis=0)) #avg 
 pIs_err,pCs_err = n.array(pIs_err), n.array(pCs_err)
 
 ###Build an interpolator to find sigloss factors###
-sig_factor_interp = interp1d(pCs, pIs/pCs,kind='linear',bounds_error=False,fill_value=0)
+order = n.argsort(n.abs(pCs)) #set up interpolator to work even if pCs are out of order
+pCs_order = n.abs(pCs[order])
+pIs_order = n.abs(pIs[order])
+sig_factor_interp = interp1d(pCs_order, pIs_order/pCs_order,kind='linear',bounds_error=False,fill_value=0)
 
 ### GETTING PSPEC DATA ###
 # XXX only used to get 'freq' variable
@@ -109,9 +112,9 @@ p.xlim(1e-1,1e5)
 p.grid()
 p.xlabel(r'$P_{\rm in}/P_{\rm out}-1$', fontsize=14)
 p.fill_between([1e-3,1e8], [pkdn,pkdn], [pkup,pkup], facecolor='gray', edgecolor='gray')
+"""
 sig_factors = []
 sig_factors.append(sig_factor_interp(pkup))
-"""
 for kpl,pk,err in zip(kpls,pks,errs):
     pkup = max(pk+err,1e-6)
     pkdn = max(pk-err,1e-6)
@@ -144,8 +147,7 @@ p.plot(kpls,n.abs(pCvs),'k.')
 #p.errorbar(kpls, n.abs(pCvs), yerr=2*pCvs_err, fmt='k.', capsize=0)
 p.grid()
 
-
-print "Max sigloss factor z={0:.2f}:  {1:.2f}".format(z_bin,n.max(sig_factors))
+print "Max sigloss factor z={0:.2f}:  {1:.2f}".format(z_bin,float(sig_factor_interp(n.max(n.abs(pCvs))))) #n.max(sig_factors))
 p.show()
 
 
