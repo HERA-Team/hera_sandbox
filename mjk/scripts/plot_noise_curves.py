@@ -74,17 +74,27 @@ for key in data:
         plt.setp( ax1[i].get_xticklabels(), visible=False)
         ax1[i].grid(True)
 
-        ax2[i].plot(ks[i],( np.abs(k3pk[i]) + k3err[i])/
-                (2*POBER_NOISE(ks[i],fqs[i])),
-                '-',color=colors[key])
+print 'z\tpC/pI\tstd'
+for i,redshift in enumerate(z):
+    z_pI,ks_pI,k3pk_pI,k3err_pI = capo.eor_results.get_k3pk_from_npz( data['pI'] )
+    z_pC,ks_pC,k3pk_pC,k3err_pC = capo.eor_results.get_k3pk_from_npz( data['pC corrected'] )
+    fqs = capo.pspec.z2f(z_pI)*1e3 ##put freqs in Mhz
+    ratio = ( np.abs(k3pk_pC[i]) + k3err_pC[i])/(np.abs(k3pk_pI[i]) + k3err_pI[i])
+    ax2[i].plot(ks_pI[i], ratio,'-')
 
-        if i==0:
-            ax2[i].set_ylabel('Relative Magnitude')
-        ax2[i].set_xlabel('$k [hMpc^{-1}]$')
-        #ax2[i].set_yscale('log')
-        nbins = len(ax2[i].get_xticklabels()) # added 
-        ax2[i].yaxis.set_major_locator(MaxNLocator(nbins=nbins, prune='upper')) 
-        ax2[i].grid(True)
+    print '{0:.2f}\t{1:.2f}\t{2:.2f}'.format( redshift, np.mean(ratio), np.std(ratio))
+
+    if i==0:
+
+        ax2[i].set_ylabel('pC/pI')
+    ax2[i].set_xlabel('$k [hMpc^{-1}]$')
+    #ax2[i].set_yscale('log')
+    nbins = len(ax2[i].get_yticklabels()) # added 
+    ax2[i].yaxis.set_major_locator(MaxNLocator(nbins=nbins, prune='upper')) 
+    if i==0:
+        nbins = len(ax2[0].get_xticklabels()) # added 
+        ax2[0].xaxis.set_major_locator(MaxNLocator(nbins=nbins-3)) 
+    ax2[i].grid(True)
 ax1[-1].legend(loc='lower right')
 #fig.legend(lines,labels,'best')
 #gs.tight_layout(fig)
