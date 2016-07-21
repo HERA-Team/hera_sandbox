@@ -360,7 +360,7 @@ for boot in xrange(opts.nboot):
     else: outpath = 'pspec_bootsigloss%04d.npz' % boot
     print '   Writing '+outpath
     n.savez(outpath, kpl=kpl, scalar=scalar, times=n.array(lsts), 
-        pk_vs_t=pC, pCv = pCv, err_vs_t=1./cnt, temp_noise_var=var, 
+        pk_vs_t=pC, pCv = pCv, pIv = pIv, err_vs_t=1./cnt, temp_noise_var=var, 
         nocov_vs_t=pI, freq=fq, cmd=' '.join(sys.argv))
 
 
