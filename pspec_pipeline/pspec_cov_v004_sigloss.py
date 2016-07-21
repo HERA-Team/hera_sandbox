@@ -23,6 +23,10 @@ o.add_option('--diff', action='store_true',
     help='Noise is different for all baseline.') 
 o.add_option('-i', '--inject', type='float', default=0.,
     help='EOR injection level.')
+o.add_option('--changeC', action='store_true',
+    help='Overwrite C with something else.')
+o.add_option('--reg', type='float', default=None,
+    help='Regularize C by adding the identity multiplied by the value specified.')
 o.add_option('--output', type='string', default='',
     help='Output directory for pspec_boot files (default "")')
 
@@ -69,6 +73,17 @@ def get_Q(mode, n_k): #encodes the fourier transform from freq to delay
         Q = n.zeros_like(C)
         Q[mode,mode] = 1
         return Q
+
+def change_C(keys,ds): #changes C in the dataset
+    if opts.reg != None:
+        newC = {}
+        for key in keys:
+            newC[key] = ds.C(key) + n.identity(len(ds.C(key)))*opts.reg
+    else:
+        print 'Specify an option of how to change C.'
+        sys.exit()
+    return newC
+
 
 #Read even&odd data
 dsets = {
@@ -147,20 +162,21 @@ print 'Baselines:', len(bls_master)
 ds = oqe.DataSet()
 lsts,data_dict,flg_dict = ds.lst_align(lsts,dsets=data_dict,wgts=flg_dict) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
 
+#Prep FRF Stuff
+timelen = data_dict[keys[0]].shape[0]
+ij = bls_master[0] #ij = (1,4)
+if blconj[a.miriad.ij2bl(ij[0],ij[1])]: #makes sure FRP will be the same whether bl is a conjugated one or not
+    if ij[0] < ij[1]: temp = (ij[1],ij[0]); ij=temp
+bins = fringe.gen_frbins(inttime)
+frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
+timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
+fir = {(ij[0],ij[1],POL):firs}
+
 #If data is replaced by noise
 if opts.noise_only:
     if opts.same == None and opts.diff == None: 
         print 'Need to specify if noise is the same on all baselines (--same) or different (--diff)'
         sys.exit()
-    #Prep FRF Stuff
-    ij = bls_master[0] #ij = (1,4)
-    if blconj[a.miriad.ij2bl(ij[0],ij[1])]: #makes sure FRP will be the same whether bl is a conjugated one or not
-        if ij[0] < ij[1]: temp = (ij[1],ij[0]); ij=temp  
-    timelen = data_dict[keys[0]].shape[0] 
-    bins = fringe.gen_frbins(inttime)
-    frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
-    timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
-    fir = {(ij[0],ij[1],POL):firs}
     if opts.same: NOISE = frf((len(chans),timelen),loc=0,scale=1) #same noise on all bls
     for key in data_dict:
         if opts.same: thing = NOISE.T
@@ -203,6 +219,11 @@ if PLOT and False:
         p.suptitle(key)
         p.tight_layout()
         p.show()
+
+#Change C if wanted
+if opts.changeC:
+    newC = change_C(keys,ds)
+    ds.set_C(newC)
 
 #Bootstrapping        
 for boot in xrange(opts.nboot):
@@ -282,6 +303,14 @@ for boot in xrange(opts.nboot):
     ds2.set_data(dsets=data_dict_2,conj=conj_dict,wgts=flg_dict)
     dse = oqe.DataSet() #just eor   
     dse.set_data(dsets=data_dict_eor,conj=conj_dict,wgts=flg_dict)
+   
+    #Change C if wanted
+    if opts.changeC:
+        newC2 = change_C(keys,ds2)
+        ds2.set_C(newC2)
+        newCe = change_C(keys,dse)
+        dse.set_C(newCe)
+
     if True:
         newkeys,ds2C,ds2I = ds2.group_data(keys,gps) #group data (gps already determined before)
         newkeys,dseC,dseI = dse.group_data(keys,gps)
