@@ -23,10 +23,6 @@ o.add_option('--diff', action='store_true',
     help='Noise is different for all baseline.') 
 o.add_option('-i', '--inject', type='float', default=0.,
     help='EOR injection level.')
-o.add_option('--changeC', action='store_true',
-    help='Overwrite C with something else.')
-o.add_option('--reg', type='float', default=None,
-    help='Regularize C by adding the identity multiplied by the value specified.')
 o.add_option('--output', type='string', default='',
     help='Output directory for pspec_boot files (default "")')
 
@@ -73,16 +69,6 @@ def get_Q(mode, n_k): #encodes the fourier transform from freq to delay
         Q = n.zeros_like(C)
         Q[mode,mode] = 1
         return Q
-
-def change_C(keys,ds): #changes C in the dataset
-    if opts.reg != None:
-        newC = {}
-        for key in keys:
-            newC[key] = ds.C(key) + n.identity(len(ds.C(key)))*opts.reg
-    else:
-        print 'Specify an option of how to change C.'
-        sys.exit()
-    return newC
 
 
 #Read even&odd data
@@ -220,11 +206,6 @@ if PLOT and False:
         p.tight_layout()
         p.show()
 
-#Change C if wanted
-if opts.changeC:
-    newC = change_C(keys,ds)
-    ds.set_C(newC)
-
 #Bootstrapping        
 for boot in xrange(opts.nboot):
     print 'Bootstrap %d / %d' % (boot+1,opts.nboot)
@@ -304,13 +285,6 @@ for boot in xrange(opts.nboot):
     dse = oqe.DataSet() #just eor   
     dse.set_data(dsets=data_dict_eor,conj=conj_dict,wgts=flg_dict)
    
-    #Change C if wanted
-    if opts.changeC:
-        newC2 = change_C(keys,ds2)
-        ds2.set_C(newC2)
-        newCe = change_C(keys,dse)
-        dse.set_C(newCe)
-
     if True:
         newkeys,ds2C,ds2I = ds2.group_data(keys,gps) #group data (gps already determined before)
         newkeys,dseC,dseI = dse.group_data(keys,gps)
@@ -360,7 +334,7 @@ for boot in xrange(opts.nboot):
     else: outpath = 'pspec_bootsigloss%04d.npz' % boot
     print '   Writing '+outpath
     n.savez(outpath, kpl=kpl, scalar=scalar, times=n.array(lsts), 
-        pk_vs_t=pC, pCv = pCv, pIv = pIv, err_vs_t=1./cnt, temp_noise_var=var, 
+        pk_vs_t=pC, pCv=pCv, pIv=pIv, err_vs_t=1./cnt, temp_noise_var=var, 
         nocov_vs_t=pI, freq=fq, cmd=' '.join(sys.argv))
 
 
