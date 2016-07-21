@@ -32,7 +32,6 @@ POL = opts.pol
 LST_STATS = False
 DELAY = False
 NGPS = 5 #number of groups to break the random sampled bls into
-INJECT_SIG = 0.
 PLOT = opts.plot
 
 ### FUNCTIONS ###
@@ -233,8 +232,8 @@ for boot in xrange(opts.nboot):
     MI,WI = dsI.get_MW(FI,mode='I')
     pC = dsC.p_hat(MC,qC,scalar=scalar)
     pI = dsI.p_hat(MI,qI,scalar=scalar)
-    print 'pC ~ ', n.median(pC)
     print 'pI ~ ', n.median(pI)
+    print 'pC ~ ', n.median(pC)
  
     if PLOT:
         p.subplot(121); capo.arp.waterfall(FC, drng=4)
