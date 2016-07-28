@@ -31,12 +31,12 @@ print args
 
 def noise_level(freq=None):
     tsys = 500e3 #mK
-    inttime = 3362. #seconds.#SK # XXX fix with new integration. get it from frfilter_numbers.py
-    nbls=41#SK #number of baselines used (if using multiple seps, average the numbers?)
-    ndays = 112 #What does effectively mean here? -->#effectively this many days
-    nseps = 3 #number of seps used
+    inttime = 2477. #seconds.#SK # XXX fix with new integration. get it from frfilter_numbers.py
+    nbls=59 #number of baselines used (if using multiple seps, average the numbers?)
+    ndays = 31 #effectively this many days
+    nseps = 1 #number of seps used
     folding = 2
-    nlsts = 8#SK #number of LST hours in time-range
+    nlsts = 6 #number of LST hours in time-range
     nmodes = (nseps*folding*nlsts*60*60/inttime)**.5
     pol = 2
     real = 2 #??? what is this again?
@@ -459,7 +459,7 @@ p.plot(n.array(kpl_pos), 2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2), 'c--')
 p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')
-p.ylim(1e0,1e5)
+p.ylim(1e0,1e7)
 p.xlim(0, 0.6)
 p.grid()
 p.show()
