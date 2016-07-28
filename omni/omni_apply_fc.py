@@ -53,9 +53,9 @@ for f,filename in enumerate(args):
                     try: d -= xtalk[pol][(a2,a1)].conj()
                     except(KeyError): pass
             ti = len(times) - 1 #time index
-            try: d*=gains[p1][a1]
+            try: d*=numpy.conj(gains[p1][a1])
             except(KeyError): pass
-            try: d*=gains[p1][a2].conj()
+            try: d*=numpy.conj(gains[p1][a2].conj())
             except(KeyError): pass
             #try: d /= gains[p1][a1][ti] #apply gains
             #except(KeyError): pass
