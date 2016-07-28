@@ -26,12 +26,12 @@ def save_gains(s,f,name='fcgains',verbose=False):
             s2[str(k)] = omni.get_phase(f,i,offset=True)
             s2['d'+str(k)] = i[0]
             if verbose:
-                print 'dly=%f , off=%f '%i
+                print 'ant=%d dly=%f , off=%f '%(k,i[0],i[1])
         else:    
             s2[str(k)] = omni.get_phase(f,i)
             s2['d'+str(k)] = i
             if verbose:
-                print 'dly=%f  '%i 
+                print 'ant=%d dly=%f  '%(k,i)
     import sys
     cmd = sys.argv
     s2['cmd'] = ' '.join(cmd)
@@ -47,7 +47,8 @@ def normalize_data(datadict):
     
 #hera info assuming a hex of 19 and 128 antennas
 aa = a.cal.get_aa(opts.cal, n.array([.150]))
-bad_ants = [ant for ant in map(int,opts.ex_ants.split(','))]
+if opts.ex_ants: bad_ants = [ant for ant in map(int,opts.ex_ants.split(','))]
+else: bad_ants = []
 info = omni.aa_to_info(aa, fcal=True, ex_ants=bad_ants)
 reds = flatten_reds(info.get_reds())
 print len(reds)
@@ -59,15 +60,17 @@ times, data, flags = arp.get_dict_of_uv_data(args, bl_string, opts.pol, verbose=
 dataxx = {}
 wgtsxx = {}
 for (i,j) in data.keys():
-    dataxx[(i,j)] = data[(i,j)]['xx']
-    wgtsxx[(i,j)] = n.logical_not(flags[(i,j)]['xx'])
+    dataxx[(i,j)] = data[(i,j)]['xx']#[0:1,:]
+    wgtsxx[(i,j)] = n.logical_not(flags[(i,j)]['xx'])#[0:1,:])
 fqs = n.linspace(.1,.2,1024)
 dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, fqs[1]-fqs[0]))
 
 #gets phase solutions per frequency.
 fc = omni.FirstCal(dataxx,wgtsxx,fqs,info)
 #sols = fc.run(tune=True, verbose=True)
-sols = fc.run(tune=True,verbose=True,offset=True,plot=False)
+sols = fc.run(tune=True,verbose=False,offset=True,plot=False)
+#sols = fc.run(verbose=False,use_offset=True, offset=True)
+#import IPython; IPython.embed()
 #save solutions
 fname = args[0]
 save_gains(sols,fqs,name=fname,verbose=True)
