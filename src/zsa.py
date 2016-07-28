@@ -147,7 +147,7 @@ def list2str(li):
         s += '_'.join(map(str,i)) + ','
     return s[:-1]
 
-def flag_by_chisq(filenames, nsig=12, deg=8):
+def flag_by_chisq(filenames, nsig=12, deg=8, outfile=False):
     '''Use the omnical global chisq to flag the model visibilities.'''
     m,g,v,x = omni.from_npz(filenames)
     chisq = m['chisq']
@@ -166,6 +166,6 @@ def flag_by_chisq(filenames, nsig=12, deg=8):
         mask |= n.where(flat_chisq > (med + nsig*sig), True, False)
         #import IPython; IPython.embed()
     f = n.logical_not(mask)#weights for the data
-        
-
+    if outfile:
+       pass 
     return m,g,v,x,f
