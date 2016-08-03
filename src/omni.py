@@ -276,44 +276,63 @@ def from_npz(filename, verbose=False):
         except(ValueError): pass
     return meta, gains, vismdl, xtalk
 
+def chisq_flagger(filename):
+    '''Flag model visibilities on the basis of the global omnical chi-sq visibilities.'''
+   
+
 class FirstCal(object):
-    def __init__(self, data, fqs, info):
+    def __init__(self, data, wgts, fqs, info):
         self.data = data
         self.fqs = fqs
         self.info = info
+        self.wgts = wgts
+        #if wgts != None: self.wgts = wgts
+        #else: self.wgts = np.ones_like(self.data)
     def data_to_delays(self, verbose=False, **kwargs):
         '''data = dictionary of visibilities. 
            info = FirstCalRedundantInfo class
            can give it kwargs:
                 supports 'window': window function for fourier transform. default is none
-           Returns a dictionary with keys baseline pairs and values delays.'''
+                         'tune'  : to fit and remove a linear slope to phase.
+                         'plot'  : Low level plotting in the red.redundant_bl_cal_simple script.
+           Returns 2 dictionaries:
+                1. baseline pair : delays
+                2. baseline pari : offset 
+        '''
         window=kwargs.get('window','none')
         tune=kwargs.get('tune','True')
-        self.blpair2delay = {}
+        plot=kwargs.get('plot','False')
+        clean=kwargs.get('clean',1e-4)
+        blpair2delay = {}
+        blpair2offset = {}
         dd = self.info.order_data(self.data)
-#        ww = self.info.order_data(self.wgts)
+        ww = self.info.order_data(self.wgts)
         for (bl1,bl2) in self.info.bl_pairs:
             if verbose:
                 print (bl1, bl2)
             d1 = dd[:,:,self.info.bl_index(bl1)]
-#            w1 = ww[:,:,self.info.bl_index(bl1)]
+            w1 = ww[:,:,self.info.bl_index(bl1)]
             d2 = dd[:,:,self.info.bl_index(bl2)]
-#            w2 = ww[:,:,self.info.bl_index(bl2)]
-            #delay = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs)
-            delay = red.redundant_bl_cal_simple(d1,d2,self.fqs,window=window,tune=tune)
-            self.blpair2delay[(bl1,bl2)] = delay
-        return self.blpair2delay
+            w2 = ww[:,:,self.info.bl_index(bl2)]
+            delay,offset = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs,window=window,tune=tune,plot=plot,verbose=verbose,clean=clean)
+            #delay = red.redundant_bl_cal_simple(d1,d2,self.fqs,window=window,tune=tune, plot=plot)
+            blpair2delay[(bl1,bl2)] = delay
+            blpair2offset[(bl1,bl2)] = offset
+        return blpair2delay, blpair2offset
     def get_N(self,nblpairs):
         return np.identity(nblpairs) 
     def get_M(self, verbose=False, **kwargs):
         M = np.zeros((len(self.info.bl_pairs),1))
-        blpair2delay = self.data_to_delays(verbose=verbose, **kwargs)
+        O = np.zeros((len(self.info.bl_pairs),1))
+        blpair2delay,blpair2offset = self.data_to_delays(verbose=verbose, **kwargs)
         for pair in blpair2delay:
             M[self.info.blpair_index(pair)] = blpair2delay[pair]
-        return M
-    def run(self, verbose=False, **kwargs):
+            O[self.info.blpair_index(pair)] = blpair2offset[pair]
+            
+        return M,O
+    def run(self, verbose=False, offset=False, **kwargs):
         #make measurement matrix 
-        self.M = self.get_M(verbose=verbose, **kwargs)
+        self.M,self.O = self.get_M(verbose=verbose, **kwargs)
         #make noise matrix
         N = self.get_N(len(self.info.bl_pairs)) 
         self._N = np.linalg.inv(N)
@@ -323,8 +342,16 @@ class FirstCal(object):
         invert = np.dot(self.A.T,np.dot(self._N,self.A))
         dontinvert = np.dot(self.A.T,np.dot(self._N,self.M))
         self.xhat = np.dot(np.linalg.pinv(invert), dontinvert)
-        #turn solutions into dictionary
-        return dict(zip(self.info.subsetant,self.xhat))
+        #solve for offset
+        if offset:
+            invert = np.dot(self.A.T,np.dot(self._N,self.A))
+            dontinvert = np.dot(self.A.T,np.dot(self._N,self.O))
+            self.ohat = np.dot(np.linalg.pinv(invert), dontinvert)
+            #turn solutions into dictionary
+            return dict(zip(self.info.subsetant,zip(self.xhat,self.ohat)))
+        else:
+            #turn solutions into dictionary
+            return dict(zip(self.info.subsetant,self.xhat))
     def get_solved_delay(self):
         solved_delays = []
         for pair in self.info.bl_pairs:
@@ -334,8 +361,10 @@ class FirstCal(object):
         self.solved_delays = np.array(solved_delays)
 
 
-def get_phase(fqs,tau):
-    return np.exp(-2j*np.pi*fqs*tau)
-
-
-
+def get_phase(fqs,tau, offset=False):
+    if offset:
+        delay = tau[0]
+        offset = tau[1]
+        return np.exp(-1j*(2*np.pi*fqs*delay) - offset)
+    else:
+        return np.exp(-2j*np.pi*fqs*tau)

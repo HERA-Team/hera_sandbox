@@ -10,12 +10,6 @@ o.add_option('--plot', action='store_true',
     help='Generate plots')
 o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
-o.add_option('--applyto', action='store', 
-    help='Apply covariance matrix to this data')
-o.add_option('--gain', action='store_true',
-    help='Add signal and noise data sets with proportions in GAIN variable.\
-          Data = GAIN*signal + noise. If true, input noise set.')
-
 opts,args = o.parse_args(sys.argv[1:])
 
 MASK = True
@@ -24,9 +18,8 @@ CHOLESKY = True
 #NGPS = 4
 NGPS = 2
 AVG_COV = True
-LST_STATS = True
-GAIN = 0.2
-
+LST_STATS = False
+GAIN=.6
 
 def cov(m):
     '''Because numpy.cov is stupid and casts as float.'''
@@ -135,26 +128,10 @@ sys.stdout.flush()
 #antstr = '41_49,3_10,9_58,22_61,20_63,2_43,21_53,31_45,41_47,3_25,1_58,35_61,42_63,2_33'
 #antstr = '41_49,3_10,9_58,22_61,20_63'#,2_43,21_53,31_45,41_47,3_25,1_58,35_61,42_63,2_33'
 antstr = 'cross'
-
-if opts.applyto:
-    print 'in applyto'
-#    times,data,flgs = capo.arp.get_dict_of_uv_data(args, antstr=antstr, polstr='I', verbose=True)
-    times2,apply2,flgs2 = capo.arp.get_dict_of_uv_data(glob.glob(opts.applyto), antstr=antstr, polstr='I', verbose=True)
-
-if opts.gain:
-    print 'in gain'
-    #split input args to get base and add "signal" to it.
-    times,signal,flgs = capo.arp.get_dict_of_uv_data([f.split('_')[0] + '_signal' for f in args], antstr=antstr, polstr='I', verbose=True)
-    #input args is noise
-    times,noise,flgs = capo.arp.get_dict_of_uv_data([f for f in args], antstr=antstr, polstr='I', verbose=True)
-
-else:
-    print 'data'
-    times,data,flgs = capo.arp.get_dict_of_uv_data(args, antstr=antstr, polstr='I', verbose=True)
-    
+times,signal,flgs = capo.arp.get_dict_of_uv_data([f.split('_')[0]+'_signalL' for f in args], antstr=antstr, polstr='I', verbose=True)
+times,noise,flgs = capo.arp.get_dict_of_uv_data([f.split('_')[0]+'_noiseL' for f in args], antstr=antstr, polstr='I', verbose=True)
 
 if LST_STATS:
-    print 'For STATS'
     # collect some metadata from the lst binning process
     cnt, var = {}, {}
     for filename in args:
@@ -174,51 +151,45 @@ bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
 jy2T = capo.pspec.jy2T(afreqs)
 window = a.dsp.gen_window(nchan, WINDOW)
 if not WINDOW == 'none': window.shape=(1,nchan)
-if opts.applyto:
-    _d2 = {}
-    for k in apply2:
-        apply2[k]['I'] = apply2[k]['I'][:,chans] * jy2T
-        if conj[k]: apply2[k]['I'] = n.conj(apply2[k]['I'])
-        if DELAY: _d2[k] = n.fft.fftshift(n.fft.ifft(window*apply2[k]['I']), axes=1)
-        else: _d2[k] = apply2[k]['I']
-        _d2[k] = n.transpose(_d2[k], [1,0])
 
+_dnoise = {}
+_dsignal= {}
 _d = {}
-if opts.gain:
-    data = {}
-    for k in noise:
-        if  not k in data.keys() : data[k] = {}
-        noise[k]['I'] = noise[k]['I'][:,chans] * jy2T
-        signal[k]['I'] = signal[k]['I'][:,chans] * jy2T
-        if conj[k]: 
-            noise[k]['I'] = n.conj(noise[k]['I'])
-            signal[k]['I'] = n.conj(signal[k]['I'])
-        data[k]['I'] = GAIN*signal[k]['I'] + noise[k]['I']
-        if DELAY: 
-            _d[k] = n.fft.fftshift(n.fft.ifft(window*data[k]['I']), axes=1)
-        else: _d[k] = data[k]['I']
-        _d[k] = n.transpose(_d[k], [1,0])
-
-else:
-    for k in data:
-        data[k]['I'] = data[k]['I'][:,chans] * jy2T
-        if conj[k]: data[k]['I'] = n.conj(data[k]['I'])
-        if DELAY: _d[k] = n.fft.fftshift(n.fft.ifft(window*data[k]['I']), axes=1)
-        else: _d[k] = data[k]['I']
-        _d[k] = n.transpose(_d[k], [1,0])
+data = {}
+for k in signal:
+    if not k in data.keys() : data[k] = {}
+    signal[k]['I'] = signal[k]['I'][:,chans] * jy2T
+    noise[k]['I'] = noise[k]['I'][:,chans] * jy2T
+    if conj[k]: 
+        signal[k]['I'] = n.conj(signal[k]['I'])
+        noise[k]['I'] = n.conj(noise[k]['I'])
+    data[k]['I'] = GAIN*signal[k]['I'] + noise[k]['I']
+    if DELAY: 
+        _dsignal[k] = n.fft.fftshift(n.fft.ifft(window*signal[k]['I']), axes=1)
+        _dnoise[k] = n.fft.fftshift(n.fft.ifft(window*noise[k]['I']), axes=1)
+        _d[k] = n.fft.fftshift(n.fft.ifft(window*data[k]['I']), axes=1)
+    else: 
+        _dnoise[k] = noise[k]['I']
+        _dsignal[k] = signal[k]['I']
+        _d[k] = data[k]['I']
+    _dsignal[k] = n.transpose(_dsignal[k], [1,0])
+    _dnoise[k] = n.transpose(_dnoise[k], [1,0])
+    _d[k] = n.transpose(_d[k], [1,0])
 
 
-
-    
 bls_master = _d.keys()
 nbls = len(bls_master)
 print nbls
 
+#signal + noise data
 _data = n.array([_d[k] for k in bls_master])
 _data = n.reshape(_data, (_data.shape[0]*_data.shape[1], _data.shape[2]))
-if opts.applyto:
-    _data2 = n.array([_d2[k] for k in bls_master])
-    _data2 = n.reshape(_data2, (_data2.shape[0]*_data2.shape[1], _data2.shape[2]))
+
+#noise data only. Dont actually need this. Do _data above to calc covariance.
+_datanoise = n.array([_dnoise[k] for k in bls_master])
+_datanoise = n.reshape(_datanoise, (_datanoise.shape[0]*_datanoise.shape[1], _datanoise.shape[2]))
+
+#covariance of signal + noise.
 C = cov(_data)
 level,auto,cross = cov_average(C, bls_master, nchan)
 
@@ -237,14 +208,14 @@ for boot in xrange(opts.nboot):
 
     if True: 
         _data = n.array([_d[k] for k in bls])
-        if opts.applyto:
-            _data2 = n.array([_d2[k] for k in bls])
-            _data2 = n.reshape(_data2, (_data2.shape[0]*_data2.shape[1], _data2.shape[2]))
+        _datanoise = n.array([_dnoise[k] for k in bls])
     else:
         print 'OVERRIDING WITH SIMULATED SIGNAL'
         eor = noise(_d[bls[0]].shape)
         _data = n.array([eor for k in bls])
+
     _data = n.reshape(_data, (_data.shape[0]*_data.shape[1], _data.shape[2]))
+    _datanoise = n.reshape(_datanoise, (_datanoise.shape[0]*_datanoise.shape[1], _datanoise.shape[2]))
     print _data.shape
 
     if False: # add in additional noise
@@ -253,12 +224,6 @@ for boot in xrange(opts.nboot):
 
     C = cov(_data)
     #N = C - cross
-    if opts.applyto:
-        if opts.plot:
-            p.subplot(211); capo.arp.waterfall(_data, mode='real'); p.colorbar(shrink=.5)
-            p.subplot(212); capo.arp.waterfall(_data2, mode='real'); p.colorbar(shrink=.5)
-            p.show()
-        _data = _data2
 
     if MASK: # mask covariance matrix
         mask = n.ones((nbls,nchan,nbls,nchan))
@@ -278,14 +243,6 @@ for boot in xrange(opts.nboot):
     if opts.plot:
         p.subplot(224); p.semilogy(S)
 
-#    ev, evv = n.linalg.eigh(C)
-#    if opts.plot:
-#        p.figure(4); p.subplot(211); p.semilogy(ev)
-#        p.figure(4); p.subplot(212); p.plot(evv[:,::50])
-#        for i in range(10):
-#            p.figure(5); p.plot(evv[:,-i].T)
-#            p.show()
-
     if AVG_COV:
         C.shape = (nbls,nchan,nbls,nchan)
         for i in xrange(nbls):
@@ -295,37 +252,26 @@ for boot in xrange(opts.nboot):
         C.shape = (nbls*nchan,nbls*nchan)
 
     C *= mask
+    C *= n.identity(C.shape[0])#XXX
     print 'Psuedoinverse of C'
     U,S,V = n.linalg.svd(C.conj())
-
-    #ev, evv = n.linalg.eigh(C)
-    #if opts.plot:
-    #    p.figure(6); p.subplot(211); p.semilogy(ev)
-    #    p.figure(6); p.subplot(212); p.plot(evv[:,::50])
-    #    for i in range(95):
-    #        p.figure(7); p.plot(evv[:,-i*10].T); p.title('%d'%(i*10))
-    #        p.show()
-
-    #if opts.plot:
-    #    p.figure(4); p.plot(C[0])
-    #    p.show()
-    #    p.figure(1)
-
     print S
-    _S = n.where(S > 1e-4, 1./S, 0) # for fringe rate filtered noise.
-    #_S = n.where(S > 1e-3, 1./S, 0) #original ARP threshold
+    _S = n.where(S > 1e-4, 1./S, 0)
     #_S = 1./S
     #_S = n.concatenate([1./S[:100], n.zeros_like(S[100:])])
     _C = n.einsum('ij,j,jk', V.T, _S, U.T)
     _Cx = n.dot(_C, _data)
+    _Cn = n.dot(_C, _datanoise)
     if opts.plot:
         p.subplot(221); capo.arp.waterfall(C, drng=3)
         p.subplot(222); capo.arp.waterfall(_C, drng=3)
         p.subplot(223); capo.arp.waterfall(n.dot(C,_C), drng=3)
         p.subplot(224); p.semilogy(S)
         p.show()
-        p.subplot(211); capo.arp.waterfall(_data, mode='real'); p.colorbar(shrink=.5)
-        p.subplot(212); capo.arp.waterfall(  _Cx, mode='real'); p.colorbar(shrink=.5)
+        p.subplot(411); capo.arp.waterfall(_data, mode='real'); p.colorbar(shrink=.5)
+        p.subplot(412); capo.arp.waterfall(  _Cx, mode='real'); p.colorbar(shrink=.5)
+        p.subplot(413); capo.arp.waterfall(_datanoise, mode='real'); p.colorbar(shrink=.5)
+        p.subplot(414); capo.arp.waterfall(  _Cn, mode='real'); p.colorbar(shrink=.5)
         p.show()
 
     E, _CE = {}, {}
@@ -395,25 +341,43 @@ for boot in xrange(opts.nboot):
     normC = WC.sum(axis=-1); normC.shape += (1,); MC /= normC; WC = n.dot(MC, FC)
     print 'Generating qs'
     qCa = n.array([_Cx.conj() * n.dot(E[i], _Cx) for i in xrange(nchan)])
+    qCan = n.array([_Cn.conj() * n.dot(E[i], _Cn) for i in xrange(nchan)])
     qCa = n.sum(qCa, axis=1)
+    qCan = n.sum(qCan, axis=1)
     #qCa -= bC # subtract noise bias
+    #C is the identity
     qa = n.array([_data.conj() * n.dot(E[i], _data) for i in xrange(nchan)])
+    qan = n.array([_datanoise.conj() * n.dot(E[i], _datanoise) for i in xrange(nchan)])
     qa = n.sum(qa, axis=1)
+    qan = n.sum(qan, axis=1)
     #qa -= b # subtract noise bias
     print 'Generating ps'
     pCa = n.dot(MC, qCa) * scalar
+    pCan = n.dot(MC, qCan) * scalar
     pa = n.dot(M, qa) * scalar
+    pan = n.dot(M, qan) * scalar
+
+    print 'Signal power spectrum = (P - C[n]) / g**2'
+    leftover = (n.average(pCa.real,axis=1) - n.average(pCan.real, axis=1))/GAIN**2
+    print leftover
 
     if opts.plot:
-        p.subplot(411); capo.arp.waterfall(qCa, mode='real'); p.colorbar(shrink=.5)
-        p.subplot(412); capo.arp.waterfall(pCa, mode='real'); p.colorbar(shrink=.5)
-        p.subplot(413); capo.arp.waterfall(qa , mode='real'); p.colorbar(shrink=.5)
-        p.subplot(414); capo.arp.waterfall(pa , mode='real'); p.colorbar(shrink=.5)
+        p.subplot(421); capo.arp.waterfall(qCa, mode='real'); p.colorbar(shrink=.5)
+        p.subplot(422); capo.arp.waterfall(pCa, mode='real'); p.colorbar(shrink=.5)
+        p.subplot(423); capo.arp.waterfall(qa , mode='real'); p.colorbar(shrink=.5)
+        p.subplot(424); capo.arp.waterfall(pa , mode='real'); p.colorbar(shrink=.5)
+        p.subplot(425); capo.arp.waterfall(qCan, mode='real'); p.colorbar(shrink=.5)
+        p.subplot(426); capo.arp.waterfall(pCan, mode='real'); p.colorbar(shrink=.5)
+        p.subplot(427); capo.arp.waterfall(qan , mode='real'); p.colorbar(shrink=.5)
+        p.subplot(428); capo.arp.waterfall(pan , mode='real'); p.colorbar(shrink=.5)
         p.show()
         
         p.plot(kpl, n.average(pCa.real, axis=1), 'b.-')
+        p.plot(kpl, n.average(pCan.real, axis=1), 'bo--')
         #p.plot(kpl, n.dot(MC,bC)[:,0], 'b:')
         p.plot(kpl, n.average( pa.real, axis=1), 'k.-')
+        p.plot(kpl, n.average( pan.real, axis=1), 'ko--')
+        p.plot(kpl, leftover, 'r.-')
         #p.plot(kpl, n.dot(M,b)[:,0], 'k:')
         p.show()
     print 'Writing pspec_boot%04d.npz' % boot
