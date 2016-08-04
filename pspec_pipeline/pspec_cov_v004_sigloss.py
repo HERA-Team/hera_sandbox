@@ -72,10 +72,12 @@ def get_Q(mode, n_k): #encodes the fourier transform from freq to delay
 
 
 #Read even&odd data
-dsets = {
+if 'even' in args[0] or 'odd' in args[0]:
+    dsets = {
     'even': [x for x in args if 'even' in x],
     'odd' : [x for x in args if 'odd' in x]
-}
+    }
+else: dsets = {'even': args, 'odd': args}
 print dsets
 
 #Get uv file info
