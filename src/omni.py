@@ -300,9 +300,10 @@ class FirstCal(object):
                 2. baseline pari : offset 
         '''
         window=kwargs.get('window','none')
-        tune=kwargs.get('tune','True')
-        plot=kwargs.get('plot','False')
+        tune=kwargs.get('tune',True)
+        plot=kwargs.get('plot',False)
         clean=kwargs.get('clean',1e-4)
+        use_offset = kwargs.get('use_offset',False)
         blpair2delay = {}
         blpair2offset = {}
         dd = self.info.order_data(self.data)
@@ -314,8 +315,10 @@ class FirstCal(object):
             w1 = ww[:,:,self.info.bl_index(bl1)]
             d2 = dd[:,:,self.info.bl_index(bl2)]
             w2 = ww[:,:,self.info.bl_index(bl2)]
-            delay,offset = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs,window=window,tune=tune,plot=plot,verbose=verbose,clean=clean)
-            #delay = red.redundant_bl_cal_simple(d1,d2,self.fqs,window=window,tune=tune, plot=plot)
+            if True:
+                delay,offset = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs,window=window,tune=tune,plot=plot,verbose=verbose,clean=clean)
+            if False:
+                _,(delay,offset),_ = red.redundant_bl_cal(d1,w1,d2,w2,self.fqs,window=window,verbose=verbose,use_offset=use_offset)
             blpair2delay[(bl1,bl2)] = delay
             blpair2offset[(bl1,bl2)] = offset
         return blpair2delay, blpair2offset
@@ -333,11 +336,19 @@ class FirstCal(object):
     def run(self, verbose=False, offset=False, **kwargs):
         #make measurement matrix 
         self.M,self.O = self.get_M(verbose=verbose, **kwargs)
+        #self.M = np.append(self.M, [0.0,0.0,0.0])
+        #self.O = np.append(self.O, [0.0,0.0,0.0])
         #make noise matrix
+        #N = self.get_N(len(self.info.bl_pairs)+3) 
         N = self.get_N(len(self.info.bl_pairs)) 
         self._N = np.linalg.inv(N)
         #get coefficients matrix,A
         self.A = self.info.A
+        ones = np.ones((1,self.A.shape[1]))
+        #index:antenna => 9:80, 11:104, 13:53
+#        deg1 = np.zeros((1,self.A.shape[1])); deg1[:,9] = 1.0; deg1[:,11] = 1.0
+#        deg2 = np.zeros((1,self.A.shape[1])); deg2[:,9] = 1.0; deg2[:,13] = 1.0
+#        self.A = np.concatenate([self.A,ones,deg1,deg2])
         #solve for delays
         invert = np.dot(self.A.T,np.dot(self._N,self.A))
         dontinvert = np.dot(self.A.T,np.dot(self._N,self.M))
@@ -359,7 +370,6 @@ class FirstCal(object):
             dlys = self.xhat[ant_indexes]
             solved_delays.append(dlys[0]-dlys[1]-dlys[2]+dlys[3])
         self.solved_delays = np.array(solved_delays)
-
 
 def get_phase(fqs,tau, offset=False):
     if offset:
