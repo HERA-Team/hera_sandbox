@@ -57,9 +57,10 @@ o.add_option('--conj', action='store_true',
     help='Properly conjugate the baselines')
 o.add_option('--blavg', dest='bl_avg', action='store_true',
     help='Average all the baselines give')
-
 o.add_option('--lst_avg', dest='lst_avg', action='store_true',
     help='Averag in lst. Takes lst bin size to be 42.95 seconds.')
+o.add_option('--unwrap', dest='unwrap', action='store_true',
+    help='Unwrap the phase. Use only when in mode=phs.')
 
 def convert_arg_range(arg):
     """Split apart command-line lists/ranges into a list of numbers."""
@@ -297,6 +298,8 @@ for cnt, bl in enumerate(bls):
         d = n.ma.array(d)
     plt_data[cnt+1] = d
     d = data_mode(d, opts.mode)
+    if opts.mode.startswith('phs') and opts.unwrap:
+        d = n.unwrap(d)
     if not opts.share:
         p.subplot(m2, m1, cnt+1)
         dmin,dmax = None,None
