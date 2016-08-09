@@ -276,10 +276,6 @@ def from_npz(filename, verbose=False):
         except(ValueError): pass
     return meta, gains, vismdl, xtalk
 
-def chisq_flagger(filename):
-    '''Flag model visibilities on the basis of the global omnical chi-sq visibilities.'''
-   
-
 class FirstCal(object):
     def __init__(self, data, wgts, fqs, info):
         self.data = data
@@ -378,3 +374,17 @@ def get_phase(fqs,tau, offset=False):
         return np.exp(-1j*(2*np.pi*fqs*delay) - offset)
     else:
         return np.exp(-2j*np.pi*fqs*tau)
+
+def save_gains_fc(s,f,name='fcgains',verbose=False):
+    s2 = {}
+    for k,i in s.iteritems():
+        if len(i)>1:
+            s2[str(k)] = get_phase(f,i,offset=True)
+            s2['d'+str(k)] = i[0]
+            if verbose:
+                print 'ant=%d dly=%f , off=%f '%(k,i[0],i[1])
+        else:
+            s2[str(k)] = get_phase(f,i)
+            s2['d'+str(k)] = i
+            if verbose:
+                print 'ant=%d dly=%f  '%(k,i)
