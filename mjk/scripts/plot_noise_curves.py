@@ -62,7 +62,7 @@ for key in data:
         ax1[i].plot(ks[i], np.abs(k3pk[i]) + k3err[i],
                 '--', color=colors[key],label=key)
 
-        ax1[i].plot(ks[i], 2*POBER_NOISE(ks[i],fqs[i]), 'k--')
+        ax1[i].plot(ks[i], 2*POBER_NOISE(fqs[i],ks[i]), 'k-')
 
         ax1[i].set_yscale('log')
         if i > 0:
@@ -82,18 +82,18 @@ for i,redshift in enumerate(z):
     ratio = ( np.abs(k3pk_pC[i]) + k3err_pC[i])/(np.abs(k3pk_pI[i]) + k3err_pI[i])
     ax2[i].plot(ks_pI[i], ratio,'-')
 
-    print '{0:.2f}\t{1:.2f}\t{2:.2f}'.format( redshift, np.mean(ratio), np.std(ratio))
+    print '{0:.2f}\t{1:.3f}\t{2:.3f}'.format( redshift, np.mean(ratio), np.std(ratio))
 
     if i==0:
 
         ax2[i].set_ylabel('pC/pI')
     ax2[i].set_xlabel('$k [hMpc^{-1}]$')
     #ax2[i].set_yscale('log')
-    nbins = len(ax2[i].get_yticklabels()) # added 
-    ax2[i].yaxis.set_major_locator(MaxNLocator(nbins=nbins, prune='upper')) 
+    nbins = len(ax2[i].get_yticklabels()) # added
+    ax2[i].yaxis.set_major_locator(MaxNLocator(nbins=nbins, prune='upper'))
     if i==0:
-        nbins = len(ax2[0].get_xticklabels()) # added 
-        ax2[0].xaxis.set_major_locator(MaxNLocator(nbins=nbins-3)) 
+        nbins = len(ax2[0].get_xticklabels()) # added
+        ax2[0].xaxis.set_major_locator(MaxNLocator(nbins=nbins-3))
     ax2[i].grid(True)
 ax1[-1].legend(loc='lower right')
 #fig.legend(lines,labels,'best')
