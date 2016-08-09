@@ -1,5 +1,6 @@
 import numpy as n,os
 from capo import pspec
+from capo.cosmo_units import f212z, c
 import glob
 import ipdb
 #measurements
@@ -182,3 +183,119 @@ def GMRT_2014_all():
             [0.31, 0,4e5,  -4e5],
             [0.4,  0,6e5,  -6e5],
             [0.5,  0,8e4,  -8e4]])}
+
+def get_pk_from_npz(files=None, verbose=False):
+    '''
+    Loads output from plot_pk_k3pk.npz and returns P(k)  spectrum
+    returns lists of k, Pk, Pk_err, Delta^2 ordered by decreasing redshift
+    return format: z, k_parallel, Pk, Pk_err
+    '''
+    if files is None:
+        print 'No Files gives for loading'
+        return 0,_,_,_
+
+    freqs = []
+    if verbose: print "parsing npz file frequencies"
+    for filename in files:
+        if verbose: print filename,
+        try:
+            if verbose: print "npz..",
+            freqs.append(n.load(filename)['freq']*1e3) #load freq in MHz
+            if verbose: print "[Success]"
+        except(KeyError):
+            if verbose: print "[FAIL]"
+            try:
+                if verbose: print "looking for path like RUNNAME/chan_chan/I/pspec.npz"
+                dchan = int(filename.split('/')[1].split('_')[1])-int(filename.split('/')[1].split('_')[0])
+                chan = int(filename.split('/')[1].split('_')[0]) + dchan/2
+                freqs.append(chan/2. + 100) #a pretty good apprximation of chan 2 freq for 500kHz channels
+            except(IndexError):
+                if verbose: print "[FAIL] no freq found. Skipping..."
+
+    if len(freqs) ==0: #check if any files were loaded correctly
+        print 'No parsable frequencies found'
+        print 'Exiting'
+        return 0,_,_,_
+
+    if verbose: print "sorting input files"
+    files = n.array(files)
+    files = files[n.argsort(freqs)]
+    freqs = n.sort(freqs)
+    if verbose: print "found freqs"
+    freqs = n.array(freqs)
+    if verbose: print freqs
+
+    z = f212z(freqs*1e6)
+    if verbose: print "processing redshifts:",z
+
+    kpars = []
+    Pks = []
+    Pkerr =[]
+    for i,FILE in enumerate(files):
+        F = n.load(FILE)
+        if verbose: print FILE.split('/')[-1],z[i]
+        Pks.append(F['pk'])
+        kpars.append(F['kpl'])
+        Pkerr.append(F['err'])
+
+    return z, kpars, Pks, Pkerr
+
+def get_k3pk_from_npz(files=None, verbose=False):
+    '''
+    Loads output from plot_pk_k3pk.npz and returns Delta^2 spectrum
+    returns lists of k, Delta^2, Delta^2_err ordered by  decreasing redshift
+    return format: z, k_magnitude, Delta^2, Delta^2_err
+    '''
+    if files is None: #check that files are passed
+        print 'No Files gives for loading'
+        return 0,_,_,_
+
+    freqs = []
+    if verbose: print "parsing npz file frequencies"
+    for filename in files:
+        if verbose: print filename,
+        try:
+            if verbose: print "npz..",
+            freqs.append(n.load(filename)['freq']*1e3) #load freq in MHz
+            if verbose: print "[Success]"
+        except(KeyError):
+            if verbose: print "[FAIL]"
+            try:
+                if verbose: print "looking for path like RUNNAME/chan_chan/I/pspec.npz"
+                dchan = int(filename.split('/')[1].split('_')[1])-int(filename.split('/')[1].split('_')[0])
+                chan = int(filename.split('/')[1].split('_')[0]) + dchan/2
+                freqs.append(chan/2. + 100) #a pretty good apprximation of chan 2 freq for 500kHz channels
+            except(IndexError):
+                if verbose: print "[FAIL] no freq found. Skipping..."
+
+    if len(freqs) ==0: #check if any files were loaded correctly
+        print 'No parsable frequencies found'
+        print 'Exiting'
+        return 0,_,_,_
+
+    if verbose: print "sorting input files"
+    files = n.array(files)
+    files = files[n.argsort(freqs)]
+    freqs = n.sort(freqs)
+    if verbose: print "found freqs"
+    freqs = n.array(freqs)
+    if verbose: print freqs
+
+    z = f212z(freqs*1e6)
+    if verbose: print "processing redshifts:",z
+    #redshift_files = dict(zip(z,files))
+    umags = 30/(c/(freqs*1e6))
+    # if verbose: print "umags = ",umags
+    kperps = umags*pspec.dk_du(z)
+    k3Pk = []
+    k3err = []
+    kmags = []
+    for i,FILE in enumerate(files):
+        F = n.load(FILE)
+        if verbose: print FILE.split('/')[-1],z[i]
+        k = n.sqrt(F['kpl']**2 + kperps[i]**2)
+        k3Pk.append(F['k3pk'])
+        k3err.append(F['k3err'])
+        kmags.append(F['k'])
+
+    return z, kmags, k3Pk, k3err

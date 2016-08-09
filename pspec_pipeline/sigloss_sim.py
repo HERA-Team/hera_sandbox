@@ -219,18 +219,18 @@ daykey = data.keys()[0]
 blkey = data[daykey].keys()[0]
 ij = a.miriad.bl2ij(blkey)
 if blconj[blkey]: ij = (ij[1], ij[0])
-#ij = (64, 49) 
+#ij = (64, 49)
 
 #Prep FRF Stuff
 bins = fringe.gen_frbins(inttime)
 frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
-timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2-4])
+timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])#, maxfr=1.3e-3, frwidth=2.0)
 _,blconj,_ = zsa.grid2ij(aa.ant_layout)
 #if blconj[a.miriad.ij2bl(ij[0],ij[1])]: fir = {(ij[0],ij[1],POL):n.conj(firs)}
 #else: fir = {(ij[0],ij[1],POL):firs}
 fir = {(ij[0],ij[1],POL):firs}
 
-#Extract frequency range of data 
+#Extract frequency range of data
 xi = {}
 f = {}
 NOISE = frf((len(chans),len(lsts)),loc=0,scale=1) #same noise on each bl
@@ -256,7 +256,7 @@ print 'Baselines:', nbls
 
 for boot in xrange(opts.nboot):
 
-    print '%d / %d' % (boot+1,opts.nboot)   
+    print '%d / %d' % (boot+1,opts.nboot)
 
     ### Calculate pC just based on the data/simulation noise (no eor injection) ###
     print 'Getting pCv'
@@ -273,7 +273,7 @@ for boot in xrange(opts.nboot):
         I[k],_I[k],_Ix[k] = {},{},{}
         C[k],_C[k],_Cx[k] = {},{},{}
         for bl in bls_master:
-            C[k][bl] = cov(x[k][bl]) 
+            C[k][bl] = cov(x[k][bl])
             I[k][bl] = n.identity(C[k][bl].shape[0])
             U,S,V = n.linalg.svd(C[k][bl].conj()) #singular value decomposition
             _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
@@ -295,7 +295,7 @@ for boot in xrange(opts.nboot):
                 p.suptitle('%d_%d'%a.miriad.bl2ij(bl)+' '+k)
                 p.tight_layout()
                 p.show()
-        
+
     #Make boots
     bls = bls_master[:]
     if True: #shuffle and group baselines for bootstrapping
@@ -405,13 +405,13 @@ for boot in xrange(opts.nboot):
     print '   Generating ps'
     #if opts.noise_only: scalar = 1
     pC = n.dot(MC, qC) * scalar
-    pI = n.dot(MI, qI) * scalar 
+    pI = n.dot(MI, qI) * scalar
 
     #XXX Overwriting to new variables
     pCv = pC.copy()
-    pIv = pI
+    pIv = pI.copy()
 
-    
+
     ### Loop to calculate pC of (data/noise+eor) and pI of eor ###
     print 'Getting pCr and pIe'
 
@@ -432,7 +432,7 @@ for boot in xrange(opts.nboot):
         I[k],_I[k],_Ix[k] = {},{},{}
         C[k],_C[k],_Cx[k] = {},{},{}
         for bl in bls_master:
-            C[k][bl] = cov(x[k][bl]) 
+            C[k][bl] = cov(x[k][bl])
             I[k][bl] = n.identity(C[k][bl].shape[0])
             U,S,V = n.linalg.svd(C[k][bl].conj()) #singular value decomposition
             _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
@@ -455,7 +455,7 @@ for boot in xrange(opts.nboot):
                 p.suptitle('%d_%d'%a.miriad.bl2ij(bl)+' '+k)
                 p.tight_layout()
                 p.show()
-        
+
     #Make boots
     bls = bls_master[:]
     #if True: #XXX GPS already defined the first time
@@ -555,7 +555,7 @@ for boot in xrange(opts.nboot):
     MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
     MC = n.take(n.take(MC_o,iorder, axis=0), iorder, axis=1)
     MI  = n.identity(nchan, dtype=n.complex128)
-    
+
     print "   Getting W"
     #print 'Normalizing M/W'
     WI = n.dot(MI, FI)
@@ -570,7 +570,7 @@ for boot in xrange(opts.nboot):
     print '   Generating ps'
     #if opts.noise_only: scalar = 1
     pC = n.dot(MC, qC) * scalar
-    pI = n.dot(MI, qI) * scalar 
+    pI = n.dot(MI, qI) * scalar
 
     if PLOT:
         p.subplot(411); capo.arp.waterfall(qC, mode='real'); p.colorbar(shrink=.5)
@@ -587,7 +587,7 @@ for boot in xrange(opts.nboot):
     pC = pCr - pCv
 
     print 'pI=', n.average(pI.real), 'pC=', n.average(pC.real), 'pI/pC=', n.average(pI.real)/n.average(pC.real)
-   
+
     if PLOT:
         p.plot(kpl, n.average(pC.real, axis=1), 'b.-')
         p.plot(kpl, n.average(pI.real, axis=1), 'k.-')
@@ -598,7 +598,6 @@ for boot in xrange(opts.nboot):
     if len(opts.output) > 0: outpath = opts.output+'/pspec_bootsigloss%04d.npz' % boot
     else: outpath = 'pspec_bootsigloss%04d.npz' % boot
     n.savez(outpath, kpl=kpl, scalar=scalar, times=n.array(lsts),
-        pk_vs_t=pC, pCv = pCv, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI, freq=fq,
+        pk_vs_t=pC, pCv = pCv, err_vs_t=1./cnt, temp_noise_var=var,
+        nocov_vs_t=pI, freq=fq, pIv=pIv,
         cmd=' '.join(sys.argv))
-
-
