@@ -388,3 +388,8 @@ def save_gains_fc(s,f,name='fcgains',verbose=False):
             s2['d'+str(k)] = i
             if verbose:
                 print 'ant=%d dly=%f  '%(k,i)
+    import sys
+    cmd = sys.argv
+    s2['cmd'] = ' '.join(cmd)
+    n.savez('%s.npz'%name,**s2)
+
