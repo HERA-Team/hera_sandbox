@@ -11,38 +11,47 @@ def skew(cenwid, bins):
         return n.exp(-(bins-cenwid[0])**2/(2*cenwid[1]**2))*(1+erf(cenwid[2]*(bins-cenwid[0])/(n.sqrt(2)*cenwid[1]))) 
 
 o = optparse.OptionParser()
-a.scripting.add_standard_options(o, cal=True, ant=True, pol=True)
+a.scripting.add_standard_options(o, cal=True, ant=True, pol=True,chan=True)
 o.add_option('--outpath', action='store',
     help='Output path to write to.')
-o.add_option('--frpad',default=1.0,type=float,help='make the fringe rate convolution longer by this factor (default 1.0)')
+o.add_option('--bl_scale',type='string',default='1.0',help='makes the baseline used in fringe rate filter creation longer by this factor')
+o.add_option('--fr_width_scale', type='string', default='1.0',
+        help='Artificially inflates width of Fringe Rate Filter by scale factor')
 o.add_option('--alietal', action='store_true',
         help='Uses normalization for alietal frf,(default=False)')
+o.add_option('--inttime',type=float,
+        help='manually set inttime')
+o.add_option('--boxcar', action='store_true',
+    help='filter noise with boxcar instead of frf')
+o.add_option('--teff', type='float',
+    help='Set length of boxcar to integrate data')
+o.add_option('--fringe_rate_centered',action='store_true',dest='frc',
+        help='center the boxcar around Fringe Rate of maximum optimal FRP')
 opts,args = o.parse_args(sys.argv[1:])
 
 uv = a.miriad.UV(args[0])
 nants = uv['nants']
-inttime = uv['inttime'] * 4 #integration time hack
+#inttime = uv['inttime'] * 4 #integration time hack
 aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
 pol = a.miriad.pol2str[uv['pol']]
 
 
-#manually calculate the inttime so frf time bins match data
 (uvw,t1,(i,j)),d = uv.read()
 (uvw,t2,(i,j)),d = uv.read()
 while t1 == t2:
     (uvw,t2,(i,j)),d = uv.read()
-inttime = (t2-t1)* (3600*24)
+data_inttime = (t2-t1)* (3600*24)
+#manually calculate the inttime so frf time bins match data
+if opts.inttime: inttime=opts.inttime
+else: inttime = float(data_inttime)
 del(uv)
-
 #inttime=50.
 
-#set channel to make frf
-mychan=101
 
-##use calculated inttime to generate correct frf bins
-frbins = fringe.gen_frbins(inttime)
-#frbins = n.arange( -.5/inttime+5e-5/2, .5/inttime,5e-5)
-#DEFAULT_FRBINS = n.arange(-.01+5e-5/2,.01,5e-5) # Hz
+#set channel to make frf
+if opts.chan: mychan = int(opts.chan)
+else:mychan=101
+
 
 #Get only the antennas of interest
 sep2ij, blconj, bl2sep = zsa.grid2ij(aa.ant_layout)
@@ -56,22 +65,50 @@ print 'These are the spearations that we are going to use ', seps
 print 'This is the channel we are using to build the frf: ',mychan
 print 'Current inttime use for gen_frbins: ',inttime
 #Get the fir filters for the separation used.
+
+baselines = ''.join(sep2ij[sep] for sep in seps)
+times, data, flags = zsa.get_dict_of_uv_data(args, baselines, pol, verbose=True)
+
+##use calculated inttime to generate correct frf bins
+frbins = fringe.gen_frbins(inttime,fringe_res=1./(inttime*len(times)))
+#frbins = n.arange( -.5/inttime+5e-5/2, .5/inttime,5e-5)
+#DEFAULT_FRBINS = n.arange(-.01+5e-5/2,.01,5e-5) # Hz
+
 firs = {}
 for sep in seps:
-    c = 0 
+    c = 0
     while c != -1:
         ij = map(int, sep2ij[sep].split(',')[c].split('_'))
         bl = a.miriad.ij2bl(*ij)
         if blconj[bl]: c+=1
         else: break
-    frp, bins = fringe.aa_to_fr_profile(aa, ij, mychan, bins=frbins,frpad=opts.frpad)
-    #frp, bins = fringe.aa_to_fr_profile(aa, ij, mychan) ## for default fr_bins
-    #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[100],mdl=skew,startprms=(.001,.001,-50),frpad=opts.frpad)
-    timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan], startprms=(.001*opts.frpad,.0001))
-    #timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],frpad=opts.frpad, alietal=opts.alietal )
-    
-baselines = ''.join(sep2ij[sep] for sep in seps)
-times, data, flags = zsa.get_dict_of_uv_data(args, baselines, pol, verbose=True)
+
+    frp, bins = fringe.aa_to_fr_profile(aa, ij, mychan, bins=frbins, bl_scale=opts.bl_scale)
+    timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan], bl_scale=opts.bl_scale, fr_width_scale = opts.fr_width_scale, alietal = opts.alietal)
+
+    frp = fringe.fir_to_frp(firs[sep])
+    if opts.boxcar:
+        print 'Making Boxcar',
+        print 'Width {0}s ...'.format(opts.teff)
+        top_hat = n.zeros_like(firs[sep])
+        l_hat =len(top_hat[0])
+        if opts.teff: box_time = opts.teff
+        else: box_time = 2232.
+        start = n.round(l_hat/2. - box_time/data_inttime/2.)
+        end = n.round(l_hat/2. + box_time/data_inttime/2.)
+        diff = n.round(box_time/data_inttime - ( end - start))
+        if diff != 0: end += diff
+        if  (end-start) % 2 == 0: end +=1
+        top_hat[:,start:end] += 1.
+
+        if opts.frc:
+            t_frp = fringe.fir_to_frp(top_hat)
+            t_frp = n.array([ n.roll(t_frp[ch], frp[ch].argmax() - t_frp[ch].argmax()  ,axis=0) for ch in xrange(n.shape(t_frp)[0])] )
+            top_hat = fringe.frp_to_fir(t_frp)
+
+        firs[sep] = n.copy(top_hat)
+        firs[sep] /= n.sqrt(n.sum(n.abs(firs[sep])**2,axis=-1)).reshape(-1,1)
+
 lsts = [ aa.sidereal_time() for k in map(aa.set_jultime(), times) ]
 
 _d = {}
@@ -96,7 +133,7 @@ for bl in data.keys():
             _w[bl][pol][:,ch] = n.convolve(flg, n.abs(n.conj(fir[ch,:])), mode='same')
             #_w[bl][pol][:,ch] = n.convolve(flg, n.abs(firs[ch,:]), mode='same')
             #_d[bl][pol][:,ch] = n.where(flags[bl][pol][:,ch]>0, _d[bl][pol][:,ch]/_w[bl][pol][:,ch], 1)  
-            _d[bl][pol][:,ch] = n.where(flg>0, _d[bl][pol][:,ch]/_w[bl][pol][:,ch], 1)  
+            _d[bl][pol][:,ch] = n.where(flg>0, _d[bl][pol][:,ch]/_w[bl][pol][:,ch], 0)
 
 def mfunc(uv, p, d, f):
     uvw,t,(i,j) = p

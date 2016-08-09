@@ -1,16 +1,15 @@
 #! /usr/bin/env python
 import capo.hex as hx, capo.arp as arp, capo.red as red, capo.omni as omni
-import numpy as n, pylab as p, aipy as a
+import numpy as n, aipy as a
 import sys,optparse
+import numpy as np
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o,cal=True,pol=True)
-o.add_option('--plot', action='store_true', help='Plot things.')
 o.add_option('--ubls', default='', help='Unique baselines to use, separated by commas (ex: 1_4,64_49).')
 o.add_option('--ex_ants', default='', help='Antennas to exclude, separated by commas (ex: 1,4,64,49).')
+o.add_option('--outpath',default=None,help='Output path of solution npz files. Default will be the same directory as the data files.')
 opts,args = o.parse_args(sys.argv[1:])
-connection_file=opts.cal
-PLOT=opts.plot
 
 def flatten_reds(reds):
     freds = []
@@ -18,30 +17,45 @@ def flatten_reds(reds):
         freds += r
     return freds
 
-def save_gains(s,f,name='fcgains',verbose=False):
+def save_gains(s,f,pol,filename=None,ubls=None,ex_ants=None,verbose=False):
+    """
+    s: solutions
+    f: frequencies
+    pol: polarization
+    filename: if a specific file was used (instead of many), change output name
+    ubls: unique baselines used to solve for s'
+    ex_ants: antennae excluded to solve for s'
+    """
     s2 = {}
     for k,i in s.iteritems():
         if len(i)>1:
+            #len > 1 means that one is using the "tune" parameter in omni.firstcal
+            #i[0] = tau+dt, i[1] = offset XXX offset from what?
             s2[str(k)] = omni.get_phase(f,i,offset=True)
-            s2['d'+str(k)] = i[0]
-            if verbose:
-                print 'dly=%f , off=%f '%i
-        else:    
+            s2[str(k)+'d'] = i[0]
+            if verbose: print 'dly=%f , off=%f'%i
+        else:
             s2[str(k)] = omni.get_phase(f,i)
-            s2['d'+str(k)] = i
-            if verbose:
-                print 'dly=%f  '%i 
-    import sys
-    cmd = sys.argv
-    s2['cmd'] = ' '.join(cmd)
-    n.savez('%s.npz'%name,**s2)
+            s2[str(k)+'d'] = i
+            if verbose: print 'dly=%f'%i
+    if not ubls is None: s2['ubls']=ubls
+    if not ex_ants is None: s2['ex_ants']=ex_ants
+    if not filename is None:
+        if not opts.outpath is None:
+            outname='%s/%s.fc.npz'%(opts.outpath,filename.split('/')[-1])
+        else:
+            outname='%s.fc.npz'%filename
+    else:
+        outname='fcgains.%s.npz'%pol
+    s2['cmd'] = ' '.join(sys.argv)
+    print 'Saving fcgains to %s'%outname
+    n.savez(outname,**s2)
 
 def normalize_data(datadict):
     d = {}
     for key in datadict.keys():
         d[key] = datadict[key]/n.where(n.abs(datadict[key]) == 0., 1., n.abs(datadict[key]))
     return d 
-
     
 #hera info assuming a hex of 19 and 128 antennas
 aa = a.cal.get_aa(opts.cal, n.array([.150]))
@@ -58,102 +72,25 @@ for bl in opts.ubls.split(','):
 print 'Excluding Antennas:',ex_ants
 if len(ubls) != None: print 'Using Unique Baselines:',ubls
 info = omni.aa_to_info(aa, fcal=True, ubls=ubls, ex_ants=ex_ants)
-#infotest = omni.aa_to_info(aa, fcal=True, ubls=[(80,104),(9,22),(80,96)],ex_ants=[81])
 reds = flatten_reds(info.get_reds())
-#redstest = infotest.get_reds()#for plotting 
 
 print 'Number of redundant baselines:',len(reds)
 #Read in data here.
 ant_string =','.join(map(str,info.subsetant))
 bl_string = ','.join(['_'.join(map(str,k)) for k in reds])
 times, data, flags = arp.get_dict_of_uv_data(args, bl_string, opts.pol, verbose=True)
-dataxx = {} #not necessarily xx data inside
+datapack = {} #not necessarily xx data inside
 for (i,j) in data.keys():
-    dataxx[(i,j)] = data[(i,j)][opts.pol]
-fqs = n.linspace(.1,.2,203) #XXX
-dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, fqs[1]-fqs[0]))
+    datapack[(i,j)] = data[(i,j)][opts.pol]
+nfreq = datapack[datapack.keys()[0]].shape[1] #XXX less hacky than previous hardcode, but always safe?
+fqs = n.linspace(.1,.2,nfreq)
+dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, np.diff(fqs)[0]))
 
 #gets phase solutions per frequency.
-fc = omni.FirstCal(dataxx,fqs,info)
+fc = omni.FirstCal(datapack,fqs,info)
 sols = fc.run(tune=True,verbose=False,offset=True,plot=False)
-save_gains(sols,fqs,name=args[0],verbose=True)
 
 #Save solutions
-#save_gains(sols,fqs, opts.pol) 
-
-"""
-dataxx_c = {}
-for (a1,a2) in info.bl_order():
-    if (a1,a2) in dataxx.keys():
-        dataxx_c[(a1,a2)] = dataxx[(a1,a2)]*omni.get_phase(fqs,sols[a1])*n.conj(omni.get_phase(fqs,sols[a2]))
-    else:
-        dataxx_c[(a1,a2)] = n.conj(dataxx[(a2,a1)]*omni.get_phase(fqs,sols[a2])*n.conj(omni.get_phase(fqs,sols[a1])))
-
-#def waterfall(d, ax, mode='log', mx=None, drng=None, recenter=False, **kwargs):
-#    if n.ma.isMaskedArray(d): d = d.filled(0)
-#    if recenter: d = a.img.recenter(d, n.array(d.shape)/2)
-#    d = arp.data_mode(d, mode=mode)
-#    if mx is None: mx = d.max()
-#    if drng is None: drng = mx - d.min()
-#    mn = mx - drng
-#    return ax.imshow(d, vmax=mx, vmin=mn, aspect='auto', interpolation='nearest', **kwargs)
-#
-#plotting data
-redbls = []
-for r in redstest: redbls += r
-redbls = n.array(redbls)
-#print redbls.shape
-#dm = divmod(len(redbls), n.round(n.sqrt(len(redbls))))
-#nr,nc = int(dm[0]),int(dm[0]+n.ceil(float(dm[1])/dm[0]))
-#fig,ax = p.subplots(nrows=nr,ncols=nc,figsize=(14,10))
-#for i,bl in enumerate(redbls):
-#    bl = (bl[0],bl[1])
-#    try: 
-#        waterfall(dataxx[bl], ax[divmod(i,nc)], mode='phs')
-#        ax[divmod(i,nc)].set_title('%d,%d'%(bl))
-#    except(KeyError):
-#        waterfall(dataxx[bl[::-1]], ax[divmod(i,nc)], mode='phs')
-#        ax[divmod(i,nc)].set_title('%d,%d'%(bl[::-1]), color='m')
-#fig.subplots_adjust(hspace=.5)
-
-if PLOT:
-    for bl in redbls:
-        bl = tuple(bl)
-        try:
-            #p.subplot(211); arp.waterfall(dataxx[bl], mode='log',mx=0,drng=3); p.colorbar(shrink=.5)
-            #p.subplot(212); arp.waterfall(dataxx_c[bl], mode='log',mx=0,drng=3); p.colorbar(shrink=.5)
-            p.subplot(211); arp.waterfall(dataxx[bl], mode='phs'); p.colorbar(shrink=.5)
-            p.subplot(212); arp.waterfall(dataxx_c[bl], mode='phs'); p.colorbar(shrink=.5)
-            p.title('%d_%d'%bl)
-            print sols[bl[0]] - sols[bl[1]]
-            print bl
-        except(KeyError):
-            p.subplot(211); arp.waterfall(n.conj(dataxx[bl[::-1]]), mode='phs'); p.colorbar(shrink=.5)
-            p.subplot(212); arp.waterfall(n.conj(dataxx_c[bl]), mode='phs'); p.colorbar(shrink=.5)
-            p.title('%d_%d'%bl)
-            print bl
-
-        p.show()
-
-
-data_norm = normalize_data(dataxx_c)
-
-if PLOT or True:
-    for bl in redbls:
-        bl = tuple(bl)
-        try:
-            print data_norm[bl].shape
-            p.subplot(111); arp.waterfall(n.fft.fftshift(arp.clean_transform(data_norm[bl]),axes=1),extent=(dlys[0],dlys[-1],0,len(redbls))); p.colorbar()
-            p.xlim(-50,50)
-            p.title('%d,%d'%bl)
-        except(KeyError):
-            print 'Key Error on', bl
-
-        p.show()
-"""        
-   
-
-
-
-
+if len(args)==1: save_gains(sols,fqs, opts.pol, filename=args[0], ubls=ubls, ex_ants=ex_ants)
+else: save_gains(sols,fqs, opts.pol, ubls=ubls, ex_ants=ex_ants) 
 
