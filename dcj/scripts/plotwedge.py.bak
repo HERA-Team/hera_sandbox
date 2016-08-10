@@ -1,0 +1,69 @@
+from pylab import *
+import numpy as n
+import time
+from capo import pspec
+rcParams['font.size'] = 22
+rcParams['font.family']='serif'
+NBLS  = 2000
+tic = time.time()
+F = n.load(sys.argv[1])
+bl_lengths = F['bl_lengths']
+delays = F['delays']
+freq = F['freq']
+z = pspec.f2z(freq/1e9)
+if len(sys.argv[1:])==1:
+    amps = n.ma.masked_invalid(n.log10(n.abs(F['P'].T)))
+else:
+    P=0
+    P2 = 0
+    C = 0
+    for Pfile in sys.argv[1:]:
+        F = n.load(Pfile)
+        P += F['P']
+        P2 += F['P2']
+        C += F['C']
+    PROD = P*n.conj(P) - P2
+    PROD[C>0] /= 2*C[C>0]
+    PROD = n.sqrt(PROD)
+    amps = n.ma.masked_invalid(n.log10(PROD.T))
+B,D = n.meshgrid(bl_lengths,n.fft.fftshift(delays))
+print B.shape,amps.shape
+if True:
+    figure()
+    pcolor(B,D,amps,vmin=0)
+    plot(bl_lengths,bl_lengths,'k')
+    plot(bl_lengths,-1*bl_lengths,'k')
+    ylim([-2*bl_lengths.max(),2*bl_lengths.max()])
+    ylabel('delay [ns]')
+    xlabel('bl length [ns]')
+    colorbar()
+    print "time = ",time.time()-tic
+
+#average +/- k//
+#plot with k units
+#add bandwidth to horizon limit
+figure(figsize=(18,8))
+ndelays = len(delays)
+nkparr = n.sum(delays>=0)
+P = F['P'].T
+wedge = n.sqrt(n.abs(P[nkparr:]*n.conj(P[nkparr:]) + \
+    n.flipud(P[:nkparr]*n.conj(P[:nkparr]))/2))
+wedge_amp = n.ma.masked_invalid(n.log10(wedge))
+kparr = delays[delays>=0]*pspec.dk_deta(z)
+kperp = bl_lengths*pspec.dk_du(z)
+horizon = bl_lengths*pspec.dk_deta(z)
+print bl_lengths,pspec.dk_deta(z),z
+print horizon
+KPERP,KPARR = n.meshgrid(kperp,kparr)
+pcolor(KPERP,KPARR,wedge_amp,vmin=0)
+ylim([0,kparr.max()/2])
+xlim([kperp.min(),kperp.max()])
+plot(kperp,horizon,'k')
+#first coarse channel harmonic
+dfcoarse=30/24.*1e-3
+plot(kperp,horizon+1/(dfcoarse)*pspec.dk_deta(z),':k')
+ylabel('$k_\\parallel$ [hMpc$^{-1}$]')
+xlabel('$k_\\perp$ [hMpc$^{-1}$]')
+colorbar()
+print "time = ",time.time()-tic
+show()

@@ -1,7 +1,8 @@
 #! /usr/bin/env python
 import matplotlib
 matplotlib.use('Agg')
-import aipy as a, numpy as n, pylab as p
+import aipy as a, numpy as n
+from matplotlib import pylab as p
 import capo as C
 import sys, optparse, re, os, random
 
