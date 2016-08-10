@@ -55,18 +55,23 @@ pCs_full, pIs_full= n.array(pCs_full), n.array(pIs_full)
 ###Build an interpolator to find sigloss factors###
 sig_factor_interp = interp1d(n.abs(pCs_full.ravel()), n.abs(pIs_full.ravel())/n.abs(pCs_full.ravel()),
                         kind='linear',bounds_error=False,fill_value=0)
+order = n.argsort(n.abs(pCs)) #set up interpolator to work even if pCs are out of order
+pCs_order = n.abs(pCs[order])
+pIs_order = n.abs(pIs[order])
+sig_factor_interp = interp1d(pCs_order, pIs_order/pCs_order,kind='linear',bounds_error=False,fill_value=0)
+
+>>>>>>> carina/master
 ### GETTING PSPEC DATA ###
 # XXX only used to get 'freq' variable
 
-#npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_frfnew/pspec_pk_k3pk.npz')
 try:
     z_bin = f2z(freq)
 except:
     print 'frequency not found in boots. Searching in pspec.npz'
-    npz = n.load('/home/mkolopanis/psa64/sigloss_verification/Jul6_noise_3Jy_inttime_44/95_115/I/pspec_Jul6_noise_3Jy_inttime_44_95_115_I.npz') #matt's dat
+    npz = n.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_manybls/PS_frfnew/pspec_pk_k3pk.npz')
+    #npz = n.load('/home/cacheng/capo/ctc/matt_data/noise_diffbls/pspec_pk_k3pk.npz') #matt's data
     freq = npz['freq']
     z_bin = f2z(freq)
-#npz = n.load('/home/cacheng/capo/ctc/matt_data/noise_diffbls/pspec_pk_k3pk.npz') #matt's data
 
 #kpls,pks,errs = npz['kpl'], npz['pk'], npz['err']
 
@@ -78,8 +83,7 @@ fig.subplots_adjust(left=.15, top=.95, bottom=.15, wspace=.35, hspace=.15, right
 
 #Plot 2
 p.figure(1)
-pklo,pkhi = 1e-6,1e20
-#pklo,pkhi = 1e-10,1e5 #for noise only
+pklo,pkhi = 1e-4,1e10
 ax2 = p.subplot(gs[4]) #used to be 2
 #p.loglog(pIs, pCs, 'k.')
 p.setp(ax2.get_yticklabels(), visible=False) #uncomment if no left-hand P(k) plot
@@ -109,6 +113,7 @@ p.setp(ax3.get_yticklabels(), visible=False)
 #p.loglog(n.abs(pIs/pCs - 1), pCs, 'k.')
 p.errorbar(n.abs(pIs/pCs - 1), n.abs(pCs), xerr=2*pIs_err/pCs, yerr=2*pCs_err, fmt='k.', capsize=0)
 print "pI/pC : ", pIs/pCs - 1
+print "pI: ", pIs
 print "pC: ", pCs
 ax3.set_xscale('log')
 ax3.set_yscale('log')
@@ -118,13 +123,8 @@ p.xlim(1e-1,1e5)
 p.grid()
 p.xlabel(r'$P_{\rm in}/P_{\rm out}-1$', fontsize=14)
 p.fill_between([1e-3,1e8], [pkdn,pkdn], [pkup,pkup], facecolor='gray', edgecolor='gray')
-sig_factors = []
-#sig_factors.append(sig_factor_interp(pkup))
-for kpl,pk in zip(kpls,pCvs.mean(0).mean(-1)):
-    if kpl > .2:
-        _pkup = n.max(n.abs(pk))
-        sig_factors.append(sig_factor_interp(_pkup))
 """
+sig_factors = []
 for kpl,pk,err in zip(kpls,pks,errs):
     pkup = max(pk+err,1e-6)
     pkdn = max(pk-err,1e-6)
@@ -136,7 +136,7 @@ for kpl,pk,err in zip(kpls,pks,errs):
 #Plot 1
 ax0 = p.subplot(gs[1]) #used to be 0
 p.setp(ax0.get_xticklabels(), visible=False)
-p.errorbar(pIs, pCs/pIs, xerr=2*pIs_err, yerr=2*pCs_err/pIs, fmt='k.', capsize=0)
+p.errorbar(pIs, n.abs(pCs/pIs), xerr=2*pIs_err, yerr=2*pCs_err/pIs, fmt='k.', capsize=0)
 ax0.set_xscale('log')
 p.xlim(pklo, pkhi)
 #p.ylim(3e-2,3)
@@ -161,8 +161,12 @@ p.savefig('sigloss.png',format='png')
 print sig_factors
 print "Max sigloss factor z={0:.2f}:  {1:.2f}".format(z_bin,n.max(sig_factors))
 f= open('sigloss_factor.txt','w')
-f.write('Max sigloss factor z={0:.2f}:  {1:.2f}\n'.format(z_bin,n.max(sig_factors)))
+f.write("Max sigloss factor z={0:.2f}:  {1:.2f}".format(z_bin,float(sig_factor_interp(n.max(n.abs(pCvs))))))
+print "Max sigloss factor z={0:.2f}:  {1:.2f}".format(z_bin,float(sig_factor_interp(n.max(n.abs(pCvs))))) #n.max(sig_factors))
 f.close()
+p.show()
+
+
 
 #p.show()
 p.close()
