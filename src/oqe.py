@@ -162,16 +162,43 @@ class DataSet:
         self.dsets = dsets.keys()
         self.bls = bls.keys()
         self.pols = pols.keys()
-    def gen_bl_boots(self, nboots, ngps=5):
-        _bls = {}
-        for k in self.x: _bls[k[1]] = None
-        for boot in xrange(nboots):
-            bls = _bls.keys()[:]
-            random.shuffle(bls)
-            gps = [bls[i::ngps] for i in range(ngps)]
-            gps = [[random.choice(gp) for bl in gp] for gp in gps]
-            yield gps
-        return
+    #def gen_bl_boots(self, nboots, ngps=5):
+    #    _bls = {}
+    #    for k in self.x: _bls[k[1]] = None
+    #    for boot in xrange(nboots):
+    #        bls = _bls.keys()[:]
+    #        random.shuffle(bls)
+    #        gps = [bls[i::ngps] for i in range(ngps)]
+    #        gps = [[random.choice(gp) for bl in gp] for gp in gps]
+    #        yield gps
+    #    return
+    def gen_gps(self, bls, ngps=5):
+        random.shuffle(bls)
+        gps = [bls[i::ngps] for i in range(ngps)]
+        gps = [[random.choice(gp) for bl in gp] for gp in gps] #sample w/replacement inside each group
+        return gps
+    def group_data(self, keys, gps): #XXX keys have format (k,bl,POL)
+        ks = np.unique([key[0] for key in keys]) 
+        POL = keys[0][2]
+        nchan = self.x[keys[0]].shape[0]
+        newkeys = []
+        dsC_data, dsI_data = {},{}
+        iCsum,iCxsum,Ixsum,Isum = {},{},{},{}
+        for k in ks: #summing up data for each group and making new keys
+            for gp in range(len(gps)):
+                newkey = (k,gp)
+                newkeys.append(newkey)
+                iCsum[newkey] = sum([self.iC((k,(bl[0],bl[1]),POL)) for bl in gps[gp]])
+                iCxsum[newkey] = sum([np.dot(self.iC((k,(bl[0],bl[1]),POL)),self.x[(k,(bl[0],bl[1]),POL)]) for bl in gps[gp]])
+                Isum[newkey] = sum([np.identity(nchan) for bl in gps[gp]])
+                Ixsum[newkey] = sum([self.x[(k,(bl[0],bl[1]),POL)] for bl in gps[gp]])
+                dsC_data[newkey] = np.dot(np.linalg.inv(iCsum[newkey]),iCxsum[newkey]).T #finding effective summed up x based on iCsum and iCxsum
+                dsI_data[newkey] = np.dot(np.linalg.inv(Isum[newkey]),Ixsum[newkey]).T #finding effective summed up x based on Isum and Ixsum
+        dsC = DataSet(); dsC.add_data(dsets=dsC_data)
+        dsI = DataSet(); dsI.set_data(dsets=dsI_data) #I has to be a separate dataset because it has different x's populated into it
+        dsC.set_iC(iCsum) #override since if they're computed from x, they're incorrect
+        dsI.set_I(Isum)
+        return newkeys, dsC, dsI
     def q_hat(self, k1, k2, use_cov=True, use_fft=True):
         nchan = self.x[k1].shape[0]
         if use_cov: iC1,iC2 = self.iC(k1), self.iC(k2)
