@@ -196,7 +196,7 @@ def get_pk_from_npz(files=None, verbose=False):
         return 0,_,_,_
 
     one_file_flag=False
-    if len(np.shape(files)) ==0: files = [files];
+    if len(n.shape(files)) ==0: files = [files];
     if len(files) == 1: one_file_flag=True
 
     freqs = []
@@ -260,7 +260,7 @@ def get_k3pk_from_npz(files=None, verbose=False):
         return 0,_,_,_
 
     one_file_flag=False
-    if len(np.shape(files)) ==0: files = [files];
+    if len(n.shape(files)) ==0: files = [files];
     if len(files) == 1: one_file_flag=True
     freqs = []
     if verbose: print "parsing npz file frequencies"
@@ -417,7 +417,8 @@ def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,
 
 
 def consolidate_bootstraps(files=None, verbose=False,
-        outfile='pspec_boots_consolidated.npz', NBOOT=400,inject=False):
+        outfile='pspec_boots_consolidated.npz', NBOOT=400,inject=False,
+        save=True):
     if files is None or not files:
         raise TypeError('Files given are {0}; Must supply input files'.format(files))
         return files
@@ -499,5 +500,5 @@ def consolidate_bootstraps(files=None, verbose=False,
         if key == 'pk_vs_t': out_dict['pCs'] = out_dict.pop(key)
         if key == 'nocov_vs_t': out_dict['pIs'] = out_dict.pop(key)
 
-    n.savez(outfile, **out_dict)
+    if save: n.savez(outfile, **out_dict)
     return out_dict
