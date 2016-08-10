@@ -4,6 +4,17 @@ import numpy as np, aipy, capo, pylab as plt, sys, glob
 
 def dB(sig): return 10*np.log10(np.abs(np.average(sig.real, axis=1)))
 
+def find_sep(aa, bls, drow=None, dcol=None):
+    layout = aa.ant_layout
+    rv = []
+    for i,j in bls:
+        irow,icol = np.where(layout == i)
+        jrow,jcol = np.where(layout == j)
+        if not drow is None and abs(irow - jrow) != drow: continue
+        if not dcol is None and abs(icol - jcol) != dcol: continue
+        rv.append((i,j))
+    return rv
+
 def rebin_lst(binsize, lsts, d, w):
     bins = lsts/binsize
     b0 = int(bins[0])
@@ -48,65 +59,120 @@ CONJ = [
     (12,43) , # 12
     (57,64) ] # 15
 
-SEP = SEPS[1]
+SEPS = [(0,103), (0,111), (0,95)]
+SEPS += [(2,105), (1,83)]
+#SEPS += [(0,79), (0,78)]
+#SEPS += [(0,70),(0,71)]
+#SEPS += [(1,107),(0,51)]
+#SEPS += [(3,105),(3,106)]
 #CH0,NCHAN = 90, 31
 CH0,NCHAN = 110, 51
 
-meta, gains, vismdl, xtalk = capo.omni.from_npz(sys.argv[1:], verbose=True)
+sets = {
+    #'day0' : sys.argv[1:],
+    #'day0' : glob.glob('zen.2456714.*.xx.npz'),
+    'day1' : glob.glob('zen.2456715.*.xx.npz'),
+    'day2' : glob.glob('zen.2456716.*.xx.npz'),
+}
 data,wgts = {}, {}
-for pol in vismdl:
-    #for bl in vismdl[pol]:
-    for bl in SEPS:
-        k = ('day0',pol,bl)
-        data[k] = vismdl[pol][bl][:,CH0:CH0+NCHAN]
-        if bl in CONJ: data[k] = data[k].conj()
-        wgts[k] = np.where(np.abs(data[k]) == 0, 0., 1)
+lsts = {}
+for s in sets:
+    if not lsts.has_key(s):
+        meta, gains, vismdl, xtalk = capo.omni.from_npz(sets[s], verbose=True)
+        lsts[s] = meta['lsts']
+    for pol in vismdl:
+        #for bl in vismdl[pol]:
+        for bl in SEPS:
+            k = (s,pol,bl)
+            data[k] = vismdl[pol][bl][:,CH0:CH0+NCHAN]
+            if bl in CONJ: data[k] = data[k].conj()
+            wgts[k] = np.where(np.abs(data[k]) == 0, 0., 1)
 ds = capo.oqe.DataSet(data, wgts)
-k1 = ('day0','xx',(0,103))
+ind = {}
+set1,set2 = sets.keys()[0], sets.keys()[-1]
+lst_res = np.average(lsts[set1][1:] - lsts[set1][:-1])/2
+ind[set1], ind[set2]= ds.lst_align(lsts[set1], lsts[set2], lstres=lst_res)
 
-'''
-Cs,iCs = {},{}
 for k in data:
-    #Cs[k] = ds.C(k)
-    #Cs[k] = sum([ds.C(ki)+0*np.identity(NCHAN) for ki in dat])
-    Cs[k] = sum([ds.C(ki)+3e-6*np.identity(NCHAN) for ki in dat if ki != k])
-    #Cs[k] = sum([ds.C(ki)+1e-6*np.identity(NCHAN) for ki in dat if ki != k])
-    #Cs[k] = sum([ds.C(ki)+1e-4*np.identity(NCHAN) for ki in dat if ki != k])
-    #Cs[k] = sum([ds.C(ki)+0*np.identity(NCHAN) for ki in dat if ki != k])
-    #ds.set_C({k:Cs[k]+1e-1*np.identity(NCHAN)}) # regularize a bit with some diagonal
-    ds.set_C({k:Cs[k]})
-    iCs[k] = ds.iC(k)
-'''
+    (s,pol,bl) = k
+    data[k] = data[k][ind[s]]
+    wgts[k] = wgts[k][ind[s]]
+ds = capo.oqe.DataSet(data, wgts)
+    
+#k1a,k1b,k1c = [(s,'xx',(0,103)) for s in sets]
+#k2a,k2b,k2c = [(s,'xx',(0,111)) for s in sets]
+#k3a,k3b,k3c = [(s,'xx',(0, 95)) for s in sets]
+#ks = [k1a,k1b,k1c,k2a,k2b,k2c,k3a,k3b,k3c]
+#k1a,k1b = [(s,'xx',(0,103)) for s in sets]
+#k2a,k2b = [(s,'xx',(0,111)) for s in sets]
+#k3a,k3b = [(s,'xx',(0, 95)) for s in sets]
+#ks = [k1a,k1b,k2a,k2b,k3a,k3b]
+ks = [(s,'xx',bl) for bl in SEPS for s in sets]
+#k1a, = [(s,'xx',(0,103)) for s in sets]
+#k2a, = [(s,'xx',(0,111)) for s in sets]
+#k3a, = [(s,'xx',(0, 95)) for s in sets]
+#ks = [k1a,k2a,k3a]
+NK = len(ks)
 
-#ds.set_data(dat_cut)
-#ds.set_data(dat)
+def set_C(norm=3e-6):
+    ds.clear_cache()
+    Cs,iCs = {},{}
+    for k in ks:
+        #Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki != k])
+        Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
+        #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in ks if ki != k])
+        #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in data if ki[2] != k[2]])
+        ds.set_C({k:Cs[k]})
+        iCs[k] = ds.iC(k)
+
 #tau = np.fft.fftshift(dly)
-win1 = aipy.dsp.gen_window(NCHAN, 'blackman-harris'); win1.shape = (-1,1)
-win2 = aipy.dsp.gen_window(NCHAN, 'blackman-harris')**1.5; win2.shape = (-1,1)
-#for ki in iCs:
-for ki in data:
-    print ki
-    qI = ds.q_hat(ki,ki,use_cov=False)
-    FI = ds.get_F(ki,ki,use_cov=False)
-    MI,WI = ds.get_MW(FI, mode='I')
-    pI = ds.p_hat(MI,qI)
-    pW1 = 1.6*2*np.abs(np.fft.fftshift(np.fft.ifft(win1*data[ki].T, axis=0), axes=0))**2
-    pW2 = 2.4*2*np.abs(np.fft.fftshift(np.fft.ifft(win2*data[ki].T, axis=0), axes=0))**2
-    #plt.figure(1)
-    #plt.plot(tau, dB(pI), 'b', label='I')
-    #plt.plot(tau, dB(pW1), 'g', label='W')
-    #plt.plot(tau, dB(pW2), 'g', label='W')
-    #plt.plot(tau, dB(pI_eor), 'k', label='E')
-    #ds.set_iC({ki:iCs[ki]})
-    qC = ds.q_hat(ki,ki)
-    FC = ds.get_F(ki,ki)
-    MC,WC = ds.get_MW(FC, mode='F^-1/2')
-    pC = ds.p_hat(MC,qC)
-    for cnt,pk in enumerate([pI,pW1,pW2,pC]):
-        #plt.figure(1)
-        plt.subplot(5,1,cnt+1); capo.plot.waterfall(pk, mx=-2, drng=6), plt.colorbar()
-        #plt.figure(2); plt.plot(dB(pk))
-    plt.subplot(5,1,5); capo.plot.waterfall(ds.x[ki], drng=3), plt.colorbar()
-    plt.show()
+win = aipy.dsp.gen_window(NCHAN, 'blackman-harris'); win.shape = (-1,1)
+
+def get_p(k1,k2,mode):
+    assert(mode in 'IWC')
+    if mode == 'I':
+        qI = ds.q_hat(k1,k2,use_cov=False)
+        FI = ds.get_F(k1,k2,use_cov=False)
+        MI,WI = ds.get_MW(FI, mode='I')
+        pI = ds.p_hat(MI,qI)
+        return pI
+    elif mode == 'W':
+        pW = 1.6*2*np.fft.fftshift(np.fft.ifft(win*data[k1].T, axis=0) * np.fft.ifft(win*data[k2].T, axis=0).conj(), axes=0)
+        return pW
+    elif mode == 'C':
+        qC = ds.q_hat(k1,k2)
+        FC = ds.get_F(k1,k2)
+        MC,WC = ds.get_MW(FC, mode='F^-1/2')
+        pC = ds.p_hat(MC,qC)
+        return pC
+
+#set_C(1e-6)
+set_C(0)
+#pI,pW,pC = get_p(ks[0],ks[1])
+
+for cnt,k in enumerate(ks):
+    plt.subplot(NK,1,cnt+1)
+    capo.plot.waterfall(ds.x[k], drng=3)
+    plt.colorbar()
+plt.show()
+
+for cnt,k in enumerate(ks):
+    plt.subplot(NK,1,cnt+1)
+    pC = get_p(k,k,'C')
+    plt.title(k[0])
+    capo.plot.waterfall(pC, mx=-2, drng=7)
+    plt.colorbar()
+plt.show()
+
+'''
+pC1 = get_p(k1a,k1b,'C')
+pC2 = get_p(k2a,k2b,'C')
+pC3 = get_p(k3a,k3b,'C')
+plt.plot(np.abs(np.median(pC1, axis=1).real), 'r', label='pC1',)
+plt.plot(np.abs(np.median(pC2, axis=1).real), 'b', label='pC2',)
+plt.plot(np.abs(np.median(pC3, axis=1).real), 'k', label='pC3',)
+plt.legend()
+plt.show()
+'''
 
 import IPython; IPython.embed()
