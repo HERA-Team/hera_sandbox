@@ -12,6 +12,8 @@ o.add_option('--xtalk',dest='xtalk',default=False,action='store_true',
             help='Toggle: apply xtalk solutions to data. Default=False')
 o.add_option('--omnipath',dest='omnipath',default='%s.npz',type='string',
             help='Format string (e.g. "path/%s.npz", where you actually type the "%s") which converts the input file name to the omnical npz path/file.')
+o.add_option('--firstcal', dest='firstcal', type='string',
+            help='Firstcal calfile.')
 opts,args = o.parse_args(sys.argv[1:])
 
 
@@ -25,7 +27,7 @@ for filename in args:
         fn[3] = p
         files[filename][p] = '.'.join(fn)
 
-firstfile = numpy.load('fcgains.xx.npz')
+firstfile = numpy.load(opts.firstcal)
 gains = {'x':{}}
 for ant in firstfile.keys():
     if ant.isdigit():
@@ -51,9 +53,9 @@ for f,filename in enumerate(args):
                     try: d -= xtalk[pol][(a2,a1)].conj()
                     except(KeyError): pass
             ti = len(times) - 1 #time index
-            try: d*=gains[p1][a1]
+            try: d*=numpy.conj(gains[p1][a1])
             except(KeyError): pass
-            try: d*=gains[p1][a2].conj()
+            try: d*=numpy.conj(gains[p1][a2].conj())
             except(KeyError): pass
             #try: d /= gains[p1][a1][ti] #apply gains
             #except(KeyError): pass

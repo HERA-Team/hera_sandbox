@@ -3,26 +3,45 @@ import capo as C
 import aipy as a, numpy as n
 import pylab as p
 from mpl_toolkits.basemap import Basemap
-import capo.fringe as fringe
-#import capo.frf_conv as fringe
-
+import capo.frf_conv as fringe
+import capo.fringe as old_fringe
 
 class TestFRFilter(unittest.TestCase):
     def setUp(self):
         self.aa = a.cal.get_aa('psa6240_v003', n.linspace(.1,.2,203))
     def test_get_beam_w_fr(self):
-        interps = fringe.get_beam_w_fr(self.aa, (1,4), ref_chan=160)
-        t,firs, frbins, frspace = fringe.get_fringe_rate_kernels(interps, 42.9, 401)
-        print n.ones_like(frspace).sum()
-        print n.sum(frspace**2)
+        #interps = fringe.get_beam_w_fr(self.aa, (1,4), ref_chan=160)
+        #t,firs, frbins, frspace = fringe.get_fringe_rate_kernels(interps, 42.9, 401)
+        frp, bins = fringe.aa_to_fr_profile(self.aa, (1,4), 100) 
+        print "the bins",len(bins), len(frp)
+        timebins, firs = fringe.frp_to_firs(frp, bins, self.aa.get_freqs(), fq0=self.aa.get_freqs()[100])
+        print len(timebins), len(firs[100])
+        frp_fit = fringe.fir_to_frp(firs[100])
+#        print n.ones_like(frspace).sum()
+#        print n.sum(frp**2)
         p.subplot(121)
-        p.plot(t, firs[160])
-        p.plot(t, n.abs(firs[160]))
+        p.plot(timebins, firs[100])
+        p.plot(timebins, n.abs(firs[100]))
         p.subplot(122)
-        p.plot(frbins, frspace[160])
+        print len(bins), bins[0], bins[-1]
+        p.plot(bins, frp, 'k')
+        p.plot(bins, frp_fit, 'b', label='new')
         p.xlim(-.0005,.0020)
         p.ylim(0.0,1.0)
+        p.legend()
         p.show()
+    def test_difference(self):
+        h, b, w, hifit = old_fringe.get_optimal_kernel_at_ref(self.aa, 100, (1, 4), binwidth=.00005)
+        interps = old_fringe.get_beam_w_fr(self.aa, (1,4), ref_chan=100)
+        t,firs, frbins, frspace = old_fringe.get_fringe_rate_kernels(interps, 42.9, 399)
+        print len(frbins), frbins[0], frbins[-1]
+        p.subplot(121)
+        p.plot(t, firs[100], '+')
+        p.plot(t, n.abs(firs[100]), '+')
+        p.subplot(122)
+        p.plot(b, h, 'k+')
+        p.plot(frbins, frspace[100], 'b+', label='old')
+        p.legend()
     def test_get_optimal_kernel_at_ref(self):
         ch = 100
         binwidth=.00005
