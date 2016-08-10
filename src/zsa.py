@@ -169,3 +169,10 @@ def flag_by_chisq(filenames, nsig=12, deg=8, outfile=False):
     if outfile:
        pass 
     return m,g,v,x,f
+
+def flatten_reds(reds):
+    'Take a list of lists and flattens it'
+    freds = []
+    for r in reds:
+        freds += r
+    return freds
