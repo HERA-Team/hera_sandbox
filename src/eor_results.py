@@ -471,12 +471,12 @@ def consolidate_bootstraps(files=None, verbose=False,
                 strap_dict[key].append(npz[key])
             npz.close()
     #reshape lists to be of the for any non-booted dim, num k's, num boots, ntimes
-    # import ipdb; ipdb.set_trace()
     for key in strap_dict.keys():
         shape = n.shape(strap_dict[key])
         strap_dict[key] = n.reshape(strap_dict[key],
                     (-1, num_ks, num_boots, num_times))
 
+    # import ipdb; ipdb.set_trace()
     for nboot in xrange(NBOOT):
         if verbose:
             if (nboot+1) % 10 == 0:
@@ -484,12 +484,13 @@ def consolidate_bootstraps(files=None, verbose=False,
         dsum_dict = {key:[] for key in strap_dict.keys()}
         # import ipdb; ipdb.set_trace()
         ts = n.random.choice(num_times,num_times)
-        bs = n.random.choice(num_boots,num_boots)
+        bs = n.random.choice(num_boots,num_times)
+        # import ipdb; ipdb.set_trace()
         for key in dsum_dict.keys():
-            dsum_dict[key] = n.take(n.take(strap_dict[key], bs,-2),ts,-1)
+            dsum_dict[key] = n.array(strap_dict[key])[...,bs,ts]
 
         for key in strapped_keys:
-            tmp = n.median(dsum_dict[key],0)
+            tmp = n.median(dsum_dict[key],-1)
             out_dict[key].append(tmp.T.squeeze())
 
 
