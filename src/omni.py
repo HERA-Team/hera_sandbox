@@ -391,5 +391,5 @@ def save_gains_fc(s,f,name='fcgains',verbose=False):
     import sys
     cmd = sys.argv
     s2['cmd'] = ' '.join(cmd)
-    n.savez('%s.npz'%name,**s2)
+    np.savez('%s.npz'%name,**s2)
 

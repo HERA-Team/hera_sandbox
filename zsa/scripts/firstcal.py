@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import capo.hex as hx, capo.arp as arp, capo.red as red, capo.omni as omni
+import capo.arp as arp, capo.red as red, capo.omni as omni
 import numpy as n, pylab as p, aipy as a
 import sys,optparse
 

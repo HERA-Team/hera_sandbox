@@ -30,7 +30,7 @@ class TestFirstCal(unittest.TestCase):
     def test_run_firstcal(self):
         fc = capo.omni.FirstCal(self.dataxx,self.wgtsxx,self.fqs,self.info)
         sols = fc.run(tune=True,verbose=False,offset=True,plot=False)
-        capo.omni.save_gains_fc(sols,self.fqs,name=self.raw_data,verbose=False)
+        capo.omni.save_gains_fc(sols,self.fqs,name=self.raw_data[0],verbose=False)
         
     def test_plot_redundant(self):
         reds2plot = self.reds[3] #random set of redundant baseliens
