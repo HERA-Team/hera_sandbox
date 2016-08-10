@@ -67,4 +67,82 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     if use_offset: return gain, (tau,off), info
     else: return gain, tau, info
 
+def noise(size):
+    #generates a complex random gaussian noise with std=1 and mean=0.
+    sig = 1./n.sqrt(2)
+    return n.random.normal(scale=sig, size=size) + 1j*n.random.normal(scale=sig, size=size)
+
+
+def grid2ij(GRID):
+    '''
+        bl_str = given sep, returns bls in string format.
+        bl_conj = given a baseline (miriad bl) gives separation.
+        bl2sep_str = given baseline (miriad) return its separation.    
+    '''
+    bls, conj = {}, {}
+    for ri in range(GRID.shape[0]):
+        for ci in range(GRID.shape[1]):
+            for rj in range(GRID.shape[0]):
+                for cj in range(GRID.shape[1]):
+                    if ci > cj: continue
+#                    if ri > rj and ci == cj: continue
+#                    if ci > cj and ri == rj: continue
+                    sep = (rj-ri, cj-ci)
+                    sep = '%d,%d'%sep
+                    i,j = GRID[ri, ci], GRID[rj,cj]
+                    bls[sep] = bls.get(sep,[]) + [(i,j)]
+    for sep in bls.keys():
+        if sep == '0,0' or len(bls[sep]) < 2 or (sep[-1] == '0' and sep[0] == '-'): del(bls[sep])
+    for sep in bls:
+        conj[sep] = [i>j for i,j in bls[sep]]
+
+    bl_str,bl_conj,bl2sep_str = {}, {}, {}
+    for sep in bls:
+        bl_str[sep],bl_list = [], []
+        for (i,j),c in zip(bls[sep],conj[sep]):
+            if c: i,j = j,i
+            bl_list.append(a.miriad.ij2bl(i,j))
+            bl_str[sep].append('%d_%d'%(i,j))
+            bl2sep_str[a.miriad.ij2bl(i,j)] = bl2sep_str.get(a.miriad.ij2bl(i,j),'') + sep
+            bl_conj[a.miriad.ij2bl(i,j)] = c
+        bls[sep] = bl_list
+        bl_str[sep] = ','.join(bl_str[sep])
+    return bl_str,bl_conj,bl2sep_str
+
+def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose=False, recast_as_array=True, return_lsts=False):
+    lsts, times, dat, flg = [], [], {}, {}
+    if type(filenames) == 'str': filenames = [filenames]
+    for filename in filenames:
+        if verbose: print '   Reading', filename
+        uv = a.miriad.UV(filename)
+        a.scripting.uv_selector(uv, antstr, polstr)
+        if decimate > 1: uv.select('decimate', decimate, decphs)
+        for (crd,t,(i,j)),d,f in uv.all(raw=True):
+            if len(times) == 0 or t != times[-1]:
+                times.append(t)
+                lsts.append(uv['lst'])
+            bl = a.miriad.ij2bl(i,j)
+            if not dat.has_key(bl): dat[bl],flg[bl] = {},{}
+            pol = a.miriad.pol2str[uv['pol']]
+            if not dat[bl].has_key(pol):
+                dat[bl][pol],flg[bl][pol] = [],[]
+            dat[bl][pol].append(d)
+            flg[bl][pol].append(f)
+    if recast_as_array:
+        # This option helps reduce memory footprint, but it shouldn't
+        # be necessary: the replace below should free RAM as quickly
+        # as it is allocated.  Unfortunately, it doesn't seem to...
+        for bl in dat.keys():
+          for pol in dat[bl].keys():
+            dat[bl][pol] = n.array(dat[bl][pol])
+            flg[bl][pol] = n.array(flg[bl][pol])
+    if return_lsts: times = lsts
+    return n.array(times), dat, flg
+
+def list2str(li):
+    '''Take list of baselines and convert to string format for plot_uv'''
+    s = ''
+    for i in li:
+        s += '_'.join(map(str,i)) + ','
+    return s[:-1]
 

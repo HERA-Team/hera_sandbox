@@ -110,6 +110,21 @@ class Log(Base):
     exit_status = Column(Integer)
     timestamp = Column(DateTime,nullable=False,default=func.current_timestamp())
     logtext = Column(Text)
+#note the Cal object/table is added here
+#to provide support for omnical.
+# the DataBaseInterface Class does not currently support Cal
+class Cal(Base):
+    __tablename__='cal'
+    calnum = Column(Integer,primary_key=True)
+    obsnum = Column(BigInteger,ForeignKey('observation.obsnum'))
+    last_activity = Column(DateTime,nullable=False,default=func.current_timestamp())
+    cal_date = Column(DateTime)
+    calfile = Column(Text)
+    output_dir = Column(Text)
+    input_file = Column(Text)
+    logtext = Column(Text)
+    observation = relationship(Observation,backref=backref('cals',uselist=True))
+
 
 
 class DataBaseInterface(object):
@@ -231,6 +246,17 @@ class DataBaseInterface(object):
         logtext = '\n'.join([LOG.logtext for LOG in LOGs])
         s.close()
         return logtext #maybe this isn't the best format to be giving the logs
+    def get_terminal_obs(self,nfail=5):
+        """
+        Get the obsids of things that have failed nfail times or more (and never completed).
+        select obsnum from (select obsnum as obsnum, count(obsnum) as cnt from log where exit_status!=0 group by obsnum) as myalias where cnt>5
+        """
+        s = self.Session()
+        FAILED_LOG_COUNT_Q = s.query(Log.obsnum,func.count('*').label('cnt')).filter(Log.exit_status!=0).group_by(Log.obsnum).subquery()
+        FAILED_LOGS = s.query(FAILED_LOG_COUNT_Q).filter(FAILED_LOG_COUNT_Q.c.cnt>=nfail)
+        FAILED_OBSNUMS =  map(int,[FAILED_LOG.obsnum for FAILED_LOG in FAILED_LOGS])
+        s.close()
+        return FAILED_OBSNUMS
     def add_observation(self,julian_date,pol,filename,host,length=10/60./24,status='UV_POT'):
         """
         create a new observation entry.
@@ -282,9 +308,10 @@ class DataBaseInterface(object):
         """
         neighbors = {}
         for obs in obslist:
-            obsnum = self.add_observation(obs['julian_date'],obs['pol'],
-                            obs['filename'],obs['host'],
-                            length=obs['length'],status='NEW')
+        	#ORIGINIAL v
+            #obsnum = self.add_observation(obs['julian_date'],obs['pol'],obs['filename'],obs['host'],length=obs['length'],status='NEW')
+            #DEBUG v
+            obsnum = self.add_observation(obs['julian_date'],obs['pol'],obs['filename'],obs['host'],length=float(obs['length']),status='NEW')
             neighbors[obsnum] = (obs.get('neighbor_low',None),obs.get('neighbor_high',None))
         s = self.Session()
         for middleobsnum in neighbors:
@@ -303,7 +330,7 @@ class DataBaseInterface(object):
             OBS.status = status
             s.add(OBS)
             s.commit()
-            s.close()
+        s.close()
         return neighbors.keys()
     def get_neighbors(self,obsnum):
         """

@@ -1,32 +1,7 @@
-import aipy as a, numpy as n, pylab as P
+import aipy as a, numpy as n, pylab as plt
 import sys, scipy
-
-def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose=False, recast_as_array=True):
-    times, dat, flg = [], {}, {}
-    if type(filenames) == 'str': filenames = [filenames]
-    for filename in filenames:
-        if verbose: print '   Reading', filename
-        uv = a.miriad.UV(filename)
-        a.scripting.uv_selector(uv, antstr, polstr)
-        if decimate > 1: uv.select('decimate', decimate, decphs)
-        for (crd,t,(i,j)),d,f in uv.all(raw=True):
-            if len(times) == 0 or t != times[-1]: times.append(t)
-            bl = a.miriad.ij2bl(i,j)
-            if not dat.has_key(bl): dat[bl],flg[bl] = {},{}
-            pol = a.miriad.pol2str[uv['pol']]
-            if not dat[bl].has_key(pol):
-                dat[bl][pol],flg[bl][pol] = [],[]
-            dat[bl][pol].append(d)
-            flg[bl][pol].append(f)
-    if recast_as_array:
-        # This option helps reduce memory footprint, but it shouldn't
-        # be necessary: the replace below should free RAM as quickly
-        # as it is allocated.  Unfortunately, it doesn't seem to...
-        for bl in dat.keys():
-          for pol in dat[bl].keys():
-            dat[bl][pol] = n.array(dat[bl][pol])
-            flg[bl][pol] = n.array(flg[bl][pol])
-    return n.array(times), dat, flg
+from plot import data_mode, waterfall, plot_hmap_ortho
+from miriad import read_files as get_dict_of_uv_data
 
 def clean_transform(d, w=None, f=None, clean=1e-3, window='blackman-harris'):
     #d = d.swapaxes(0, axis)
@@ -72,23 +47,6 @@ def gen_ddr_filter(shape, dw, drw, ratio=.25, invert=False):
 def rms(d,wgt=None):
     if wgt == None: return n.sqrt(n.average(n.abs(d)**2))
     else: return n.sqrt(n.sum(n.abs(d)**2) / n.sum(n.abs(wgt)**2))
-
-def waterfall(d, mode='log', mx=None, drng=None, recenter=False, **kwargs):
-    if n.ma.isMaskedArray(d): d = d.filled(0)
-    if recenter: d = a.img.recenter(d, n.array(d.shape)/2)
-    if mode.startswith('phs'): d = n.angle(d)
-    elif mode.startswith('lin'): d = n.absolute(d)
-    elif mode.startswith('real'): d = d.real
-    elif mode.startswith('imag'): d = d.imag
-    elif mode.startswith('log'):
-        d = n.absolute(d)
-        d = n.ma.masked_less_equal(d, 0)
-        d = n.ma.log10(d)
-    else: raise ValueError('Unrecognized plot mode.')
-    if mx is None: mx = d.max()
-    if drng is None: drng = mx - d.min()
-    mn = mx - drng
-    P.imshow(d, vmax=mx, vmin=mn, aspect='auto', interpolation='nearest', **kwargs)
 
 def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='blackman-harris',
         clean=1e-4, verbose=False, tau=0., off=0.):
@@ -178,7 +136,6 @@ def selfcal_diff(m_bl, r_ant, r_wgt=1e6):
     Pinv = n.linalg.pinv(P) # this succeeds where lstsq fails, for some reason
     C = n.dot(Pinv, M)
     return dict(zip(ants,C))
-    
 
 def sinuspike(d, fqs, f=None, clean=1e-3, maxiter=100, nsig=3, window='blackman-harris'):
     d = d * (fqs/.150)**2.5 # Flatten noise assuming synchrotron spectral index

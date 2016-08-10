@@ -7,6 +7,7 @@ CAL=psa746_v010
 WINDOW='blackman-harris'
 
 for FILE in $ARGS; do   
-    pspec_prep.py -C $CAL --horizon=1.2 --window=none --model --nolstbin ${FILE}
-    pspec_prep.py -C $CAL --horizon=2.0 --window=$WINDOW --model --nolstbin --nophs --nogain ${FILE}B
+    pspec_prep.py -C $CAL --clean=1e-9 --horizon=50 --window=$WINDOW --model --nophs --nogain ${FILE}
+    #pspec_prep.py -C $CAL --horizon=2.0 --window=$WINDOW --model --nophs --nogain ${FILE}B
+    #pspec_prep.py -C $CAL --nohorizon --window=$WINDOW --model --nophs --nogain --clean=1e-9 ${FILE}BB
 done

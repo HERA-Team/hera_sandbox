@@ -52,6 +52,7 @@ for FILE in $ARGS; do
     done
     echo cd ${SCRATCH}
     cd ${SCRATCH}
+    echo test $FILEBASE $FILEDIR
     echo data_redux.sh ${FILEBASE}cR
     data_redux.sh ${FILEBASE}cR
     echo cd $STARTPATH

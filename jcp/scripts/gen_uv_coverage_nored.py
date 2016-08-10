@@ -6,7 +6,19 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o,cal=True)
 opts, args = o.parse_args(sys.argv[1:])
 
-array = 'hera'
+array = 'paper'
+
+if array == 'baobab':
+    obs_duration = 30. # minutes
+    dish_size_in_lambda = 8 #simple lambda/D
+    SIZE = 300 #uv plane size in wavelengths
+    sigma = 1. #not used with delta function gridding
+
+if array == 'fidrsd':
+    obs_duration = 80. # minutes
+    dish_size_in_lambda = 3 #simple lambda/D
+    SIZE = 600 #uv plane size in wavelengths
+    sigma = 1. #not used with delta function gridding
 
 if array == 'hera':
     obs_duration = 40. # minutes
@@ -16,8 +28,9 @@ if array == 'hera':
 
 if array == 'paper':
     obs_duration = 120. # minutes
-    dish_size_in_lambda = 2 #simple lambda/D
+    dish_size_in_lambda = 1.5 #simple lambda/D #you published a paper with 2
     SIZE = 300 #uv plane size in wavelengths
+    #SIZE = 50 #uv plane size in wavelengths
     sigma = 1/(2*n.pi*0.2251)
 
 if array == 'mwa':
@@ -73,17 +86,23 @@ aa = a.cal.get_aa(opts.cal,n.array([.150]))
 cat = a.src.get_catalog(opts.cal,'z')
 nants = len(aa)
 
+cnt = 0
 uvbins = {}
 aa.set_jultime(cen_jd)
 obs_lst = aa.sidereal_time()
 obs_zen = a.phs.RadioFixedBody(obs_lst,aa.lat)
 obs_zen.compute(aa)
 for i in xrange(nants):
+    print 'working on antenna %i of %i' % (i, len(aa))
     for j in xrange(nants):
         if i == j: continue
         u,v,w = aa.gen_uvw(i,j,src=obs_zen)
         uvbin = '%.1f,%.1f' % (u,v)
-        #print u,v
+        if True:
+            #hack for danny
+            if uvbin not in ['-15.0,0.0','15.0,0.0','-15.0,-0.0','15.0,-0.0','15.0,2.0','15.0,-2.0','-15.0,2.0','-15.0,-2.0']: continue
+            cnt +=1
+            print cnt, i,j, uvbin
         if not uvbins.has_key(uvbin): uvbins[uvbin] = ['%i,%i' % (i,j)]
         else: uvbins[uvbin].append('%i,%i' % (i,j))
 

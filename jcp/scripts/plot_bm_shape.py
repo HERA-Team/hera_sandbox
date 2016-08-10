@@ -32,19 +32,20 @@ map.drawmeridians(n.arange(0, 360, 30))
 map.drawparallels(n.arange(0, 90, 10))
 cx, cy = map(lons * a.img.rad2deg, lats * a.img.rad2deg)
 aa._cache = {'s_top':(0,0,1)}
-zresp = aa.bm_response(opts.ant, opts.ant, pol=opts.pol)[:,0]
+aa.set_active_pol(opts.pol)
+zresp = aa.bm_response(opts.ant, opts.ant)[:,0]
 aa._cache = {'s_top':top}
-data = aa.bm_response(opts.ant, opts.ant, pol=opts.pol)[:,0] / zresp
+data = aa.bm_response(opts.ant, opts.ant)[:,0] / zresp
 #print data.shape, x.shape
 #print data
-data = n.clip(10*n.log10(n.abs(data)), -100, n.Inf)
+#data = n.clip(10*n.log10(n.abs(data)), -100, n.Inf)
 data.shape = cx.shape
-min = -30.
-max = 0.
+min = .66
+max = .86
 #min = data.min()
 #max = data.max()
 #max = data.max() / 2
-step = (max - min) / 10
+step = (max - min) / 20
 levels = n.arange(min-step, max+step, step)
 map.contourf(cx, cy, data, levels, linewidths=0, cmap=cmap)
 saz,salt = [], []
@@ -68,5 +69,5 @@ saz = n.array(saz); salt = n.array(salt)
 #salt = n.concatenate([salt, salt])
 x,y = map(saz * a.img.rad2deg, salt * a.img.rad2deg)
 map.plot(x, y, 'ko')
-p.colorbar(format='%d dB')
+p.colorbar()
 p.show()

@@ -1,0 +1,124 @@
+#!/usr/bin/env python
+
+"""
+
+NAME: 
+   vis_sim_mpi.py
+PURPOSE:
+   Models visibilities of Healpix maps and creates a new Miriad UV file
+EXAMPLE CALL:
+   mpiexec -np 3 vis_sim_mpi.py --nchan 100 --inttime 10 --sfreq 0.1 --sdf 0.001 -C psa898_v003 --map gsm --mappath /Users/carinacheng/capo/ctc/images/gsm/gsm100/
+IMPORTANT NOTE:
+   Make sure sdf and sfreq options match those of the maps!
+AUTHOR:
+   Carina Cheng
+
+"""
+
+import aipy
+import numpy
+import pyfits
+import optparse
+import os, sys
+from mpi4py import MPI
+
+#user options
+
+o = optparse.OptionParser()
+o.set_usage('vis_sim_mpi.py [options] *.uv')
+o.set_description(__doc__)
+o.add_option('--mappath', dest='mappath', default='/Users/carinacheng/capo/ctc/images/gsm/gsm203/',
+             help='Directory where maps are. Include final / when typing path.')
+o.add_option('--map', dest='map', default='gsm',
+             help='Map type (gsm or pspec).')
+o.add_option('--filename', dest='filename', default='/Users/carinacheng/capo/ctc/tables/test.uv',
+             help='Filename of created Miriad UV file (ex: test.uv).')
+o.add_option('--nchan', dest='nchan', default=203, type='int',
+             help='Number of channels in simulated data. Default is 203.')
+o.add_option('--inttime', dest='inttime', default=10., type='float',
+             help='Integration time (s). Default is 10.') 
+o.add_option('--sfreq', dest='sfreq', default=0.1, type='float',
+             help='Start frequency (GHz). Default is 0.1.')
+o.add_option('--sdf', dest='sdf', default=0.1/203, type='float',
+             help='Channel spacing (GHz).  Default is .1/203')
+o.add_option('--startjd', dest='startjd', default=2454500., type='float',
+             help='Julian Date to start observation.  Default is 2454500')
+o.add_option('--endjd', dest='endjd', default=2454501., type='float',
+             help='Julian Date to end observation.  Default is 2454501')
+o.add_option('-C', dest='psa', default='psa898_v003', 
+             help='Name of calfile.')
+o.add_option('--bli', dest='bli', default=0,
+             help='Baseline i. Default is 0.')
+o.add_option('--blj', dest='blj', default=16,
+             help='Baseline j. Default is 16.')
+opts, args = o.parse_args(sys.argv[1:])
+
+#MPI set-up
+
+comm = MPI.COMM_WORLD #get MPI communicator object
+size = comm.size      #total number of processors
+rank = comm.rank      #rank of a process
+status = MPI.Status() #MPI status object (contains source and tag)
+
+if rank == 0:
+
+    #miriad uv file set-up
+
+    print '***Master is setting up miriad UV file...'
+
+    uv = aipy.miriad.UV(opts.filename, status='new')
+    uv._wrhd('obstype','mixed-auto-cross')
+    uv._wrhd('history','MDLVIS: created file.\nMDLVIS: ' + ' '.join(sys.argv) + '\n')
+
+    uv.add_var('telescop' ,'a'); uv['telescop'] = 'AIPY'
+    uv.add_var('operator' ,'a'); uv['operator'] = 'AIPY'
+    uv.add_var('version' ,'a'); uv['version'] = '0.0.1'
+    uv.add_var('epoch' ,'r'); uv['epoch'] = 2000.
+    uv.add_var('source'  ,'a'); uv['source'] = 'zenith'
+    uv.add_var('nchan' ,'i'); uv['nchan'] = opts.nchan
+    uv.add_var('sdf' ,'d'); uv['sdf'] = opts.sdf
+    uv.add_var('sfreq' ,'d'); uv['sfreq'] = opts.sfreq
+    uv.add_var('freq' ,'d'); uv['freq'] = opts.sfreq
+    uv.add_var('restfreq' ,'d'); uv['restfreq'] = opts.sfreq
+    uv.add_var('nschan' ,'i'); uv['nschan'] = uv['nchan']
+    uv.add_var('inttime' ,'r'); uv['inttime'] = opts.inttime
+    uv.add_var('npol' ,'i'); uv['npol'] = 1
+    uv.add_var('nspect' ,'i'); uv['nspect'] = 1
+    uv.add_var('nants' ,'i'); uv['nants'] = 32
+
+    #variables just set to dummy values
+
+    uv.add_var('vsource' ,'r'); uv['vsource'] = 0.
+    uv.add_var('ischan'  ,'i'); uv['ischan'] = 1
+    uv.add_var('tscale'  ,'r'); uv['tscale'] = 0.
+    uv.add_var('veldop'  ,'r'); uv['veldop'] = 0.
+
+    #variables to be updated
+
+    uv.add_var('coord' ,'d')
+    uv.add_var('time' ,'d')
+    uv.add_var('lst' ,'d')
+    uv.add_var('ra' ,'d')
+    uv.add_var('obsra' ,'d')
+    uv.add_var('baseline' ,'r')
+    uv.add_var('pol' ,'i')
+
+    #get antenna array
+
+    print '***Master is getting antenna array...'
+
+    calfile = opts.psa
+    aa = aipy.cal.get_aa(calfile,uv['sdf'],uv['sfreq'],uv['nchan'])
+    freqs = aa.get_afreqs()
+    i = opts.bli
+    j = opts.blj
+    bl = aa.get_baseline(i,j) #array of length 3 in ns
+    blx,bly,blz = bl[0],bl[1],bl[2]
+
+    #more miriad variables
+    
+    uv.add_var('latitud','d'); uv['latitud'] = aa.lat
+    uv.add_var('dec','d'); uv['dec'] = aa.lat
+    uv.add_var('obsdec','d'); uv['obsdec'] = aa.lat
+    uv.add_var('longitu','d'); uv['longitu'] = aa.long
+    uv.add_var('antpos','d'); uv['antpos'] = (numpy.array([ant.pos for ant in aa],dtype=numpy.double)).transpose().flatten() #transpose is miriad convention

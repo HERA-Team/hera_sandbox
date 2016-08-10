@@ -5,7 +5,6 @@ Averages a file into a dict indexed by baseline (i_j)
 
 
 import aipy as a, numpy as n, sys, os, optparse, pickle
-from smooth import smooth
 
 o = optparse.OptionParser()
 o.set_usage('uv_avg.py [options] *.uv')

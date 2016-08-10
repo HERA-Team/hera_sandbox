@@ -193,7 +193,7 @@ for sep in RS_VS_KPL:
     nos_fold = [1./n.sqrt(dwgt_fold[k]) for k in kpl_fold]
     #d = [RS_VS_KPL[k][0] for k in kpl]
     #nos = [RS_VS_KPL[k][1] for k in kpl]
-    if True: #if 'I' in sep: # Add foregrounds
+    if False: #if 'I' in sep: # Add foregrounds
         for cnt,k in enumerate(kpl):
             k = '%6.3f' % k
             if not FG_VS_KPL.has_key(k): continue
@@ -207,7 +207,7 @@ for sep in RS_VS_KPL:
         
     d,kpl,nos = n.array(d, dtype=n.complex), n.array(kpl), n.array(nos)
     d_fold,kpl_fold,nos_fold = n.array(d_fold, dtype=n.complex), n.array(kpl_fold), n.array(nos_fold)
-    if True:
+    if False:
         # PSA32 was calibrated to Pictor A @ 160 MHz = 424 Jy
         # To recalibrate to new Pic A, must multiply by square of ratio of fluxes
         # Jacobs et al 2013 says Pic A = 382 @ 150 MHz, index=-0.76, so at 160 MHz, Pic A = 364 Jy
@@ -218,7 +218,7 @@ for sep in RS_VS_KPL:
         nos *= f
         d_fold *= f
         nos_fold *= f
-    if True:
+    if False:
         f = 2.35 # Use power**2 beam, which is a 1.69/0.72=2.35 penalty factor
         print 'Scaling data and noise by %f for correcting cosmo scalar to use power^2 beam' % f
         d *= f
@@ -238,7 +238,7 @@ for sep in RS_VS_KPL:
         print 'Scaling noise by %f for noise attenuation from rejecting outliers in LST binning' % f
         nos *= f
         nos_fold *= f
-    if True: # extra penalty for signal loss in covariance diagonalization
+    if False: # extra penalty for signal loss in covariance diagonalization
         f = 1.5
         print 'Scaling data and noise by %f for signal loss in covariance diagonalization' % f
         d *= f

@@ -2,6 +2,8 @@
 #$ -j y
 #$ -o grid_output
 #$ -e grid_output
+#$ -V
+#$ -cwd
 ARGS=`pull_args.py $*`
 CAL=psa746_v010
 WINDOW='blackman-harris'
