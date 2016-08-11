@@ -79,15 +79,16 @@ print 'Number of redundant baselines:',len(reds)
 ant_string =','.join(map(str,info.subsetant))
 bl_string = ','.join(['_'.join(map(str,k)) for k in reds])
 times, data, flags = arp.get_dict_of_uv_data(args, bl_string, opts.pol, verbose=True)
-datapack = {} #not necessarily xx data inside
+datapack,wgtpack = {},{}
 for (i,j) in data.keys():
     datapack[(i,j)] = data[(i,j)][opts.pol]
+    wgtpack[(i,j)] = np.logical_not(flags[(i,j)][opts.pol])
 nfreq = datapack[datapack.keys()[0]].shape[1] #XXX less hacky than previous hardcode, but always safe?
 fqs = n.linspace(.1,.2,nfreq)
 dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, np.diff(fqs)[0]))
 
 #gets phase solutions per frequency.
-fc = omni.FirstCal(datapack,fqs,info)
+fc = omni.FirstCal(datapack,wgtpack,fqs,info)
 sols = fc.run(tune=True,verbose=False,offset=True,plot=False)
 
 #Save solutions
