@@ -1,3 +1,4 @@
+#! /usr/bin/env python
 import numpy as np, glob, sys
 from matplotlib import pyplot as plt
 
@@ -24,7 +25,7 @@ plt.xlabel('Antenna #')
 plt.ylabel('Delay')
 plt.legend(loc='best')
 plt.savefig(JD+'/stats_xx.png')
-plt.show()
+#plt.show()
 plt.close()
 
 plt.errorbar(n1y,m1y,yerr=s1y,fmt='ro',ecolor='r',label='fc_yy_1')
@@ -35,7 +36,7 @@ plt.xlabel('Antenna #')
 plt.ylabel('Delay')
 plt.legend(loc='best')
 plt.savefig(JD+'/stats_yy.png')
-plt.show()
+#plt.show()
 plt.close()
 
 npz_xx_1 = sorted(glob.glob(JD+'/fcal_xx_1/*npz'))
@@ -71,7 +72,7 @@ plt.xlabel('File #')
 plt.ylabel('Delay')
 plt.suptitle('fc_xx_1',size=15)
 plt.savefig(JD+'/fcal_xx_1/delay_per_file.png')
-plt.show()
+#plt.show()
 plt.close()
 
 for k in Dx2.keys(): plt.plot(Dx2[k])
@@ -79,7 +80,7 @@ plt.xlabel('File #')
 plt.ylabel('Delay')
 plt.suptitle('fc_xx_2',size=15)
 plt.savefig(JD+'/fcal_xx_2/delay_per_file.png')
-plt.show()
+#plt.show()
 plt.close()
 
 for k in Dy1.keys(): plt.plot(Dy1[k])
@@ -87,7 +88,7 @@ plt.xlabel('File #')
 plt.ylabel('Delay')
 plt.suptitle('fc_yy_1',size=15)
 plt.savefig(JD+'/fcal_yy_1/delay_per_file.png')
-plt.show()
+#plt.show()
 plt.close()
 
 for k in Dy2.keys(): plt.plot(Dy2[k])
@@ -95,11 +96,5 @@ plt.xlabel('File #')
 plt.ylabel('Delay')
 plt.suptitle('fc_yy_2',size=15)
 plt.savefig(JD+'/fcal_yy_2/delay_per_file.png')
-plt.show()
+#plt.show()
 plt.close()
-
-
-
-
-
-

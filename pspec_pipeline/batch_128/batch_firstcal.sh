@@ -83,6 +83,12 @@ done #done with firstcal and analysis for both pols
 echo chmod 777 $FCAL_2_PATH/*
 chmod 777 $FCAL_2_PATH/*
 
+echo ${PATH2CAPO}/omni/plot_fc_stats.py ${OUTPATH}
+${PATH2CAPO}/omni/plot_fc_stats.py ${OUTPATH}
+
 done #done firstcal and analysis for all JDs
 
 echo Done-zo!
+
+
+

@@ -31,7 +31,7 @@ def save_gains(s,f,pol,filename=None,ubls=None,ex_ants=None,verbose=False):
         if len(i)>1:
             #len > 1 means that one is using the "tune" parameter in omni.firstcal
             #i[0] = tau+dt, i[1] = offset XXX offset from what?
-            s2[str(k)] = omni.get_phase(f,i,offset=True)
+            s2[str(k)] = omni.get_phase(f,i,offset=True) #returns np.exp(-1j*(2*np.pi*fqs*(tau+dt)) - offset) XXX
             s2[str(k)+'d'] = i[0]
             if verbose: print 'dly=%f , off=%f'%i
         else:
