@@ -18,11 +18,11 @@ o.add_option('--window', dest='window', default='blackman-harris',
 opts,args = o.parse_args(sys.argv[1:])
 
 random.seed(0)
-LST_STATS = False
+LST_STATS = True
 DELAY = False
 MASK = False
 #NGPS = 51
-INJECT_SIG = 0
+INJECT_SIG = False
 SAMPLE_WITH_REPLACEMENT = True
 NOISE = .0
 PLOT = opts.plot
@@ -75,9 +75,8 @@ def auto_cov(d, n_k):
     C.shape = (nbls*n_k, nbls*n_k)
     return C
 
-
-files1 = glob.glob('lstbin_even/sep0,1/*242.[3456]*uvAL') # XXX
-files2 = glob.glob('lstbin_odd/sep0,1/*243.[3456]*uvAL') # XXX
+files1 = glob.glob('lstbin_even/sep-1,1/*242.[3456]*uvAL') # XXX
+files2 = glob.glob('lstbin_odd/sep-1,1/*243.[3456]*uvAL') # XXX
 #files1 = glob.glob('even/sep0,1/*uvAL') # XXX
 #files2 = glob.glob('odd/sep0,1/*uvAL') # XXX
 WINDOW = opts.window
@@ -103,7 +102,7 @@ etas = n.fft.fftshift(capo.pspec.f2eta(afreqs)) #create etas (fourier dual to fr
 kpl = etas * capo.pspec.dk_deta(z) #111
 print kpl
 
-if False:
+if True:
     bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 # correction for beam^2
     scalar = capo.pspec.X2Y(z) * bm * B
 else: scalar = 1
@@ -128,10 +127,13 @@ times2,data2,flgs2 = capo.arp.get_dict_of_uv_data(files2, antstr=antstr, polstr=
 if LST_STATS:
     # collect some metadata from the lst binning process
     cnt, var = {}, {}
-    for filename in args:
+    for filename in files1:
         print 'Reading', filename
         uv = a.miriad.UV(filename)
-        a.scripting.uv_selector(uv, opts.ant, opts.pol)
+        #a.scripting.uv_selector(uv, opts.ant, opts.pol)
+        #a.scripting.uv_selector(uv, '41_49', 'I')XXX
+        #a.scripting.uv_selector(uv, '3_49', 'I')XXX
+        a.scripting.uv_selector(uv, '10_41', 'I')
         for (uvw,t,(i,j)),d,f in uv.all(raw=True):
             bl = '%d,%d,%d' % (i,j,uv['pol'])
             cnt[bl] = cnt.get(bl, []) + [uv['cnt']]
@@ -174,16 +176,37 @@ nbls = len(bls_master)
 print 'Baselines:', nbls
 
 if INJECT_SIG: # Create a fake EoR signal to inject
-    eor = noise(d1[bls_master[0]].shape) * .05
-    fringe_filter = n.ones((44,))
-    # Maintain amplitude of original noise
-    fringe_filter /= n.sqrt(n.sum(fringe_filter))
-    for ch in xrange(eor.shape[0]):
-        eor[ch] = n.convolve(eor[ch], fringe_filter, mode='same')
-    #_eor = n.fft.ifft(eor, axis=0); _eor[4:-3] = 0
-    #eor = n.fft.fft(_eor, axis=0)
+    #read in simulated eor like  signal with same fringe rate filber applied.
+    eor_files = glob.glob('noise/*.*242.[3456]*uvA_signalL')
+    eor_times,eor_data,eor_flags = capo.arp.get_dict_of_uv_data(eor_files, antstr=antstr, polstr='I', verbose=True)
+    eor = {}
+    gain = 5.0
+    for k in eor_data:
+        #data[k]['I'] = data[k]['I'][:,chans] * jy2T
+        eor_data[k]['I'] = eor_data[k]['I'][i:len(lsts1),chans] * jy2T * gain
+        if conj[k]: eor_data[k]['I'] = n.conj(eor_data[k]['I']) 
+        if DELAY: eor[k] = n.fft.fftshift(n.fft.ifft(window*eor_data[k]['I']), axes=1)
+        #else: d[k] = data[k]['I']
+        else: eor[k] = window*eor_data[k]['I']
+        eor[k] = n.transpose(eor[k], [1,0])
+
+#    eor = noise(d1[bls_master[0]].shape) * 5.
+#    fringe_filter = n.ones((44,))
+#    # Maintain amplitude of original noise
+#    fringe_filter /= n.sqrt(n.sum(fringe_filter))
+#    for ch in xrange(eor.shape[0]):
+#        eor[ch] = n.convolve(eor[ch], fringe_filter, mode='same')
+#    _eor = n.fft.ifft(eor, axis=0)
+#    #wgt = n.exp(-n.fft.ifftshift(kpl)**2/(2*.3**2))
+#    wgt = n.zeros(_eor.shape[0]); wgt[0] = 1
+#    wgt.shape = wgt.shape + (1,)
+#    #_eor *= wgt
+#    #_eor = n.fft.ifft(eor, axis=0); _eor[4:-3] = 0
+#    #eor = n.fft.fft(_eor, axis=0)
+#    eor *= wgt
     if PLOT:
-        capo.arp.waterfall(eor, mode='real'); p.colorbar(); p.show()
+        k = eor_data.keys()[5]
+        capo.arp.waterfall(eor[k], mode='real'); p.colorbar(); p.show()
 
 Q = {} # Create the Q's that extract power spectrum modes
 
@@ -221,7 +244,8 @@ for boot in xrange(opts.nboot):
         x1,x2 = n.array([d1[k] for k in bls]), n.array([d2[k] for k in bls])
     else:
         print 'INJECTING SIMULATED SIGNAL'
-        x1,x2 = n.array([d1[k]+eor for k in bls]), n.array([d2[k]+eor for k in bls])
+        #x1,x2 = n.array([d1[k]+eor for k in bls]), n.array([d2[k]+eor for k in bls])
+        x1,x2 = n.array([d1[k]+eor[k] for k in bls]), n.array([d2[k]+eor[k] for k in bls])
         #x1,x2 = n.array([d1[k]+eor for k in bls]), n.array([-d1[k]+eor for k in bls])
         #x1,x2 = n.array([eor for k in bls]), n.array([eor for k in bls])
         #x1 += .3*noise(x1.shape); x2 += .3*noise(x2.shape)
@@ -242,6 +266,7 @@ for boot in xrange(opts.nboot):
     for m in 'sd':
         print 'Mode:', m
         C[m] = auto_cov(x[m] + NOISE*noise(x[m].shape), nchan)
+        #C[m] = cov(x[m] + NOISE*noise(x[m].shape))
         #Cs *= mask; Cd *= mask # XXX probably not going to use this anymore
 
         # XXX can make covariance inversion faster by inverting C per baseline before
@@ -316,9 +341,11 @@ for boot in xrange(opts.nboot):
         print 'Normalizing M/W'
         WI[m] = n.dot(MI[m], FI[m])
         norm  = WI[m].sum(axis=-1); norm.shape += (1,)
+        #norm  = WI[m].max(axis=-1); norm.shape += (1,) # XXX
         MI[m] /= norm; WI[m] = n.dot(MI[m], FI[m])
         WC[m] = n.dot(MC[m], FC[m])
         norm  = WC[m].sum(axis=-1); norm.shape += (1,)
+        #norm  = WC[m].max(axis=-1); norm.shape += (1,) # XXX
         MC[m] /= norm; WC[m] = n.dot(MC[m], FC[m])
 
         print 'Generating qs'

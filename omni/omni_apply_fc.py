@@ -14,6 +14,7 @@ o.add_option('--xtalk',dest='xtalk',default=False,action='store_true',
 #            help='Format string (e.g. "path/%s.npz", where you actually type the "%s") which converts the input file name to the omnical npz path/file.')
 o.add_option('--fc',
     help='Firstcal file to be applied')
+
 opts,args = o.parse_args(sys.argv[1:])
 if not os.path.exists(opts.fc):
     print "First cal file {fc} not found".format(fc=opts.fc)

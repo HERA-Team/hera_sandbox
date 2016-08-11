@@ -17,6 +17,42 @@ print uv['sdf']
 freqs = aa.get_afreqs()
 jy2T = capo.pspec.jy2T(freqs)
 
+def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose=False, recast_as_array=True, stat=None):
+    times, dat, flg, stats = [], {}, {}, {}
+    for st in stat:
+        stats[st] = {}
+    if type(filenames) == 'str': filenames = [filenames]
+    for filename in filenames:
+        if verbose: print '   Reading', filename
+        uv = a.miriad.UV(filename)
+        a.scripting.uv_selector(uv, antstr, polstr)
+        if decimate > 1: uv.select('decimate', decimate, decphs)
+        for (crd,t,(i,j)),d,f in uv.all(raw=True):
+            if len(times) == 0 or t != times[-1]: times.append(t)
+            bl = a.miriad.ij2bl(i,j)
+            if not dat.has_key(bl): dat[bl],flg[bl] = {},{}
+            pol = a.miriad.pol2str[uv['pol']]
+            if not dat[bl].has_key(pol):
+                dat[bl][pol],flg[bl][pol] = [],[]
+            dat[bl][pol].append(d)
+            flg[bl][pol].append(f)
+            for st in stat:
+                if not stats[st].has_key(bl): stats[st][bl] = {}
+                if not stats[st][bl].has_key(pol): stats[st][bl][pol] = []
+                stats[st][bl][pol].append(uv[st])
+    if recast_as_array:
+        # This option helps reduce memory footprint, but it shouldn't
+        # be necessary: the replace below should free RAM as quickly
+        # as it is allocated.  Unfortunately, it doesn't seem to...
+        for bl in dat.keys():
+          for pol in dat[bl].keys():
+            dat[bl][pol] = n.array(dat[bl][pol])
+            flg[bl][pol] = n.array(flg[bl][pol])
+            for st in stat:
+                stats[st][bl][pol] = n.array(stats[st][bl][pol])
+    return n.array(times), dat, flg, stats
+
+
 sep='0,1'
 antstr=''
 antstr += capo.dfm.grid2ij(aa.ant_layout)[0][sep]
@@ -32,7 +68,7 @@ stats = ['var', 'cnt']
 print 'antstr=', antstr
 print 'polstr=', polstr
 print 'inttime=', inttime
-times, data, flags, stat = C.zsa.get_dict_of_uv_data(args, antstr, polstr, stats=stats, verbose=True)
+times, data, flags, stat = get_dict_of_uv_data(args, antstr, polstr, stat=stats, verbose=True)
 
 lsts = []
 for t in times:
@@ -75,6 +111,7 @@ if opts.median:
     n_ints = n.median(n_ints, axis=0)
 
 else:
+    print avg_var.shape
     avg_var = avg_var/cnt
     n_ints = n_ints/cnt
 
@@ -89,7 +126,7 @@ extent = (freqs[0], freqs[-1], t2, t1)
 TSYS = (1./1000)*n.sqrt(avg_var)*rescale*jy2T #in kelvin
 TSYS_NOISE = TSYS/n.sqrt(n_ints)
 
-TSYS164 = TSYS[:,130]
+TSYS164 = TSYS[:,100]
 P.plot(lsts*12./n.pi,TSYS164)
 P.title('Tsys 164 MHz')
 P.xlabel('LST (Hours)')
@@ -98,7 +135,7 @@ P.show()
 #P.plot(freqs, n.sum(n_ints, axis=0))
 #P.show()
 
-C.zsa.waterfall(TSYS, mode='lin', mx=1000, drng=1000, extent=extent)
+C.arp.waterfall(TSYS, mode='lin', mx=1000, drng=1000, extent=extent)
 P.title('Tsys in K')
 P.xlabel('Frequency (MHz)')
 P.ylabel('LST (Hours)')

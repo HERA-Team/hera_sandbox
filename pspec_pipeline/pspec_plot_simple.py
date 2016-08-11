@@ -151,7 +151,7 @@ for sep in RS_VS_KPL:
     dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS,f0=freq) # 2-sigma error bars
     colors = colors[1:] + colors[0]
 
-print 'Average of P(k) = ',n.average(d)
+print 'Average of P(k) = ',n.median(d)
 
 tau_h = 100 + 15. #in ns
 k_h = C.pspec.dk_deta(C.pspec.f2z(.151)) * tau_h

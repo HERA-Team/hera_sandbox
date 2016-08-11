@@ -65,13 +65,13 @@ for src in [calsrc] + cat.values():
             valid = n.where(n.logical_and(afreqs > .120, afreqs < 0.170), 1, 0)
             spec = spec.compress(valid)
             afreqs = afreqs.compress(valid)
-        p.loglog(afreqs, spec, label='unmodified spec')
+        p.semilogy(afreqs, spec, label='unmodified spec')
         src.update_jys(afreqs)
-        p.loglog(afreqs, src.jys, label='actual src')
+        p.semilogy(afreqs, src.jys, label='actual src')
 #        print src.jys
 #        print afreqs
         bp = n.sqrt(spec / src.jys)
-        p.loglog(afreqs, bp, label='bandpass = spec/src.jys')
+        p.semilogy(afreqs, bp, label='bandpass = spec/src.jys')
         bp_poly = n.polyfit(afreqs, bp, deg=opts.deg)
         if not calsrc is None and src.src_name == calsrc.src_name:
             print 'Calibrating to', src.src_name
@@ -89,8 +89,8 @@ for src in [calsrc] + cat.values():
         if n.all(spec <= 0): continue
 
         if not opts.quiet:
-            p.loglog(afreqs, spec, color+'.', label='Measured')
-            p.loglog(afreqs, 10**n.polyval(src_poly, n.log10(afreqs/src.mfreq)), color+'-', 
+            p.semilogy(afreqs, spec, color+'.', label='Measured')
+            p.semilogy(afreqs, 10**n.polyval(src_poly, n.log10(afreqs/src.mfreq)), color+'-', 
                 label='Fit Power Law')
             p.legend()
             p.show()
