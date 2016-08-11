@@ -10,10 +10,14 @@ o.set_description(__doc__)
 aipy.scripting.add_standard_options(o,pol=True)
 o.add_option('--xtalk',dest='xtalk',default=False,action='store_true',
             help='Toggle: apply xtalk solutions to data. Default=False')
-o.add_option('--omnipath',dest='omnipath',default='%s.npz',type='string',
-            help='Format string (e.g. "path/%s.npz", where you actually type the "%s") which converts the input file name to the omnical npz path/file.')
+#o.add_option('--omnipath',dest='omnipath',default='%s.npz',type='string',
+#            help='Format string (e.g. "path/%s.npz", where you actually type the "%s") which converts the input file name to the omnical npz path/file.')
+o.add_option('--fc',
+    help='Firstcal file to be applied')
 opts,args = o.parse_args(sys.argv[1:])
-
+if not os.path.exists(opts.fc):
+    print "First cal file {fc} not found".format(fc=opts.fc)
+    sys.exit(1)
 
 #File Dictionary
 pols = opts.pol.split(',')
@@ -25,7 +29,7 @@ for filename in args:
         fn[3] = p
         files[filename][p] = '.'.join(fn)
 
-firstfile = numpy.load('fcgains.xx.npz')
+firstfile = numpy.load(opts.fc)
 gains = {'x':{}}
 for ant in firstfile.keys():
     if ant.isdigit():
