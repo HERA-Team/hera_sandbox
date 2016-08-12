@@ -466,11 +466,17 @@ def read_injects(inj_dirs=None):
     returns:
         dictionary of outputs from read_bootstraps, keys are the inject_directory names
     '''
-
-    if files is None or not files:
+    if inj_dirs is None or not inj_dirs:
         raise TypeError('Must supply input list of inject directories')
 
-
+    ##create list of keys by taking only last party of file name
+    ##this could be a problem if you try to read two different channel ranges
+    ##wit the same inject values but that sounds like a crazy thing to do.
+    keys = [inj.split('/')[-1] for inj in inj_dirs]
+    out_dict ={key:{} for key in keys}
+    for cnt,key in enumerate(keys):
+        in_files = glob.glob( inj_dirs[ cnt ] + '/pspec_boo*.npz' )
+        out_dict[key] = read_bootstraps(in_files)
     return out_dict
 
 def random_avg_bootstraps(boot_dict = None,boot_axis=None, time_axis=None,
