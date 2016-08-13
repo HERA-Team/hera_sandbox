@@ -4,6 +4,7 @@ from capo.cosmo_units import f212z, c
 import glob
 import ipdb
 import matplotlib.pyplot as p
+import numpy as np
 #measurements
 
 def PAPER_32_all():
@@ -414,6 +415,81 @@ def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,
     f.write( 'Posterior (omit): {0:.4f}, ({1:.4f},{2:.4f}),\t({3:.4f},{4:.4f})\n'.format( mean_o, s1lo_o,s1hi_o, s2lo_o,s2hi_o))
     f.write( 'Noise level: {0:0>5.3f} mk^2\n'.format(s2l_theo) )
     f.close()
+
+def read_bootstraps(filenames,verbose=False):
+    #read in a list of bootstrapped power spectra
+    #return a single set of power spectra stacked along the bootstrap dimension
+    #only keep the real part!
+    """
+    ['err_vs_t',    #not sure
+     'cmd',         #the command used to generate the file
+     'pCv',         #the weighted data power spectrum (no injection) (times,kpls)
+     'pk_vs_t',     #the weighted data power spectrum with injection  (times,kpls)
+     'times',       #lsts of data bins
+     'scalar',      #conversion from mk^2 to mK^2/h^3Mpc^3 (already applied to data)
+     'nocov_vs_t',  #unweighted injected signal
+     'freq',        #center frequency of bin in GHz
+     'kpl',         #list of k parallels matching the kpl axis of the power spectrum
+     'temp_noise_var',  #not sure
+     'pIv']             #unweighted power spectrum of data (no injection)
+
+    """
+    accumulated_power_spectra = {}
+    for filename in filenames:
+        F = np.load(filename)
+        for thing in F.files:
+            try:
+                accumulated_power_spectra[thing].append(F[thing])
+            except(KeyError):
+                accumulated_power_spectra[thing] = [F[thing]]
+    power_spectrum_channels = ['pk_vs_t','nocov_vs_t','err_vs_t','pCv','temp_noise_var','pIv']
+    #stack up the various power spectrum channels
+    for key in accumulated_power_spectra:
+        if key in power_spectrum_channels:
+            accumulated_power_spectra[key] = np.real(np.array(accumulated_power_spectra[key]))
+        else:    #otherwise just keep the first entry,
+                 #   assuming they are all the same but
+                 #   for their bootstrapping
+            accumulated_power_spectra[key] = accumulated_power_spectra[key][0]
+    return accumulated_power_spectra
+
+def average_bootstraps(indata,func=np.median):
+    """
+    Average the various power spectrum channels across time (last axis of input arrays)
+    compute the error as the standard deviation across bootstraps (first axis of input arrays)
+    input: a dictionary of arrays with names as output by read_bootstraps
+    output: a matching dictionary of arrays such as read in by power spectrum
+    plotting tools.
+    NB: the important pspec channels are renamed for consistency
+    """
+    pspec_channels = {'pk_vs_t':'pC',
+                        'nocov_vs_t':'pI',
+                        'pCv':'pCv',
+                        'pIv':'pIv'}
+    outdata = {}
+    for inname in indata:
+        if inname in pspec_channels.keys():
+            outname = pspec_channels[inname]
+            AVG_per_bootstrap = func(indata[inname],axis=-1)
+            outdata[outname] = np.median(AVG_per_bootstrap,axis=0)
+            #outdata[outname] = random_choice_avg_bootstraps(indata[inname],func=func)
+        else:
+            outdata[inname] = indata[inname]
+    return outdata
+
+def random_choice_avg_bootstraps(X,Nt_eff=10,NBOOT=100,func=np.median):
+    #choose randomly a time (axis=-1) from a random bootstrap (axis=-2)
+    #apply func to the result (default is numpy.median)
+    #do for NBOOT iterations
+    #assumes input array dimensions (nbootstraps,nks,ntimes)
+    bboots = []
+    for i in xrange(NBOOT):
+        times_i = np.random.choice(X.shape[-1],Nt_eff,replace=True)
+        bls_i = np.random.choice(X.shape[0],Nt_eff,replace=True)
+        bboots.append(X[bls_i,:,times_i].squeeze().T)
+    bboots = np.array(bboots)
+    return func(bboots,axis=-1)
+
 
 
 def consolidate_bootstraps(files=None, verbose=False,
