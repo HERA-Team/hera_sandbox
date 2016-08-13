@@ -449,7 +449,7 @@ def read_bootstraps(files=None, verbose=False):
         if verbose: print 'Reading Boots'
         npz = n.load(filename)
         for key in keys:
-            out_dict[key].append(npz[key])
+            out_dict[key].append( n.real( npz[key] ))
         npz.close()
 
     return out_dict
@@ -542,7 +542,7 @@ def random_avg_bootstraps(boot_dict = None,boot_axis=None, time_axis=None,
             tmp_dict = n.swapaxes(boot_dict[key],time_axis,-1)
             tmp_dict = n.swapaxes(tmp_dict,boot_axis,-2)
             # import ipdb; ipdb.set_trace()
-            dsum_dict[key] = n.array(tmp_dict)[...,bs,ts]
+            dsum_dict[key] = n.array(tmp_dict)[...,bs,ts].real
         # import ipdb; ipdb.set_trace()
         for key in keys:
             tmp = n.median(dsum_dict[key],-1)
