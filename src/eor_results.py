@@ -492,89 +492,137 @@ def random_choice_avg_bootstraps(X,Nt_eff=10,NBOOT=100,func=np.median):
 
 
 
-def consolidate_bootstraps(files=None, verbose=False,
-        outfile='pspec_boots_consolidated.npz', NBOOT=400,inject=False,
-        save=True):
+def read_bootstraps(files=None, verbose=False):
+    '''
+    read_bootstraps(files, verbose):
+
+    arguments:
+        files: glob of files, or list of file names to be read
+
+    keywords:
+        verbose: Print optional output to stdout. Defalt False
+    '''
+
     if files is None or not files:
-        raise TypeError('Files given are {0}; Must supply input files'.format(files))
+        raise TypeError('Files given are {0}; Must supply input '
+        'files'.format(files))
         return files
 
     one_file_flag=False
     if len(n.shape(files)) ==0: files = [files];
     if len(files) == 1: one_file_flag=True
     # if files
-    #load the first file to find what values will be passed through and saved
-    #and which will be bootstrapped
-    if inject:
-        npz0 = n.load(glob.glob(files[0]+'/pspec_boot*.npz')[0])
-        num_boots= len(glob.glob(files[0]+'/pspec_boot*.npz'))
-    else:
-        npz0 = n.load(files[0])
-        num_boots = len(files)
+
+    #load the first file to make dummy lists into which boots will aggregate
+    npz0 = n.load(files[0])
+    num_boots = len(files)
     keys = npz0.keys()
-    flags = [ True if len(npz0[key].shape) > 1 else False for key in keys]
-    ngood = n.sum(flags)
-
-    single_keys = [keys[cnt] for cnt in n.where(n.logical_not(flags))[0].squeeze()]
-    out_dict = {key: npz0[key] for key in single_keys}
-
-    strapped_keys = [ keys[cnt] for cnt in n.where(flags)[0].squeeze()]
-    strap_dict = {key:[] for key in strapped_keys}
-
-    for key in strapped_keys: out_dict[key] = []
-
-    num_ks = n.shape(npz0[strapped_keys[0]])[0]
-    num_times= n.shape(npz0[strapped_keys[0]])[1]
     npz0.close()
 
+    out_dict = {key:[] for key in keys}
+
     for filename in files:
-        if inject:
-            if verbose: print 'Reading', filename
-            pspecs = glob.glob(filename+'/pspec_boot*.npz')
-            tmp_dict = {key:[] for key in strapped_keys}
-            for pspec in pspecs:
-                npz = n.load(pspec)
-                for key in tmp_dict:
-                    tmp_dict[key].append(npz[key])
-                npz.close()
+        if verbose: print 'Reading Boots'
+        npz = n.load(filename)
+        for key in keys:
+            out_dict[key].append( n.real( npz[key] ))
+        npz.close()
 
-            for key in strapped_keys:
-                strap_dict[key].append(tmp_dict[key])
+    return out_dict
 
-        else:
-            if verbose: print 'Reading Boots'
-            npz = n.load(filename)
-            for key in strapped_keys:
-                strap_dict[key].append(npz[key])
-            npz.close()
-    #reshape lists to be of the for any non-booted dim, num k's, num boots, ntimes
-    for key in strap_dict.keys():
-        shape = n.shape(strap_dict[key])
-        strap_dict[key] = n.reshape(strap_dict[key],
-                    (-1, num_ks, num_boots, num_times))
+def read_injects(inj_dirs=None):
+    '''
+    read_inject(inj_dirs)
+
+    iterates over inject directories and runs read_bootstraps on each directory
+
+    arguments:
+        inj_dirs: glob or list of inject directories to be loaded
+
+    returns:
+        dictionary of outputs from read_bootstraps, keys are the inject_directory names
+    '''
+    if inj_dirs is None or not inj_dirs:
+        raise TypeError('Must supply input list of inject directories')
+
+    ##create list of keys by taking only last party of file name
+    ##this could be a problem if you try to read two different channel ranges
+    ##wit the same inject values but that sounds like a crazy thing to do.
+    keys = [inj.split('/')[-1] for inj in inj_dirs]
+    out_dict ={key:{} for key in keys}
+    for cnt,key in enumerate(keys):
+        in_files = glob.glob( inj_dirs[ cnt ] + '/pspec_boo*.npz' )
+        out_dict[key] = read_bootstraps(in_files)
+    return out_dict
+
+def random_avg_bootstraps(boot_dict = None,boot_axis=None, time_axis=None,
+    outfile=None, verbose=False, nboot=400):
+    '''
+    random_avg_bootstraps(boot_dict=None, boot_axis=None, time_axis=None
+            outfile=None, verbose=False, nboot=400)
+
+    arguments:
+        boot_dict: dictionary object of lists with at least 2 dimensions.
+
+
+        boot_axis: dimension of the lists in boot_dict over which different
+                    bootstraps are stored. Required argument. defualt = None
+
+        time_axis: dimension of the lists in boot_dict over which different
+                    times are stored. Required argument. defualt = None
+
+    keywords:
+        outfile: Optional outfile into which the random averaged bootstraps
+                  will be saved.
+
+        nboot: Number of times a random power spectrum will be constructed
+                by forming a waterfall with each time element randomly selected
+                from a random bootstrap
+
+        verbose: Print optional output to stdout. Default = False.
+    '''
+    #Check if any required intput is not given
+    if boot_dict is None or not boot_dict:
+        raise TypeError('Must supply input dictionary of data')
+    if boot_axis is None:
+        raise TypeError('Must supply boot axis argument')
+    if time_axis is None:
+        raise TypeError('Must supply time axis argument')
+
+    #check if either axis, if given, is not an integer
+    if not isinstance(boot_axis,(int,long)):
+        raise TypeError('Expected Integer type for boot_axis '
+                            'instead got {0}'.format(type(boot_axis).__name__))
+    if not isinstance(time_axis,(int,long)):
+        raise TypeError('Expected Integer type for time_axis '
+                            'instead got {0}'.format(type(time_axis).__name__))
+
 
     # import ipdb; ipdb.set_trace()
-    for nboot in xrange(NBOOT):
+    keys = boot_dict.keys()
+    out_dict = {key:[] for key in keys}
+    # import ipdb; ipdb.set_trace()
+
+    num_times = n.shape(boot_dict[keys[0]])[time_axis]
+    num_boots = n.shape(boot_dict[keys[0]])[boot_axis]
+
+    for boot in xrange(nboot):
         if verbose:
-            if (nboot+1) % 10 == 0:
-                    print '   ',nboot+1,'/',NBOOT
-        dsum_dict = {key:[] for key in strap_dict.keys()}
+            if (boot+1) % 10 == 0:
+                    print '   ', boot+1,'/',nboot
+        dsum_dict = {key:[] for key in keys}
         # import ipdb; ipdb.set_trace()
         ts = n.random.choice(num_times,num_times)
         bs = n.random.choice(num_boots,num_times)
+        for key in keys:
+            tmp_dict = n.swapaxes(boot_dict[key],time_axis,-1)
+            tmp_dict = n.swapaxes(tmp_dict,boot_axis,-2)
+            # import ipdb; ipdb.set_trace()
+            dsum_dict[key] = n.array(tmp_dict)[...,bs,ts].real
         # import ipdb; ipdb.set_trace()
-        for key in dsum_dict.keys():
-            dsum_dict[key] = n.array(strap_dict[key])[...,bs,ts]
-
-        for key in strapped_keys:
+        for key in keys:
             tmp = n.median(dsum_dict[key],-1)
-            out_dict[key].append(tmp.T.squeeze())
+            out_dict[key].append(tmp)
 
-
-    #rename variables over which time will be collapsed.
-    for cnt,key in enumerate(strapped_keys):
-        if key == 'pk_vs_t': out_dict['pCs'] = out_dict.pop(key)
-        if key == 'nocov_vs_t': out_dict['pIs'] = out_dict.pop(key)
-
-    if save: n.savez(outfile, **out_dict)
+    if outfile: n.savez(outfile, **out_dict)
     return out_dict
