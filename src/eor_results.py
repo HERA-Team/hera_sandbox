@@ -415,8 +415,8 @@ def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,
     f.write( 'Posterior (omit): {0:.4f}, ({1:.4f},{2:.4f}),\t({3:.4f},{4:.4f})\n'.format( mean_o, s1lo_o,s1hi_o, s2lo_o,s2hi_o))
     f.write( 'Noise level: {0:0>5.3f} mk^2\n'.format(s2l_theo) )
     f.close()
-
-def read_bootstraps(filenames,verbose=False):
+#Danny's power spectrum bits
+def read_bootstraps_dcj(filenames,verbose=False):
     #read in a list of bootstrapped power spectra
     #return a single set of power spectra stacked along the bootstrap dimension
     #only keep the real part!
@@ -453,14 +453,23 @@ def read_bootstraps(filenames,verbose=False):
             accumulated_power_spectra[key] = accumulated_power_spectra[key][0]
     return accumulated_power_spectra
 
-def average_bootstraps(indata,func=np.median):
+def average_bootstraps(indata,Nt_eff,avg_func=np.median,Nboots=100):
     """
-    Average the various power spectrum channels across time (last axis of input arrays)
-    compute the error as the standard deviation across bootstraps (first axis of input arrays)
-    input: a dictionary of arrays with names as output by read_bootstraps
+    "Scramble average" the various power spectrum channels across time
+    and then get the mean and standard deviation across scrambles
+    compute the error as the standard deviation across scramble
+    Assumed axes: (bootstrap,k,time)
+    input:
+        indata:a dictionary of arrays with names as output by read_bootstraps
+        Nt_eff:effective number of independent time samples
     output: a matching dictionary of arrays such as read in by power spectrum
     plotting tools.
     NB: the important pspec channels are renamed for consistency
+        pspec channels: (input --> output)
+                        pk_vs_t     --> pC,
+                        nocov_vs_t  --> pI,
+                        pCv         --> pCv,
+                        pIv         --> pIv
     """
     pspec_channels = {'pk_vs_t':'pC',
                         'nocov_vs_t':'pI',
@@ -470,28 +479,60 @@ def average_bootstraps(indata,func=np.median):
     for inname in indata:
         if inname in pspec_channels.keys():
             outname = pspec_channels[inname]
-            AVG_per_bootstrap = func(indata[inname],axis=-1)
-            outdata[outname] = np.median(AVG_per_bootstrap,axis=0)
-            #outdata[outname] = random_choice_avg_bootstraps(indata[inname],func=func)
+            #scramble the times and bootstraps. Average over new time dimension
+            #   only draw as many times as we have independent lsts (Nt_eff)
+            Z = scramble_avg_bootstrap_array(indata[inname],
+                        Nt_eff=Nt_eff,func=avg_func,Nboots=Nboots)
+            #power spectrum is the mean and standard dev over scramble dimension
+            outdata[outname] = avg_func(Z,axis=0)
+            outdata[outname+'_err'] = np.std(Z,axis=0)
+
+            #also do the folded version
+            outname += '_fold'
+            kpl_fold,X = split_stack_kpl(indata[inname],indata['kpl'])
+            Z = scramble_avg_bootstrap_array(X,
+                        Nt_eff=Nt_eff,func=avg_func,Nboots=Nboots)
+            outdata[outname] = avg_func(Z,axis=0)
+            outdata[outname+'_err'] = np.std(Z,axis=0)
+            outdata['kpl_fold'] = kpl_fold
+
+
         else:
             outdata[inname] = indata[inname]
     return outdata
 
-def random_choice_avg_bootstraps(X,Nt_eff=10,NBOOT=100,func=np.median):
+def scramble_avg_bootstrap_array(X,Nt_eff=10,Nboots=100,func=np.median):
     #choose randomly a time (axis=-1) from a random bootstrap (axis=-2)
     #apply func to the result (default is numpy.median)
     #do for NBOOT iterations
     #assumes input array dimensions (nbootstraps,nks,ntimes)
     bboots = []
-    for i in xrange(NBOOT):
+    for i in xrange(Nboots):
         times_i = np.random.choice(X.shape[-1],Nt_eff,replace=True)
         bls_i = np.random.choice(X.shape[0],Nt_eff,replace=True)
         bboots.append(X[bls_i,:,times_i].squeeze().T)
     bboots = np.array(bboots)
     return func(bboots,axis=-1)
 
+def split_stack_kpl(X,kpl):
+    #split the input X array at kpl=0 and stack along the bootstrap dimension
+    #  use in concert with scramble_avg_bootstraps to fold kpls together
+    #assumes input dimensions (nbootstraps,nks,ntimes)
+    assert(X.shape[1]==len(kpl)) #make sure that kpl matches the kpl axis
+    #if theres an odd number of kpls, then there better be a zero value
+    assert(len(kpl)%2==0 or np.abs(kpl).min()==0)
+    if np.abs(kpl).min()==0:
+        kpl0_split_index = np.argmin(np.abs(kpl))
+        X_kpos = X[:,kpl0_split_index:,:]
+        X_kneg = X[:,kpl0_split_index::-1,:] #select and flip simultaneously
+    else:
+        kpl0_split_index = np.where(np.logical_and(kpl>0,np.abs(kpl)==np.min(np.abs(kpl))))[0][0]
+        X_kpos = X[:,kpl0_split_index:,:]
+        X_kneg = X[:,kpl0_split_index-1::-1,:] #select and flip simultaneously
+    return kpl[kpl0_split_index:], np.concatenate([X_kpos,X_kneg],axis=0)
 
 
+#Matt's power spectrum bits
 def read_bootstraps(files=None, verbose=False):
     '''
     read_bootstraps(files, verbose):
