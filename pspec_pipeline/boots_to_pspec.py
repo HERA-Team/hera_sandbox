@@ -15,6 +15,9 @@ parser.add_argument('--t_eff',type=int,required=True,
                     help='effective length of integration timescale in # of integrations')
 parser.add_argument('--bl_length',type=float,required=True,
                     help='length of baseline in meters')
+parser.add_argument('--add_pCv',action='store_true',
+                    help='add pCv back into pC before averaging')
+
 
 # parser.add_argument('--mode', dest='mode', choices=['prob','excess'],
 #                     default='prob',
@@ -35,6 +38,11 @@ for injection_dir in injection_dirs:
     Nlstbins = pspecs['pk_vs_t'].shape[-1] #get the number of lst integrations in the dataset
     Neff_lst = np.ceil(Nlstbins/args.t_eff) #compute the effective number of LST bins
     #  lets round up because this 'N' is only approximate
+
+
+    if args.add_pCv:
+        pspecs['pk_vs_t'] += pspecs['pCv']
+
     #compute Pk vs kpl vs bootstraps
     pk_pspecs = average_bootstraps(pspecs,Nt_eff=Neff_lst,
                     Nboots=100,avg_func=np.mean)
