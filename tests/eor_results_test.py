@@ -1,12 +1,13 @@
 import unittest
 from capo.eor_results import (
         get_pk_from_npz as load_pk, get_k3pk_from_npz as load_k3pk,
-        consolidate_bootstraps
+        read_bootstraps, random_avg_bootstraps
         )
 from capo.cosmo_units import f212z, c
 from capo import pspec
 import numpy as np
 import os
+import glob
 
 test_data_dir='test_data/'
 test_data_file= test_data_dir+'test_eor_results.npz'
@@ -76,10 +77,11 @@ class Test_eor_loader(unittest.TestCase):
                         'retruned pk,pk_err {2} +/- {3}'\
                         ''.format(ref_k3pk,ref_k3pk_err,out_k3pk,out_k3pk_err)
                         )
-class Test_bootstrapper(unittest.TestCase):
+class Test_bootstrap_functions(unittest.TestCase):
 
     def setUp(self):
         self.path = os.path.dirname(os.path.realpath(__file__))
+
 
 
     def tearDown(self):
@@ -87,51 +89,81 @@ class Test_bootstrapper(unittest.TestCase):
 
     def test_none_input(self):
         with self.assertRaises(TypeError):
-            consolidate_bootstraps()
+            random_avg_bootstraps()
 
     def test_blank_list(self):
         with self.assertRaises(TypeError):
-            consolidate_bootstraps([])
+            random_avg_bootstraps([])
 
     def test_empty_string_input(self):
         with self.assertRaises(TypeError):
-            consolidate_bootstraps('')
+            random_avg_bootstraps('')
+
+    def test_no_boot_axis_input(self):
+        with self.assertRaises(TypeError):
+            random_avg_bootstraps({'test':[]})
+
+    def test_no_time_axis_input(self):
+        with self.assertRaises(TypeError):
+            random_avg_bootstraps({'test':[]},boot_axis=1)
+
+    def test_boot_axis_type(self):
+        with self.assertRaises(TypeError):
+            random_avg_bootstraps({'test':[]},boot_axis=1.2,time_axis=1)
+            random_avg_bootstraps({'test':[]},boot_axis=1+1j,time_axis=1)
+
+    def test_time_axis_type(self):
+        with self.assertRaises(TypeError):
+            random_avg_bootstraps({'test':[]},boot_axis=1,time_axis=1.2)
+            random_avg_bootstraps({'test':[]},boot_axis=1,time_axis=1+1j)
 
     def test_num_boots(self):
-        test_files= [os.path.join(self.path,'test_data/inject_test1')]
+        test_files= glob.glob(os.path.join(self.path,
+                'test_data/inject_test1/pspec*.npz'))
         # /test_boot{0:02d}'.format(n)) for n in range(5)]
-        ref_boot = 31
-        out_dict = consolidate_bootstraps( test_files,
-                        save=False,NBOOT=ref_boot,inject=True)
-        out_boot = np.shape(out_dict['pCs'])[0]
+        ref_boot = 5
+        out_dict = read_bootstraps( test_files)
+        out_boot = np.shape(out_dict['nocov_vs_t'])[0]
         self.assertEqual(ref_boot, out_boot)
 
     def test_load_final_boot(self):
         ref_freq=0.11970443349753694
-        test_files= [os.path.join(self.path,'test_data/inject_test1')]
-        out_dict = consolidate_bootstraps( test_files,
-                        save=False,NBOOT=31,inject=True)
-        out_freq = out_dict['freq']
+        test_files= glob.glob(os.path.join(self.path,
+                'test_data/inject_test1/pspec*.npz'))
+        out_dict = read_bootstraps( test_files)
+        out_freq = out_dict['freq'][0]
         self.assertEqual(out_freq,ref_freq)
 
     def test_num_ks(self):
-        test_files= [os.path.join(self.path,'test_data/inject_test1')]
+        test_files= glob.glob(os.path.join(self.path,
+                     'test_data/inject_test1/pspec*.npz'))
         ref_ks = 21
-        ref_boot=15
-        out_dict = consolidate_bootstraps( test_files,
-                    save=False,NBOOT=ref_boot,inject=True)
-        out_ks = np.shape(out_dict['pCs'])[1]
+        out_dict = read_bootstraps( test_files)
+        out_ks = np.shape(out_dict['pk_vs_t'])[1]
         self.assertEqual(out_ks, ref_ks)
 
-    def test_num_injs(self):
-        test_files= [os.path.join(self.path,
-                'test_data/inject_test{0:01d}'.format(n+1)) for n in range(2) ]
-        ref_injs = 2
+    def test_num_boots(self):
+        test_files= glob.glob(os.path.join(self.path,
+                     'test_data/inject_test1/pspec*.npz'))
+        ref_dict = read_bootstraps(test_files)
+        in_dict = {'pIs':ref_dict['nocov_vs_t']}
+        ref_boots=15
+        out_dict = random_avg_bootstraps( in_dict,
+                boot_axis=0,time_axis=-1,nboot=ref_boots)
+        out_boots = np.shape(out_dict['pIs'])[0]
+        self.assertEqual(ref_boots, out_boots)
+
+    def test_num_ks_avged(self):
+        test_files= glob.glob(os.path.join(self.path,
+                     'test_data/inject_test1/pspec*.npz'))
+        ref_dict = read_bootstraps(test_files)
+        in_dict = {'pIs':ref_dict['nocov_vs_t']}
         ref_boot=15
-        out_dict = consolidate_bootstraps( test_files,inject=True,
-                    save=False,NBOOT=ref_boot)
-        out_injs = np.shape(out_dict['pCs'])[2]
-        self.assertEqual(ref_injs, out_injs)
+        ref_ks=21
+        out_dict = random_avg_bootstraps( in_dict,
+                boot_axis=0,time_axis=-1, nboot=ref_boot)
+        out_ks = np.shape(out_dict['pIs'])[1]
+        self.assertEqual(out_ks, ref_ks)
 
 if __name__== '__main__':
     unittest.main()

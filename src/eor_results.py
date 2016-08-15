@@ -4,6 +4,7 @@ from capo.cosmo_units import f212z, c
 import glob
 import ipdb
 import matplotlib.pyplot as p
+import numpy as np
 #measurements
 
 def PAPER_32_all():
@@ -414,91 +415,255 @@ def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,
     f.write( 'Posterior (omit): {0:.4f}, ({1:.4f},{2:.4f}),\t({3:.4f},{4:.4f})\n'.format( mean_o, s1lo_o,s1hi_o, s2lo_o,s2hi_o))
     f.write( 'Noise level: {0:0>5.3f} mk^2\n'.format(s2l_theo) )
     f.close()
+#Danny's power spectrum bits
+def read_bootstraps_dcj(filenames,verbose=False):
+    #read in a list of bootstrapped power spectra
+    #return a single set of power spectra stacked along the bootstrap dimension
+    #only keep the real part!
+    """
+    ['err_vs_t',    #not sure
+     'cmd',         #the command used to generate the file
+     'pCv',         #the weighted data power spectrum (no injection) (times,kpls)
+     'pk_vs_t',     #the weighted data power spectrum with injection  (times,kpls)
+     'times',       #lsts of data bins
+     'scalar',      #conversion from mk^2 to mK^2/h^3Mpc^3 (already applied to data)
+     'nocov_vs_t',  #unweighted injected signal
+     'freq',        #center frequency of bin in GHz
+     'kpl',         #list of k parallels matching the kpl axis of the power spectrum
+     'temp_noise_var',  #not sure
+     'pIv']             #unweighted power spectrum of data (no injection)
+
+    """
+    accumulated_power_spectra = {}
+    for filename in filenames:
+        F = np.load(filename)
+        for thing in F.files:
+            try:
+                accumulated_power_spectra[thing].append(F[thing])
+            except(KeyError):
+                accumulated_power_spectra[thing] = [F[thing]]
+    power_spectrum_channels = ['pk_vs_t','nocov_vs_t','err_vs_t','pCv','temp_noise_var','pIv']
+    #stack up the various power spectrum channels
+    for key in accumulated_power_spectra:
+        if key in power_spectrum_channels:
+            accumulated_power_spectra[key] = np.real(np.array(accumulated_power_spectra[key]))
+        else:    #otherwise just keep the first entry,
+                 #   assuming they are all the same but
+                 #   for their bootstrapping
+            accumulated_power_spectra[key] = accumulated_power_spectra[key][0]
+    return accumulated_power_spectra
+
+def average_bootstraps(indata,Nt_eff,avg_func=np.median,Nboots=100):
+    """
+    "Scramble average" the various power spectrum channels across time
+    and then get the mean and standard deviation across scrambles
+    compute the error as the standard deviation across scramble
+    Assumed axes: (bootstrap,k,time)
+    input:
+        indata:a dictionary of arrays with names as output by read_bootstraps
+        Nt_eff:effective number of independent time samples
+    output: a matching dictionary of arrays such as read in by power spectrum
+    plotting tools.
+    NB: the important pspec channels are renamed for consistency
+        pspec channels: (input --> output)
+                        pk_vs_t     --> pC,
+                        nocov_vs_t  --> pI,
+                        pCv         --> pCv,
+                        pIv         --> pIv
+    """
+    pspec_channels = {'pk_vs_t':'pC',
+                        'nocov_vs_t':'pI',
+                        'pCv':'pCv',
+                        'pIv':'pIv'}
+    outdata = {}
+    for inname in indata:
+        if inname in pspec_channels.keys():
+            outname = pspec_channels[inname]
+            #scramble the times and bootstraps. Average over new time dimension
+            #   only draw as many times as we have independent lsts (Nt_eff)
+            Z = scramble_avg_bootstrap_array(indata[inname],
+                        Nt_eff=Nt_eff,func=avg_func,Nboots=Nboots)
+            #power spectrum is the mean and standard dev over scramble dimension
+            outdata[outname] = avg_func(Z,axis=0)
+            outdata[outname+'_err'] = np.std(Z,axis=0)
+
+            #also do the folded version
+            outname += '_fold'
+            kpl_fold,X = split_stack_kpl(indata[inname],indata['kpl'])
+            Z = scramble_avg_bootstrap_array(X,
+                        Nt_eff=Nt_eff,func=avg_func,Nboots=Nboots)
+            outdata[outname] = avg_func(Z,axis=0)
+            outdata[outname+'_err'] = np.std(Z,axis=0)
+            outdata['kpl_fold'] = kpl_fold
 
 
-def consolidate_bootstraps(files=None, verbose=False,
-        outfile='pspec_boots_consolidated.npz', NBOOT=400,inject=False,
-        save=True):
+        else:
+            outdata[inname] = indata[inname]
+    return outdata
+
+def scramble_avg_bootstrap_array(X,Nt_eff=10,Nboots=100,func=np.median):
+    #choose randomly a time (axis=-1) from a random bootstrap (axis=-2)
+    #apply func to the result (default is numpy.median)
+    #do for NBOOT iterations
+    #assumes input array dimensions (nbootstraps,nks,ntimes)
+    bboots = []
+    for i in xrange(Nboots):
+        times_i = np.random.choice(X.shape[-1],Nt_eff,replace=True)
+        bls_i = np.random.choice(X.shape[0],Nt_eff,replace=True)
+        bboots.append(X[bls_i,:,times_i].squeeze().T)
+    bboots = np.array(bboots)
+    return func(bboots,axis=-1)
+
+def split_stack_kpl(X,kpl):
+    #split the input X array at kpl=0 and stack along the bootstrap dimension
+    #  use in concert with scramble_avg_bootstraps to fold kpls together
+    #assumes input dimensions (nbootstraps,nks,ntimes)
+    assert(X.shape[1]==len(kpl)) #make sure that kpl matches the kpl axis
+    #if theres an odd number of kpls, then there better be a zero value
+    assert(len(kpl)%2==0 or np.abs(kpl).min()==0)
+    if np.abs(kpl).min()==0:
+        kpl0_split_index = np.argmin(np.abs(kpl))
+        X_kpos = X[:,kpl0_split_index:,:]
+        X_kneg = X[:,kpl0_split_index::-1,:] #select and flip simultaneously
+    else:
+        kpl0_split_index = np.where(np.logical_and(kpl>0,np.abs(kpl)==np.min(np.abs(kpl))))[0][0]
+        X_kpos = X[:,kpl0_split_index:,:]
+        X_kneg = X[:,kpl0_split_index-1::-1,:] #select and flip simultaneously
+    return kpl[kpl0_split_index:], np.concatenate([X_kpos,X_kneg],axis=0)
+
+
+#Matt's power spectrum bits
+def read_bootstraps(files=None, verbose=False):
+    '''
+    read_bootstraps(files, verbose):
+
+    arguments:
+        files: glob of files, or list of file names to be read
+
+    keywords:
+        verbose: Print optional output to stdout. Defalt False
+    '''
+
     if files is None or not files:
-        raise TypeError('Files given are {0}; Must supply input files'.format(files))
+        raise TypeError('Files given are {0}; Must supply input '
+        'files'.format(files))
         return files
 
     one_file_flag=False
     if len(n.shape(files)) ==0: files = [files];
     if len(files) == 1: one_file_flag=True
     # if files
-    #load the first file to find what values will be passed through and saved
-    #and which will be bootstrapped
-    if inject:
-        npz0 = n.load(glob.glob(files[0]+'/pspec_boot*.npz')[0])
-        num_boots= len(glob.glob(files[0]+'/pspec_boot*.npz'))
-    else:
-        npz0 = n.load(files[0])
-        num_boots = len(files)
+
+    #load the first file to make dummy lists into which boots will aggregate
+    npz0 = n.load(files[0])
+    num_boots = len(files)
     keys = npz0.keys()
-    flags = [ True if len(npz0[key].shape) > 1 else False for key in keys]
-    ngood = n.sum(flags)
-
-    single_keys = [keys[cnt] for cnt in n.where(n.logical_not(flags))[0].squeeze()]
-    out_dict = {key: npz0[key] for key in single_keys}
-
-    strapped_keys = [ keys[cnt] for cnt in n.where(flags)[0].squeeze()]
-    strap_dict = {key:[] for key in strapped_keys}
-
-    for key in strapped_keys: out_dict[key] = []
-
-    num_ks = n.shape(npz0[strapped_keys[0]])[0]
-    num_times= n.shape(npz0[strapped_keys[0]])[1]
     npz0.close()
 
+    out_dict = {key:[] for key in keys}
+
     for filename in files:
-        if inject:
-            if verbose: print 'Reading', filename
-            pspecs = glob.glob(filename+'/pspec_boot*.npz')
-            tmp_dict = {key:[] for key in strapped_keys}
-            for pspec in pspecs:
-                npz = n.load(pspec)
-                for key in tmp_dict:
-                    tmp_dict[key].append(npz[key])
-                npz.close()
+        if verbose: print 'Reading Boots'
+        npz = n.load(filename)
+        for key in keys:
+            out_dict[key].append( n.real( npz[key] ))
+        npz.close()
 
-            for key in strapped_keys:
-                strap_dict[key].append(tmp_dict[key])
+    return out_dict
 
-        else:
-            if verbose: print 'Reading Boots'
-            npz = n.load(filename)
-            for key in strapped_keys:
-                strap_dict[key].append(npz[key])
-            npz.close()
-    #reshape lists to be of the for any non-booted dim, num k's, num boots, ntimes
-    for key in strap_dict.keys():
-        shape = n.shape(strap_dict[key])
-        strap_dict[key] = n.reshape(strap_dict[key],
-                    (-1, num_ks, num_boots, num_times))
+def read_injects(inj_dirs=None):
+    '''
+    read_inject(inj_dirs)
+
+    iterates over inject directories and runs read_bootstraps on each directory
+
+    arguments:
+        inj_dirs: glob or list of inject directories to be loaded
+
+    returns:
+        dictionary of outputs from read_bootstraps, keys are the inject_directory names
+    '''
+    if inj_dirs is None or not inj_dirs:
+        raise TypeError('Must supply input list of inject directories')
+
+    ##create list of keys by taking only last party of file name
+    ##this could be a problem if you try to read two different channel ranges
+    ##wit the same inject values but that sounds like a crazy thing to do.
+    keys = [inj.split('/')[-1] for inj in inj_dirs]
+    out_dict ={key:{} for key in keys}
+    for cnt,key in enumerate(keys):
+        in_files = glob.glob( inj_dirs[ cnt ] + '/pspec_boo*.npz' )
+        out_dict[key] = read_bootstraps(in_files)
+    return out_dict
+
+def random_avg_bootstraps(boot_dict = None,boot_axis=None, time_axis=None,
+    outfile=None, verbose=False, nboot=400):
+    '''
+    random_avg_bootstraps(boot_dict=None, boot_axis=None, time_axis=None
+            outfile=None, verbose=False, nboot=400)
+
+    arguments:
+        boot_dict: dictionary object of lists with at least 2 dimensions.
+
+
+        boot_axis: dimension of the lists in boot_dict over which different
+                    bootstraps are stored. Required argument. defualt = None
+
+        time_axis: dimension of the lists in boot_dict over which different
+                    times are stored. Required argument. defualt = None
+
+    keywords:
+        outfile: Optional outfile into which the random averaged bootstraps
+                  will be saved.
+
+        nboot: Number of times a random power spectrum will be constructed
+                by forming a waterfall with each time element randomly selected
+                from a random bootstrap
+
+        verbose: Print optional output to stdout. Default = False.
+    '''
+    #Check if any required intput is not given
+    if boot_dict is None or not boot_dict:
+        raise TypeError('Must supply input dictionary of data')
+    if boot_axis is None:
+        raise TypeError('Must supply boot axis argument')
+    if time_axis is None:
+        raise TypeError('Must supply time axis argument')
+
+    #check if either axis, if given, is not an integer
+    if not isinstance(boot_axis,(int,long)):
+        raise TypeError('Expected Integer type for boot_axis '
+                            'instead got {0}'.format(type(boot_axis).__name__))
+    if not isinstance(time_axis,(int,long)):
+        raise TypeError('Expected Integer type for time_axis '
+                            'instead got {0}'.format(type(time_axis).__name__))
+
 
     # import ipdb; ipdb.set_trace()
-    for nboot in xrange(NBOOT):
+    keys = boot_dict.keys()
+    out_dict = {key:[] for key in keys}
+    # import ipdb; ipdb.set_trace()
+
+    num_times = n.shape(boot_dict[keys[0]])[time_axis]
+    num_boots = n.shape(boot_dict[keys[0]])[boot_axis]
+
+    for boot in xrange(nboot):
         if verbose:
-            if (nboot+1) % 10 == 0:
-                    print '   ',nboot+1,'/',NBOOT
-        dsum_dict = {key:[] for key in strap_dict.keys()}
+            if (boot+1) % 10 == 0:
+                    print '   ', boot+1,'/',nboot
+        dsum_dict = {key:[] for key in keys}
         # import ipdb; ipdb.set_trace()
         ts = n.random.choice(num_times,num_times)
         bs = n.random.choice(num_boots,num_times)
+        for key in keys:
+            tmp_dict = n.swapaxes(boot_dict[key],time_axis,-1)
+            tmp_dict = n.swapaxes(tmp_dict,boot_axis,-2)
+            # import ipdb; ipdb.set_trace()
+            dsum_dict[key] = n.array(tmp_dict)[...,bs,ts].real
         # import ipdb; ipdb.set_trace()
-        for key in dsum_dict.keys():
-            dsum_dict[key] = n.array(strap_dict[key])[...,bs,ts]
-
-        for key in strapped_keys:
+        for key in keys:
             tmp = n.median(dsum_dict[key],-1)
-            out_dict[key].append(tmp.T.squeeze())
+            out_dict[key].append(tmp)
 
-
-    #rename variables over which time will be collapsed.
-    for cnt,key in enumerate(strapped_keys):
-        if key == 'pk_vs_t': out_dict['pCs'] = out_dict.pop(key)
-        if key == 'nocov_vs_t': out_dict['pIs'] = out_dict.pop(key)
-
-    if save: n.savez(outfile, **out_dict)
+    if outfile: n.savez(outfile, **out_dict)
     return out_dict

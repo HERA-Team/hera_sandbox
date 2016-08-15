@@ -32,7 +32,10 @@ def save_gains(s,f,pol,filename=None,ubls=None,ex_ants=None):
     delays = []
     for k,i in s.iteritems():
         s2[str(k)] = omni.get_phase(f,i)
-        delays.append([k,i])
+        try:
+            delays.append([k,i[0],i[1]])
+        except(TypeError,IndexError):
+            delays.append([k,i])
     s2['delays'] = np.array(delays)
     if not ubls is None: s2['ubls']=ubls
     if not ex_ants is None: s2['ex_ants']=ex_ants
