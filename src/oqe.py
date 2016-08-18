@@ -215,7 +215,7 @@ class DataSet:
         dsI = DataSet(); dsI.set_data(dsets=dsI_data) #I has to be a separate dataset because it has different x's populated into it
         dsC.set_iC(iCsum) #override since if they're computed from x, they're incorrect
         dsI.set_I(Isum)
-        if use_cov: return newkeys dsC
+        if use_cov: return newkeys, dsC
         else: return newkeys, dsI
     def q_hat(self, k1, k2, use_cov=True, use_fft=True, cov_flagging=True):
         nchan = self.x[k1].shape[0]
