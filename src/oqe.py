@@ -43,8 +43,8 @@ def lst_align(lsts, lstres=.001):
     lsts_final = None
     for i,k1 in enumerate(lstr.keys()):
         for k2 in lstr.keys()[i:]:
-            if lsts_final is None: lstr_final = np.intersect1d(lstr[k1],lstr[k2]) #XXX LSTs much match exactly
-            else: lsts_final = np.intersect1d(lstr_final,lstr[k2])
+            if lsts_final is None: lsts_final = np.intersect1d(lstr[k1],lstr[k2]) #XXX LSTs much match exactly
+            else: lsts_final = np.intersect1d(lsts_final,lstr[k2])
     inds = {}
     for k in lstr: #selects correct LSTs from data
         inds[k] = order[k].take(lstr[k].searchsorted(lsts_final))
