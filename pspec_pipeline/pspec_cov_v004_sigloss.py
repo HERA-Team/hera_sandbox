@@ -139,7 +139,7 @@ for k in days:
         key = (k,bl,POL)
         data_dict[key] = d
         flg_dict[key] = n.logical_not(flg)
-        conj_dict[key[1]] = conj[a.miriad.ij2bl(bl[0],bl[1])]
+        conj_dict[key[1]] = conj[bl]
 keys = data_dict.keys()
 bls_master = []
 for key in keys: #populate list of baselines
@@ -148,7 +148,8 @@ print 'Baselines:', len(bls_master)
 
 #Align and create dataset
 ds = oqe.DataSet()
-lsts,data_dict,flg_dict = ds.lst_align(lsts,dsets=data_dict,wgts=flg_dict) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
+inds = oqe.lst_align(lsts)
+data_dict,flg_dict,lsts = oqe.lst_align_data(inds,dsets=data_dict,wgts=flg_dict,lsts=lsts) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
 
 #Prep FRF Stuff
 timelen = data_dict[keys[0]].shape[0]
@@ -214,7 +215,8 @@ for boot in xrange(opts.nboot):
  
     if True: #shuffle and group baselines for bootstrapping
         gps = ds.gen_gps(bls_master, ngps=NGPS)
-        newkeys,dsC,dsI = ds.group_data(keys,gps) 
+        newkeys,dsC = ds.group_data(keys,gps)
+        newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
     else: #no groups (slower)
         newkeys = [random.choice(keys) for key in keys] #sample w/replacement for bootstrapping
         dsI,dsC = ds,ds #identity and covariance case dataset is the same
@@ -233,10 +235,10 @@ for boot in xrange(opts.nboot):
             if key1[0] == key2[0] or key1[1] == key2[1]: 
                 continue #don't do even w/even or bl w/same bl
             else:
-                FC += dsC.get_F(key1,key2)
-                FI += dsI.get_F(key1,key2,use_cov=False)    
-                qC += dsC.q_hat(key1,key2)
-                qI += dsI.q_hat(key1,key2,use_cov=False) 
+                FC += dsC.get_F(key1,key2,cov_flagging=False)
+                FI += dsI.get_F(key1,key2,use_cov=False,cov_flagging=False)    
+                qC += dsC.q_hat(key1,key2,cov_flagging=False)
+                qI += dsI.q_hat(key1,key2,use_cov=False,cov_flagging=False) 
 
     MC,WC = dsC.get_MW(FC,mode='L^-1') #Cholesky decomposition
     MI,WI = dsI.get_MW(FI,mode='I')
@@ -288,8 +290,10 @@ for boot in xrange(opts.nboot):
     dse.set_data(dsets=data_dict_eor,conj=conj_dict,wgts=flg_dict)
    
     if True:
-        newkeys,ds2C,ds2I = ds2.group_data(keys,gps) #group data (gps already determined before)
-        newkeys,dseC,dseI = dse.group_data(keys,gps)
+        newkeys,ds2C = ds2.group_data(keys,gps) #group data (gps already determined before)
+        newkeys,ds2I = ds2.group_data(keys,gps,use_cov=False)
+        newkeys,dseC = dse.group_data(keys,gps)
+        newkeys,dseI = dse.group_data(keys,gps,use_cov=False)
     else: #no groups (slower)
         ds2I,ds2C = ds2,ds2 #identity and covariance case dataset is the same
         dseI,dseC = dse,dse
@@ -305,10 +309,10 @@ for boot in xrange(opts.nboot):
             if key1[0] == key2[0] or key1[1] == key2[1]:
                 continue #don't do even w/even or bl w/same bl
             else:
-                FC += ds2C.get_F(key1,key2)
-                FI += dseI.get_F(key1,key2,use_cov=False) #only eor
-                qC += ds2C.q_hat(key1,key2)
-                qI += dseI.q_hat(key1,key2,use_cov=False)
+                FC += ds2C.get_F(key1,key2,cov_flagging=False)
+                FI += dseI.get_F(key1,key2,use_cov=False,cov_flagging=False) #only eor
+                qC += ds2C.q_hat(key1,key2,cov_flagging=False)
+                qI += dseI.q_hat(key1,key2,use_cov=False,cov_flagging=False)
 
     MC,WC = ds2C.get_MW(FC,mode='L^-1') #Cholesky decomposition
     MI,WI = dseI.get_MW(FI,mode='I')

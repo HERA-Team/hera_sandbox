@@ -135,7 +135,7 @@ for k in days:
         key = (k,bl,POL)
         data_dict[key] = d
         flg_dict[key] = n.logical_not(flg)
-        conj_dict[key[1]] = conj[a.miriad.ij2bl(bl[0],bl[1])]
+        conj_dict[key[1]] = conj[bl]
 keys = data_dict.keys()
 bls_master = []
 for key in keys: #populate list of baselines
@@ -144,7 +144,8 @@ print 'Baselines:', len(bls_master)
 
 #Align and create dataset
 ds = oqe.DataSet()
-lsts,data_dict,flg_dict = ds.lst_align(lsts,dsets=data_dict,wgts=flg_dict) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
+inds = oqe.lst_align(lsts)
+data_dict,flg_dict,lsts = oqe.lst_align_data(inds,dsets=data_dict,wgts=flg_dict,lsts=lsts) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
 
 #If data is replaced by noise
 if opts.noise_only:
