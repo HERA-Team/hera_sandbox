@@ -1,7 +1,7 @@
 ### My Data ###
 PREFIX='..'
-EVEN_FILES=${PREFIX}'/even/sep0,2/frf_new/*I.uvGAL'
-ODD_FILES=${PREFIX}'/odd/sep0,2/frf_new/*I.uvGAL'
+EVEN_FILES=${PREFIX}'/even/sep0,2/*I.uvGAL'
+ODD_FILES=${PREFIX}'/odd/sep0,2/*I.uvGAL'
 EVEN_FILES=`lst_select.py -C psa6622_v003 --ra=4_10 ${EVEN_FILES[@]}`
 ODD_FILES=`lst_select.py -C psa6622_v003 --ra=4_10 ${ODD_FILES[@]}`
 SEP='0,2'
@@ -20,7 +20,7 @@ NBOOT=20
 #NOISE = ''
 
 
-for inject in `python -c "import numpy; print ' '.join(map(str, numpy.logspace(-11,-9,5)))"` ; do
+for inject in `python -c "import numpy; print ' '.join(map(str, numpy.logspace(-3,-1,5)))"` ; do
     mkdir inject_sep${SEP}_${inject}
     echo SIGNAL_LEVEL=${inject}
    

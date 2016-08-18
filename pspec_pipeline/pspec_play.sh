@@ -12,14 +12,14 @@ CHAN='110_130'
 NBOOT=20
 
 #TRICK='C_original'
-TRICK='C_sep12'
+TRICK='C_sep02'
 
 #CHANGE=''
 CHANGE='--changeC'
 
 #CHANGETYPE=''
-#CHANGETYPE='--reg=20' #requires --changeC
-CHANGETYPE='--otherbls="1,2"' #requires --changeC
+#CHANGETYPE='--reg=100' #requires --changeC
+CHANGETYPE='--otherbls="0,2"' #requires --changeC
 
 FRFEOR=''
 #FRFEOR='--nofrf'

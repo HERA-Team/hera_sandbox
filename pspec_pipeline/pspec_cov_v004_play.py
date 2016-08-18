@@ -13,8 +13,6 @@ o.add_option('--plot', action='store_true',
     help='Generate plots')
 o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
-o.add_option('--sep', default='sep0,1', action='store',
-    help='Which separation directory to use for signal loss data.')
 o.add_option('--noise_only', action='store_true',
     help='Instead of injecting noise, Replace data with noise')
 o.add_option('--same', action='store_true',
@@ -109,18 +107,24 @@ def load_otherbls():
     return keys_sep2, ds_sep2
 
 def change_C(keys,ds,keys_sep2=None,ds_sep2=None): #changes C in the dataset
-    if opts.reg != None:
-        newC = {}
+    newC = {}
+    if opts.reg != None: #REGULARIZE C
         for key in keys:
             newC[key] = ds.C(key) + n.identity(len(ds.C(key)))*opts.reg
-    elif opts.otherbls != None:
+    elif opts.otherbls != None and opts.otherbls.split('"')[1] != bl2sep[a.miriad.ij2bl(keys[0][1][0],keys[0][1][1])]: #DETERMINE C FROM DIFFERENT BASELINE TYPE
         sep2_avgC = []
         for key in keys_sep2: 
             sep2_avgC.append(ds_sep2.C(key))
         sep2_avgC = n.average(sep2_avgC,axis=0) #average over all baselines
-        newC = {}
         for key in keys:
             newC[key] = sep2_avgC
+    elif opts.otherbls.split('"')[1] == bl2sep[a.miriad.ij2bl(keys[0][1][0],keys[0][1][1])]: #DETERMINE C FROM SAME BASELINE TYPE BUT NOT THE BASELINE ITSELF
+        for key in keys:
+            sep_avgC = []
+            for key2 in keys:
+                if key2 != key: sep_avgC.append(ds.C(key2))
+            sep_avgC = n.average(sep_avgC,axis=0) #average over other baselines
+            newC[key] = sep_avgC
     else:
         print 'Specify an option of how to change C.'
         sys.exit()
@@ -264,10 +268,18 @@ if PLOT and False:
 
 #Change C if wanted
 if opts.changeC:
-    if opts.otherbls != None: keys_sep2, ds_sep2 = load_otherbls()
+    if opts.otherbls != None and opts.otherbls.split('"')[1] != bl2sep[a.miriad.ij2bl(keys[0][1][0],keys[0][1][1])]:
+        keys_sep2, ds_sep2 = load_otherbls()
     else: keys_sep2, ds_sep2 = None, None
     newC = change_C(keys,ds,keys_sep2,ds_sep2)
+    #XXX plotting
+    #p.subplot(122)
+    #p.imshow(n.real(newC[key]),aspect='auto',vmax=150000,vmin=-150000)
+    #p.subplot(121)
+    #p.imshow(n.real(ds.C(key)),aspect='auto',vmax=150000,vmin=-150000)
+    #p.show()
     ds.set_C(newC)
+
 
 #Bootstrapping        
 for boot in xrange(opts.nboot):
@@ -360,8 +372,8 @@ for boot in xrange(opts.nboot):
    
     #Change C if wanted
     if opts.changeC:
-        if opts.otherbls != None:
-            ds_sep2.clear_cache() #empties C's that are stored already
+        if opts.otherbls != None and opts.otherbls.split('"')[1] != bl2sep[a.miriad.ij2bl(keys[0][1][0],keys[0][1][1])]: #for different baseline case
+            ds_sep2.clear_cache() #empties C's that are stored already so that it will be computed based off of data + eor
             for key2 in keys_sep2: 
                 ds_sep2.x[key2] = ds_sep2.x[key2] + eor.T #add eor 
         newC2 = change_C(keys,ds2,keys_sep2,ds_sep2) #re-computes C based on ds_sep2+eor
