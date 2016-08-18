@@ -40,11 +40,12 @@ for f in args:
 jds = sorted(set(jds))
 
 #Loop over files and stokes 
+prefix = args[0].split('.')[0]
 for jd in jds:
     for s in stokes:
-        file1 = 'lst.'+jd+'.'+POL_WGTS[s].keys()[0]+'.'+file_ending
-        file2 = 'lst.'+jd+'.'+POL_WGTS[s].keys()[1]+'.'+file_ending
-        outfile = 'lst.'+jd+'.'+s+'.'+file_ending
+        file1 = prefix+'.'+jd+'.'+POL_WGTS[s].keys()[0]+'.'+file_ending
+        file2 = prefix+'.'+jd+'.'+POL_WGTS[s].keys()[1]+'.'+file_ending
+        outfile = prefix+'.'+jd+'.'+s+'.'+file_ending
         print file1, 'and',file2,'->', outfile
         if os.path.exists(outfile):
             print '    File exists, skipping.'

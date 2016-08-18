@@ -1,7 +1,8 @@
 #! /usr/bin/env python
 import matplotlib
 matplotlib.use('Agg')
-import aipy as a, numpy as n, pylab as p
+import aipy as a, numpy as n
+from matplotlib import pylab as p
 import capo as C
 import sys, optparse, re, os
 
@@ -30,7 +31,7 @@ print args
 
 def noise_level(freq=None):
     tsys = 500e3 #mK
-    inttime = 2477. #seconds. XXX fix with new integration. get it from frfilter_numbers.py
+    inttime = 2477. #seconds.#SK # XXX fix with new integration. get it from frfilter_numbers.py
     nbls=59 #number of baselines used (if using multiple seps, average the numbers?)
     ndays = 31 #effectively this many days
     nseps = 1 #number of seps used
@@ -458,7 +459,7 @@ p.plot(n.array(kpl_pos), 2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2), 'c--')
 p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')
-p.ylim(1e0,1e5)
+p.ylim(1e0,1e7)
 p.xlim(0, 0.6)
 p.grid()
 p.show()

@@ -22,6 +22,7 @@ def read_files(filenames, antstr, polstr, decimate=1, decphs=0, verbose=False, r
                 dat[bl][pol],flg[bl][pol] = [],[]
             dat[bl][pol].append(d)
             flg[bl][pol].append(f)
+    info['freqs'] = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
     if recast_as_array:
         # This option helps reduce memory footprint, but it shouldn't
         # be necessary: the replace below should free RAM as quickly

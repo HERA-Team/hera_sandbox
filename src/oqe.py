@@ -2,6 +2,9 @@ import numpy as np, aipy, random, md5
 
 DELAY = False
 
+def hash(w):
+    return md5.md5(w.copy(order='C')).digest()
+
 def noise(size):
     sig = 1./np.sqrt(2)
     return np.random.normal(scale=sig, size=size) + 1j*np.random.normal(scale=sig, size=size)
@@ -59,26 +62,51 @@ class DataSet:
             try:
                 if conj[k[1]]: self.x[k] = np.conj(self.x[k])
             except(TypeError,KeyError): pass
-    def lst_align(self, lst1, lst2, lstres=.001):
-        # XXX super ugly brute force
-        i1,i2 = [], []
-        for i,L1 in enumerate(lst1):
-            for j,L2 in enumerate(lst2):
-                match = (np.abs(L1-L2) < lstres)
-                if match: break
-            if match:
-                i1.append(i)
-                i2.append(j)
-        return np.array(i1), np.array(i2)
+    def add_data(self, dsets, wgts=None, conj=None):
+        if type(dsets.values()[0]) == dict:
+            dsets,wgts = self.flatten_data(dsets), self.flatten_data(wgts)
+        for k in dsets:
+            self.x[k] = dsets[k].T
+            try: self.w[k] = wgts[k].T
+            except(TypeError): self.w[k] = np.ones_like(self.x[k])
+            try:
+                if conj[k[1]]: self.x[k] = np.conj(self.x[k])
+            except(TypeError,KeyError): pass
+    def lst_align(self, lsts, dsets, wgts=None):
+        order = {}
+        for k in lsts: #orders LSTs to find overlap
+            order[k] = np.argsort(lsts[k])
+            lsts[k] = lsts[k][order[k]]
+        numkeys = len(lsts.keys())
+        i=0 
+        while i < numkeys-1: #aligns LSTs
+            if i==0: lsts_final = np.intersect1d(lsts[lsts.keys()[i]],lsts[lsts.keys()[i+1]]) #XXX LSTs much match exactly
+            else: lsts_final = np.intersect1d(lsts_final,lsts[lsts.keys()[i+1]])
+            i += 1
+        if numkeys == 1: lsts_final = lsts[lsts.keys()[0]]
+        ind = {}
+        for k in dsets: #orders data correctly
+            dsets[k] = dsets[k][order[k[0]]]
+            wgts[k] = wgts[k][order[k[0]]]
+        for k in lsts: #selects correct LSTs from data
+            ind[k] = lsts[k].searchsorted(lsts_final)
+        for k in dsets:
+            dsets[k] = dsets[k][ind[k[0]]]
+            if wgts: wgts[k] = wgts[k][ind[k[0]]]
+        return lsts[k[0]][ind[k[0]]], dsets, wgts #lsts computed from last k but it doesn't matter
+
     def clear_cache(self, keys=None):
+        # XXX right now clear_cache munges I if I != ones on the diagnal.  rethink I or clear_cache of I
         if keys is None:
-            self._C, self._Ctrue, self._iC = {}, {}, {}
+            self._C, self._Ctrue, self._I, self._iC = {}, {}, {}, {}
             self._iCt = {}
         else:
             for k in keys:
                 try: del(self._C[k])
                 except(KeyError): pass
                 try: del(self._Ctrue[k])
+                except(KeyError): pass
+                try: del(self._I[k])
                 except(KeyError): pass
                 try: del(self._iC[k])
                 except(KeyError): pass
@@ -96,6 +124,14 @@ class DataSet:
     def Ctrue(self, k):
         if not self._Ctrue.has_key(k): self._Ctrue[k] = cov(self.x[k], self.w[k]) # must be actual covariance, no overwriting
         return self._Ctrue[k]
+    def I(self, k):
+        if not self._I.has_key(k):
+            nchan = self.x[k].shape[0]
+            self.set_I({k:np.identity(nchan)})
+        return self._I[k]
+    def set_I(self, d):
+        #self.clear_cache(d.keys()) #XXX commented out or else it clears C's (can't set both C's and then I's if clear_cache is called for both)
+        for k in d: self._I[k] = d[k]
     def iC(self, k, t=None, rcond=1e-12):
         if not self._iC.has_key(k):
             C = self.C(k)
@@ -105,7 +141,7 @@ class DataSet:
         if t is None: return self._iC[k]
         # If t is provided, Calculate iC for the provided time index, including flagging
         w = self.w[k][:,t:t+1]
-        m = md5.md5(w.copy(order='C')).digest()
+        m = hash(w)
         if not self._iCt.has_key(k): self._iCt[k] = {}
         if not self._iCt[k].has_key(m):
             self._iCt[k][m] = np.linalg.pinv(self.C(k,t), rcond=rcond)
@@ -152,6 +188,35 @@ class DataSet:
             gps = [[random.choice(gp) for bl in gp] for gp in gps]
             yield gps
         return
+    def gen_gps(self, bls, ngps=5):
+        random.shuffle(bls)
+        gps = [bls[i::ngps] for i in range(ngps)]
+        gps = [[random.choice(gp) for bl in gp] for gp in gps] #sample w/replacement inside each group
+        return gps
+    def group_data(self, keys, gps, use_cov=True): #XXX keys have format (k,bl,POL)
+        # XXX avoid duplicate code for use_cov=True vs False (i.e. no separate dsC & dsI)
+        sets = np.unique([key[0] for key in keys]) 
+        POL = keys[0][2]
+        nchan = self.x[keys[0]].shape[0]
+        newkeys = []
+        dsC_data, dsI_data = {},{}
+        iCsum,iCxsum,Ixsum,Isum = {},{},{},{}
+        for s in sets: #summing up data for each group and making new keys
+            for gp in range(len(gps)):
+                newkey = (s,gp)
+                newkeys.append(newkey)
+                iCsum[newkey] = sum([self.iC((s,bl,POL)) for bl in gps[gp]])
+                iCxsum[newkey] = sum([np.dot(self.iC((s,bl,POL)),self.x[(s,bl,POL)]) for bl in gps[gp]])
+                Isum[newkey] = sum([np.identity(nchan) for bl in gps[gp]])
+                Ixsum[newkey] = sum([self.x[(s,bl,POL)] for bl in gps[gp]])
+                dsC_data[newkey] = np.dot(np.linalg.inv(iCsum[newkey]),iCxsum[newkey]).T #finding effective summed up x based on iCsum and iCxsum
+                dsI_data[newkey] = np.dot(np.linalg.inv(Isum[newkey]),Ixsum[newkey]).T #finding effective summed up x based on Isum and Ixsum
+        dsC = DataSet(); dsC.add_data(dsets=dsC_data)
+        dsI = DataSet(); dsI.set_data(dsets=dsI_data) #I has to be a separate dataset because it has different x's populated into it
+        dsC.set_iC(iCsum) #override since if they're computed from x, they're incorrect
+        dsI.set_I(Isum)
+        if use_cov: return newkeys dsC
+        else: return newkeys, dsI
     def q_hat(self, k1, k2, use_cov=True, use_fft=True, cov_flagging=True):
         nchan = self.x[k1].shape[0]
         if use_cov:
@@ -164,7 +229,7 @@ class DataSet:
                     iCx[k] = np.empty_like(self.x[k])
                     inds = {}
                     w = self.w[k]
-                    ms = [md5.md5(w[:,i].copy(order='C')).digest() for i in xrange(w.shape[1])]
+                    ms = [hash(w[:,i]) for i in xrange(w.shape[1])]
                     for i,m in enumerate(ms): inds[m] = inds.get(m,[]) + [i]
                     iCxs = {}
                     for m in inds:
@@ -175,11 +240,12 @@ class DataSet:
                         #iCx[k].put(inds[m], np.dot(iC,x), axis=1)
                 iC1x,iC2x = iCx[k1], iCx[k2]
         else:
-            iC1x, iC2x = self.x[k1].copy(), self.x[k2].copy()
+            #iC1x, iC2x = self.x[k1].copy(), self.x[k2].copy()
+            iC1x, iC2x = np.dot(self.I(k1), self.x[k1]), np.dot(self.I(k2), self.x[k2])
         if use_fft:
             #iC1x, iC2x = np.dot(iC1, self.x[k1]), np.dot(iC2, self.x[k2])
             _iC1x, _iC2x = np.fft.fft(iC1x.conj(), axis=0), np.fft.fft(iC2x.conj(), axis=0)
-            return np.fft.fftshift(_iC1x,axes=0).conj() * np.fft.fftshift(_iC2x,axes=0)
+            return np.conj(np.fft.fftshift(_iC1x,axes=0).conj() * np.fft.fftshift(_iC2x,axes=0)) # added conj around the whole thing because it was inconsistent with pspec_cov_v003 by a conjugation
         else: # slow, used to explicitly cross-check fft code
             q = []
             for i in xrange(nchan):
@@ -199,8 +265,8 @@ class DataSet:
                 # This is for the "effective" matrix s.t. W=MF and p=Mq
                 F = {}
                 w1,w2 = self.w[k1], self.w[k2]
-                m1s = [md5.md5(w1[:,i].copy(order='C')).digest() for i in xrange(w1.shape[1])]
-                m2s = [md5.md5(w2[:,i].copy(order='C')).digest() for i in xrange(w2.shape[1])]
+                m1s = [hash(w1[:,i]) for i in xrange(w1.shape[1])]
+                m2s = [hash(w2[:,i]) for i in xrange(w2.shape[1])]
                 for m1,m2 in zip(m1s,m2s): F[(k1,m1,k2,m2)] = None
                 for k1,m1,k2,m2 in F.keys():
                 #for m1 in self._iCt[k1]: # XXX not all m1/m2 pairs may exist in data
@@ -218,8 +284,8 @@ class DataSet:
         else:
             #iC1 = np.linalg.inv(self.C(k1) * np.identity(nchan))
             #iC2 = np.linalg.inv(self.C(k2) * np.identity(nchan))
-            iC1 = iC2 = np.identity(nchan, dtype=F.dtype)
-            Ctrue1 = Ctrue2 = np.identity(nchan, dtype=F.dtype) # do this to get the effective F (see below)
+            iC1, iC2 = self.I(k1), self.I(k2)
+            Ctrue1, Ctrue2 = self.I(k1), self.I(k2) # do this to get the effective F (see below)
         #Ctrue1, Ctrue2 = self.Ctrue(k1), self.Ctrue(k2)
         if False: # This is for the "true" Fisher matrix
             CE1, CE2 = {}, {}
@@ -274,8 +340,8 @@ class DataSet:
         if type(M) is dict: # we have different M's for different times
             (k1,m1,k2,m2) = M.keys()[0]
             w1,w2 = self.w[k1], self.w[k2]
-            m1s = [md5.md5(w1[:,i].copy(order='C')).digest() for i in xrange(w1.shape[1])]
-            m2s = [md5.md5(w2[:,i].copy(order='C')).digest() for i in xrange(w2.shape[1])]
+            m1s = [hash(w1[:,i]) for i in xrange(w1.shape[1])]
+            m2s = [hash(w2[:,i]) for i in xrange(w2.shape[1])]
             inds = {}
             for i,(m1,m2) in enumerate(zip(m1s,m2s)):
                 inds[(k1,m1,k2,m2)] = inds.get((k1,m1,k2,m2),[]) + [i]
