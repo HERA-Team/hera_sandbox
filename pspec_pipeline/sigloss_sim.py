@@ -233,7 +233,7 @@ fir = {(ij[0],ij[1],POL):firs}
 #Extract frequency range of data 
 xi = {}
 f = {}
-NOISE = frf((len(chans),len(lsts)),loc=0,scale=1) #same noise on each bl
+#NOISE = frf((len(chans),len(lsts)),loc=0,scale=1) #same noise on each bl
 for k in days:
     xi[k] = {}
     f[k] = {}
@@ -244,7 +244,7 @@ for k in days:
         shape = d.shape #(times,freqs)
         if opts.noise_only:
             #xi[k][bl] = frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
-            xi[k][bl] = NOISE# frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
+            xi[k][bl] =  frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
         else:
              xi[k][bl] = n.transpose(d, [1,0]) #swap time and freq axes
         f[k][bl] = n.transpose(flg, [1,0])
@@ -252,8 +252,8 @@ bls_master = xi.values()[0].keys()
 #bls_master = bls_master[:5]
 nbls = len(bls_master)
 print 'Baselines:', nbls
-#Bootstrapping
 
+#Bootstrapping
 for boot in xrange(opts.nboot):
 
     print '%d / %d' % (boot+1,opts.nboot)   

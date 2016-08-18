@@ -18,7 +18,7 @@ LSTS=`python -c "import numpy as n; hr = 1.0; print ' '.join(['%f_%f' % (d,d+hr/
 
 MY_LSTS=`pull_args.py $LSTS`
 CALFILE=psa6622_v003 #Aaron's fast calfile
-PREFIX=lstbin_fg
+PREFIX=lstbin_manybls
 
 
 echo $MY_LSTS

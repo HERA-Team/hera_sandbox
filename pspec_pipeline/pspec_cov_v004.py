@@ -209,7 +209,8 @@ for boot in xrange(opts.nboot):
  
     if True: #shuffle and group baselines for bootstrapping
         gps = ds.gen_gps(bls_master, ngps=NGPS)
-        newkeys,dsC,dsI = ds.group_data(keys,gps) 
+        newkeys,dsC = ds.group_data(keys,gps) 
+        newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
     else: #no groups (slower)
         newkeys = [random.choice(keys) for key in keys] #sample w/replacement for bootstrapping
         dsI,dsC = ds,ds #identity and covariance case dataset is the same
@@ -225,10 +226,10 @@ for boot in xrange(opts.nboot):
             if key1[0] == key2[0] or key1[1] == key2[1]: 
                 continue #don't do even w/even or bl w/same bl
             else:
-                FC += dsC.get_F(key1,key2)
-                FI += dsI.get_F(key1,key2,use_cov=False)    
-                qC += dsC.q_hat(key1,key2)
-                qI += dsI.q_hat(key1,key2,use_cov=False) 
+                FC += dsC.get_F(key1,key2,cov_flagging=False)
+                FI += dsI.get_F(key1,key2,use_cov=False,cov_flagging=False)    
+                qC += dsC.q_hat(key1,key2,cov_flagging=False)
+                qI += dsI.q_hat(key1,key2,use_cov=False,cov_flagging=False) 
 
     MC,WC = dsC.get_MW(FC,mode='L^-1') #Cholesky decomposition
     MI,WI = dsI.get_MW(FI,mode='I')

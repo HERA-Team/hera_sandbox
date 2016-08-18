@@ -1,11 +1,7 @@
 #! /usr/bin/env python
 
-<<<<<<< HEAD
-import aipy as a, numpy as n, capo
 from matplotlib import pylab as p
-=======
 import aipy as a, numpy as n, pylab as p, capo, capo.frf_conv as fringe
->>>>>>> be68b0d6b8e06ef9210bd9d6582f404c53cf46a8
 import glob, optparse, sys, random
 from scipy.linalg import fractional_matrix_power
 import capo.zsa as zsa

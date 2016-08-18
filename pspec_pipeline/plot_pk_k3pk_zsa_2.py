@@ -31,9 +31,9 @@ print args
 
 def noise_level(freq=None):
     tsys = 500e3 #mK
-    inttime = 2477. #seconds.#SK # XXX fix with new integration. get it from frfilter_numbers.py
+    inttime = 32. #2473. #seconds.#SK # XXX fix with new integration. get it from frfilter_numbers.py
     nbls=59 #number of baselines used (if using multiple seps, average the numbers?)
-    ndays = 31 #effectively this many days
+    ndays = 1 #31 #effectively this many days
     nseps = 1 #number of seps used
     folding = 2
     nlsts = 6 #number of LST hours in time-range
@@ -430,7 +430,7 @@ p.vlines(-k_h, -1e7, 1e8, linestyles='--', linewidth=1.5)
 #p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k_\parallel\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$P(k)[\ {\rm mK}^2\ (h^{-1}\ {\rm Mpc})^3]$',fontsize='large')
-p.ylim(-.6e7,1.75e7)
+p.ylim(-.6e7,1.75e7) #original
 #p.ylim(1e5,5e16)
 p.grid()
 
@@ -456,6 +456,7 @@ theo_noise = noise_level(freq=freq)
 #print kpl_pos[0], theo_noise[0]
 #2 for the 2 sigma
 p.plot(n.array(kpl_pos), 2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2), 'c--')
+n.savez('noise_curve.npz',kpls=kpl_pos,noise=2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2))
 p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')
