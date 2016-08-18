@@ -49,12 +49,14 @@ def lst_align(lsts, lstres=.001):
     for k in lstr: #selects correct LSTs from data
         inds[k] = order[k].take(lstr[k].searchsorted(lsts_final))
     return inds 
+
 def lst_align_data(inds, dsets, wgts=None, lsts=None):
     for k in dsets:
         k0 = k[0]
         dsets[k] = dsets[k][inds[k0]]
         if not wgts is None: wgts[k] = wgts[k][inds[k0]]
-        if not lsts is None: lsts[k0] = lsts[k0][inds[k0]]
+    if not lsts is None:
+        for k0 in lsts: lsts[k0] = lsts[k0][inds[k0]]
     return [d for d in [dsets,wgts,lsts] if not d is None]
 
 class DataSet:

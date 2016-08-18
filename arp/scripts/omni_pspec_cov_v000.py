@@ -112,12 +112,12 @@ ds = capo.oqe.DataSet(data, wgts)
 ind = {}
 set1,set2 = sets.keys()[0], sets.keys()[-1]
 lst_res = np.average(lsts[set1][1:] - lsts[set1][:-1])/2
-ind[set1], ind[set2]= ds.lst_align(lsts[set1], lsts[set2], lstres=lst_res)
-
-for k in data:
-    (s,pol,bl) = k
-    data[k] = data[k][ind[s]]
-    wgts[k] = wgts[k][ind[s]]
+inds = capo.oqe.lst_align(lsts, lstres=lst_res)
+data,wgts = capo.oqe.lst_align_data(inds, dsets=data, wgts=wgts)
+#for k in data:
+#    (s,pol,bl) = k
+#    data[k] = data[k][inds[s]]
+#    wgts[k] = wgts[k][inds[s]]
 for s in sets: chisqs[s] = chisqs[s][ind[s]].T
 ds = capo.oqe.DataSet(data, wgts)
     
