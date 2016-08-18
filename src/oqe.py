@@ -55,7 +55,7 @@ def lst_align_data(inds, dsets, wgts=None, lsts=None):
         k0 = k[0]
         dsets[k] = dsets[k][inds[k0]]
         if not wgts is None: wgts[k] = wgts[k][inds[k0]]
-    if not lsts is None: 
+    if not lsts is None:
         for k0 in lsts: lsts[k0] = lsts[k0][inds[k0]]
     return [d for d in [dsets,wgts,lsts] if not d is None]
 
