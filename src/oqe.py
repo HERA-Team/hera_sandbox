@@ -35,6 +35,28 @@ def get_Q(mode, n_k, window='none'): #encodes the fourier transform from freq to
         Q[mode,mode] = 1
         return Q
 
+def lst_align(lsts, lstres=.001):
+    lstr, order = {}, {}
+    for k in lsts: #orders LSTs to find overlap
+        order[k] = np.argsort(lsts[k])
+        lstr[k] = np.around(lsts[k][order[k]] / lstres) * lstres
+    lsts_final = None
+    for i,k1 in enumerate(lstr.keys()):
+        for k2 in lstr.keys()[i:]:
+            if lsts_final is None: lstr_final = np.intersect1d(lstr[k1],lstr[k2]) #XXX LSTs much match exactly
+            else: lsts_final = np.intersect1d(lstr_final,lstr[k2])
+    inds = {}
+    for k in lstr: #selects correct LSTs from data
+        inds[k] = order[k].take(lstr[k].searchsorted(lsts_final))
+    return inds 
+def lst_align_data(inds, dsets, wgts=None, lsts=None):
+    for k in dsets:
+        k0 = k[0]
+        dsets[k] = dsets[k][inds[k0]]
+        if not wgts is None: wgts[k] = wgts[k][inds[k0]]
+        if not lsts is None: lsts[k0] = lsts[k0][inds[k0]]
+    return [d for d in [dsets,wgts,lsts] if not d is None]
+
 class DataSet:
     def __init__(self, dsets=None, wgts=None, lsts=None, conj=None, npzfile=None, lmin=0):
         self.x, self.w = {}, {}
@@ -72,29 +94,6 @@ class DataSet:
             try:
                 if conj[k[1]]: self.x[k] = np.conj(self.x[k])
             except(TypeError,KeyError): pass
-    def lst_align(self, lsts, dsets, wgts=None):
-        order = {}
-        for k in lsts: #orders LSTs to find overlap
-            order[k] = np.argsort(lsts[k])
-            lsts[k] = lsts[k][order[k]]
-        numkeys = len(lsts.keys())
-        i=0 
-        while i < numkeys-1: #aligns LSTs
-            if i==0: lsts_final = np.intersect1d(lsts[lsts.keys()[i]],lsts[lsts.keys()[i+1]]) #XXX LSTs much match exactly
-            else: lsts_final = np.intersect1d(lsts_final,lsts[lsts.keys()[i+1]])
-            i += 1
-        if numkeys == 1: lsts_final = lsts[lsts.keys()[0]]
-        ind = {}
-        for k in dsets: #orders data correctly
-            dsets[k] = dsets[k][order[k[0]]]
-            wgts[k] = wgts[k][order[k[0]]]
-        for k in lsts: #selects correct LSTs from data
-            ind[k] = lsts[k].searchsorted(lsts_final)
-        for k in dsets:
-            dsets[k] = dsets[k][ind[k[0]]]
-            if wgts: wgts[k] = wgts[k][ind[k[0]]]
-        return lsts[k[0]][ind[k[0]]], dsets, wgts #lsts computed from last k but it doesn't matter
-
     def clear_cache(self, keys=None):
         # XXX right now clear_cache munges I if I != ones on the diagnal.  rethink I or clear_cache of I
         if keys is None:
