@@ -126,10 +126,11 @@ freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 #inttime = uv['inttime'] #* 4 # XXX hack for *E files that have inttime set incorrectly
-(uvw,t1,(i,j)),d = uv.read()
-(uvw,t2,(i,j)),d = uv.read()
-while t1 == t2: (uvw,t2,(i,j)),d = uv.read()
-inttime = (t2-t1)* (3600*24)
+#(uvw,t1,(i,j)),d = uv.read()
+#(uvw,t2,(i,j)),d = uv.read()
+#while t1 == t2: (uvw,t2,(i,j)),d = uv.read()
+#inttime = (t2-t1)* (3600*24)
+inttime = 44
 del(uv)
 
 afreqs = freqs.take(chans)

@@ -68,11 +68,12 @@ SEPS += [(2,105), (1,83)]
 #CH0,NCHAN = 90, 31
 CH0,NCHAN = 110, 51
 
+dataDIR = '/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk'
 sets = {
     #'day0' : sys.argv[1:],
     #'day0' : glob.glob('zen.2456714.*.xx.npz'),
-    'day1' : glob.glob('zen.2456715.*.xx.npz'),
-    'day2' : glob.glob('zen.2456716.*.xx.npz'),
+    'day1' : glob.glob(dataDIR+'zen.2456715.*.xx.npz'),
+    'day2' : glob.glob(dataDIR+'zen.2456716.*.xx.npz'),
 }
 data,wgts = {}, {}
 lsts = {}
