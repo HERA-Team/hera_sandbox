@@ -623,4 +623,3 @@ for boot in xrange(opts.nboot):
         afreqs=afreqs, chans=chans, frpad=opts.frpad,
         cmd=' '.join(sys.argv))
 
-

@@ -32,9 +32,14 @@ declare -A noise_append
 for (( i=0; i<${#chan_array[@]}; ++i )); do
 
     if [ -z "$noise" ]; then
-        noise_append[${chan_array[$i]}]="--noise=0.0"
+        noise_append[${chan_array[$i]}]=""
+        continue
     else
         noise_append[${chan_array[$i]}]="--noise=${n_array[$i]}"
+    fi
+
+    if [ -n "$teff" ]; then
+        noise_append[${chan_array[$i]}]+=" --teff=${teff}"
     fi
 
     if [ $NOISE_ONLY == True ]; then
@@ -45,8 +50,15 @@ for (( i=0; i<${#chan_array[@]}; ++i )); do
         noise_append[${chan_array[$i]}]+=" --filter_noise"
     fi
 
-    if [ ! -z "$FRPAD" ]; then
-        noise_append[${chan_array[$i]}]+=" --frpad=${FRPAD}"
+    if [ $BOXCAR == True ]; then
+        noise_append[${chan_array[$i]}]+=" --boxcar"
+    fi
+
+    if [ ! -z "$BL_SCALE" ]; then
+        noise_append[${chan_array[$i]}]+=" --bl_scale=${BL_SCALE}"
+    fi
+    if [ ! -z "$FR_WIDTH_SCALE" ]; then
+        noise_append[${chan_array[$i]}]+=" --fr_width_scale=${FR_WIDTH_SCALE}"
     fi
 done
 
@@ -112,15 +124,14 @@ for chan in $chans; do
                     #ANTS=`grid2ant.py -C ${cal} --seps="${sep}"`
 
                     echo Beginning pspec calculation | tee -a ${LOGFILE}
-                    echo using ${#EVEN_FILES} even files and ${#ODD_FILES} odd files
                     # If plotting covariances
                     if [ $PLOT == True ]; then 
-                    echo python ${SCRIPTSDIR}/pspec_cov_v002.py -C ${cal} \
+                    echo python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} \
                          -b ${NBOOT} -a ${ANTS} -c ${chan} -p ${pol}\
                           --window=${WINDOW}  ${NOPROJ} --output=${sepdir} --rmbls=${RMBLS} --plot \
                           ${noise_append[${chan}]} \
                            ${EVEN_FILES} ${ODD_FILES} ${OPTIONS}
-                    python ${SCRIPTSDIR}/pspec_cov_v002.py -C ${cal} -b ${NBOOT} \
+                    python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} -b ${NBOOT} \
                         -a ${ANTS} -c ${chan} -p ${pol} --window=${WINDOW} \
                           ${NOPROJ} --output=${sepdir} --rmbls=${RMBLS} --plot \
                           ${noise_append[${chan}]} \
@@ -130,12 +141,12 @@ for chan in $chans; do
                     
                     # If not plotting covariances
                     if [ $PLOT == False ]; then
-                    echo python ${SCRIPTSDIR}/pspec_cov_v002.py -C ${cal} \
+                    echo python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} \
                          -b ${NBOOT} -a ${ANTS} -c ${chan} -p ${pol}\
                           --window=${WINDOW}  ${NOPROJ} --output=${sepdir} --rmbls=${RMBLS} \
                           ${noise_append[${chan}]} \
                            ${EVEN_FILES} ${ODD_FILES} ${OPTIONS}
-                    python ${SCRIPTSDIR}/pspec_cov_v002.py -C ${cal} -b ${NBOOT} \
+                    python ${SCRIPTSDIR}/pspec_cov_v003.py -C ${cal} -b ${NBOOT} \
                         -a ${ANTS} -c ${chan} -p ${pol} --window=${WINDOW} \
                           ${NOPROJ} --output=${sepdir} --rmbls=${RMBLS} \
                           ${noise_append[${chan}]} \
@@ -150,9 +161,9 @@ for chan in $chans; do
                 if [ $BOOT == True ]; then
                 echo Beginning bootstrap: `date` | tee -a ${LOGFILE} 
                 if [ $PLOT == True ]; then
-                ${SCRIPTSDIR}/pspec_cov_boot_v002.py ${sepdir}/pspec_boot*npz ${nocov} | tee -a ${LOGFILE} 
+                ${SCRIPTSDIR}/pspec_cov_boot_v002_pI.py ${sepdir}/pspec_boot*npz  | tee -a ${LOGFILE} 
                 else
-                ${SCRIPTSDIR}/pspec_cov_boot_v002.py ${sepdir}/pspec_boot*npz ${nocov} | tee -a ${LOGFILE}
+                ${SCRIPTSDIR}/pspec_cov_boot_v002_pI.py ${sepdir}/pspec_boot*npz  | tee -a ${LOGFILE}
                 fi
                 fi
                 echo complete! `date`| tee -a ${LOGFILE} 
@@ -177,15 +188,16 @@ echo averaging power spectra for pols/channels
 for chan in $chans; do
     chandir=${PREFIX}/${chan}
     for pol in $pols; do
-        echo "Generating plots for ${chan}: ${pol}"
-        echo "Multiplying pspec by factor ${scales[${chan}]} for Cov"
+        LOGFILE=`pwd`/${PREFIX}/${chan}_${pol}.log
+        echo "Generating plots for ${chan}: ${pol}" | tee -a  ${LOGFILE}
+        echo "Multiplying pspec by factor ${scales[${chan}]} for Cov" | tee -a  ${LOGFILE}
         poldir=${chandir}/${pol}
         #PLOT
-        ${SCRIPTSDIR}/plot_pk_k3pk_zsa_2.py ${poldir}/*/pspec.npz --cov=${scales[$chan]} 
-        mv pspec_pk_k3pk.npz pspec_${PREFIX}_${chan}_${pol}.npz
-        mv pspec.png pspec_${PREFIX}_${chan}_${pol}.png
-        mv posterior.png posterior_${PREFIX}_${chan}_${pol}.png
-        mv posterior.txt posterior_${PREFIX}_${chan}_${pol}.txt
+        ${SCRIPTSDIR}/plot_pk_k3pk_mjk.py ${poldir}/*/pspec.npz --cov=${scales[$chan]}  ${nocov} --outpath=${PREFIX}_${chan}_${pol} | tee -a  ${LOGFILE}
+        #mv pspec_pk_k3pk.npz pspec.npz
+        #mv pspec.png pspec_${PREFIX}_${chan}_${pol}.png
+        #mv posterior.png posterior_${PREFIX}_${chan}_${pol}.png
+        #mv posterior.txt posterior_${PREFIX}_${chan}_${pol}.txt
         mv pspec_${PREFIX}_${chan}_${pol}.png ${poldir}/
         mv posterior_${PREFIX}_${chan}_${pol}.png ${poldir}/
         mv pspec_${PREFIX}_${chan}_${pol}.npz ${poldir}/

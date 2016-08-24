@@ -61,11 +61,11 @@ def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.159, color=
             _k3pks.append(_k3pk); _k3pks.append(_k3pk); _k3pks.append(_k3pk)
             _k3errs.append(_k3err); _k3errs.append(_k3err); _k3errs.append(_k3err)
         kpl = n.array(_kpls)
-        k3pk = n.array(_k3pks)
+        k3pk = n.abs(n.array(_k3pks))
         k3err = n.array(_k3errs)
     else:
         kpl = kpl
-        k3pk = k3*pk
+        k3pk = n.abs(k3*pk) 
         k3err = k3*err
     for _k,_k3pk,_k3err in zip(kpl,pk,err):
         print '%6.3f, %9.5f (%9.5f +/- %9.5f)' % (_k, _k3pk+_k3err,_k3pk,_k3err)
@@ -148,10 +148,11 @@ for sep in RS_VS_KPL:
         nos_fold *= f
     
     if d_fold.size == 0: d_fold,nos_fold = None, None
+    d_fold = n.abs(d_fold) #XXX ABSOLUTE VALUE for DELTA SQ!
     dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS,f0=freq) # 2-sigma error bars
     colors = colors[1:] + colors[0]
 
-print 'Average of P(k) = ',n.average(d)
+print 'Average of P(k) = ',n.median(d)
 
 tau_h = 100 + 15. #in ns
 k_h = C.pspec.dk_deta(C.pspec.f2z(.151)) * tau_h
@@ -169,5 +170,12 @@ p.xlabel(r'$k\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')
 p.xlim(0, 0.6)
 p.grid()
+#plot noise_curve that's saved from plot_pk_k3pk_zsa_2.py
+try:
+    npz = n.load('noise_curve.npz')
+    xs = npz['kpls']
+    ys = npz['noise']
+    p.plot(xs,ys,'c--')
+except: pass
 p.show()
 

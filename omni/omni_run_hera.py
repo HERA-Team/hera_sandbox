@@ -33,7 +33,7 @@ for pp,p in enumerate(pols):
 #        for i in xrange(cp[p].shape[1]): #loop over antennas
 #            g0[p[0]][i] = numpy.conj(cp[p][:,i] / numpy.abs(cp[p][:,i]))
         for key in cp: #loop over antennas
-            if key != 'pol':
+            if key.isdigit():
                 g0[p[0]][int(key)] = numpy.conj(cp[key]) / numpy.abs(cp[key])
     else: #looks for a calpar you haven't stated in the call
         new_cp = opts.calpar.split('.p')[0][:-2]+p+'.p' #XXX assumes calpar naming is *pol.p

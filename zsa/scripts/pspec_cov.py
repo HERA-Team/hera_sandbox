@@ -10,6 +10,12 @@ o.add_option('--plot', action='store_true',
     help='Generate plots')
 o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
+o.add_option('--applyto', action='store', 
+    help='Apply covariance matrix to this data')
+o.add_option('--gain', action='store_true',
+    help='Add signal and noise data sets with proportions in GAIN variable.\
+          Data = GAIN*signal + noise. If true, input noise set.')
+
 opts,args = o.parse_args(sys.argv[1:])
 
 MASK = True
@@ -19,6 +25,8 @@ CHOLESKY = True
 NGPS = 2
 AVG_COV = True
 LST_STATS = True
+GAIN = 0.2
+
 
 def cov(m):
     '''Because numpy.cov is stupid and casts as float.'''
@@ -127,9 +135,26 @@ sys.stdout.flush()
 #antstr = '41_49,3_10,9_58,22_61,20_63,2_43,21_53,31_45,41_47,3_25,1_58,35_61,42_63,2_33'
 #antstr = '41_49,3_10,9_58,22_61,20_63'#,2_43,21_53,31_45,41_47,3_25,1_58,35_61,42_63,2_33'
 antstr = 'cross'
-times,data,flgs = capo.arp.get_dict_of_uv_data(args, antstr=antstr, polstr='I', verbose=True)
+
+if opts.applyto:
+    print 'in applyto'
+#    times,data,flgs = capo.arp.get_dict_of_uv_data(args, antstr=antstr, polstr='I', verbose=True)
+    times2,apply2,flgs2 = capo.arp.get_dict_of_uv_data(glob.glob(opts.applyto), antstr=antstr, polstr='I', verbose=True)
+
+if opts.gain:
+    print 'in gain'
+    #split input args to get base and add "signal" to it.
+    times,signal,flgs = capo.arp.get_dict_of_uv_data([f.split('_')[0] + '_signal' for f in args], antstr=antstr, polstr='I', verbose=True)
+    #input args is noise
+    times,noise,flgs = capo.arp.get_dict_of_uv_data([f for f in args], antstr=antstr, polstr='I', verbose=True)
+
+else:
+    print 'data'
+    times,data,flgs = capo.arp.get_dict_of_uv_data(args, antstr=antstr, polstr='I', verbose=True)
+    
 
 if LST_STATS:
+    print 'For STATS'
     # collect some metadata from the lst binning process
     cnt, var = {}, {}
     for filename in args:
@@ -149,19 +174,51 @@ bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
 jy2T = capo.pspec.jy2T(afreqs)
 window = a.dsp.gen_window(nchan, WINDOW)
 if not WINDOW == 'none': window.shape=(1,nchan)
+if opts.applyto:
+    _d2 = {}
+    for k in apply2:
+        apply2[k]['I'] = apply2[k]['I'][:,chans] * jy2T
+        if conj[k]: apply2[k]['I'] = n.conj(apply2[k]['I'])
+        if DELAY: _d2[k] = n.fft.fftshift(n.fft.ifft(window*apply2[k]['I']), axes=1)
+        else: _d2[k] = apply2[k]['I']
+        _d2[k] = n.transpose(_d2[k], [1,0])
+
 _d = {}
-for k in data:
-    data[k]['I'] = data[k]['I'][:,chans] * jy2T
-    if conj[k]: data[k]['I'] = n.conj(data[k]['I'])
-    if DELAY: _d[k] = n.fft.fftshift(n.fft.ifft(window*data[k]['I']), axes=1)
-    else: _d[k] = data[k]['I']
-    _d[k] = n.transpose(_d[k], [1,0])
+if opts.gain:
+    data = {}
+    for k in noise:
+        if  not k in data.keys() : data[k] = {}
+        noise[k]['I'] = noise[k]['I'][:,chans] * jy2T
+        signal[k]['I'] = signal[k]['I'][:,chans] * jy2T
+        if conj[k]: 
+            noise[k]['I'] = n.conj(noise[k]['I'])
+            signal[k]['I'] = n.conj(signal[k]['I'])
+        data[k]['I'] = GAIN*signal[k]['I'] + noise[k]['I']
+        if DELAY: 
+            _d[k] = n.fft.fftshift(n.fft.ifft(window*data[k]['I']), axes=1)
+        else: _d[k] = data[k]['I']
+        _d[k] = n.transpose(_d[k], [1,0])
+
+else:
+    for k in data:
+        data[k]['I'] = data[k]['I'][:,chans] * jy2T
+        if conj[k]: data[k]['I'] = n.conj(data[k]['I'])
+        if DELAY: _d[k] = n.fft.fftshift(n.fft.ifft(window*data[k]['I']), axes=1)
+        else: _d[k] = data[k]['I']
+        _d[k] = n.transpose(_d[k], [1,0])
+
+
+
+    
 bls_master = _d.keys()
 nbls = len(bls_master)
 print nbls
 
 _data = n.array([_d[k] for k in bls_master])
 _data = n.reshape(_data, (_data.shape[0]*_data.shape[1], _data.shape[2]))
+if opts.applyto:
+    _data2 = n.array([_d2[k] for k in bls_master])
+    _data2 = n.reshape(_data2, (_data2.shape[0]*_data2.shape[1], _data2.shape[2]))
 C = cov(_data)
 level,auto,cross = cov_average(C, bls_master, nchan)
 
@@ -178,7 +235,11 @@ for boot in xrange(opts.nboot):
     bls = [bl for gp in gps for bl in gp]
     print '\n'.join([','.join(['%d_%d'%a.miriad.bl2ij(bl) for bl in gp]) for gp in gps])
 
-    if True: _data = n.array([_d[k] for k in bls])
+    if True: 
+        _data = n.array([_d[k] for k in bls])
+        if opts.applyto:
+            _data2 = n.array([_d2[k] for k in bls])
+            _data2 = n.reshape(_data2, (_data2.shape[0]*_data2.shape[1], _data2.shape[2]))
     else:
         print 'OVERRIDING WITH SIMULATED SIGNAL'
         eor = noise(_d[bls[0]].shape)
@@ -192,6 +253,12 @@ for boot in xrange(opts.nboot):
 
     C = cov(_data)
     #N = C - cross
+    if opts.applyto:
+        if opts.plot:
+            p.subplot(211); capo.arp.waterfall(_data, mode='real'); p.colorbar(shrink=.5)
+            p.subplot(212); capo.arp.waterfall(_data2, mode='real'); p.colorbar(shrink=.5)
+            p.show()
+        _data = _data2
 
     if MASK: # mask covariance matrix
         mask = n.ones((nbls,nchan,nbls,nchan))
@@ -211,6 +278,14 @@ for boot in xrange(opts.nboot):
     if opts.plot:
         p.subplot(224); p.semilogy(S)
 
+#    ev, evv = n.linalg.eigh(C)
+#    if opts.plot:
+#        p.figure(4); p.subplot(211); p.semilogy(ev)
+#        p.figure(4); p.subplot(212); p.plot(evv[:,::50])
+#        for i in range(10):
+#            p.figure(5); p.plot(evv[:,-i].T)
+#            p.show()
+
     if AVG_COV:
         C.shape = (nbls,nchan,nbls,nchan)
         for i in xrange(nbls):
@@ -222,6 +297,20 @@ for boot in xrange(opts.nboot):
     C *= mask
     print 'Psuedoinverse of C'
     U,S,V = n.linalg.svd(C.conj())
+
+    #ev, evv = n.linalg.eigh(C)
+    #if opts.plot:
+    #    p.figure(6); p.subplot(211); p.semilogy(ev)
+    #    p.figure(6); p.subplot(212); p.plot(evv[:,::50])
+    #    for i in range(95):
+    #        p.figure(7); p.plot(evv[:,-i*10].T); p.title('%d'%(i*10))
+    #        p.show()
+
+    #if opts.plot:
+    #    p.figure(4); p.plot(C[0])
+    #    p.show()
+    #    p.figure(1)
+
     print S
     _S = n.where(S > 1e-4, 1./S, 0) # for fringe rate filtered noise.
     #_S = n.where(S > 1e-3, 1./S, 0) #original ARP threshold
