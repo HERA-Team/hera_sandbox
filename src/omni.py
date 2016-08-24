@@ -1,4 +1,4 @@
-import numpy as np, omnical, aipy, math
+import numpy as np, omnical, aipy, math, warnings
 import capo.red as red
 import numpy.linalg as la
 with warnings.catch_warnings():
