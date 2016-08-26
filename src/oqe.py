@@ -275,8 +275,8 @@ class DataSet:
                         F[(k1,m1,k2,m2)] = np.zeros((nchan,nchan), dtype=np.complex)
                         iCQ1,iCQ2 = {}, {}
                         for ch in xrange(nchan): # this loop is nchan^3
-                            Q = get_Q(ch,nchan)
-                            iCQ1[ch] = np.dot(self._iCt[k1][m1],Q) #C^-1 Q
+                            Q = get_Q(ch,nchan) 
+                            iCQ1[ch] = np.dot(self._iCt[k1][m1],Q) #C^-1 Q # If ERROR: Compute q_hat first
                             iCQ2[ch] = np.dot(self._iCt[k2][m2],Q) #C^-1 Q
                         for i in xrange(nchan): # this loop goes as nchan^4
                             for j in xrange(nchan):
