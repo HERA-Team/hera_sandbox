@@ -31,7 +31,7 @@ def injpath_to_injlevel(filepath):
 def fit_prob_to_tanh(probs, pIs):
         #tanh fit is VERY sensitive to initial conditions
         p0 = np.zeros(4)
-        mean_ind = np.argmin( abs( probs - np.mean(probs) )  )
+        mean_ind = np.argmin( abs( probs - .5  )  )
         p0[0] = pIs[mean_ind] # set mean and width to entral value of pspecs
         p0[1] = pIs[mean_ind]# set mean and width to central value of pspecs
         p0[2] = .25 + np.min(probs) #offest of guess is min value + .25
@@ -87,39 +87,49 @@ freq = F['freq']
 print "found injects:",Ninj
 print "found k bins:",Nk
 
-for ptype in ['pI', 'pC']:
+# for ptype in ['pI', 'pC']:
         #limit option #1. the net probability that pC is above pcV
-    probs = np.zeros((Ninj,Nk))
-    tanh_parms = []
-    for inj in xrange(Ninj):
-        for k_ind in xrange(Nk):
-            lossy_limit = pspecs[ptype+'v_fold'][0,k_ind]+pspecs[ptype+'v_fold_err'][0,k_ind]
-            if k_ind==5:
-                print "lossy_limit: ", lossy_limit
-                print ptype+" lower limit",pspecs[ptype+'_fold'][inj,k_ind]-pspecs[ptype+'_fold_err'][inj,k_ind]
-            probs[inj,k_ind] = G_mc(lossy_limit, #limit
-                            pspecs[ptype+'_fold'][inj,k_ind],
-                            pspecs[ptype+'_fold_err'][inj,k_ind])
+probs = np.zeros((Ninj,Nk))
 
-        tanh_parms.append( fit_prob_to_tanh(probs[:,k_ind],
-            pspecs['pI_fold'][:,k_ind]))
-
-
-    figure()
+for inj in xrange(Ninj):
     for k_ind in xrange(Nk):
-        plt.semilogx(pspecs['pI_fold'][:,k_ind],probs[:,k_ind],'-',label=k[k_ind])
-        # plt.semilogx(pspecs['pI_fold'][:,k_ind], tanh(pspecs['pI_fold'][:,k_ind], *tanh_parms[k_ind]),'-' )
-    grid()
-    legend(loc='best')
-    xlabel('$P_{inj}$')
-    ylabel('Probability to find $P_{inj}$')
-    title(ptype)
-    show()
-    prob_limits = [.68,.85,.9,.95,.99]
+        lossy_limit = pspecs['pCv_fold'][0,k_ind]+pspecs['pCv_fold_err'][0,k_ind]
+        if k_ind==5:
+            print "lossy_limit: ", lossy_limit
+            print "pC lower limit",pspecs['pC_fold'][inj,k_ind]-pspecs['pC_fold_err'][inj,k_ind]
+        probs[inj,k_ind] = G_mc(lossy_limit, #limit
+                        pspecs['pC_fold'][inj,k_ind],
+                        pspecs['pC_fold_err'][inj,k_ind])
 
-    for per in prob_limits:
-        pk,pkerr,k3pk,k3err = get_pk_k3pk(per,k,tanh_parms)
+tanh_parms = []
+for k_ind in xrange(Nk):
+    tanh_parms.append( fit_prob_to_tanh(probs[:,k_ind],
+        pspecs['pI_fold'][:,k_ind]))
 
-        np.savez('pspec_limits_k3pk_'+ptype+'_{0:02d}'.format(int(per*100))+'.npz',
-            freq=freq, k=k, k3pk=k3pk, k3err=k3err,
-            pk=pk, err=pkerr, kpl = kpls)
+
+figure()
+for k_ind in xrange(Nk):
+    plt.semilogx(pspecs['pI_fold'][:,k_ind],probs[:,k_ind],'-',label=k[k_ind])
+    # plt.semilogx(pspecs['pI_fold'][:,k_ind], tanh(pspecs['pI_fold'][:,k_ind], *tanh_parms[k_ind]),'-' )
+grid()
+legend(loc='best')
+xlabel('$P_{inj}$')
+ylabel('Probability to find $P_{inj}$')
+savefig('p_inj_prob.png',format='png')
+# title(ptype)
+# show()
+prob_limits = [.68,.85,.9,.95,.99]
+
+for per in prob_limits:
+    pk,pkerr,k3pk,k3err = get_pk_k3pk(per,k,tanh_parms)
+
+    np.savez('pspec_limits_k3pk_pC_{0:02d}'.format(int(per*100))+'.npz',
+        freq=freq, k=k, k3pk=k3pk, k3err=k3err,
+        pk=pk, err=pkerr, kpl = kpls)
+
+    pk,pkerr = pspecs['pIv_fold'][0,:], pspecs['pIv_fold_err'][0,:]
+    k3pk, k3err = k**3/(2*np.pi**2)*pk, k**3/(2*np.pi**2)*pkerr
+
+    np.savez('pspec_limits_k3pk_pI_{0:02d}'.format(int(per*100))+'.npz',
+        freq=freq, k=k, k3pk=k3pk, k3err=k3err,
+        pk=pk, err=pkerr, kpl = kpls)
