@@ -167,7 +167,7 @@ ax3[-1].legend(reversed(handles), reversed(labels), loc='lower right')  # revers
 #gs.tight_layout(fig)
 if opts.outfile is not None:
     fig.savefig(opts.outfile+'.png',format='png')
-    fig2.savefig(opts.outfile+'_pk.png',format=png)
+    fig2.savefig(opts.outfile+'_pk.png',format='png')
 else:
     fig.savefig('noise_curve_plot.png',format='png')
     fig2.savefig('noise_curve_plot_pk.png',format='png')
