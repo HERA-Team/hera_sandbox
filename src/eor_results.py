@@ -7,6 +7,14 @@ import matplotlib.pyplot as p
 import numpy as np
 #measurements
 
+def errorbars(data,axis=1,per=95):
+    mean = n.percentile(data,50,axis=axis)
+    lower = mean - n.percentile(data, 50-per/2.,axis=axis)
+    upper = n.percentile(data,50+per/2.,axis=axis) - mean
+    return lower, upper
+
+
+
 def PAPER_32_all():
     '''
     Results from  PAPER 32  Jacobs et.al 2014
@@ -194,7 +202,7 @@ def get_pk_from_npz(files=None, verbose=False):
     '''
     if files is None:
         print 'No Files gives for loading'
-        return 0,_,_,_
+        return 0,'','',''
 
     one_file_flag=False
     if len(n.shape(files)) ==0: files = [files];
@@ -221,7 +229,7 @@ def get_pk_from_npz(files=None, verbose=False):
     if len(freqs) ==0: #check if any files were loaded correctly
         print 'No parsable frequencies found'
         print 'Exiting'
-        return 0,_,_,_
+        return 0,'','',''
 
     if verbose: print "sorting input files"
     files = n.array(files)
@@ -243,11 +251,11 @@ def get_pk_from_npz(files=None, verbose=False):
         Pks.append(F['pk'])
         kpars.append(F['kpl'])
         Pkerr.append(F['err'])
-    if one_file_flag:
-        z = n.squeeze(z)
-        kpars = n.squeeze(kpars)
-        Pks = n.squeeze(Pks)
-        Pkerr = n.squeeze(Pkerr)
+    # if one_file_flag:
+        # z = n.squeeze(z)
+        # kpars = n.squeeze(kpars)
+        # Pks = n.squeeze(Pks)
+        # Pkerr = n.squeeze(Pkerr)
     return z, kpars, Pks, Pkerr
 
 def get_k3pk_from_npz(files=None, verbose=False):
@@ -258,7 +266,7 @@ def get_k3pk_from_npz(files=None, verbose=False):
     '''
     if files is None: #check that files are passed
         print 'No Files gives for loading'
-        return 0,_,_,_
+        return 0,'','',''
 
     one_file_flag=False
     if len(n.shape(files)) ==0: files = [files];
@@ -284,7 +292,7 @@ def get_k3pk_from_npz(files=None, verbose=False):
     if len(freqs) ==0: #check if any files were loaded correctly
         print 'No parsable frequencies found'
         print 'Exiting'
-        return 0,_,_,_
+        return 0,'','',''
 
     if verbose: print "sorting input files"
     files = n.array(files)
@@ -306,15 +314,15 @@ def get_k3pk_from_npz(files=None, verbose=False):
     for i,FILE in enumerate(files):
         F = n.load(FILE)
         if verbose: print FILE.split('/')[-1],z[i]
-        k = n.sqrt(F['kpl']**2 + kperps[i]**2)
+        # k = n.sqrt(F['kpl']**2 + kperps[i]**2)
         k3Pk.append(F['k3pk'])
         k3err.append(F['k3err'])
         kmags.append(F['k'])
-    if one_file_flag:
-        z = n.squeeze(z)
-        kmags = n.squeeze(kmags)
-        k3Pk = n.squeeze(k3Pk)
-        k3err = n.squeeze(k3err)
+    # if one_file_flag:
+        # z = n.squeeze(z)
+        # kmags = n.squeeze(kmags)
+        # k3Pk = n.squeeze(k3Pk)
+        # k3err = n.squeeze(k3err)
     return z, kmags, k3Pk, k3err
 
 def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,
