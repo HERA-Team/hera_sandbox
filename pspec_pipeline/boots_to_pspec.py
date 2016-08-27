@@ -25,7 +25,6 @@ parser.add_argument('--add_pCv',action='store_true',
 
 args = parser.parse_args()
 
-
 injection_dirs = glob(args.run_dir+'/inject*')
 print "This is sigloss_to_pspec"
 print "analyzing",args.run_dir
@@ -35,7 +34,7 @@ print "found {n} injections".format(n=len(injection_dirs))
 for injection_dir in injection_dirs:
     bootstraps = glob(injection_dir+'/pspec_bootsigloss*.npz')
     pspecs = read_bootstraps_dcj(bootstraps)
-    Nlstbins = pspecs['pk_vs_t'].shape[-1] #get the number of lst integrations in the dataset
+    Nlstbins = np.shape(pspecs['pk_vs_t'])[-1] #get the number of lst integrations in the dataset
     Neff_lst = np.ceil(Nlstbins/args.t_eff) #compute the effective number of LST bins
     #  lets round up because this 'N' is only approximate
 

@@ -19,6 +19,8 @@ o.add_option('--output', type='string', default='',
     help='output directory for pspec_boot files (default "")')
 o.add_option('--noise_only',action='store_true',
     help='Replace data with noise.')
+o.add_option('--rmbls', dest='rmbls',type='string',
+    help='List of baselines (ex:1_4,2_33) to remove from the power spectrum analysis.')
 opts,args = o.parse_args(sys.argv[1:])
 
 #Basic Parameters
@@ -30,13 +32,29 @@ DELAY = False
 NGPS = 5
 INJECT_SIG = opts.inject_sig
 PLOT = opts.plot
+cov_reg_level = 0
+
+try:
+    rmbls = []
+    rmbls_list = opts.rmbls.split(',')
+    for bl in rmbls_list:
+        i,j = bl.split('_')
+        rmbls.append(a.miriad.ij2bl(int(i),int(j)))
+    print 'Removing baselines:',rmbls
+    #rmbls = map(int, opts.rmbls.split(','))
+except:
+    rmbls = []
+
+
+
 
 ### FUNCTIONS ###
 
 #function uses aa, ij, afreqs, inttime, POL
 def frf(shape,loc=0,scale=1):
-    shape = shape[1]*2,shape[0] #(2*times,freqs)
+    shape = shape[1]*4,shape[0] #(2*times,freqs)
     dij = noise(shape,loc=loc,scale=scale)
+    # dij = n.ones(shape)
     #bins = fringe.gen_frbins(inttime)
     #frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
     #timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
@@ -46,11 +64,12 @@ def frf(shape,loc=0,scale=1):
     wij = n.ones(shape,dtype=bool) #XXX flags are all true (times,freqs)
     #dij and wij are (times,freqs)
     _d,_w,_,_ = fringe.apply_frf(aa,dij,wij,ij[0],ij[1],pol=POL,bins=bins,firs=fir)
+    # _d,_w,_,_ = fringe.apply_frf(aa,_d,wij,ij[0],ij[1],pol=POL,bins=bins,firs=fir)
     _d = n.transpose(_d)
-    _d = _d[:,shape[0]/4:shape[0]/2+shape[0]/4]
+    _d = _d[:,shape[0]/2. - shape[0]/4./2. : shape[0]/2.+shape[0]/4./2.]
     return _d
 
-def get_data(filenames, antstr, polstr, verbose=False):
+def get_data(filenames, antstr, polstr, rmbls, verbose=False):
     # XXX could have this only pull channels of interest to save memory
     lsts, dat, flg = [], {}, {}
     if type(filenames) == 'str': filenames = [filenames]
@@ -59,9 +78,11 @@ def get_data(filenames, antstr, polstr, verbose=False):
         uv = a.miriad.UV(filename)
         a.scripting.uv_selector(uv, antstr, polstr)
         for (crd,t,(i,j)),d,f in uv.all(raw=True):
+            bl = a.miriad.ij2bl(i,j)
+            if bl in rmbls: continue
             lst = uv['lst']
             if len(lsts) == 0 or lst != lsts[-1]: lsts.append(lst)
-            bl = a.miriad.ij2bl(i,j)
+            # bl = a.miriad.ij2bl(i,j)
             if not dat.has_key(bl): dat[bl],flg[bl] = [],[]
             dat[bl].append(d)
             flg[bl].append(f)
@@ -88,9 +109,9 @@ def cov(m):
     return (n.dot(X, X.T.conj()) / fact).squeeze()
 
 def noise(size,loc=0,scale=1): #loc is mean, scale is stdev (sqrt(var))
-    #sig = 1./n.sqrt(2)
-    #return n.random.normal(scale=sig, size=size) + 1j*n.random.normal(scale=sig, size=size)
-    return (n.random.normal(size=size,scale=scale) * n.exp(1j*n.random.uniform(0,2*n.pi,size=size))) + loc
+    sig = 1./n.sqrt(2)
+    return n.random.normal(scale=sig, size=size) + 1j*n.random.normal(scale=sig, size=size)
+    #return (n.random.normal(size=size,scale=scale) * n.exp(1j*n.random.uniform(0,2*n.pi,size=size))) + loc
 
 def get_Q(mode, n_k):
     if not DELAY:
@@ -174,7 +195,7 @@ antstr = 'cross'
 lsts,data,flgs = {},{},{}
 days = dsets.keys()
 for k in days:
-    lsts[k],data[k],flgs[k] = get_data(dsets[k], antstr=antstr, polstr=POL, verbose=True)
+    lsts[k],data[k],flgs[k] = get_data(dsets[k], antstr=antstr, polstr=POL, rmbls=rmbls, verbose=True)
     #data has keys 'even' and 'odd'
     #inside that are baseline keys
     #inside that has shape (#lsts, #freqs)
@@ -234,6 +255,7 @@ fir = {(ij[0],ij[1],POL):firs}
 xi = {}
 f = {}
 NOISE = frf((len(chans),len(lsts)),loc=0,scale=1) #same noise on each bl
+# embed()
 for k in days:
     xi[k] = {}
     f[k] = {}
@@ -243,8 +265,9 @@ for k in days:
         if conj[bl]: d = n.conj(d) #conjugate if necessary
         shape = d.shape #(times,freqs)
         if opts.noise_only:
-            #xi[k][bl] = frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
-            xi[k][bl] = NOISE# frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
+            xi[k][bl] = frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
+            # xi[k][bl] = NOISE# frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
+            # xi[k][bl] = n.zeros((len(chans),len(lsts)))# frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
         else:
              xi[k][bl] = n.transpose(d, [1,0]) #swap time and freq axes
         f[k][bl] = n.transpose(flg, [1,0])
@@ -274,9 +297,11 @@ for boot in xrange(opts.nboot):
         C[k],_C[k],_Cx[k] = {},{},{}
         for bl in bls_master:
             C[k][bl] = cov(x[k][bl])
+            C[k][bl] +=  cov_reg_level * n.identity( C[k][bl].shape[0] )
             I[k][bl] = n.identity(C[k][bl].shape[0])
             U,S,V = n.linalg.svd(C[k][bl].conj()) #singular value decomposition
             _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
+            # _C[k][bl] = n.identity(C[k][bl].shape[0])
             _I[k][bl] = n.identity(_C[k][bl].shape[0])
             _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl]) # XXX
             _Ix[k][bl] = x[k][bl] # XXX
@@ -391,7 +416,8 @@ for boot in xrange(opts.nboot):
     L_o = n.linalg.cholesky(FC_o)
     U,S,V = n.linalg.svd(L_o.conj())
     MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
-    MC = n.take(n.take(MC_o,iorder, axis=0), iorder, axis=1)
+    # MC = n.take(n.take(MC_o,iorder, axis=0), iorder, axis=1)
+    MC  = n.identity(nchan, dtype=n.complex128)
     MI  = n.identity(nchan, dtype=n.complex128)
 
     print "   Getting W"
@@ -418,6 +444,8 @@ for boot in xrange(opts.nboot):
     if INJECT_SIG > 0.: #Create a fake EoR signal to inject
         print 'INJECTING SIMULATED SIGNAL'
         eor = frf((shape[1],shape[0]),loc=0,scale=1) * INJECT_SIG #create FRF-ered noise
+        # eor = frf((shape[1],shape[0]),loc=0,scale=1) * (boot+1) #create FRF-ered noise
+        # eor  = noise(size=(shape[1],shape[0])) * INJECT_SIG
         x = {}
         for k in days:
             x[k] = {}
@@ -433,12 +461,14 @@ for boot in xrange(opts.nboot):
         C[k],_C[k],_Cx[k] = {},{},{}
         for bl in bls_master:
             C[k][bl] = cov(x[k][bl])
+            C[k][bl] +=  cov_reg_level * n.identity( C[k][bl].shape[0] )
             I[k][bl] = n.identity(C[k][bl].shape[0])
             U,S,V = n.linalg.svd(C[k][bl].conj()) #singular value decomposition
             _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
             _I[k][bl] = n.identity(_C[k][bl].shape[0])
             #_C[k][bl] = n.identity(_C[k][bl].shape[0]) #XXX overwriting C with I
             _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl]) # XXX x = v+e
+            # _Cx[k][bl] = n.dot(_C[k][bl], eor.copy() ) # XXX x = e
             _Ix[k][bl] = eor.copy() # XXX only e!
             if PLOT and True:
                 print a.miriad.bl2ij(bl), k
@@ -553,7 +583,8 @@ for boot in xrange(opts.nboot):
     L_o = n.linalg.cholesky(FC_o)
     U,S,V = n.linalg.svd(L_o.conj())
     MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
-    MC = n.take(n.take(MC_o,iorder, axis=0), iorder, axis=1)
+    # MC = n.take(n.take(MC_o,iorder, axis=0), iorder, axis=1)
+    MC  = n.identity(nchan, dtype=n.complex128)
     MI  = n.identity(nchan, dtype=n.complex128)
 
     print "   Getting W"
@@ -584,10 +615,10 @@ for boot in xrange(opts.nboot):
     pIe = pI
     #XXX Final variables
     pI = pIe
-    pC = pCr - pCv
+    pC = pCr #- pCv
 
     print 'pI=', n.average(pI.real), 'pC=', n.average(pC.real), 'pI/pC=', n.average(pI.real)/n.average(pC.real)
-
+    # embed()
     if PLOT:
         p.plot(kpl, n.average(pC.real, axis=1), 'b.-')
         p.plot(kpl, n.average(pI.real, axis=1), 'k.-')
@@ -598,6 +629,6 @@ for boot in xrange(opts.nboot):
     if len(opts.output) > 0: outpath = opts.output+'/pspec_bootsigloss%04d.npz' % boot
     else: outpath = 'pspec_bootsigloss%04d.npz' % boot
     n.savez(outpath, kpl=kpl, scalar=scalar, times=n.array(lsts),
-        pk_vs_t=pC, pCv = pCv, err_vs_t=1./cnt, temp_noise_var=var,
-        nocov_vs_t=pI, freq=fq, pIv=pIv,
+        pk_vs_t= n.real(pC), pCv = n.real(pCv), err_vs_t=1./cnt, temp_noise_var=var,
+        nocov_vs_t= n.real(pI) , freq=fq, pIv= n.real(pIv),
         cmd=' '.join(sys.argv))
