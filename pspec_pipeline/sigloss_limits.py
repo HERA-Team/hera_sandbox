@@ -115,7 +115,7 @@ grid()
 legend(loc='best')
 xlabel('$P_{inj}$')
 ylabel('Probability to find $P_{inj}$')
-savfig('p_inj_prob.png',format='png')
+savefig('p_inj_prob.png',format='png')
 # title(ptype)
 # show()
 prob_limits = [.68,.85,.9,.95,.99]
