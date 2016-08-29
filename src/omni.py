@@ -340,6 +340,7 @@ class FirstCal(object):
         self._N = np.linalg.inv(N)
         #get coefficients matrix,A
         self.A = self.info.A
+        if verbose: print 'Shape of coefficient matrix: ', self.A.shape
         ones = np.ones((1,self.A.shape[1]))
         #index:antenna => 9:80, 11:104, 13:53
 #        deg1 = np.zeros((1,self.A.shape[1])); deg1[:,9] = 1.0; deg1[:,11] = 1.0
@@ -351,6 +352,7 @@ class FirstCal(object):
         self.xhat = np.dot(np.linalg.pinv(invert), dontinvert)
         #solve for offset
         if offset:
+            if verbose: print "Inverting A.T*N^{-1}*A matrix"
             invert = np.dot(self.A.T,np.dot(self._N,self.A))
             dontinvert = np.dot(self.A.T,np.dot(self._N,self.O))
             self.ohat = np.dot(np.linalg.pinv(invert), dontinvert)
