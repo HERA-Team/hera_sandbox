@@ -331,26 +331,33 @@ class FirstCal(object):
         return M,O
     def run(self, verbose=False, offset=False, **kwargs):
         #make measurement matrix 
+        print "Geting M,O matrix"
         self.M,self.O = self.get_M(verbose=verbose, **kwargs)
         #self.M = np.append(self.M, [0.0,0.0,0.0])
         #self.O = np.append(self.O, [0.0,0.0,0.0])
         #make noise matrix
         #N = self.get_N(len(self.info.bl_pairs)+3) 
+        print "Geting N matrix"
+        #import IPython; IPython.embed()
         N = self.get_N(len(self.info.bl_pairs)) 
-        self._N = np.linalg.inv(N)
+        #self._N = np.linalg.inv(N)
+        self._N = N #since just using identity now
         #get coefficients matrix,A
         self.A = self.info.A
+        print 'Shape of coefficient matrix: ', self.A.shape
         ones = np.ones((1,self.A.shape[1]))
         #index:antenna => 9:80, 11:104, 13:53
 #        deg1 = np.zeros((1,self.A.shape[1])); deg1[:,9] = 1.0; deg1[:,11] = 1.0
 #        deg2 = np.zeros((1,self.A.shape[1])); deg2[:,9] = 1.0; deg2[:,13] = 1.0
 #        self.A = np.concatenate([self.A,ones,deg1,deg2])
         #solve for delays
+        print "Inverting A.T*N^{-1}*A matrix"
         invert = np.dot(self.A.T,np.dot(self._N,self.A))
         dontinvert = np.dot(self.A.T,np.dot(self._N,self.M))
         self.xhat = np.dot(np.linalg.pinv(invert), dontinvert)
         #solve for offset
         if offset:
+            print "Inverting A.T*N^{-1}*A matrix"
             invert = np.dot(self.A.T,np.dot(self._N,self.A))
             dontinvert = np.dot(self.A.T,np.dot(self._N,self.O))
             self.ohat = np.dot(np.linalg.pinv(invert), dontinvert)

@@ -38,9 +38,8 @@ class TestFirstCal(unittest.TestCase):
         for k in npzdata.keys():
             if k.isdigit():
                 assert(str(k)+'d' in npzdata.keys())
-         
     def test_plot_redundant(self):
-        reds2plot = self.reds[5] #random set of redundant baseliens
+        reds2plot = self.reds[3] #random set of redundant baseliens
         time = 13
         for bl in reds2plot:
             try:
@@ -59,21 +58,19 @@ class TestFirstCal(unittest.TestCase):
         p.show() 
 
     def test_redundancy(self):
-        reds = [('d'+str(i),'d'+str(j)) for i,j in self.reds[5]]
+        reds = [('d'+str(i),'d'+str(j)) for i,j in self.reds[3]]
         i0,i1 = reds[0] #fist baseline in the reds[3] redundant bl list
-        delays = [self.solved[i0]-self.solved[i1]+self.true[i0]-self.true[i1]-self.solved[a1]+self.solved[a2]-self.true[a1]+self.true[a2] for (a1,a2) in reds]
-        print delays
-            
-        
-        
-#    def test_redundant_difference_delays(self):
-#        a1 = '9'; a2 = '88'; a3 = '10'; a4 = '81'; a5 = '22'; a6 = '105'
-#        d1 = self.true[a1]-self.true[a2]-self.true[a3]+self.true[a4]
-#        d2 = self.true[a1]-self.true[a2]-self.true[a5]+self.true[a6]
-#        d3 = self.solved['d'+a1]-self.solved['d'+a2]-self.solved['d'+a3]+self.solved['d'+a4]
-#        d4 = self.solved['d'+a1]-self.solved['d'+a2]-self.solved['d'+a5]+self.solved['d'+a6]
-#        self.assertAlmostEqual(float(d1)-float(d2), float(d3)-float(d4), places=1)
+        t0 = self.true[i0]
+        t1 = self.true[i1]
+        tp0, tp1 = self.solved[i0], self.solved[i1]
+        delays = []
+        for (a0,a1) in reds:
+            t2,t3 = self.true[a0], self.true[a1]
+            t3 = self.true[a1]
+            tp2, tp3 = self.solved[a0], self.solved[a1]
+            delays.append(np.abs( (t0 - tp0) - (t1 - tp1) - ((t2 - tp2) - (t3-tp3)) ) )
+        zero = np.zeros_like(delays)
+        for k in delays:
+            self.assertAlmostEquals(k, 0.0, delta=.1) 
 
-        
-        
 unittest.main()

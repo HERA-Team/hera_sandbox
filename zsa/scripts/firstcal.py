@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import capo.hex as hx, capo.arp as arp, capo.red as red, capo.omni as omni
+import capo.arp as arp, capo.red as red, capo.omni as omni
 import numpy as n, pylab as p, aipy as a
 import sys,optparse
 
@@ -46,6 +46,34 @@ def normalize_data(datadict):
 
     
 #hera info assuming a hex of 19 and 128 antennas
+ubls =[ (10,64),
+        (49,64),
+        (3,64),
+        (41,64),
+        (25,64),
+        (19,64),
+        (48,64),
+        (29,64),
+        (24,64),
+        (28,64),
+        (55,64)
+#        (34,64),
+#        (27,64),
+#        (51,64),
+#        (57,64),
+#        (64,65),
+#        (64,72),
+#        (80,64),
+#        (88,64),
+#        (96,64),
+#        (104,64),
+#        (9,64),
+#        (22,64),
+#        (20,64),
+#        (43,64),
+#        (53,64),
+#        (31,64)]
+]
 aa = a.cal.get_aa(opts.cal, n.array([.150]))
 if opts.ex_ants: bad_ants = [ant for ant in map(int,opts.ex_ants.split(','))]
 else: bad_ants = []
