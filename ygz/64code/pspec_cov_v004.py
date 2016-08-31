@@ -26,8 +26,8 @@ opts,args = o.parse_args(sys.argv[1:])
  #args is calfile
  #################################################
 SEP, SEPD = opts.sep, opts.sepd
-DicT = {'sep0,1_sep-1,1':0.032557, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
-simT = {'sep0,1_sep-1,1':0.034233, 'sep0,1_sep1,1':-0.03099, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
+DicT = {'sep0,1_sep-1,1':0.034000, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
+simT = {'sep0,1_sep-1,1':0.033000, 'sep0,1_sep1,1':-0.03099, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
 DelT = simT[SEP+'_'+SEPD]*2*n.pi*(24*3600./a.const.sidereal_day)   #sidereal day?
 print 'DelT=', DelT, 'radians'
 EQUIV = (SEP == SEPD)
@@ -159,8 +159,8 @@ kpl = etas * capo.pspec.dk_deta(z) #111
 ########################################################################################################
 bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 # correction for beam^2
 scalar = capo.pspec.X2Y(z) * bm * B
-DicOpp = {'sep0,1_sep-1,1':-0.44}
-simOpp = {'sep0,1_sep-1,1':(-0.233718549682-0.359916945796j),'sep0,1_sep1,1':(-0.411004454476-0.0481656235344j)}
+DicOpp = {'sep0,1_sep-1,1': 0.568848}
+simOpp = {'sep0,1_sep-1,1':(-0.560615683868-0.421189357838j),'sep0,1_sep1,1':(-0.411004454476-0.0481656235344j)}
 if not EQUIV:
     #scalar /= DicOpp[SEP+'_'+SEPD]
     scalar /= simOpp[SEP+'_'+SEPD]
