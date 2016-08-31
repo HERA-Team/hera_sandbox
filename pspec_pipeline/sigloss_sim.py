@@ -195,7 +195,7 @@ antstr = 'cross'
 lsts,data,flgs = {},{},{}
 days = dsets.keys()
 for k in days:
-    lsts[k],data[k],flgs[k] = get_data(dsets[k], antstr=antstr, polstr=POL, rmbls=rmbls, verbose=True)
+    lsts[k],data[k],flgs[k] = get_data(dsets[k], antstr=antstr, polstr=POL, rmbs verbose=True)
     #data has keys 'even' and 'odd'
     #inside that are baseline keys
     #inside that has shape (#lsts, #freqs)
@@ -468,7 +468,6 @@ for boot in xrange(opts.nboot):
             _I[k][bl] = n.identity(_C[k][bl].shape[0])
             #_C[k][bl] = n.identity(_C[k][bl].shape[0]) #XXX overwriting C with I
             _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl]) # XXX x = v+e
-            # _Cx[k][bl] = n.dot(_C[k][bl], eor.copy() ) # XXX x = e
             _Ix[k][bl] = eor.copy() # XXX only e!
             if PLOT and True:
                 print a.miriad.bl2ij(bl), k
