@@ -314,7 +314,7 @@ for boot in xrange(NBOOT):
             _I[k][bl] = n.identity(_C[k][bl].shape[0])
             _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl]) # XXX
             _Ix[k][bl] = x[k][bl] # XXX
-            if PLOT and True:
+            if PLOT and False:
                 print a.miriad.bl2ij(bl), k
                 p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
                 p.colorbar()
@@ -493,7 +493,7 @@ for boot in xrange(NBOOT):
             _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl]) # XXX x = v+e
             # _Cx[k][bl] = n.dot(_C[k][bl], eor.copy() ) # XXX x = e
             _Ix[k][bl] = eor.copy() # XXX only e!
-            if PLOT and True:
+            if PLOT and False:
                 print a.miriad.bl2ij(bl), k
                 p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
                 p.colorbar()
@@ -655,9 +655,15 @@ for boot in xrange(NBOOT):
     print 'pI=', n.average(pI.real), 'pC=', n.average(pC.real), 'pI/pC=', n.average(pI.real)/n.average(pC.real)
     # embed()
     if PLOT:
-        p.plot(kpl, n.average(pC.real, axis=1), 'b.-')
-        p.plot(kpl, n.average(pI.real, axis=1), 'k.-')
+        from IPython import embed;
+        p.plot(kpl, n.average(pC.real, axis=1), 'b.-',label='pC')
+        p.plot(kpl, n.average(pIv.real, axis=1), 'k.-',label='pI')
+        p.plot(kpl, n.average(pI.real,axis=1),    'g--',label='p_inj')
+        p.grid()
+        p.legend(loc='lower left')
+        embed()
         p.show()
+
 
     print '   Writing pspec_bootsigloss%04d.npz' % boot
 

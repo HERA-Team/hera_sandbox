@@ -38,12 +38,16 @@ for injection_dir in injection_dirs:
     Neff_lst = np.ceil(Nlstbins/args.t_eff) #compute the effective number of LST bins
     #  lets round up because this 'N' is only approximate
 
-
+    for key in pspecs.keys():
+        if key == 'cmd':continue
+        try:
+            pspecs[key] = np.ma.masked_invalid( np.array(pspecs[key]))
+        except: import ipdb; ipdb.set_trace()
     if args.add_pCv:
         pspecs['pk_vs_t'] += pspecs['pCv']
 
     #compute Pk vs kpl vs bootstraps
-    pk_pspecs = average_bootstraps(pspecs,Nt_eff=Neff_lst,
+    pk_pspecs = average_bootstraps( pspecs ,Nt_eff=Neff_lst,
                     Nboots=100,avg_func=np.mean)
 
 
@@ -66,5 +70,11 @@ for injection_dir in injection_dirs:
     #         for correction in corrections:
     #             pk_pspecs[c] *= correction
     #make a pspec file
+    for key in pk_pspecs.keys():
+        if key == 'cmd':continue
+        try:
+            pk_pspecs[key].fill_value = 0
+            pk_pspecs[key] = pk_pspecs[key].filled()
+        except: import ipdb; ipdb.set_trace()
     print injection_dir+'/pspec_pk_k3pk.npz'
     np.savez(injection_dir+'/pspec_pk_k3pk.npz',**pk_pspecs)
