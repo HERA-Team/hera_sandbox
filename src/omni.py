@@ -77,27 +77,6 @@ def compute_reds(nant, pols, *args, **kwargs):
             reds += [[(Antpol(i,pi,nant),Antpol(j,pj,nant)) for i,j in gp] for gp in _reds]
     return reds
  
-#def aa_to_info(aa, pols=['x'], **kwargs):
-#    '''Use aa.ant_layout to generate redundances based on ideal placement.
-#    The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
-#    layout = aa.ant_layout
-#    nant = len(aa)
-#    antpos = -np.ones((nant*len(pols),3)) # -1 to flag unused antennas
-#    xs,ys = np.indices(layout.shape)
-#    for ant,x,y in zip(layout.flatten(), xs.flatten(), ys.flatten()):
-#        for z,pol in enumerate(pols):
-#            z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
-#            i = Antpol(ant,pol,len(aa)) # creates index in POLNUM/NUMPOL for pol
-#            antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
-#    reds = compute_reds(nant, pols, antpos[:nant],tol=.1) # only first nant b/c compute_reds treats pol redundancy separately
-#    # XXX haven't enforced xy = yx yet.  need to conjoin red groups for that
-#    ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] < 0]
-#    kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
-#    reds = filter_reds(reds, **kwargs)
-#    info = RedundantInfo(nant)
-#    info.init_from_reds(reds,antpos)
-#    return info
-
 def aa_to_info(aa, pols=['x'], fcal=False, **kwargs):
     '''Use aa.ant_layout to generate redundances based on ideal placement.
         The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
@@ -381,24 +360,6 @@ def get_phase(fqs,tau, offset=False):
         return np.exp(-1j*(2*np.pi*fqs*delay) - offset)
     else:
         return np.exp(-2j*np.pi*fqs*tau)
-
-#def save_gains_fc(s,f,name='fcgains',verbose=False):
-#    s2 = {}
-#    for k,i in s.iteritems():
-#        if len(i)>1:
-#            s2[str(k)] = get_phase(f,i,offset=True)
-#            s2['d'+str(k)] = i[0]
-#            if verbose:
-#                print 'ant=%d dly=%f , off=%f '%(k,i[0],i[1])
-#        else:
-#            s2[str(k)] = get_phase(f,i)
-#            s2['d'+str(k)] = i
-#            if verbose:
-#                print 'ant=%d dly=%f  '%(k,i)
-#    import sys
-#    cmd = sys.argv
-#    s2['cmd'] = ' '.join(cmd)
-#    n.savez('%s.npz'%name,**s2)
 
 def save_gains_fc(s,f,pol,filename=None,ubls=None,ex_ants=None,verbose=False):
     """
