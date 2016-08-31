@@ -73,12 +73,12 @@ SEPS += [(2,105), (1,83)]
 #SEPS += [(3,105),(3,106)]
 #CH0,NCHAN = 90, 31
 CH0,NCHAN = 110, 51
-
+dataDIR = '/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/'
 sets = {
     #'day0' : sys.argv[1:],
     #'day0' : glob.glob('zen.2456714.*.xx.npz'),
-    'day1' : glob.glob('zen.2456715.*.xx.npz'),
-    'day2' : glob.glob('zen.2456716.*.xx.npz'),
+    'day1' : glob.glob(dataDIR+'zen.2456715.52*.xx.npz'),
+    'day2' : glob.glob(dataDIR+'zen.2456716.52*.xx.npz'),
 }
 data,wgts = {}, {}
 lsts = {}
@@ -140,7 +140,7 @@ def set_C(norm=3e-6):
     for k in ks:
         #Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki != k])
 
-        # ???
+        import IPython; IPython.embed()
         Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
         #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in ks if ki != k])
         #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in data if ki[2] != k[2]])

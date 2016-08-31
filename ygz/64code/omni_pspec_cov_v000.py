@@ -16,7 +16,7 @@ def find_sep(aa, bls, drow=None, dcol=None):
         rv.append((i,j))
     return rv
 
-def rebin_lst(binsize, lsts, d, w):
+def rebin_lst(binsize, lsts, d, w):  #d: data in time by freq. 
     bins = lsts/binsize
     b0 = int(bins[0])
     bmax = int(np.ceil(np.max(bins)))
@@ -68,7 +68,7 @@ SEPS = [(0,103), (0,111), (0,95)]
 #SEPS += [(3,105),(3,106)]
 #CH0,NCHAN = 90, 31
 CH0,NCHAN = 110, 51
-bandpass = np.load('bandpass.npz')['bandpass']
+bandpass = np.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/bandpass.npz')['bandpass']
 bandpass.shape = (1,-1)
 fqs = np.linspace(.1,.2,bandpass.size)
 WINDOW = 'blackman-harris'
@@ -85,12 +85,12 @@ scalar = capo.pspec.X2Y(z) * bm * B
 B_win = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW] #proper normalization
 scalar_win = capo.pspec.X2Y(z) * bm * B_win
 
-dataDIR = '/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk'
+dataDIR = '/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/'
 sets = {
     #'day0' : sys.argv[1:],
     #'day0' : glob.glob('zen.2456714.*.xx.npz'),
-    'day1' : glob.glob(dataDIR+'zen.2456715.*.xx.npz'),
-    'day2' : glob.glob(dataDIR+'zen.2456716.*.xx.npz'),
+    'day1' : glob.glob(dataDIR+'zen.2456715.52*.xx.npz'),
+    'day2' : glob.glob(dataDIR+'zen.2456716.52*.xx.npz'),
 }
 data,wgts = {}, {}
 lsts = {}
@@ -109,18 +109,35 @@ for s in sets:
             data[k] *= bandpass[:,CH0:CH0+NCHAN]
             wgts[k] = np.where(np.abs(data[k]) == 0, 0., 1)
             #wgts[k] = np.where(np.abs(data[k]) == 0, 0., 1./chisqs[s])
-ds = capo.oqe.DataSet(data, wgts)
+
 ind = {}
 set1,set2 = sets.keys()[0], sets.keys()[-1]
 lst_res = np.average(lsts[set1][1:] - lsts[set1][:-1])/2
-inds = capo.oqe.lst_align(lsts, lstres=lst_res)
-data,wgts = capo.oqe.lst_align_data(inds, dsets=data, wgts=wgts)
-#for k in data:
-#    (s,pol,bl) = k
-#    data[k] = data[k][inds[s]]
-#    wgts[k] = wgts[k][inds[s]]
-for s in sets: chisqs[s] = chisqs[s][ind[s]].T
+#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+#inds = capo.oqe.lst_align(lsts, lstres=lst_res)
+#data,wgts = capo.oqe.lst_align_data(inds, dsets=data, wgts=wgts)
+#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+def lst_align(lsts1,lsts2,lstres,offset=0):
+    i=0
+    if lsts1[0]+offset>lsts2[0]:
+        while lsts1[0]+offset>lsts2[i]: i += 1
+        Npt = min(lsts1.size,lsts2.size-i)
+        return np.arange(0,Npt),np.arange(i,Npt+i)
+    else:
+        while lsts1[i]+offset>lsts2[0]: i += 1
+        Npt = min(lsts1.size-i,lsts2.size)
+        return np.arange(i,Npt+i),n.arange(0,Npt)
+
+ind[set1], ind[set2] = lst_align(lsts[set1], lsts[set2], lstres=lst_res)
+
+for k in data.keys():
+    (s,pol,bl) = k
+    data[k] = data[k][ind[s]]     #aligning the lsts
+    wgts[k] = wgts[k][ind[s]]
 ds = capo.oqe.DataSet(data, wgts)
+for s in sets: chisqs[s] = chisqs[s][ind[s]].T
+########################################################################
     
 #k1a,k1b,k1c = [(s,'xx',(0,103)) for s in sets]
 #k2a,k2b,k2c = [(s,'xx',(0,111)) for s in sets]
@@ -140,10 +157,12 @@ NK = len(ks)
 def set_C(norm=3e-6):
     ds.clear_cache()
     Cs,iCs = {},{}
+    import IPython; IPython.embed()
     for k in ks:
         #Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki != k])
         #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],ds.w[ki][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
-        Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
+        
+	Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
         #w = np.where(ds.w[ki] > 0, 1, 0)
         #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],w[:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
         #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in ks if ki != k])
