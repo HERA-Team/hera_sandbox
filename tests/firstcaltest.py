@@ -1,11 +1,15 @@
 import unittest
-import capo, aipy as a, numpy as np, pylab as p
+import capo, aipy as a, numpy as np, pylab as p, os
 
 class TestFirstCal(unittest.TestCase):
     @classmethod
     def setUpClass(self):
+<<<<<<< HEAD
         #testdata_path='/Users/sherlock/src/capo/tests/data/'
         testdata_path='/home/zakiali/src/mycapo/tests/data/'
+=======
+        testdata_path='/home/saulkohn/tests/'
+>>>>>>> 844339aa7de103571bb31f86b34a3ebe792ded92
         #True delays put into simulated data
         self.true = np.load(testdata_path+'truedelays.npz')
         #solved firstcal delays
@@ -16,6 +20,7 @@ class TestFirstCal(unittest.TestCase):
         self.info = capo.omni.aa_to_info(aa, fcal=True)
         self.reds = self.info.get_reds()
         self.fqs = np.linspace(.1,.2,1024)  
+        self.pol = 'xx'
         #Get raw data
         reds = capo.zsa.flatten_reds(self.reds)
         ant_string =','.join(map(str,self.info.subsetant))
@@ -31,8 +36,13 @@ class TestFirstCal(unittest.TestCase):
     def test_run_firstcal(self):
         fc = capo.omni.FirstCal(self.dataxx,self.wgtsxx,self.fqs,self.info)
         sols = fc.run(tune=True,verbose=False,offset=True,plot=False)
-        capo.omni.save_gains_fc(sols,self.fqs,name=self.raw_data[0],verbose=False)
-        
+        capo.omni.save_gains_fc(sols,self.fqs,self.pol,filename=self.raw_data,ubls=' ',ex_ants=[],verbose=True)
+        assert(os.path.exists(self.raw_data[0]+'.fc.npz'))
+        npzdata = np.load(self.raw_data[0]+'.fc.npz') 
+        for k in ['cmd','ubls','ex_ants']: assert(k in npzdata.keys())
+        for k in npzdata.keys():
+            if k.isdigit():
+                assert(str(k)+'d' in npzdata.keys())
     def test_plot_redundant(self):
         reds2plot = self.reds[3] #random set of redundant baseliens
         time = 13

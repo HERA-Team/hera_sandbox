@@ -31,7 +31,7 @@ def save_gains(s,f,pol,filename=None,ubls=None,ex_ants=None,verbose=False):
         if len(i)>1:
             #len > 1 means that one is using the "tune" parameter in omni.firstcal
             #i[0] = tau+dt, i[1] = offset XXX offset from what?
-            s2[str(k)] = omni.get_phase(f,i,offset=True)
+            s2[str(k)] = omni.get_phase(f,i,offset=True) #returns np.exp(-1j*(2*np.pi*fqs*(tau+dt)) - offset) XXX
             s2[str(k)+'d'] = i[0]
             if verbose: print 'dly=%f , off=%f'%i
         else:
@@ -79,15 +79,16 @@ print 'Number of redundant baselines:',len(reds)
 ant_string =','.join(map(str,info.subsetant))
 bl_string = ','.join(['_'.join(map(str,k)) for k in reds])
 times, data, flags = arp.get_dict_of_uv_data(args, bl_string, opts.pol, verbose=True)
-datapack = {} #not necessarily xx data inside
+datapack,wgtpack = {},{}
 for (i,j) in data.keys():
     datapack[(i,j)] = data[(i,j)][opts.pol]
+    wgtpack[(i,j)] = np.logical_not(flags[(i,j)][opts.pol])
 nfreq = datapack[datapack.keys()[0]].shape[1] #XXX less hacky than previous hardcode, but always safe?
 fqs = n.linspace(.1,.2,nfreq)
 dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, np.diff(fqs)[0]))
 
 #gets phase solutions per frequency.
-fc = omni.FirstCal(datapack,fqs,info)
+fc = omni.FirstCal(datapack,wgtpack,fqs,info)
 sols = fc.run(tune=True,verbose=False,offset=True,plot=False)
 
 #Save solutions
