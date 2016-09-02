@@ -4,7 +4,8 @@ import capo, aipy as a, numpy as np, pylab as p
 class TestFirstCal(unittest.TestCase):
     @classmethod
     def setUpClass(self):
-        testdata_path='/Users/sherlock/src/capo/tests/data/'
+        #testdata_path='/Users/sherlock/src/capo/tests/data/'
+        testdata_path='/home/zakiali/src/mycapo/tests/data/'
         #True delays put into simulated data
         self.true = np.load(testdata_path+'truedelays.npz')
         #solved firstcal delays
