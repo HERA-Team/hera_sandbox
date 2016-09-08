@@ -1,21 +1,19 @@
 import unittest
 import capo, aipy as a, numpy as np, pylab as p, os
+unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: cmp(y, x)
 
 class TestFirstCal(unittest.TestCase):
     @classmethod
     def setUpClass(self):
-<<<<<<< HEAD
-        #testdata_path='/Users/sherlock/src/capo/tests/data/'
-        testdata_path='/home/zakiali/src/mycapo/tests/data/'
-=======
-        testdata_path='/home/saulkohn/tests/'
->>>>>>> 844339aa7de103571bb31f86b34a3ebe792ded92
+        self.testdata_path='/Users/sherlock/src/capo/tests/data/'
+#        testdata_path='/home/zakiali/src/mycapo/tests/data/'
+#        testdata_path='/home/saulkohn/tests/'
         #True delays put into simulated data
-        self.true = np.load(testdata_path+'truedelays.npz')
+        self.true = np.load(self.testdata_path+'truedelays.npz')
         #solved firstcal delays
-        self.solved = np.load(testdata_path+'zen.2457458.32700.xx.uvAs.npz')
+        self.solved = np.load(self.testdata_path+'zen.2457458.32700.xx.uvAs.fc.npz')
         #raw data used to solve for the first cal solutions
-        self.raw_data = [testdata_path+'zen.2457458.32700.xx.uvAs']
+        self.raw_data = [self.testdata_path+'zen.2457458.32700.xx.uvAs']
         aa = a.cal.get_aa('hsa7458_v000_HH_delaytest', np.array([.150]))
         self.info = capo.omni.aa_to_info(aa, fcal=True)
         self.reds = self.info.get_reds()
@@ -43,6 +41,7 @@ class TestFirstCal(unittest.TestCase):
         for k in npzdata.keys():
             if k.isdigit():
                 assert(str(k)+'d' in npzdata.keys())
+
     def test_plot_redundant(self):
         reds2plot = self.reds[3] #random set of redundant baseliens
         time = 13
@@ -63,7 +62,7 @@ class TestFirstCal(unittest.TestCase):
         p.show() 
 
     def test_redundancy(self):
-        reds = [('d'+str(i),'d'+str(j)) for i,j in self.reds[3]]
+        reds = [(str(i)+'d',str(j)+'d') for i,j in self.reds[3]]
         i0,i1 = reds[0] #fist baseline in the reds[3] redundant bl list
         t0 = self.true[i0]
         t1 = self.true[i1]
