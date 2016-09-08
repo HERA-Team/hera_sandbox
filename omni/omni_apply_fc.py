@@ -33,7 +33,7 @@ fcpath = opts.firstcal
 for f,filename in enumerate(args):
         if len(pols)>1: npzb=3
         else: npzb=4
-        omnifile = opts.omnipath % '.'join(filename.split('/')[-1].split('.')[0:npzb])
+        omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:npzb])
         print ' firstcal npz:', omnifile
         exit()
         _,gains,_,_ = capo.omni.from_npz(omnifile) #loads the firstcal file gains
