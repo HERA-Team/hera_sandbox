@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import matplotlib as mpl
+mpl.use('Agg')
 #mpl.rcParams['font.size'] = 12
 #mpl.rcParams['xtick.labelsize']= 18
 #mpl.rcParams['legend.fontsize'] = 14
@@ -103,6 +104,7 @@ for key in data:
 
         if i==0:
             ax1[i].set_ylabel('$\\frac{k^{3}}{2\pi^{2}} P(k) [mK]^{2}$')
+            ax1[0].set_ylim([1e0,1e7])
         if opts.ratio: plt.setp( ax1[i].get_xticklabels(), visible=False)
         ax1[i].grid(True)
 
@@ -192,7 +194,7 @@ if opts.ratio:
         ax4[i].grid(True)
 
 handles, labels = ax1[-1].get_legend_handles_labels()
-ax1[-1].legend(reversed(handles), reversed(labels), loc='upper right', numpoints=1)  # reverse
+ax1[-1].legend(reversed(handles), reversed(labels), loc='lower right', numpoints=1)  # reverse
 handles, labels = ax3[-1].get_legend_handles_labels()
 ax3[-1].legend(reversed(handles), reversed(labels), loc='upper right', numpoints=1)  # reverse to keep order consistent
 # ax1[-1].legend(loc='lower right')

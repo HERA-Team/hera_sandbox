@@ -1,13 +1,15 @@
-PREFIX='../../../lstbin_psa64_noise_1.5Jy_nofrf'
-# PREFIX='../../lstbin_psa64_data_frf0'
+# PREFIX='../../lstbin_psa64_noise_5Jy_optimal'
+# PREFIX='../../../lstbin_psa64_noise_1.5Jy_nofrf'
+# PREFIX='../../../lstbin_psa64_ali_reconstruction'
+PREFIX='../../lstbin_psa64_data_optimal'
 # PREFIX='../../lstbin_psa64_data_frwidth_5_maxfr_5'
 # PREFIX='../../lstbin_psa64_noise_3Jy_new_mdlvis_optimal'
-EVEN_FILES=${PREFIX}'/even/sep0,1/lst*242.[3456]*.uvGAs'
-ODD_FILES=${PREFIX}'/odd/sep0,1/lst*243.[3456]*.uvGAs'
+EVEN_FILES=${PREFIX}'/even/sep0,1/lst*242.[3456]*.uvGAL'
+ODD_FILES=${PREFIX}'/odd/sep0,1/lst*243.[3456]*.uvGAL'
 # EVEN_FILES=${PREFIX}'/even/sep0,1/lst.24562*.[3456]*.uvGAL'
 # ODD_FILES=${PREFIX}'/odd/sep0,1/lst.24562*.[3456]*.uvGAL'
 # lst.24562*.[3456]
-WD=$PWD #get the working directory
+WD=$PWD #get the sworking directory
 noise=''
 boot=60
 chans='95_115'
@@ -29,7 +31,7 @@ for chan in $chans; do
 
     test -e $WD/${chan} || mkdir $WD/${chan}
     cd $WD/${chan}
-    for inject in `python -c "import numpy; print ' '.join(map(str, numpy.logspace(-2,-1,1)))"` ; do
+    for inject in `python -c "import numpy; print ' '.join(map(str, numpy.logspace(-2,2,10)))"` ; do
         test -e inject_sep${SEP}_${inject} || mkdir inject_sep${SEP}_${inject}
         echo SIGNAL_LEVEL=${inject}
 
@@ -37,8 +39,8 @@ for chan in $chans; do
         #echo "~/capo/pspec_pipeline/pspec_cov_v003_sigloss.py --window=none -a cross -p I -c 110_130 -C psa6622_v003 -b 20 -i ${inject}" ${EVEN_FILES} ${ODD_FILES} > inject_sep${SEP}_${inject}/notes.txt
 
         #noise only
-        /home/mkolopanis/src/capo/pspec_pipeline/sigloss_sim_no_gps.py --window=none -a cross -p I -c ${chan} -C psa6240_v003 -b ${boot} -i ${inject} ${noise} --rmbls=${rmbls} ${EVEN_FILES} ${ODD_FILES}
-        echo "~/capo/pspec_pipeline/sigloss_sim_no_gps.py --window=none -a cross -p I -c ${chan} -C psa6240_v003 -b ${boot} -i ${inject} ${noise} --rmbls=${rmbls} "  ${EVEN_FILES} ${ODD_FILES} > inject_sep${SEP}_${inject}/notes.txt
+        /home/mkolopanis/src/capo/pspec_pipeline/sigloss_sim.py --window=none -a cross -p I -c ${chan} -C psa6240_v003 -b ${boot} -i ${inject} ${noise} --rmbls=${rmbls} ${EVEN_FILES} ${ODD_FILES}
+        echo "~/capo/pspec_pipeline/sigloss_sim.py --window=none -a cross -p I -c ${chan} -C psa6240_v003 -b ${boot} -i ${inject} ${noise} --rmbls=${rmbls} "  ${EVEN_FILES} ${ODD_FILES} > inject_sep${SEP}_${inject}/notes.txt
 
         mv *bootsigloss*.npz inject_sep${SEP}_${inject}/.
     done
@@ -52,4 +54,4 @@ for chan in $chans; do
     #cp sigloss.png ../sigloss_${chan}.png
     cd $WD #return to the sigloss dir to do the next channel
 done
-~/src/capo/mjk/scripts/plot_upper_lims_simple.py */pspec_limits_k3pk_p[CI]_85.npz --noisefiles='/home/mkolopanis/psa64/21cmsense_noise/dish_size_1/*drift_mod*.npz'   --outfile='noise_curve_85'
+~/src/capo/mjk/scripts/plot_upper_lims_simple.py */pspec_limits_k3pk_p[CI]_85.npz --noisefiles='/home/mkolopanis/psa64/21cmsense_noise/dish_size_1/*drift_mod*1[5]0.npz'   --outfile='noise_curve_85' --psa32 --psa32_noise='/home/mkolopanis/psa64/21cmsense_noise/psa32_noise/*drift_mod*1[5]0.npz'
