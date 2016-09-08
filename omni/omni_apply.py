@@ -12,6 +12,8 @@ o.add_option('--xtalk',dest='xtalk',default=False,action='store_true',
             help='Toggle: apply xtalk solutions to data. Default=False')
 o.add_option('--omnipath',dest='omnipath',default='%s.npz',type='string',
             help='Format string (e.g. "path/%s.npz", where you actually type the "%s") which converts the input file name to the omnical npz path/file.')
+o.add_option('--firstcal', action='store_true', 
+            help='Applying firstcal solutions.')
 opts,args = o.parse_args(sys.argv[1:])
 
 
@@ -36,7 +38,10 @@ for f,filename in enumerate(args):
     _,gains,_,xtalk = capo.omni.from_npz(omnifile) #loads npz outputs from omni_run
     for p in pols:
         print 'Reading', files[filename][p]
-        newfile = files[filename][p].split('/')[-1]+'O' #saves in cwd
+        if opts.firstcal:
+            newfile = files[filename][p].split('/')[-1]+'F' #saves in cwd. Firstcal ext.
+        else:
+            newfile = files[filename][p].split('/')[-1]+'O' #saves in cwd
         if os.path.exists(newfile):
             print '    %s exists.  Skipping...' % newfile
             continue
@@ -56,7 +61,10 @@ for f,filename in enumerate(args):
                         xt = numpy.resize(xtalk[pol][(a2,a1)].conj(),d.shape) 
                         d -= xt
                     except(KeyError): pass
-            ti = len(times) - 1 #time index
+            if opts.firstcal:
+                ti = 0
+            else:
+                ti = len(times) - 1 #time index
             try: d /= gains[p1][a1][ti] #apply gains
             except(KeyError): pass
             try: d /= gains[p2][a2][ti].conj() 
