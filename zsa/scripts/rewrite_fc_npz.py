@@ -16,7 +16,7 @@ for f in args:
     elif opts.pol in pols: pol = opts.pol
     else:
         raise RuntimeError('No polarization string provided.')
-    for k in d.keys: 
+    for k in d.keys(): 
         data = {}
         if k.isdigit(): data[k+'xx'] = d[k]
         else: data[k] = d[k]
