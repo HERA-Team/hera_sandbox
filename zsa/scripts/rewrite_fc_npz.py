@@ -4,7 +4,7 @@ import numpy as np
 import sys,optparse
 
 o = optparse.OptionParser()
-o.parse_args('--pol', '-p',  action='store', help='Polarization string')
+o.add_option('--pol', '-p',  action='store', help='Polarization string')
 opts,args = o.parse_args(sys.argv[1:])
 
 pols = ['xx', 'yy', 'xy', 'yx']
