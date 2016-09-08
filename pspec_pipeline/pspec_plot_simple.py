@@ -69,7 +69,7 @@ def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.159, color=
         k3_negind = n.where(k3_pts < 0)
         k3_posind = n.where(k3_pts >= 0)
         p.errorbar(k[k0:][k3_posind],k3_pts[k3_posind],yerr=(k3[k0:]*errfold)[k3_posind],fmt='k.',capsize=0,linewidth=1.2)
-        p.errorbar(k[k0:][k3_negind],n.abs(k3_pts[k3_negind]),yerr=(k3[k0:]*errfold)[k3_negind],fmt='b.',capsize=0,linewidth=1.2)
+        p.errorbar(k[k0:][k3_negind],n.abs(k3_pts[k3_negind]),yerr=(k3[k0:]*errfold)[k3_negind],color='0.5',fmt='.',capsize=0,linewidth=1.2)
     else: p.plot(k[k0:], k3[k0:]*pkfold+k3[k0:]*errfold, color+'-')
     if not bins is None:
         _kpls, _k3pks, _k3errs = [], [], []
