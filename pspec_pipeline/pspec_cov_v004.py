@@ -21,6 +21,8 @@ o.add_option('--same', action='store_true',
     help='Noise is the same for all baselines.')
 o.add_option('--diff', action='store_true',
     help='Noise is different for all baseline.') 
+o.add_option('--frf', action='store_true',
+    help='FRF noise.')
 o.add_option('--output', type='string', default='',
     help='Output directory for pspec_boot files (default "")')
 
@@ -161,10 +163,12 @@ if opts.noise_only:
     frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
     timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
     fir = {(ij[0],ij[1],POL):firs}
-    if opts.same: NOISE = frf((len(chans),timelen)) #same noise on all bls
+    if opts.same and opts.frf: NOISE = frf((len(chans),timelen)) #same noise on all bls
+    if opts.same and opts.frf == None: NOISE = oqe.noise((len(chans),timelen))
     for key in data_dict:
         if opts.same: thing = NOISE.T
-        if opts.diff: thing = frf((len(chans),timelen)).T
+        if opts.diff and opts.frf: thing = frf((len(chans),timelen)).T
+        if opts.diff and opts.frf == None: thing = oqe.noise((len(chans),timelen)).T
         if blconj[a.miriad.ij2bl(key[1][0],key[1][1])]: data_dict[key] = n.conj(thing)
         else: data_dict[key] = thing
         flg_dict[key] = n.ones_like(data_dict[key])
