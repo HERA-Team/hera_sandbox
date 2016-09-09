@@ -19,46 +19,7 @@ def flatten_reds(reds):
         freds += r
     return freds
 
-def save_gains(s,f,pol,filename=None,ubls=None,ex_ants=None,verbose=False):
-    """
-    s: solutions
-    f: frequencies
-    pol: polarization
-    filename: if a specific file was used (instead of many), change output name
-    ubls: unique baselines used to solve for s'
-    ex_ants: antennae excluded to solve for s'
-    """
-    s2 = {}
-    for k,i in s.iteritems():
-        if len(i)>1:
-            #len > 1 means that one is using the "tune" parameter in omni.firstcal
-            #i[0] = tau+dt, i[1] = offset XXX offset from what?
-            s2[str(k)] = omni.get_phase(f,i,offset=True) #returns np.exp(-1j*(2*np.pi*fqs*(tau+dt)) - offset) XXX
-            s2[str(k)+'d'] = i[0]
-            if verbose: print 'dly=%f , off=%f'%i
-        else:
-            s2[str(k)] = omni.get_phase(f,i)
-            s2[str(k)+'d'] = i
-            if verbose: print 'dly=%f'%i
-    if not ubls is None: s2['ubls']=ubls
-    if not ex_ants is None: s2['ex_ants']=ex_ants
-    if not filename is None:
-        if not opts.outpath is None:
-            outname='%s/%s.fc.npz'%(opts.outpath,filename.split('/')[-1])
-        else:
-            outname='%s.fc.npz'%filename
-    else:
-        outname='fcgains.%s.npz'%pol
-    s2['cmd'] = ' '.join(sys.argv)
-    print 'Saving fcgains to %s'%outname
-    n.savez(outname,**s2)
 
-def normalize_data(datadict):
-    d = {}
-    for key in datadict.keys():
-        d[key] = datadict[key]/n.where(n.abs(datadict[key]) == 0., 1., n.abs(datadict[key]))
-    return d 
-    
 #hera info assuming a hex of 19 and 128 antennas
 aa = a.cal.get_aa(opts.cal, n.array([.150]))
 ex_ants = []
@@ -94,6 +55,10 @@ fc = omni.FirstCal(datapack,wgtpack,fqs,info)
 sols = fc.run(tune=True,verbose=opts.verbose,offset=True,plot=opts.plot)
 
 #Save solutions
-if len(args)==1: save_gains(sols,fqs, opts.pol, filename=args[0], ubls=ubls, ex_ants=ex_ants)
-else: save_gains(sols,fqs, opts.pol, ubls=ubls, ex_ants=ex_ants) 
-
+if len(args)==1: filename=args[0]
+else: filename='fcgains.%s.npz'%opts.pol #if averaging a bunch together of files together.
+if not opts.outpath is None:
+    outname='%s/%s.fc.npz'%(opts.outpath,filename.split('/')[-1])
+else:
+    outname='%s.fc.npz'%filename
+omni.save_gains(sols,fqs, opts.pol, outname, ubls=ubls, ex_ants=ex_ants)
