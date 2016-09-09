@@ -283,9 +283,9 @@ for boot in xrange(opts.nboot):
     if INJECT_SIG > 0.: #Create a fake EoR signal to inject
         print '     INJECTING SIMULATED SIGNAL'
         if opts.frfeor:
-            eor = (oqe.noise((len(chans),timelen)) * INJECT_SIG).T
-        else:
             eor = (frf((len(chans),timelen)) * INJECT_SIG).T #create FRF-ered noise
+        else:
+            eor = (oqe.noise((len(chans),timelen)) * INJECT_SIG).T
         data_dict_2 = {}
         data_dict_eor = {}
         for key in data_dict:
