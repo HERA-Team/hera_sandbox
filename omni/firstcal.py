@@ -8,7 +8,9 @@ o = optparse.OptionParser()
 a.scripting.add_standard_options(o,cal=True,pol=True)
 o.add_option('--ubls', default='', help='Unique baselines to use, separated by commas (ex: 1_4,64_49).')
 o.add_option('--ex_ants', default='', help='Antennas to exclude, separated by commas (ex: 1,4,64,49).')
-o.add_option('--outpath',default=None,help='Output path of solution npz files. Default will be the same directory as the data files.')
+o.add_option('--outpath', default=None,help='Output path of solution npz files. Default will be the same directory as the data files.')
+o.add_option('--plot', action='storse_true', default='false', help='Turn on plotting in firstcal class.')
+o.add_option('--verbose', action='store_true', default='false', help='Turn on verbose.')
 opts,args = o.parse_args(sys.argv[1:])
 
 def flatten_reds(reds):
@@ -89,7 +91,7 @@ dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, np.diff(fqs)[0]))
 
 #gets phase solutions per frequency.
 fc = omni.FirstCal(datapack,wgtpack,fqs,info)
-sols = fc.run(tune=True,verbose=False,offset=True,plot=False)
+sols = fc.run(tune=True,verbose=opts.verbose,offset=True,plot=opts.plot)
 
 #Save solutions
 if len(args)==1: save_gains(sols,fqs, opts.pol, filename=args[0], ubls=ubls, ex_ants=ex_ants)
