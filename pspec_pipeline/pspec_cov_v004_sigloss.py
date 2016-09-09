@@ -16,11 +16,15 @@ o.add_option('--window', dest='window', default='blackman-harris',
 o.add_option('--sep', default='sep0,1', action='store',
     help='Which separation directory to use for signal loss data.')
 o.add_option('--noise_only', action='store_true',
-    help='Instead of injecting noise, Replace data with noise')
+    help='Instead of injecting noise, Replace data with noise.')
+o.add_option('--frf', action='store_true',
+    help='FRF noise.')
 o.add_option('--same', action='store_true',
     help='Noise is the same for all baselines.')
 o.add_option('--diff', action='store_true',
     help='Noise is different for all baseline.') 
+o.add_option('--frfeor', action='store_true',
+    help='FRF injected eor.')
 o.add_option('-i', '--inject', type='float', default=0.,
     help='EOR injection level.')
 o.add_option('--output', type='string', default='',
@@ -39,7 +43,7 @@ INJECT_SIG = opts.inject
 
 ### FUNCTIONS ###
 
-def frf(shape,loc=0,scale=1): #FRF NOISE
+def frf(shape): #FRF NOISE
     shape = shape[1]*2,shape[0] #(2*times,freqs)
     dij = oqe.noise(size=shape)
     wij = n.ones(shape,dtype=bool) #XXX flags are all true (times,freqs)
@@ -166,10 +170,12 @@ if opts.noise_only:
     if opts.same == None and opts.diff == None: 
         print 'Need to specify if noise is the same on all baselines (--same) or different (--diff)'
         sys.exit()
-    if opts.same: NOISE = frf((len(chans),timelen),loc=0,scale=1) #same noise on all bls
+    if opts.same and opts.frf: NOISE = frf((len(chans),timelen)) #same noise on all bls
+    if opts.same and opts.frf == None: NOISE = oqe.noise(size=(len(chans),timelen))
     for key in data_dict:
         if opts.same: thing = NOISE.T
-        if opts.diff: thing = frf((len(chans),timelen),loc=0,scale=1).T
+        if opts.diff and opts.frf: thing = frf((len(chans),timelen)).T
+        if opts.diff and opts.frf == None: thing = oqe.noise(size=(len(chans),timelen)).T
         if blconj[a.miriad.ij2bl(key[1][0],key[1][1])]: data_dict[key] = n.conj(thing)
         else: data_dict[key] = thing
         flg_dict[key] = n.ones_like(data_dict[key])
@@ -276,7 +282,10 @@ for boot in xrange(opts.nboot):
 
     if INJECT_SIG > 0.: #Create a fake EoR signal to inject
         print '     INJECTING SIMULATED SIGNAL'
-        eor = (frf((len(chans),timelen),loc=0,scale=1) * INJECT_SIG).T #create FRF-ered noise
+        if opts.frfeor:
+            eor = (oqe.noise((len(chans),timelen)) * INJECT_SIG).T
+        else:
+            eor = (frf((len(chans),timelen)) * INJECT_SIG).T #create FRF-ered noise
         data_dict_2 = {}
         data_dict_eor = {}
         for key in data_dict:
