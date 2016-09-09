@@ -5,6 +5,7 @@ import warnings
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore",category=DeprecationWarning)
     import scipy.sparse as sps
+    import scipy.sparse.linalg as spsla
     
 POL_TYPES = 'xylrab'
 #XXX this can't support restarts or changing # pols between runs
@@ -291,6 +292,7 @@ class FirstCal(object):
                 supports 'window': window function for fourier transform. default is none
                          'tune'  : to fit and remove a linear slope to phase.
                          'plot'  : Low level plotting in the red.redundant_bl_cal_simple script.
+                         'clean' : Clean level when deconvolving sampling function out.
            Returns 2 dictionaries:
                 1. baseline pair : delays
                 2. baseline pari : offset 
@@ -299,7 +301,7 @@ class FirstCal(object):
         tune=kwargs.get('tune',True)
         plot=kwargs.get('plot',False)
         clean=kwargs.get('clean',1e-4)
-        use_offset = kwargs.get('use_offset',False)
+#        use_offset = kwargs.get('use_offset',False)
         blpair2delay = {}
         blpair2offset = {}
         dd = self.info.order_data(self.data)
@@ -319,7 +321,7 @@ class FirstCal(object):
             blpair2offset[(bl1,bl2)] = offset
         return blpair2delay, blpair2offset
     def get_N(self,nblpairs):
-        return np.identity(nblpairs) 
+        return sps.eye(nblpairs) 
     def get_M(self, verbose=False, **kwargs):
         M = np.zeros((len(self.info.bl_pairs),1))
         O = np.zeros((len(self.info.bl_pairs),1))
@@ -343,24 +345,25 @@ class FirstCal(object):
         #self._N = np.linalg.inv(N)
         self._N = N #since just using identity now
         #get coefficients matrix,A
-        self.A = self.info.A
+        self.A = sps.csr_matrix(self.info.A)
         print 'Shape of coefficient matrix: ', self.A.shape
-        ones = np.ones((1,self.A.shape[1]))
+#        ones = np.ones((1,self.A.shape[1]))
         #index:antenna => 9:80, 11:104, 13:53
 #        deg1 = np.zeros((1,self.A.shape[1])); deg1[:,9] = 1.0; deg1[:,11] = 1.0
 #        deg2 = np.zeros((1,self.A.shape[1])); deg2[:,9] = 1.0; deg2[:,13] = 1.0
 #        self.A = np.concatenate([self.A,ones,deg1,deg2])
         #solve for delays
         print "Inverting A.T*N^{-1}*A matrix"
-        invert = np.dot(self.A.T,np.dot(self._N,self.A))
-        dontinvert = np.dot(self.A.T,np.dot(self._N,self.M))
-        self.xhat = np.dot(np.linalg.pinv(invert), dontinvert)
+        invert = self.A.T.dot(self._N.dot(self.A))
+#        invert = np.dot(self.A.T,np.dot(self._N,self.A))
+        dontinvert = sps.csr_matrix(self.A.T.dot(self._N.dot(self.M)))
+        self.xhat = spsla.spsolve(invert, dontinvert)
         #solve for offset
         if offset:
             print "Inverting A.T*N^{-1}*A matrix"
-            invert = np.dot(self.A.T,np.dot(self._N,self.A))
-            dontinvert = np.dot(self.A.T,np.dot(self._N,self.O))
-            self.ohat = np.dot(np.linalg.pinv(invert), dontinvert)
+            invert = self.A.T.dot(self._N.dot(self.A))
+            dontinvert = sps.csr_matrix(self.A.T.dot(self._N.dot(self.O)))
+            self.ohat = spsla.spsolve(invert, dontinvert)
             #turn solutions into dictionary
             return dict(zip(self.info.subsetant,zip(self.xhat,self.ohat)))
         else:
@@ -382,52 +385,30 @@ def get_phase(fqs,tau, offset=False):
     else:
         return np.exp(-2j*np.pi*fqs*tau)
 
-#def save_gains_fc(s,f,name='fcgains',verbose=False):
-#    s2 = {}
-#    for k,i in s.iteritems():
-#        if len(i)>1:
-#            s2[str(k)] = get_phase(f,i,offset=True)
-#            s2['d'+str(k)] = i[0]
-#            if verbose:
-#                print 'ant=%d dly=%f , off=%f '%(k,i[0],i[1])
-#        else:
-#            s2[str(k)] = get_phase(f,i)
-#            s2['d'+str(k)] = i
-#            if verbose:
-#                print 'ant=%d dly=%f  '%(k,i)
-#    import sys
-#    cmd = sys.argv
-#    s2['cmd'] = ' '.join(cmd)
-#    n.savez('%s.npz'%name,**s2)
-
-def save_gains_fc(s,f,pol,filename=None,ubls=None,ex_ants=None,verbose=False):
+def save_gains_fc(s,f,pol,filename,ubls=None,ex_ants=None,verbose=False):
     """
     s: solutions
     f: frequencies
-    pol: polarization
+    pol: polarization of single antenna i.e. 'x', or 'y'.
     filename: if a specific file was used (instead of many), change output name
     ubls: unique baselines used to solve for s'
     ex_ants: antennae excluded to solve for s'
     """
-    if isinstance(filename, list): filename=filename[0] #XXX this is evil
+#    if isinstance(filename, list): filename=filename[0] #XXX this is evil. why?
     s2 = {}
     for k,i in s.iteritems():
         if len(i)>1:
             #len > 1 means that one is using the "tune" parameter in omni.firstcal
-            #i[0] = tau+dt, i[1] = offset
-            s2[str(k)] = get_phase(f,i,offset=True) #returns np.exp(-1j*(2*np.pi*fqs*(tau+dt)) - offset)
+            s2[str(k)+pol] = get_phase(f,i,offset=True) 
             s2[str(k)+'d'] = i[0]
             if verbose: print 'dly=%f , off=%f'%i
         else:
-            s2[str(k)] = omni.get_phase(f,i)
+            s2[str(k)+pol] = omni.get_phase(f,i)
             s2[str(k)+'d'] = i
             if verbose: print 'dly=%f'%i
     if not ubls is None: s2['ubls']=ubls
     if not ex_ants is None: s2['ex_ants']=ex_ants
-    if not filename is None:
-        outname='%s.fc.npz'%filename
-    else:
-        outname='fcgains.%s.npz'%pol
+    outname='%s.fc.npz'%filename
     import sys
     s2['cmd'] = ' '.join(sys.argv)
     print 'Saving fcgains to %s'%outname
