@@ -56,7 +56,8 @@ pIs_err,pCs_err = n.array(pIs_err), n.array(pCs_err)
 order = n.argsort(n.abs(pCs)) #set up interpolator to work even if pCs are out of order
 pCs_order = n.abs(pCs[order])
 pIs_order = n.abs(pIs[order])
-sig_factor_interp = interp1d(pCs_order, pIs_order/pCs_order,kind='linear',bounds_error=False,fill_value=0)
+try: sig_factor_interp = interp1d(pCs_order, pIs_order/pCs_order,kind='linear',bounds_error=False,fill_value=0)
+except: pass
 
 ### GETTING PSPEC DATA ###
 # XXX only used to get 'freq' variable
@@ -155,11 +156,13 @@ p.plot(kpls,n.abs(pCvs),'k.')
 #p.errorbar(kpls, n.abs(pCvs), yerr=2*pCvs_err, fmt='k.', capsize=0)
 p.grid()
 
-for k,kpl in enumerate(kpls):
-    print ("%5.5f" % kpl), ':', ("%5.5f" % n.abs(pCvs[k])), ':', float(sig_factor_interp(n.abs(pCvs[k])))
+try:
+    for k,kpl in enumerate(kpls):
+        print ("%5.5f" % kpl), ':', ("%5.5f" % n.abs(pCvs[k])), ':', float(sig_factor_interp(n.abs(pCvs[k])))
+    maxfactor = float(sig_factor_interp(n.max(n.abs(pCvs))))
+    print "Max sigloss factor z={0:.2f}:  {1:.2f}".format(z_bin,maxfactor) #n.max(sig_factors))
+except: pass
 
-maxfactor = float(sig_factor_interp(n.max(n.abs(pCvs))))
-print "Max sigloss factor z={0:.2f}:  {1:.2f}".format(z_bin,maxfactor) #n.max(sig_factors))
 p.show()
 
 if opts.output != None:
