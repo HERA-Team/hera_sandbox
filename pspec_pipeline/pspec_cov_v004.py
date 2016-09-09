@@ -36,7 +36,7 @@ PLOT = opts.plot
 
 ### FUNCTIONS ###
 
-def frf(shape,loc=0,scale=1): #FRF NOISE
+def frf(shape): #FRF NOISE
     shape = shape[1]*2,shape[0] #(2*times,freqs)
     dij = oqe.noise(size=shape)
     wij = n.ones(shape,dtype=bool) #XXX flags are all true (times,freqs)
@@ -83,7 +83,6 @@ freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 inttime = uv['inttime']
-
 afreqs = freqs.take(chans)
 nchan = chans.size
 fq = n.average(afreqs)
@@ -141,6 +140,7 @@ bls_master = []
 for key in keys: #populate list of baselines
     if key[0] == keys[0][0]: bls_master.append(key[1])
 print 'Baselines:', len(bls_master)
+bls_master = bls_master[0:20]
 
 #Align and create dataset
 ds = oqe.DataSet()
@@ -161,10 +161,10 @@ if opts.noise_only:
     frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
     timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
     fir = {(ij[0],ij[1],POL):firs}
-    if opts.same: NOISE = frf((len(chans),timelen),loc=0,scale=1) #same noise on all bls
+    if opts.same: NOISE = frf((len(chans),timelen)) #same noise on all bls
     for key in data_dict:
         if opts.same: thing = NOISE.T
-        if opts.diff: thing = frf((len(chans),timelen),loc=0,scale=1).T
+        if opts.diff: thing = frf((len(chans),timelen)).T
         if blconj[a.miriad.ij2bl(key[1][0],key[1][1])]: data_dict[key] = n.conj(thing)
         else: data_dict[key] = thing
         flg_dict[key] = n.ones_like(data_dict[key])
@@ -218,7 +218,7 @@ for boot in xrange(opts.nboot):
 
     #OQE Stuff
     FI = n.zeros((nchan,nchan), dtype=n.complex)
-    FC = n.zeros((nchan,nchan), dtype=n.complex)
+    FC = n.zeros((nchan,nchan), dtype=n.complex) #{}
     qI = n.zeros((nchan,data_dict[key].shape[0]), dtype=n.complex)
     qC = n.zeros((nchan,data_dict[key].shape[0]), dtype=n.complex)
     for k,key1 in enumerate(newkeys):
@@ -227,11 +227,23 @@ for boot in xrange(opts.nboot):
             if key1[0] == key2[0] or key1[1] == key2[1]: 
                 continue #don't do even w/even or bl w/same bl
             else:
-                FC += dsC.get_F(key1,key2,cov_flagging=False)
-                FI += dsI.get_F(key1,key2,use_cov=False,cov_flagging=False)    
+                            
                 qC += dsC.q_hat(key1,key2,cov_flagging=False)
                 qI += dsI.q_hat(key1,key2,use_cov=False,cov_flagging=False) 
-
+                FC += dsC.get_F(key1,key2,cov_flagging=False)
+                FI += dsI.get_F(key1,key2,use_cov=False,cov_flagging=False)    
+                """
+                qC += dsC.q_hat(key1,key2,cov_flagging=True)
+                qI += dsI.q_hat(key1,key2,use_cov=False,cov_flagging=True) 
+                FC_single = dsC.get_F(key1,key2,cov_flagging=True)
+                FI += dsI.get_F(key1,key2,use_cov=False,cov_flagging=True)    
+                for Fkey in FC_single: #XXX 
+                    # keys of FC_single are (k1,m1,k2,m2), and there are different m's if using different times for covariance matrices
+                    # need to add up F's for same m1 and m2's, but then what do I use for k1 and k2??
+                    # p_hat excepts keys of form (k1,m1,k2,m2) and uses k's for weights, so I need to keep those separate?
+                    try: FC[(('even', 0),Fkey[1],('odd', 1),Fkey[3])] += FC_single[Fkey]
+                    except: FC[(('even', 0),Fkey[1],('odd', 1),Fkey[3])] = FC_single[Fkey]
+                """
     MC,WC = dsC.get_MW(FC,mode='L^-1') #Cholesky decomposition
     MI,WI = dsI.get_MW(FI,mode='I')
     pC = dsC.p_hat(MC,qC,scalar=scalar)
