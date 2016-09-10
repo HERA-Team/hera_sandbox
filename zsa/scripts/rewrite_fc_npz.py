@@ -18,7 +18,8 @@ for f in args:
         raise RuntimeError('No polarization string provided.')
     data = {}
     for k in d.keys(): 
-        if k.isdigit(): data[k+'x'] = d[k]
+        if k.isdigit(): 
+            data[k+'x'] = d[k].reshape(1,d[k].shape[0]) # reshape to be consistent with omni_apply.py
         elif k.endswith('d'): data['d'+k[:-1]] = d[k]
         else: data[k] = d[k]
     np.savez(f, **data)
