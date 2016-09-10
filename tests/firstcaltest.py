@@ -4,23 +4,21 @@ import capo, aipy as a, numpy as np, pylab as p, os
 class TestFirstCal(unittest.TestCase):
     @classmethod
     def setUpClass(self):
-<<<<<<< HEAD
-        #testdata_path='/Users/sherlock/src/capo/tests/data/'
-        testdata_path='/home/zakiali/src/mycapo/tests/data/'
-=======
-        testdata_path='/home/saulkohn/tests/'
->>>>>>> 844339aa7de103571bb31f86b34a3ebe792ded92
+        testdata_path='/Users/sherlock/src/capo/tests/data/'
+#        testdata_path='/home/zakiali/src/mycapo/tests/data/'
+#        testdata_path='/home/saulkohn/tests/'
         #True delays put into simulated data
-        self.true = np.load(testdata_path+'truedelays.npz')
+        self.true = np.load(testdata_path+'truedelaysd.npz')
         #solved firstcal delays
-        self.solved = np.load(testdata_path+'zen.2457458.32700.xx.uvAs.npz')
+        self.solved = np.load(testdata_path+'zen.2457458.32700.xx.uvAs.fc.npz')
         #raw data used to solve for the first cal solutions
         self.raw_data = [testdata_path+'zen.2457458.32700.xx.uvAs']
         aa = a.cal.get_aa('hsa7458_v000_HH_delaytest', np.array([.150]))
         self.info = capo.omni.aa_to_info(aa, fcal=True)
         self.reds = self.info.get_reds()
-        self.fqs = np.linspace(.1,.2,1024)  
-        self.pol = 'xx'
+        uv = a.miriad.UV('zen.2457458.32700.xx.uvAs')
+        self.fqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
+        self.pol = a.miriad.pol2str[uv['pol']]
         #Get raw data
         reds = capo.zsa.flatten_reds(self.reds)
         ant_string =','.join(map(str,self.info.subsetant))
@@ -36,13 +34,22 @@ class TestFirstCal(unittest.TestCase):
     def test_run_firstcal(self):
         fc = capo.omni.FirstCal(self.dataxx,self.wgtsxx,self.fqs,self.info)
         sols = fc.run(tune=True,verbose=False,offset=True,plot=False)
-        capo.omni.save_gains_fc(sols,self.fqs,self.pol,filename=self.raw_data,ubls=' ',ex_ants=[],verbose=True)
-        assert(os.path.exists(self.raw_data[0]+'.fc.npz'))
-        npzdata = np.load(self.raw_data[0]+'.fc.npz') 
+        capo.omni.save_gains_fc(sols,self.fqs,self.pol[0],filename=self.raw_data[0],ubls=' ',ex_ants=[],verbose=True)
+        self.assertTrue(os.path.exists(self.raw_data[0]+'.fc.npz'))
+        npzfile = self.raw_data[0]+'.fc.npz'
+        npzdata = np.load(npzfile) 
         for k in ['cmd','ubls','ex_ants']: assert(k in npzdata.keys())
         for k in npzdata.keys():
             if k.isdigit():
-                assert(str(k)+'d' in npzdata.keys())
+                self.assertTrue(str(k)+'d' in npzdata.keys())
+        #test compatibility with capo.omni_from_npz.
+        _,g,_,_ = capo.omni.from_npz(npzfile)
+        self.assertEqual(g.keys(),[self.pol[0]])
+        for k in g[g.keys()[0]].keys(): 
+            self.assertIsInstance(k,int)
+        for k in g[g.keys()[0]].keys():
+            self.assertTupleEqual(g[self.pol[0]][k].shape,(1,len(self.fqs)))
+          
     def test_plot_redundant(self):
         reds2plot = self.reds[3] #random set of redundant baseliens
         time = 13
@@ -52,14 +59,14 @@ class TestFirstCal(unittest.TestCase):
                 p.subplot(211)
                 p.plot(self.fqs, np.angle(self.dataxx[bl][time]))
                 p.subplot(212)
-                p.plot(self.fqs, np.angle( self.dataxx[bl][time]*np.conj(self.solved[str(a1)])*self.solved[str(a2)] ))
+                p.plot(self.fqs, np.angle( self.dataxx[bl][time]*np.conj(self.solved[str(a1)+self.pol[0]][0])*self.solved[str(a2)+self.pol[0]][0] ))
             except (KeyError):
                 bl = bl[::-1]
                 a1,a2 = bl
                 p.subplot(211)
                 p.plot(self.fqs, np.angle(self.dataxx[bl][time]))
                 p.subplot(212)
-                p.plot(self.fqs, np.angle( self.dataxx[bl][time]*np.conj(self.solved[str(a1)])*self.solved[str(a2)] ))
+                p.plot(self.fqs, np.angle( self.dataxx[bl][time]*np.conj(self.solved[str(a1)+self.pol[0]][0])*self.solved[str(a2)+self.pol[0]][0] ))
         p.show() 
 
     def test_redundancy(self):
