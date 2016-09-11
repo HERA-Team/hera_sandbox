@@ -9,7 +9,7 @@ a.scripting.add_standard_options(o,cal=True,pol=True)
 o.add_option('--ubls', default='', help='Unique baselines to use, separated by commas (ex: 1_4,64_49).')
 o.add_option('--ex_ants', default='', help='Antennas to exclude, separated by commas (ex: 1,4,64,49).')
 o.add_option('--outpath', default=None,help='Output path of solution npz files. Default will be the same directory as the data files.')
-o.add_option('--plot', action='storse_true', default='false', help='Turn on plotting in firstcal class.')
+o.add_option('--plot', action='store_true', default='false', help='Turn on plotting in firstcal class.')
 o.add_option('--verbose', action='store_true', default='false', help='Turn on verbose.')
 opts,args = o.parse_args(sys.argv[1:])
 
