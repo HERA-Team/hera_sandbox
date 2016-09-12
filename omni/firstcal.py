@@ -60,7 +60,7 @@ sols = fc.run(tune=True,verbose=opts.verbose,offset=True,plot=opts.plot)
 if len(args)==1: filename=args[0]
 else: filename='fcgains.%s.npz'%opts.pol #if averaging a bunch together of files together.
 if not opts.outpath is None:
-    outname='%s/%s.fc.npz'%(opts.outpath,filename.split('/')[-1])
+    outname='%s/%s'%(opts.outpath,filename.split('/')[-1])
 else:
-    outname='%s.fc.npz'%filename
-omni.save_gains(sols,fqs, opts.pol, outname, ubls=ubls, ex_ants=ex_ants)
+    outname='%s'%filename
+omni.save_gains_fc(sols,fqs, opts.pol[0], outname, ubls=ubls, ex_ants=ex_ants)
