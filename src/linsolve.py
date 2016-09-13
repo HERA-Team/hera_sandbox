@@ -3,15 +3,6 @@ import ast
 from scipy.sparse import lil_matrix, csr_matrix
 import scipy.sparse.linalg
 
-#def ast_getnames(n):
-#    if not isinstance(n, ast.AST): return set([n])
-#    val = set()
-#    for field,_val in ast.iter_fields(n):
-#        if type(_val) is list:
-#            for v in _val: val.update(ast_getnames(v))
-#        else: val.update(ast_getnames(_val))
-#    return val
-
 def ast_getterms(n):
     '''Convert an AST parse tree into a list of terms.  E.g. 'a*x1+b*x2' -> [[a,x1],[b,x2]]'''
     if type(n) is ast.Name: return [[n.id]]
@@ -36,13 +27,14 @@ def order_terms(terms, consts={}):
         if x in consts: return -1
         if y in consts: return 1
         return 0
-    for L in terms: L.sort()
+    for L in terms: L.sort(cmp)
     return terms
 
 def term_check(terms, consts):
     '''Validate that each term has only 1 unsolved parameter.'''
     for t in terms:
-        for ti in t[:-1]: assert(not type(ti) is str or ti in consts)
+        for ti in t[:-1]:
+            assert(not type(ti) is str or ti in consts)
 
 class LinearEquation:
     def __init__(self, val, **kwargs):
@@ -72,35 +64,54 @@ class LinearSolver:
     def __init__(self, data, wgts, **kwargs):
         self.prm_order = {}
         self.keys = data.keys()
+        self.consts = kwargs
         self.eqs = [LinearEquation(k,**kwargs) for k in self.keys]
         for eq in self.eqs:
-            for prm in eq.prms: self.prm_order[prm] = self.prm_order.get(prm,len(self.prm_order))
+            for prm in eq.prms:
+                self.prm_order[prm] = self.prm_order.get(prm,len(self.prm_order))
         self.nprms = len(self.prm_order)
         self.data = data
         self.wgts = wgts
+    def _A_shape(self):
+        sh = []
+        for k in self.consts:
+            try: shk = self.consts[k].shape
+            except(AttributeError): continue
+            if len(shk) > len(sh): sh += [0] * (len(shk)-len(sh))
+            for i in xrange(min(len(sh),len(shk))): sh[i] = max(sh[i],shk[i])
+        for k in self.wgts:
+            try: shk = self.wgts[k].shape
+            except(AttributeError): continue
+            if len(shk) > len(sh): sh += [0] * (len(shk)-len(sh))
+            for i in xrange(min(len(sh),len(shk))): sh[i] = max(sh[i],shk[i])
+        return [len(self.eqs),self.nprms]+sh
     def get_A(self, dtype=np.float):
-        A = lil_matrix((len(self.eqs),self.nprms), dtype=dtype)
+        #A = lil_matrix((len(self.eqs),self.nprms), dtype=dtype)
+        A = np.zeros(self._A_shape(), dtype=dtype)
         for i,(k,eq) in enumerate(zip(self.keys,self.eqs)): 
             eq.put_matrix(A, self.prm_order, i, self.wgts[k])
-        return csr_matrix(A)
-    def get_AtAiAt(self, A=None, dtype=np.float):
+        #return csr_matrix(A)
+        return A
+    def get_AtAiAt(self, A=None, dtype=np.float, rcond=1e-10):
         if A is None: A = self.get_A(dtype)
-        AtA = A.T.dot(A)
-        AtAi = scipy.sparse.linalg.inv(AtA) # XXX make this pseudoinv
-        return AtAi.dot(A.T)
+        #AtAi = scipy.sparse.linalg.inv(AtA)
+        AtA = np.einsum('ji...,jk...->ik...', A, A)
+        shape = AtA.shape
+        AtA.shape = shape[:2] + (-1,)
+        AtAi = np.empty_like(AtA)
+        for i in xrange(AtA.shape[-1]): AtAi[...,i] = np.linalg.pinv(AtA[...,i], rcond=rcond)
+        AtAi.shape = shape
+        return np.einsum('ij...,kj...->ik...', AtAi,A)
     def get_weighted_data(self):
         d = np.array([self.data[k] for k in self.keys])
         w = np.array([self.wgts[k] for k in self.keys])
         w.shape += (1,) * (d.ndim-w.ndim)
+        d.shape += (1,) * (w.ndim-d.ndim)
         return d * w
     def solve(self, dtype=np.float):
         y = self.get_weighted_data()
-        shape = y.shape[1:]
         AtAiAt = self.get_AtAiAt(dtype=dtype)
-        y.shape = (y.shape[0],-1)
-        x = AtAiAt.dot(y)
-        x.shape = (-1,) + shape
+        x = np.einsum('ij...,j...->i...', AtAiAt, y)
         sol = {}
         for k in self.prm_order: sol[k] = x[self.prm_order[k]]
-        return sol
-        
+        return sol        

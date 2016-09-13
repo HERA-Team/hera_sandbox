@@ -30,14 +30,17 @@ class TestLinSolve(unittest.TestCase):
         self.assertEqual(terms, [['a','x'],[-1,'a','b','c','y']])
     def test_order_terms(self):
         terms = [[1,1,'x'],[1,1,'y']]
-        self.assertEqual(terms, linsolve.order_terms(terms))
+        self.assertEqual(terms, linsolve.order_terms([[1,1,'x'],[1,1,'y']]))
         terms2 = [[1,1,'x'],[1,'y',1]]
-        self.assertEqual(terms, linsolve.order_terms(terms2))
+        self.assertEqual(terms, linsolve.order_terms([[1,1,'x'],[1,'y',1]]))
         consts = {'a':0,'b':1}
         terms = [[1,'a','x'],[1,'b','y']]
-        self.assertEqual(terms, linsolve.order_terms(terms,consts))
+        self.assertEqual(terms, linsolve.order_terms([[1,'a','x'],[1,'b','y']],consts))
         terms2 = [[1,'x','a'],[1,'b','y']]
-        self.assertEqual(terms, linsolve.order_terms(terms2,consts))
+        self.assertEqual(terms, linsolve.order_terms([[1,'x','a'],[1,'b','y']],consts))
+        consts = {'g5':1,'g1':1}
+        terms = [['g5','bl95'],['g1','bl111']]
+        self.assertEqual(terms, linsolve.order_terms([['g5','bl95'],['g1','bl111']], consts))
     def test_term_check(self):
         terms1 = [[1,1,'x'],[1,1,'y']]
         terms2 = [[1,1,'x'],[1,'y',1]]
@@ -63,6 +66,11 @@ class TestLinearEquation(unittest.TestCase):
         self.assertEqual(len(le.prms), 2)
         le = linsolve.LinearEquation('a*x-b*y',a=1,b=2)
         self.assertEqual(le.terms, [['a','x'],[-1,'b','y']])
+    def test_more(self):
+        consts = {'g5':1,'g1':1}
+        for k in ['g5*bl95', 'g1*bl111', 'g1*bl103']:
+            le = linsolve.LinearEquation(k,**consts)
+        self.assertEqual(le.terms[0][0][0], 'g')
     def test_unary(self):
         le = linsolve.LinearEquation('-a*x-b*y',a=1,b=2)
         self.assertEqual(le.terms, [[-1,'a','x'],[-1,'b','y']])
@@ -92,11 +100,13 @@ class TestLinearSolver(unittest.TestCase):
         self.ls.prm_order = {'x':0,'y':1} # override random default ordering
         A = self.ls.get_A()
         self.assertEqual(A.shape, (2,2))
-        np.testing.assert_equal(A.todense(), np.array([[1.,1],[1.,-1]]))
+        #np.testing.assert_equal(A.todense(), np.array([[1.,1],[1.,-1]]))
+        np.testing.assert_equal(A, np.array([[1.,1],[1.,-1]]))
     def test_get_AtAiAt(self):
         self.ls.prm_order = {'x':0,'y':1} # override random default ordering
         AtAiAt = self.ls.get_AtAiAt()
-        np.testing.assert_equal(AtAiAt.todense(), np.array([[.5,.5],[.5,-.5]]))
+        #np.testing.assert_equal(AtAiAt.todense(), np.array([[.5,.5],[.5,-.5]]))
+        np.testing.assert_equal(AtAiAt, np.array([[.5,.5],[.5,-.5]]))
         measured = np.array([[3.],[-1]])
         x,y = AtAiAt.dot(measured).flatten()
         self.assertEqual(x, 1.)
@@ -115,7 +125,41 @@ class TestLinearSolver(unittest.TestCase):
         sol = ls.solve()
         np.testing.assert_almost_equal(sol['x'], x)
         np.testing.assert_almost_equal(sol['y'], y)
-        
+    def test_A_shape(self):
+        consts = {'x':np.arange(10), 'y':np.zeros((1,10))}
+        ls = linsolve.LinearSolver({},{},**consts)
+        self.assertEqual(ls._A_shape(), [0,0,10,10])
+    def test_const_arrays(self):
+        x,y = 1.,2.
+        a = np.array([3.,4,5])
+        b = np.array([1.,2,3])
+        eqs = ['a*x+y','x+b*y']
+        d,w = {}, {}
+        for eq in eqs: d[eq],w[eq] = eval(eq), 1.
+        ls = linsolve.LinearSolver(d,w,a=a,b=b)
+        sol = ls.solve()
+        np.testing.assert_almost_equal(sol['x'], x*np.ones(3,dtype=np.float))
+        np.testing.assert_almost_equal(sol['y'], y*np.ones(3,dtype=np.float))
+    def test_wgt_arrays(self):
+        x,y = 1.,2.
+        a,b = 3.,1.
+        eqs = ['a*x+y','x+b*y']
+        d,w = {}, {}
+        for eq in eqs: d[eq],w[eq] = eval(eq), np.ones(4)
+        ls = linsolve.LinearSolver(d,w,a=a,b=b)
+        sol = ls.solve()
+        np.testing.assert_almost_equal(sol['x'], x*np.ones(4,dtype=np.float))
+        np.testing.assert_almost_equal(sol['y'], y*np.ones(4,dtype=np.float))
+    def test_wgt_const_arrays(self):
+        x,y = 1.,2.
+        a,b = 3.*np.ones(4),1.
+        eqs = ['a*x+y','x+b*y']
+        d,w = {}, {}
+        for eq in eqs: d[eq],w[eq] = eval(eq)*np.ones(4), np.ones(4)
+        ls = linsolve.LinearSolver(d,w,a=a,b=b)
+        sol = ls.solve()
+        np.testing.assert_almost_equal(sol['x'], x*np.ones(4,dtype=np.float))
+        np.testing.assert_almost_equal(sol['y'], y*np.ones(4,dtype=np.float))
         
 if __name__ == '__main__':
     unittest.main()
