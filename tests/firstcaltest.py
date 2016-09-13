@@ -8,7 +8,7 @@ class TestFirstCal(unittest.TestCase):
 #        testdata_path='/home/zakiali/src/mycapo/tests/data/'
 #        testdata_path='/home/saulkohn/tests/'
         #True delays put into simulated data
-        self.true = np.load(testdata_path+'truedelaysd.npz')
+        self.true = np.load(testdata_path+'truedelays.npz')
         #solved firstcal delays
         self.solved = np.load(testdata_path+'zen.2457458.32700.xx.uvAs.fc.npz')
         #raw data used to solve for the first cal solutions
@@ -16,7 +16,7 @@ class TestFirstCal(unittest.TestCase):
         aa = a.cal.get_aa('hsa7458_v000_HH_delaytest', np.array([.150]))
         self.info = capo.omni.aa_to_info(aa, fcal=True)
         self.reds = self.info.get_reds()
-        uv = a.miriad.UV('zen.2457458.32700.xx.uvAs')
+        uv = a.miriad.UV(testdata_path+'zen.2457458.32700.xx.uvAs')
         self.fqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
         self.pol = a.miriad.pol2str[uv['pol']]
         #Get raw data
