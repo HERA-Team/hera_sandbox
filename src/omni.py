@@ -354,17 +354,19 @@ class FirstCal(object):
 #        self.A = np.concatenate([self.A,ones,deg1,deg2])
         #solve for delays
         print "Inverting A.T*N^{-1}*A matrix"
-        invert = self.A.T.dot(self._N.dot(self.A))
+        invert = self.A.T.dot(self._N.dot(self.A)).todense() #make it dense for pinv
 #        invert = np.dot(self.A.T,np.dot(self._N,self.A))
-        dontinvert = sps.csr_matrix(self.A.T.dot(self._N.dot(self.M)))
-        self.xhat = spsla.spsolve(invert, dontinvert)
+        dontinvert = self.A.T.dot(self._N.dot(self.M)) #converts it all to a dense matrix
+        #definitely want to use pinv here and not solve since invert is probably singular. 
+        self.xhat = np.dot(np.linalg.pinv(invert),dontinvert)
         #solve for offset
         if offset:
             print "Inverting A.T*N^{-1}*A matrix"
-            invert = self.A.T.dot(self._N.dot(self.A))
-            dontinvert = sps.csr_matrix(self.A.T.dot(self._N.dot(self.O)))
-            self.ohat = spsla.spsolve(invert, dontinvert)
+            invert = self.A.T.dot(self._N.dot(self.A)).todense()
+            dontinvert =self.A.T.dot(self._N.dot(self.O))
+            self.ohat = np.dot(np.linalg.pinv(invert),dontinvert)
             #turn solutions into dictionary
+#            import IPython; IPython.embed()
             return dict(zip(self.info.subsetant,zip(self.xhat,self.ohat)))
         else:
             #turn solutions into dictionary
@@ -378,6 +380,7 @@ class FirstCal(object):
         self.solved_delays = np.array(solved_delays)
 
 def get_phase(fqs,tau, offset=False):
+    fqs = fqs.reshape(-1,1) #need the extra axis
     if offset:
         delay = tau[0]
         offset = tau[1]
