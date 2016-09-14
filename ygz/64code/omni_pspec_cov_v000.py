@@ -2,6 +2,9 @@
 
 import numpy as np, aipy, capo, pylab as plt, sys, glob
 import md5
+from joblib import Parallel, delayed
+import multiprocessing
+num_cores = multiprocessing.cpu_count()
 
 def dB(sig): return 10*np.log10(np.abs(np.average(sig.real, axis=1)))
 
@@ -68,7 +71,8 @@ SEPS = [(0,103), (0,111), (0,95)]
 #SEPS += [(3,105),(3,106)]
 #CH0,NCHAN = 90, 31
 CH0,NCHAN = 110, 51
-bandpass = np.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/bandpass.npz')['bandpass']
+#bandpass = np.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/bandpass.npz')['bandpass']
+bandpass = np.load('/Users/yunfanzhang/local/DATA128/bandpass.npz')['bandpass']
 bandpass.shape = (1,-1)
 fqs = np.linspace(.1,.2,bandpass.size)
 WINDOW = 'blackman-harris'
@@ -85,19 +89,31 @@ scalar = capo.pspec.X2Y(z) * bm * B
 B_win = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW] #proper normalization
 scalar_win = capo.pspec.X2Y(z) * bm * B_win
 
-dataDIR = '/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/'
+#dataDIR = '/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/'
+dataDIR = '/Users/yunfanzhang/local/DATA128/DATA/'
 sets = {
     #'day0' : sys.argv[1:],
     #'day0' : glob.glob('zen.2456714.*.xx.npz'),
-    'day1' : glob.glob(dataDIR+'zen.2456715.52*.xx.npz'),
-    'day2' : glob.glob(dataDIR+'zen.2456716.52*.xx.npz'),
+    'day1' : glob.glob(dataDIR+'zen.2456715.5*.xx.npz'),
+    'day2' : glob.glob(dataDIR+'zen.2456716.5*.xx.npz'),
 }
 data,wgts = {}, {}
 lsts = {}
 chisqs = {}
+def from_npz(file):
+     res = capo.omni.from_npz(file,verbose=True)
+     return res
 for s in sets:
     if not lsts.has_key(s):
-        meta, gains, vismdl, xtalk = capo.omni.from_npz(sets[s], verbose=True)
+        res = Parallel(n_jobs=4)(delayed(from_npz)(file) for file in sets[s])
+        #import IPython; IPython.embed()
+        meta, gains, vismdl, xtalk = [],[],[],[]
+        for i, elt in enumerate(res):
+            meta.append(elt[0])
+            gains.append(elt[1])
+            vismdl.append(elt[2])
+            xtalk.append(elt[3])
+        #meta, gains, vismdl, xtalk = capo.omni.from_npz(sets[s], verbose=True)
         lsts[s] = meta['lsts']
     chisqs[s] = meta['chisq'][:,CH0:CH0+NCHAN]
     for pol in vismdl:
@@ -157,7 +173,7 @@ NK = len(ks)
 def set_C(norm=3e-6):
     ds.clear_cache()
     Cs,iCs = {},{}
-    import IPython; IPython.embed()
+    #import IPython; IPython.embed()
     for k in ks:
         #Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki != k])
         #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],ds.w[ki][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
@@ -219,11 +235,13 @@ for cnt,k in enumerate(ks):
     capo.plot.waterfall(ds.x[k], drng=3)
     plt.colorbar()
 #plt.savefig('fig1.png')
-#plt.show()
-for bl in SEPS:
+plt.show()
+offset_dict = {((0,103), (0,111)):0.031}
+for cnt, bl in enumerate(SEPS):
     k1 = (set1,pol,bl)
     k2 = (set2,pol,bl)
     pC = get_p(k1,k2,'C')
+    plt.subplot(len(SEPS),1,cnt+1)
     plt.title(bl)
     capo.plot.waterfall(pC, mx=16, drng=7)
     plt.colorbar()
