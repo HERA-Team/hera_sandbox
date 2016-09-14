@@ -8,6 +8,7 @@ num_cores = multiprocessing.cpu_count()
 
 def dB(sig): return 10*np.log10(np.abs(np.average(sig.real, axis=1)))
 
+aa = aipy.cal.get_aa('psa6622_v001',np.array([.15]))
 def find_sep(aa, bls, drow=None, dcol=None):
     layout = aa.ant_layout
     rv = []
@@ -16,7 +17,7 @@ def find_sep(aa, bls, drow=None, dcol=None):
         jrow,jcol = np.where(layout == j)
         if not drow is None and abs(irow - jrow) != drow: continue
         if not dcol is None and abs(icol - jcol) != dcol: continue
-        rv.append((i,j))
+        rv.append(((icol - jcol)[0],(irow - jrow)[0]))
     return rv
 
 def rebin_lst(binsize, lsts, d, w):  #d: data in time by freq. 
@@ -35,27 +36,12 @@ def rebin_lst(binsize, lsts, d, w):  #d: data in time by freq.
     lstbin = (b0 + np.arange(bmax)) * binsize
     return lstbin, dbin / np.where(dwgt > 0, dwgt, 1), dwgt
 
-SEPS = [
-    (0,103) , #  1
-    (1,4) ,   #  2
-    (0,101) , #  3
-    (0,62) ,  #  4
-    (0,100) , #  5
-    (1,13) ,  #  6
-    (1,70) ,  #  7
-    (1,56) ,  #  8
-    (1,71) ,  #  9
-    (1,59) ,  # 10
-    (0,97) ,  # 11
-    (12,43) , # 12
-    (9,71) ,  # 13
-    (9,59) ,  # 14
-    (57,64) , # 15
-]
 
 CONJ = [
     (0,103) , #  1
     (1,4) ,   #  2
+    (1,48),
+    (1,18),
     (0,101) , #  3
     (0,62) ,  #  4
     (0,100) , #  5
@@ -63,7 +49,8 @@ CONJ = [
     (12,43) , # 12
     (57,64) ] # 15
 
-SEPS = [(0,103), (0,111), (0,95)]
+SEPS = [(1,4), (1,48),(1,18)]
+SEPS = [(1,4), (1,48)]
 #SEPS += [(2,105), (1,83)]
 #SEPS += [(0,79), (0,78)]
 #SEPS += [(0,70),(0,71)]
@@ -105,15 +92,15 @@ def from_npz(file):
      return res
 for s in sets:
     if not lsts.has_key(s):
-        res = Parallel(n_jobs=4)(delayed(from_npz)(file) for file in sets[s])
-        #import IPython; IPython.embed()
-        meta, gains, vismdl, xtalk = [],[],[],[]
-        for i, elt in enumerate(res):
-            meta.append(elt[0])
-            gains.append(elt[1])
-            vismdl.append(elt[2])
-            xtalk.append(elt[3])
-        #meta, gains, vismdl, xtalk = capo.omni.from_npz(sets[s], verbose=True)
+        # res = Parallel(n_jobs=4)(delayed(from_npz)(file) for file in sets[s])
+        # #import IPython; IPython.embed()
+        # meta, gains, vismdl, xtalk = [],[],[],[]
+        # for i, elt in enumerate(res):
+        #     meta.append(elt[0])
+        #     gains.append(elt[1])
+        #     vismdl.append(elt[2])
+        #     xtalk.append(elt[3])
+        meta, gains, vismdl, xtalk = capo.omni.from_npz(sets[s], verbose=True)
         lsts[s] = meta['lsts']
     chisqs[s] = meta['chisq'][:,CH0:CH0+NCHAN]
     for pol in vismdl:
@@ -134,25 +121,7 @@ lst_res = np.average(lsts[set1][1:] - lsts[set1][:-1])/2
 #data,wgts = capo.oqe.lst_align_data(inds, dsets=data, wgts=wgts)
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-def lst_align(lsts1,lsts2,lstres,offset=0):
-    i=0
-    if lsts1[0]+offset>lsts2[0]:
-        while lsts1[0]+offset>lsts2[i]: i += 1
-        Npt = min(lsts1.size,lsts2.size-i)
-        return np.arange(0,Npt),np.arange(i,Npt+i)
-    else:
-        while lsts1[i]+offset>lsts2[0]: i += 1
-        Npt = min(lsts1.size-i,lsts2.size)
-        return np.arange(i,Npt+i),n.arange(0,Npt)
-
-ind[set1], ind[set2] = lst_align(lsts[set1], lsts[set2], lstres=lst_res)
-
-for k in data.keys():
-    (s,pol,bl) = k
-    data[k] = data[k][ind[s]]     #aligning the lsts
-    wgts[k] = wgts[k][ind[s]]
-ds = capo.oqe.DataSet(data, wgts)
-for s in sets: chisqs[s] = chisqs[s][ind[s]].T
+# for s in sets: chisqs[s] = chisqs[s][ind[s]].T
 ########################################################################
     
 #k1a,k1b,k1c = [(s,'xx',(0,103)) for s in sets]
@@ -170,23 +139,24 @@ ks = [(s,'xx',bl) for bl in SEPS for s in sets]
 #ks = [k1a,k2a,k3a]
 NK = len(ks)
 
-def set_C(norm=3e-6):
-    ds.clear_cache()
+def set_C(dst,norm=3e-6):
+    dst.clear_cache()
     Cs,iCs = {},{}
     #import IPython; IPython.embed()
-    for k in ks:
+    for k in dst.x.keys():
         #Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki != k])
         #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],ds.w[ki][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
-        
-	Cs[k] = sum([capo.oqe.cov(ds.x[k][:,0:],ds.w[k][:,0:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
+        Ndim = dst.x[k].shape[0]
+        Cs[k] = capo.oqe.cov(dst.x[k][:,0:],dst.w[k][:,0:])+norm*np.identity(Ndim)
+        #import IPython; IPython.embed()
         #w = np.where(ds.w[ki] > 0, 1, 0)
         #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],w[:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
         #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in ks if ki != k])
         #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in data if ki[2] != k[2]])
-        ds.set_C({k:Cs[k]})
-        iCs[k] = ds.iC(k)
+        dst.set_C({k:Cs[k]})
+        #iCs[k] = dst.iC(k)
 
-def get_p(k1,k2,mode):
+def get_p(k1,k2,mode,ind_offset=0):
     assert(mode in 'IWC')
     if mode == 'I':
         qI = ds.q_hat(k1,k2,use_cov=False)
@@ -198,6 +168,18 @@ def get_p(k1,k2,mode):
         pW = 1.6*2*np.fft.fftshift(np.fft.ifft(win*data[k1].T, axis=0) * np.fft.ifft(win*data[k2].T, axis=0).conj(), axes=0)
         return pW * scalar_win
     elif mode == 'C':
+        if True:
+            
+            #save_data,save_wgt = {},{}
+            if not k1 == k2:
+                save_data,save_wgt = ds.x.copy(),ds.w.copy()
+                save_data[k1] = ds.x[k1][:,ind_offset:]; save_wgt[k1] = ds.w[k1][:,ind_offset:]
+                if ind_offset>0: save_data[k2] = ds.x[k2][:,:-ind_offset]; save_wgt[k2] = ds.w[k2][:,:-ind_offset]
+                ds_new = capo.oqe.DataSet(save_data, save_wgt)
+                #import IPython; IPython.embed()
+                set_C(ds_new,1e-6)
+            else:
+                ds_new = ds.copy()
         if False:
             save_iC = {}
             for k in (k1,k2): save_iC[k] = ds.iC(k).copy()
@@ -220,29 +202,70 @@ def get_p(k1,k2,mode):
             # XXX deal with diff w for k1,k2
             pC = np.array([pCs[sums[k1][i]][:,i] for i in xrange(ds.w[k1].shape[1])]).T
         else:
-            qC = ds.q_hat(k1,k2)
-            FC = ds.get_F(k1,k2)
-            MC,WC = ds.get_MW(FC, mode='F^-1/2')
-            pC = ds.p_hat(MC,qC)
+            qC = ds_new.q_hat(k1,k2)
+            FC = ds_new.get_F(k1,k2)
+            MC,WC = ds_new.get_MW(FC, mode='F^-1/2')
+            pC = ds_new.p_hat(MC,qC)
         return pC * scalar
 
-set_C(1e-6)
+def lst_align(lsts1,lsts2,offset=0):
+    i=0
+    if lsts1[0]+offset>lsts2[0]:
+        while lsts1[0]+offset>lsts2[i]: i += 1
+        Npt = min(lsts1.size,lsts2.size-i)
+        return np.arange(0,Npt),np.arange(i,Npt+i)
+    else:
+        while lsts1[i]+offset>lsts2[0]: i += 1
+        Npt = min(lsts1.size-i,lsts2.size)
+        return np.arange(i,Npt+i),n.arange(0,Npt)
+
+offset_dict = {((1,48), (1,4)):0.031,((1,4), (1,48)):0.031}
+dlst = lst_res
+ind[set1], ind[set2] = lst_align(lsts[set1], lsts[set2])
+
+from itertools import product
+# for bl1, bl2 in product(SEPS,SEPS):
+#     if bl1 == bl2: offset = 0
+#     else: offset = offset_dict[(bl1,bl2)]
+#     ind_offset = int(offset/dlst)
+#     for pol in vismdl:
+#         for s1,s2 in product(sets,sets):
+#             if s1 == s2: continue
+
+
+for k in data.keys():
+    (s,pol,bl) = k
+    data[k] = data[k][ind[s]]     #aligning the lsts
+    wgts[k] = wgts[k][ind[s]]
+
+
+
+################################
+ds = capo.oqe.DataSet(data, wgts)
+#import IPython; IPython.embed()
+set_C(ds,1e-6)
 #set_C(0)
 #pI,pW,pC = get_p(ks[0],ks[1])
-
+#################################
 for cnt,k in enumerate(ks):
     plt.subplot(NK,1,cnt+1)
     capo.plot.waterfall(ds.x[k], drng=3)
     plt.colorbar()
 #plt.savefig('fig1.png')
 plt.show()
-offset_dict = {((0,103), (0,111)):0.031}
-for cnt, bl in enumerate(SEPS):
-    k1 = (set1,pol,bl)
-    k2 = (set2,pol,bl)
-    pC = get_p(k1,k2,'C')
-    plt.subplot(len(SEPS),1,cnt+1)
-    plt.title(bl)
+
+
+sep_pairs = product(SEPS,SEPS)
+for cnt, bls in enumerate(sep_pairs):
+    k1 = (set1,pol,bls[0])
+    k2 = (set2,pol,bls[1])
+    if bls[0] == bls[1]: offset = 0
+    else: offset = offset_dict[(bls[0],bls[1])]
+    ind_offset = int(offset/dlst)
+    print ind_offset
+    pC = get_p(k1,k2,'C',ind_offset=ind_offset)
+    plt.subplot(5,1,cnt+1)
+    plt.title(bls)
     capo.plot.waterfall(pC, mx=16, drng=7)
     plt.colorbar()
 plt.show()
@@ -266,5 +289,3 @@ plt.plot(np.abs(np.median(pC3, axis=1).real), 'k', label='pC3',)
 plt.legend()
 plt.show()
 '''
-
-#import IPython; IPython.embed()
