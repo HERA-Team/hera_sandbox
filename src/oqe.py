@@ -35,20 +35,35 @@ def get_Q(mode, n_k, window='none'): #encodes the fourier transform from freq to
         Q[mode,mode] = 1
         return Q
 
-def lst_align(lsts, lstres=.001):
+def lst_grid(lsts, data, wgts=None, lstbins=6300, wgtfunc=lambda dt,res: np.exp(-dt**2/(2*res**2))):
+    lstgrid = np.linspace(0, 2*np.pi, lstbins)
+    lstres = lstgrid[1]-lstgrid[0]
+    if wgts is None: wgts = np.where(np.abs(data) == 0, 0, 1.)
+    sumgrid,wgtgrid = 0, 0
+    for lst,d,w in zip(lsts,data,wgts):
+        dt = lstgrid - lst
+        wf = wgtfunc(dt,lstres); wf.shape = (-1,) + (1,)*(data.ndim-1)
+        d.shape, w.shape = (1,-1), (1,-1)
+        print lst, dt
+        wgtgrid += w * wf
+        sumgrid += d * w * wf 
+    datgrid = np.where(wgtgrid > 1e-10, sumgrid/wgtgrid, 0)
+    return lstgrid, datgrid, wgtgrid
+
+def lst_align(lsts, lstres=.001, interpolation='none'):
+    lstgrid = np.arange(0, 2*np.pi, lstres)
     lstr, order = {}, {}
     for k in lsts: #orders LSTs to find overlap
         order[k] = np.argsort(lsts[k])
         lstr[k] = np.around(lsts[k][order[k]] / lstres) * lstres
     lsts_final = None
-    for i,k1 in enumerate(lstr.keys()):
-        for k2 in lstr.keys()[i:]:
-            if lsts_final is None: lstr_final = np.intersect1d(lstr[k1],lstr[k2]) #XXX LSTs much match exactly
-            else: lsts_final = np.intersect1d(lstr_final,lstr[k2])
+    for k1 in lstr:
+        if lsts_final is None: lsts_final = np.intersect1d(lstr[k1],lstr[k1])
+        else: lsts_final = np.intersect1d(lsts_final,lstr[k1])
     inds = {}
     for k in lstr: #selects correct LSTs from data
         inds[k] = order[k].take(lstr[k].searchsorted(lsts_final))
-    return inds 
+    return inds
 
 def lst_align_data(inds, dsets, wgts=None, lsts=None):
     for k in dsets:
