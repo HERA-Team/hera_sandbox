@@ -162,7 +162,7 @@ def set_C(norm=3e-6):
         #Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki != k])
         #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],ds.w[ki][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
         
-	Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
+	Cs[k] = sum([capo.oqe.cov(ds.x[k][:,0:],ds.w[k][:,0:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
         #w = np.where(ds.w[ki] > 0, 1, 0)
         #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],w[:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
         #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in ks if ki != k])
@@ -210,23 +210,33 @@ def get_p(k1,k2,mode):
             pC = ds.p_hat(MC,qC)
         return pC * scalar
 
-#set_C(1e-6)
-set_C(0)
+set_C(1e-6)
+#set_C(0)
 #pI,pW,pC = get_p(ks[0],ks[1])
 
 for cnt,k in enumerate(ks):
     plt.subplot(NK,1,cnt+1)
     capo.plot.waterfall(ds.x[k], drng=3)
     plt.colorbar()
-plt.show()
-
-for cnt,k in enumerate(ks):
-    plt.subplot(NK,1,cnt+1)
-    pC = get_p(k,k,'C')
-    plt.title(k[0])
+#plt.savefig('fig1.png')
+#plt.show()
+for bl in SEPS:
+    k1 = (set1,pol,bl)
+    k2 = (set2,pol,bl)
+    pC = get_p(k1,k2,'C')
+    plt.title(bl)
     capo.plot.waterfall(pC, mx=16, drng=7)
     plt.colorbar()
 plt.show()
+#for cnt,k in enumerate(ks):
+#    print k
+    #plt.subplot(NK,1,cnt+1)
+    #pC = get_p(k,k,'C')
+    #plt.title(k[0])
+    #capo.plot.waterfall(pC, mx=16, drng=7)
+    #plt.colorbar()
+#plt.savefig('fig2.png')
+#plt.show()
 
 '''
 pC1 = get_p(k1a,k1b,'C')
