@@ -87,9 +87,9 @@ sets = {
 data,wgts = {}, {}
 lsts = {}
 chisqs = {}
-def from_npz(file):
-     res = capo.omni.from_npz(file,verbose=True)
-     return res
+# def from_npz(file):
+#      res = capo.omni.from_npz(file,verbose=True)
+#      return res
 for s in sets:
     if not lsts.has_key(s):
         # res = Parallel(n_jobs=4)(delayed(from_npz)(file) for file in sets[s])
@@ -112,6 +112,7 @@ for s in sets:
             data[k] *= bandpass[:,CH0:CH0+NCHAN]
             wgts[k] = np.where(np.abs(data[k]) == 0, 0., 1)
             #wgts[k] = np.where(np.abs(data[k]) == 0, 0., 1./chisqs[s])
+#import IPython; IPython.embed()
 
 ind = {}
 set1,set2 = sets.keys()[0], sets.keys()[-1]
@@ -172,14 +173,20 @@ def get_p(k1,k2,mode,ind_offset=0):
             
             #save_data,save_wgt = {},{}
             if not k1 == k2:
-                save_data,save_wgt = ds.x.copy(),ds.w.copy()
-                save_data[k1] = ds.x[k1][:,ind_offset:]; save_wgt[k1] = ds.w[k1][:,ind_offset:]
-                if ind_offset>0: save_data[k2] = ds.x[k2][:,:-ind_offset]; save_wgt[k2] = ds.w[k2][:,:-ind_offset]
-                ds_new = capo.oqe.DataSet(save_data, save_wgt)
+                #save_data,save_wgt = ds.x.copy(),ds.w.copy()
+                #save_data,save_wgt ={},{}
+                #save_data[k1] = ds.x[k1][ind_offset:]; save_wgt[k1] = ds.w[k1][ind_offset:]
+                #if ind_offset>0: save_data[k2] = ds.x[k2][:,:-ind_offset]; save_wgt[k2] = ds.w[k2][:,:-ind_offset]
+                #ds_new = capo.oqe.DataSet(save_data, save_wgt)
                 #import IPython; IPython.embed()
-                set_C(ds_new,1e-6)
+                #set_C(ds_new,1e-6)
+                ds_new = capo.oqe.DataSet({k1:data_g[k1][:-offset], k2:data_g[k2][offset:]}, {k1:wgt_g[k1][:-offset], k2:wgt_g[k2][offset:]})
+                iC_dict = {}
+                for k in ds.x:
+                    iC_dict[k] = ds.iC(k)
+                ds_new.set_iC(iC_dict)
             else:
-                ds_new = ds.copy()
+                ds_new = ds
         if False:
             save_iC = {}
             for k in (k1,k2): save_iC[k] = ds.iC(k).copy()
@@ -202,6 +209,7 @@ def get_p(k1,k2,mode,ind_offset=0):
             # XXX deal with diff w for k1,k2
             pC = np.array([pCs[sums[k1][i]][:,i] for i in xrange(ds.w[k1].shape[1])]).T
         else:
+            print "computing power spectrum for ", k1, k2
             qC = ds_new.q_hat(k1,k2)
             FC = ds_new.get_F(k1,k2)
             MC,WC = ds_new.get_MW(FC, mode='F^-1/2')
@@ -221,7 +229,7 @@ def lst_align(lsts1,lsts2,offset=0):
 
 offset_dict = {((1,48), (1,4)):0.031,((1,4), (1,48)):0.031}
 dlst = lst_res
-ind[set1], ind[set2] = lst_align(lsts[set1], lsts[set2])
+#ind[set1], ind[set2] = lst_align(lsts[set1], lsts[set2])
 
 from itertools import product
 # for bl1, bl2 in product(SEPS,SEPS):
@@ -233,15 +241,16 @@ from itertools import product
 #             if s1 == s2: continue
 
 
-for k in data.keys():
-    (s,pol,bl) = k
-    data[k] = data[k][ind[s]]     #aligning the lsts
-    wgts[k] = wgts[k][ind[s]]
+# for k in data.keys():
+#     (s,pol,bl) = k
+#     data[k] = data[k][ind[s]]     #aligning the lsts
+#     wgts[k] = wgts[k][ind[s]]
 
-
-
+data_g, wgt_g = {},{}
+for k in data:
+    lst_g,data_g[k],wgt_g[k] = capo.oqe.lst_grid(lsts[k[0]],data[k])
 ################################
-ds = capo.oqe.DataSet(data, wgts)
+ds = capo.oqe.DataSet(data_g, wgt_g)
 #import IPython; IPython.embed()
 set_C(ds,1e-6)
 #set_C(0)
