@@ -66,6 +66,13 @@ class LinearSolver:
         self.keys = data.keys()
         self.consts = kwargs
         self.eqs = [LinearEquation(k,**kwargs) for k in self.keys]
+        # infer dtype for later arrays
+        self.dtype = np.float
+        for dset in [data, self.consts]: # XXX maybe don't want all consts checked?
+            for k in dset:
+                try: dtype = dset[k].dtype
+                except(AttributeError): dtype = type(dset[k])
+                self.dtype = np.promote_types(self.dtype, dtype)
         for eq in self.eqs:
             for prm in eq.prms:
                 self.prm_order[prm] = self.prm_order.get(prm,len(self.prm_order))
@@ -85,15 +92,15 @@ class LinearSolver:
             if len(shk) > len(sh): sh += [0] * (len(shk)-len(sh))
             for i in xrange(min(len(sh),len(shk))): sh[i] = max(sh[i],shk[i])
         return [len(self.eqs),self.nprms]+sh
-    def get_A(self, dtype=np.float):
+    def get_A(self):
         #A = lil_matrix((len(self.eqs),self.nprms), dtype=dtype)
-        A = np.zeros(self._A_shape(), dtype=dtype)
+        A = np.zeros(self._A_shape(), dtype=self.dtype)
         for i,(k,eq) in enumerate(zip(self.keys,self.eqs)): 
             eq.put_matrix(A, self.prm_order, i, self.wgts[k])
         #return csr_matrix(A)
         return A
-    def get_AtAiAt(self, A=None, dtype=np.float, rcond=1e-10):
-        if A is None: A = self.get_A(dtype)
+    def get_AtAiAt(self, A=None, rcond=1e-10):
+        if A is None: A = self.get_A()
         #AtAi = scipy.sparse.linalg.inv(AtA)
         AtA = np.einsum('ji...,jk...->ik...', A, A)
         shape = AtA.shape
@@ -108,9 +115,9 @@ class LinearSolver:
         w.shape += (1,) * (d.ndim-w.ndim)
         d.shape += (1,) * (w.ndim-d.ndim)
         return d * w
-    def solve(self, dtype=np.float):
+    def solve(self):
         y = self.get_weighted_data()
-        AtAiAt = self.get_AtAiAt(dtype=dtype)
+        AtAiAt = self.get_AtAiAt()
         x = np.einsum('ij...,j...->i...', AtAiAt, y)
         sol = {}
         for k in self.prm_order: sol[k] = x[self.prm_order[k]]
