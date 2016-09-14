@@ -135,6 +135,7 @@ if opts.factor == None:
         factors = numpy.mean(factors,axis=1) #average over freq
         factor = numpy.median(factors) #median over time
         print "Factor =",factor
+
 ### PLOT ###
 if opts.plot == True:
     plt.subplot(2,3,1)
@@ -238,7 +239,8 @@ if opts.factor != None and opts.abscal == True and opts.poly == False: #if facto
     factor = opts.factor
 
 # Absolute calibrate
-
+print 'Saving bandpass.npz'
+numpy.savez('bandpass.npz',bandpass=factor)
 if opts.abscal == True:
 
     def mfunc(uv,p,d):

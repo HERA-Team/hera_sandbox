@@ -98,7 +98,7 @@ def fit_line(phs, fqs, valid):
     dt,off = n.linalg.lstsq(A,B)[0].flatten()
     return dt,off
 
-def redundant_bl_cal_simple(d1,d2,fqs, window='blackman-harris', tune=True, verbose=False):
+def redundant_bl_cal_simple(d1,d2,fqs, window='blackman-harris', tune=True, verbose=False, plot=False):
     '''Given redundant measurements, get the phase difference between them.
        For use on raw data'''
     d12 = d2 * n.conj(d1)
@@ -136,12 +136,17 @@ def redundant_bl_cal_simple(d1,d2,fqs, window='blackman-harris', tune=True, verb
 #        dt,off = n.linalg.lstsq(A,B)[0].flatten()
 #        off,dt = n.polyfit(dly,fqs_val,1)
         dt,off = fit_line(dly,fqs,valid)
-#        p.plot(fqs,dly)
-#        p.plot(fqs,off+dt*fqs)
-#        p.plot(fqs,n.unwrap(dly))
+        if plot:
+            p.plot(fqs,dly, linewidth=2)
+            p.plot(fqs,n.angle(d12_sum), linewidth=2)
+            p.xlabel('Frequency (GHz)', fontsize='large')
+            p.ylabel('Phase (radians)', fontsize='large')
+            ax = p.gca()
+            #p.plot(fqs,off+dt*fqs)
+            #p.plot(fqs,n.unwrap(dly))
 #        print off
 #    #    p.plot(fqs_val,pp[0] + pp[1]*fqs_val)
-#        p.show()
+            p.show()
     # Pull out an integral number of phase wraps
     #if verbose: print tau, dtau, mxs, dt, off
     info = {'dtau':dt, 'off':off, 'mx':mx} # Some information about last step, useful for detecting screwups

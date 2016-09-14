@@ -1,6 +1,7 @@
 import numpy as np, omnical, aipy, math
 import capo.red as red
 import numpy.linalg as la
+import warnings
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore",category=DeprecationWarning)
     import scipy.sparse as sps
@@ -252,7 +253,7 @@ def from_npz(filename, verbose=False):
             pol,bl = parse_key(k)
             if not xtalk.has_key(pol): xtalk[pol] = {}
             dat = np.resize(np.copy(npz[k]),vismdl[pol][vismdl[pol].keys()[0]][0].shape) #resize xtalk to be like vismdl (with a time dimension too)
-            if xtalk[pol].get(bl) == None: #no bl key yet
+            if xtalk[pol].get(bl) is None: #no bl key yet
                 xtalk[pol][bl] = dat
             else: #append to array
                 xtalk[pol][bl] = np.vstack((xtalk[pol].get(bl),dat))

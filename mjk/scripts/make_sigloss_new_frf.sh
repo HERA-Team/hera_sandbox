@@ -27,7 +27,7 @@ for chan in $chans; do
         for sep in $seps; do 
            sepdir=${poldir}/${sep}
            test -e $sepdir || mkdir $sepdir
-           for inject in `python -c "import numpy; print ' '.join(map(str,numpy.logspace(-2,2,40)))"`; do
+           for inject in `python -c "import numpy; print ' '.join(map(str,numpy.logspace(-10,10,40)))"`; do
                injectdir=${sepdir}/inject_${inject}
                test -e ${injectdir} || mkdir ${injectdir}
                echo ${inject}
@@ -56,18 +56,20 @@ for chan in $chans; do
                echo separation: ${sep}|tee -a ${LOGFILE}
                echo `date` | tee -a ${LOGFILE} 
                    
-               echo python ${SCRIPTSDIR}/pspec_cov_v002_sigloss.py \
+               echo python ${SCRIPTSDIR}/pspec_cov_v003_sigloss.py \
                     --window=${WINDOW} -p ${pol} -c ${chan} -b ${NBOOT} \
                      -C ${cal} -i ${inject} -a ${ANTS}\
-                     --sep=${sep} --output=${ijectdir} \
-                     --frpad=${FRPAD} \
+                     --output=${ijectdir} \
+                     --bl_scale=${BLSCALE}\
+                     --fr_width_scale=${FR_WIDTH_SCALE} \
                      ${EVEN_FILES} ${ODD_FILES} 
 
-               python ${SCRIPTSDIR}/pspec_cov_v002_sigloss.py \
+               python ${SCRIPTSDIR}/pspec_cov_v003_sigloss.py \
                     --window=${WINDOW} -p ${pol} -c ${chan} -b ${NBOOT} \
                      -C ${cal} -i ${inject} -a ${ANTS}\
-                     --sep=${sep} --output=${injectdir} \
-                     --frpad=${FRPAD} \
+                     --output=${injectdir} \
+                     --bl_scale=${BLSCALE}\
+                     --fr_width_scale=${FR_WIDTH_SCALE} \
                      ${EVEN_FILES} ${ODD_FILES} \
                      |tee -a ${LOGFILE}
             done

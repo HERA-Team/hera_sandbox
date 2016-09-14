@@ -8,12 +8,13 @@ import numpy as np
 #mpl.rcParams['font.size']  = 12
 mpl.rcParams['legend.numpoints']  = 1
 mpl.rcParams['legend.frameon'] = False
-mpl.rcParams['legend.fontsize'] = 8
+mpl.rcParams['legend.fontsize'] = 12
 #mpl.rcParams['figure.dpi'] = 300
 #mpl.rcParams['savefig.dpi'] = 300
 #mpl.rcParams['savefig.format'] ='png'
 #mpl.rcParams['lines.markeredgewidth'] = 0
-#mpl.rcParams['lines.markersize'] = 7
+mpl.rcParams['lines.linewidth'] = 4
+mpl.rcParams['figure.figsize'] = (12,5)
 import pickle
 import matplotlib.cm as cmx
 import matplotlib.colors as colors
@@ -31,12 +32,12 @@ opts,args = o.parse_args(sys.argv[1:])
 def get_colors(N):
     '''Returns function with N unique colors'''
     norm=colors.Normalize(vmin=0,vmax=N-1)
-    scal_map=cmx.ScalarMappable(norm=norm,cmap='hsv')
+    scal_map=cmx.ScalarMappable(norm=norm,cmap='brg')
     def map_index_to_rgb(index):
         return scal_map.to_rgba(index)
     return map_index_to_rgb
 
-mychan = opts.chan
+#mychan = opts.chan
 mysep = '0,1'
 fig, ax = p.subplots(1)
 fig2,ax2 = p.subplots(1)
@@ -45,13 +46,13 @@ ax.set_xlabel('Fringe Rate [mili Hz]')
 ax.set_xlim([-.7,1.5])
 ax.set_ylim([0,1])
 
-ax2.set_xlabel('time [ns]')
+ax2.set_xlabel('time [s]')
 ax2.set_xlim([-10000,10000])
-ax2.set_ylim([-1,1])
+#ax2.set_ylim([-1,1])
 #ax2.set_yscale('log')
-ax2.set_xlabel('time [ns]')
+ax2.set_xlabel('time [s]')
 
-num_files = len(args) +1
+num_files = len(args) + 2
 
 cmap = get_colors(num_files)
 
@@ -62,13 +63,13 @@ for cnt,filename in enumerate(args):
     mychan = F['chan']
     frp_freqs = F['freqs']
     frp = F['frp']
-    frp_fit = F[mysep][mychan]
+    frp_fit = F['frps'][mychan]
     frp_fit /= np.max(frp_fit)
     fir = F['firs']
     timebins = F['timebins']
-    fir_single = fir[mysep][mychan]
+    fir_single = fir[mychan]
     #factor = np.sqrt(np.sum(np.abs(fir_single)**2))
-    fir_single /= np.abs(fir_single).max()
+    #fir_single /= np.abs(fir_single).max()
     #fir_single /= factor
 
 
