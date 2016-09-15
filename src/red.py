@@ -94,52 +94,52 @@ def fit_line(phs, fqs, valid):
     dly = phs.compress(valid)
     B = n.zeros((fqs.size,1)); B[:,0] = dly
     A = n.zeros((fqs.size,2)); A[:,0] = fqs*2*n.pi; A[:,1] = 1
-    dt,off = n.linalg.lstsq(A,B)[0].flatten()
-    return dt,off
+    try:
+        dt,off = n.linalg.lstsq(A,B)[0].flatten()
+        return dt,off
+    except ValueError:
+        import IPython 
+        IPython.embed()
 
 def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True, verbose=False, plot=False, clean=1e-4):
-    '''Given redundant measurements, get the phase difference between them.
-       For use on raw data'''
+#   '''Given redundant measurements, get the phase difference between them. For use on raw data'''
     d12 = d2 * n.conj(d1)
-    # For 2D arrays, assume first axis is time and integrate over it
-    if d12.ndim > 1: 
-        d12_sum= n.sum(d12,axis=0)
-        d12_wgt= n.sum(w1*w2,axis=0) 
-    else: 
-        d12_sum = d12
-        d12_wgt = w1*w2
+    # For 2D arrays, assume first axis is time. 
+    d12_sum = d12
+    d12_wgt = w1*w2
     #normalize data to maximum so that we minimize fft articats from RFI
     d12_sum *= d12_wgt
     d12_sum = d12_sum/n.where(n.abs(d12_sum)==0., 1., n.abs(d12_sum)) 
     window = a.dsp.gen_window(d12_sum.size, window=window)
     dlys = n.fft.fftfreq(fqs.size, fqs[1]-fqs[0])
     # FFT and deconvolve the weights to get the phs
-    _phs = n.fft.fft(window*d12_sum)
-    _wgt = n.fft.fft(window*d12_wgt)
-    _phs,info = a.deconv.clean(_phs, _wgt, tol=clean)
-    _phs = n.abs(_phs)
+    _phs = n.fft.fft(window*d12_sum,axis=-1)
+    _wgt = n.fft.fft(window*d12_wgt,axis=-1)
+    _phss = n.zeros_like(_phs)
+    #loop over all times and deconvolve! May need to eventually move this to ||processing.
+    for i,(_p,_w) in enumerate(zip(_phs,_wgt)):_phss[i] = a.deconv.clean(_p,_w, tol=clean)[0]
+    _phss = n.abs(_phss)
     #get bin of phase
-    mx = n.argmax(_phs)
+    mxs = n.argmax(_phss, axis=-1)
     #Fine tune with linear fit.
-    if mx > _phs.size/2: mx -= _phs.size
-    dtau = mx / (fqs[-1] - fqs[0])
-    mxs = mx + n.array([-1,0,1])
-    tau = n.sum(_phs[mxs] * dlys[mxs]) / n.sum(_phs[mxs])
-    dt,off = 0,0
+    mxs[mxs>_phss.shape[-1]/2] -= _phss.shape[-1]
+    dtau = mxs / (fqs[-1] - fqs[0])
+    mxs = n.dot(mxs.reshape(len(mxs),1),n.ones((1,3),dtype=int)) + n.array([-1,0,1])
+    #import IPython; IPython.embed()
+    taus = n.sum(_phss[n.arange(mxs.shape[0],dtype=int).reshape(-1,1),mxs] * dlys[mxs],axis=-1) / n.sum(_phss[n.arange(mxs.shape[0]).reshape(-1,1),mxs],axis=-1)
+    dts,offs = [],[]
     if tune:
-#        import IPython; IPython.embed()
-        valid = n.where(n.abs(d12_sum) > 0, 1, 0) # Throw out zeros, which NaN in the log below
-        valid = n.logical_and(valid, n.logical_and(fqs>.11,fqs<.19))
-        dly = n.angle(d12_sum*n.exp(-2j*n.pi*tau*fqs))
-#        fqs_val = fqs.compress(valid)
-#        #dly = n.real(n.log(d12_sum.compress(valid) * n.exp(2j*n.pi*tau*fqs_val))/(2j*n.pi))
-#        import IPython; IPython.embed() 
-#        #Fit is better with lst squares approach
-#        B = n.zeros((fqs_val.size,1)); B[:,0] = dly
-#        A = n.zeros((fqs_val.size,2)); A[:,0] = fqs_val; A[:,1] = 1
-#        dt,off = n.linalg.lstsq(A,B)[0].flatten()
-#        off,dt = n.polyfit(dly,fqs_val,1)
-        dt,off = fit_line(dly,fqs,valid)
+    #loop over the linear fits
+        for tau,d in zip(taus,d12_sum):
+            valid = n.where(d != 0, 1, 0) # Throw out zeros, which NaN in the log below
+            #print valid.any()
+            valid = n.logical_and(valid, n.logical_and(fqs>.11,fqs<.19))
+            dly = n.angle(d*n.exp(-2j*n.pi*tau*fqs))
+            dt,off = fit_line(dly,fqs,valid)
+            dts.append(dt), offs.append(off)
+        dts = n.array(dts)
+        offs = n.array(offs)
+
         if plot:
             #p.plot(fqs,n.unwrap(dly), linewidth=2)
             p.subplot(411)
@@ -170,14 +170,13 @@ def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True,
             p.xlabel('Frequency (GHz)', fontsize='large')
             p.ylabel('Phase (radians)', fontsize='large')
             #p.plot(fqs,n.unwrap(dly))
-#        print off
-#    #    p.plot(fqs_val,pp[0] + pp[1]*fqs_val)
+            #p.plot(fqs_val,pp[0] + pp[1]*fqs_val)
             #p.show()
     # Pull out an integral number of phase wraps
     #if verbose: print tau, dtau, mxs, dt, off
-    info = {'dtau':dt, 'off':off, 'mx':mx} # Some information about last step, useful for detecting screwups
-    if verbose: print info, tau, tau+dt+off
-    return tau+dt,off
+    info = {'dtau':dts, 'off':offs, 'mx':mxs} # Some information about last step, useful for detecting screwups
+    if verbose: print info, taus, tausdts+offs
+    return taus+dts,offs
 
 
 

@@ -323,12 +323,13 @@ class FirstCal(object):
     def get_N(self,nblpairs):
         return sps.eye(nblpairs) 
     def get_M(self, verbose=False, **kwargs):
-        M = np.zeros((len(self.info.bl_pairs),1))
-        O = np.zeros((len(self.info.bl_pairs),1))
         blpair2delay,blpair2offset = self.data_to_delays(verbose=verbose, **kwargs)
+        sz = len(blpair2delay[blpair2delay.keys()[0]])
+        M = np.zeros((len(self.info.bl_pairs),sz))
+        O = np.zeros((len(self.info.bl_pairs),sz))
         for pair in blpair2delay:
-            M[self.info.blpair_index(pair)] = blpair2delay[pair]
-            O[self.info.blpair_index(pair)] = blpair2offset[pair]
+            M[self.info.blpair_index(pair),:] = blpair2delay[pair]
+            O[self.info.blpair_index(pair),:] = blpair2offset[pair]
             
         return M,O
     def run(self, verbose=False, offset=False, **kwargs):
@@ -348,16 +349,16 @@ class FirstCal(object):
         self.A = sps.csr_matrix(self.info.A)
         print 'Shape of coefficient matrix: ', self.A.shape
 #        ones = np.ones((1,self.A.shape[1]))
-        #index:antenna => 9:80, 11:104, 13:53
+#        index:antenna => 9:80, 11:104, 13:53
 #        deg1 = np.zeros((1,self.A.shape[1])); deg1[:,9] = 1.0; deg1[:,11] = 1.0
 #        deg2 = np.zeros((1,self.A.shape[1])); deg2[:,9] = 1.0; deg2[:,13] = 1.0
 #        self.A = np.concatenate([self.A,ones,deg1,deg2])
-        #solve for delays
+#        solve for delays
         print "Inverting A.T*N^{-1}*A matrix"
         invert = self.A.T.dot(self._N.dot(self.A)).todense() #make it dense for pinv
 #        invert = np.dot(self.A.T,np.dot(self._N,self.A))
         dontinvert = self.A.T.dot(self._N.dot(self.M)) #converts it all to a dense matrix
-        #definitely want to use pinv here and not solve since invert is probably singular. 
+#        definitely want to use pinv here and not solve since invert is probably singular. 
         self.xhat = np.dot(np.linalg.pinv(invert),dontinvert)
         #solve for offset
         if offset:
@@ -366,6 +367,7 @@ class FirstCal(object):
             dontinvert =self.A.T.dot(self._N.dot(self.O))
             self.ohat = np.dot(np.linalg.pinv(invert),dontinvert)
             #turn solutions into dictionary
+#            import IPython; IPython.embed()
 #            import IPython; IPython.embed()
             return dict(zip(self.info.subsetant,zip(self.xhat,self.ohat)))
         else:
@@ -398,15 +400,18 @@ def save_gains_fc(s,f,pol,filename,ubls=None,ex_ants=None,verbose=False):
     ex_ants: antennae excluded to solve for s'
     """
 #    if isinstance(filename, list): filename=filename[0] #XXX this is evil. why?
+    NBINS = len(f)
     s2 = {}
     for k,i in s.iteritems():
         if len(i)>1:
             #len > 1 means that one is using the "tune" parameter in omni.firstcal
-            s2[str(k)+pol] = get_phase(f,i,offset=True).reshape(1,-1) #reshape plays well with omni apply
+            #s2[str(k)+pol] = get_phase(f,i,offset=True).reshape(1,-1) #reshape plays well with omni apply
+            s2[str(k)+pol] = get_phase(f,i,offset=True).reshape(-1,NBINS) #reshape plays well with omni apply
             s2['d'+str(k)] = i[0]
             if verbose: print 'dly=%f , off=%f'%i
         else:
-            s2[str(k)+pol] = omni.get_phase(f,i).reshape(1,-1) #reshape plays well with omni apply
+            #s2[str(k)+pol] = omni.get_phase(f,i).reshape(1,-1) #reshape plays well with omni apply
+            s2[str(k)+pol] = omni.get_phase(f,i).reshape(-1,NBINS) #reshape plays well with omni apply
             s2['d'+str(k)] = i
             if verbose: print 'dly=%f'%i
     if not ubls is None: s2['ubls']=ubls
