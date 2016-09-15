@@ -9,11 +9,11 @@ class TestFirstCal(unittest.TestCase):
 #        testdata_path='/home/zakiali/src/mycapo/tests/data/'
 #        testdata_path='/home/saulkohn/tests/'
         #True delays put into simulated data
-        self.true = np.load(self.testdata_path+'truedelays.npz')
+        self.true = np.load(testdata_path+'truedelays.npz')
         #solved firstcal delays
         self.solved = np.load(testdata_path+'zen.2457458.32700.xx.uvAs.fc.npz')
         #raw data used to solve for the first cal solutions
-        self.raw_data = [self.testdata_path+'zen.2457458.32700.xx.uvAs']
+        self.raw_data = [testdata_path+'zen.2457458.32700.xx.uvAs']
         aa = a.cal.get_aa('hsa7458_v000_HH_delaytest', np.array([.150]))
         self.info = capo.omni.aa_to_info(aa, fcal=True)
         self.reds = self.info.get_reds()
@@ -28,14 +28,14 @@ class TestFirstCal(unittest.TestCase):
         self.dataxx = {}
         self.wgtsxx = {}
         for (i,j) in data.keys():
-            self.dataxx[(i,j)] = data[(i,j)]['xx']#[0:1,:]
-            self.wgtsxx[(i,j)] = np.logical_not(flags[(i,j)]['xx'])#[0:1,:])
+            self.dataxx[(i,j)] = data[(i,j)]['xx'][0:3,:]
+            self.wgtsxx[(i,j)] = np.logical_not(flags[(i,j)]['xx'])[0:3,:]
 
 
     def test_run_firstcal(self):
         fc = capo.omni.FirstCal(self.dataxx,self.wgtsxx,self.fqs,self.info)
         sols = fc.run(tune=True,verbose=False,offset=True,plot=False)
-        capo.omni.save_gains_fc(sols,self.fqs,self.pol[0],filename=self.raw_data[0],ubls=' ',ex_ants=[],verbose=True)
+        capo.omni.save_gains_fc(sols,self.fqs,self.pol[0],filename=self.raw_data[0],ubls=' ',ex_ants=[],verbose=False)
         self.assertTrue(os.path.exists(self.raw_data[0]+'.fc.npz'))
         npzfile = self.raw_data[0]+'.fc.npz'
         npzdata = np.load(npzfile) 
@@ -49,18 +49,18 @@ class TestFirstCal(unittest.TestCase):
         for k in g[g.keys()[0]].keys(): 
             self.assertIsInstance(k,int)
         for k in g[g.keys()[0]].keys():
-            self.assertTupleEqual(g[self.pol[0]][k].shape,(1,len(self.fqs)))
+            self.assertTupleEqual(g[self.pol[0]][k].shape,(len(self.dataxx[self.dataxx.keys()[0]][:,0]),len(self.fqs)))
           
     def test_plot_redundant(self):
         reds2plot = self.reds[3] #random set of redundant baseliens
-        time = 13
+        time = 0
         for bl in reds2plot:
             try:
                 a1,a2 = bl
                 p.subplot(211)
                 p.plot(self.fqs, np.angle(self.dataxx[bl][time]))
                 p.subplot(212)
-                p.plot(self.fqs, np.angle( self.dataxx[bl][time]*np.conj(self.solved[str(a1)+self.pol[0]][0])*self.solved[str(a2)+self.pol[0]][0] ))
+                p.plot(self.fqs, np.angle( self.dataxx[bl][time]*np.conj(self.solved[str(a1)+self.pol[0]][time])*self.solved[str(a2)+self.pol[0]][time] ))
             except (KeyError):
                 bl = bl[::-1]
                 a1,a2 = bl
@@ -68,10 +68,11 @@ class TestFirstCal(unittest.TestCase):
                 p.plot(self.fqs, np.angle(self.dataxx[bl][time]))
                 p.subplot(212)
                 p.plot(self.fqs, np.angle( self.dataxx[bl][time]*np.conj(self.solved[str(a1)+self.pol[0]][0])*self.solved[str(a2)+self.pol[0]][0] ))
+            print a1,a2
         p.show() 
 
     def test_redundancy(self):
-        reds = [(str(i)+'d',str(j)+'d') for i,j in self.reds[3]]
+        reds = [('d'+str(i),'d'+str(j)) for i,j in self.reds[3]]
         i0,i1 = reds[0] #fist baseline in the reds[3] redundant bl list
         t0 = self.true[i0]
         t1 = self.true[i1]
@@ -84,6 +85,6 @@ class TestFirstCal(unittest.TestCase):
             delays.append(np.abs( (t0 - tp0) - (t1 - tp1) - ((t2 - tp2) - (t3-tp3)) ) )
         zero = np.zeros_like(delays)
         for k in delays:
-            self.assertAlmostEquals(k, 0.0, delta=.1) 
+            self.assertAlmostEquals(np.sum(k), 0.0, delta=.1*k.size) 
 
 unittest.main()

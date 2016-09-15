@@ -367,7 +367,6 @@ class FirstCal(object):
             dontinvert =self.A.T.dot(self._N.dot(self.O))
             self.ohat = np.dot(np.linalg.pinv(invert),dontinvert)
             #turn solutions into dictionary
-            import IPython; IPython.embed()
             return dict(zip(self.info.subsetant,zip(self.xhat,self.ohat)))
         else:
             #turn solutions into dictionary
