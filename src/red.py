@@ -110,7 +110,7 @@ def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True,
     #normalize data to maximum so that we minimize fft articats from RFI
     d12_sum *= d12_wgt
     d12_sum = d12_sum/n.where(n.abs(d12_sum)==0., 1., n.abs(d12_sum)) 
-    window = a.dsp.gen_window(d12_sum.size, window=window)
+    window = a.dsp.gen_window(d12_sum[:,0].size, window=window)
     dlys = n.fft.fftfreq(fqs.size, fqs[1]-fqs[0])
     # FFT and deconvolve the weights to get the phs
     _phs = n.fft.fft(window*d12_sum,axis=-1)

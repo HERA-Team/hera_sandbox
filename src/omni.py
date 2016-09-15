@@ -367,8 +367,7 @@ class FirstCal(object):
             dontinvert =self.A.T.dot(self._N.dot(self.O))
             self.ohat = np.dot(np.linalg.pinv(invert),dontinvert)
             #turn solutions into dictionary
-#            import IPython; IPython.embed()
-#            import IPython; IPython.embed()
+            import IPython; IPython.embed()
             return dict(zip(self.info.subsetant,zip(self.xhat,self.ohat)))
         else:
             #turn solutions into dictionary
@@ -406,12 +405,14 @@ def save_gains_fc(s,f,pol,filename,ubls=None,ex_ants=None,verbose=False):
         if len(i)>1:
             #len > 1 means that one is using the "tune" parameter in omni.firstcal
             #s2[str(k)+pol] = get_phase(f,i,offset=True).reshape(1,-1) #reshape plays well with omni apply
-            s2[str(k)+pol] = get_phase(f,i,offset=True).reshape(-1,NBINS) #reshape plays well with omni apply
+#            s2[str(k)+pol] = get_phase(f,i,offset=True).reshape(-1,NBINS) #reshape plays well with omni apply
+            s2[str(k)+pol] = get_phase(f,i,offset=True).T #reshape plays well with omni apply
             s2['d'+str(k)] = i[0]
             if verbose: print 'dly=%f , off=%f'%i
         else:
             #s2[str(k)+pol] = omni.get_phase(f,i).reshape(1,-1) #reshape plays well with omni apply
-            s2[str(k)+pol] = omni.get_phase(f,i).reshape(-1,NBINS) #reshape plays well with omni apply
+            #s2[str(k)+pol] = omni.get_phase(f,i).reshape(-1,NBINS) #reshape plays well with omni apply
+            s2[str(k)+pol] = omni.get_phase(f,i).T #reshape plays well with omni apply
             s2['d'+str(k)] = i
             if verbose: print 'dly=%f'%i
     if not ubls is None: s2['ubls']=ubls
