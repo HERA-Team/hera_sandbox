@@ -6,6 +6,8 @@ import numpy as n
 from aipy.miriad import ij2bl, bl2ij
 import aipy as a
 import pylab as p
+import time 
+import multiprocessing as mpr
 
 def group_redundant_bls(antpos):
     '''Return 2 dicts: bls contains baselines grouped by separation ('drow,dcol'), conj indicates for each
@@ -101,7 +103,10 @@ def fit_line(phs, fqs, valid):
         import IPython 
         IPython.embed()
 
-def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True, verbose=False, plot=False, clean=1e-4):
+def mpr_clean(args):
+    return a.deconv.clean(*args,tol=1e-4)[0]
+
+def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True, verbose=False, plot=False, clean=1e-4, noclean=False):
 #   '''Given redundant measurements, get the phase difference between them. For use on raw data'''
     d12 = d2 * n.conj(d1)
     # For 2D arrays, assume first axis is time. 
@@ -117,7 +122,14 @@ def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True,
     _wgt = n.fft.fft(window*d12_wgt,axis=-1)
     _phss = n.zeros_like(_phs)
     #loop over all times and deconvolve! May need to eventually move this to ||processing.
-    for i,(_p,_w) in enumerate(zip(_phs,_wgt)):_phss[i] = a.deconv.clean(_p,_w, tol=clean)[0]
+    t1 = time.time()
+    #if not noclean:
+    #    for i,(_p,_w) in enumerate(zip(_phs,_wgt)):_phss[i] = a.deconv.clean(_p,_w, tol=clean)[0]
+    #else: _phss = _phs
+    pool=mpr.Pool(processes=4)
+    _phss = pool.map(mpr_clean, zip(_phs,_wgt))
+    t2 = time.time()
+    print('Cleaning is taking %f seconds'%(t2-t1))
     _phss = n.abs(_phss)
     #get bin of phase
     mxs = n.argmax(_phss, axis=-1)
@@ -130,6 +142,7 @@ def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True,
     dts,offs = [],[]
     if tune:
     #loop over the linear fits
+        t1 = time.time()
         for tau,d in zip(taus,d12_sum):
             valid = n.where(d != 0, 1, 0) # Throw out zeros, which NaN in the log below
             #print valid.any()
@@ -137,6 +150,7 @@ def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True,
             dly = n.angle(d*n.exp(-2j*n.pi*tau*fqs))
             dt,off = fit_line(dly,fqs,valid)
             dts.append(dt), offs.append(off)
+        print('Linear Fitting is taking %f seconds'%(time.time()-t1))
         dts = n.array(dts)
         offs = n.array(offs)
 
