@@ -29,7 +29,8 @@ o.add_option('-i', '--inject', type='float', default=0.,
     help='EOR injection level.')
 o.add_option('--output', type='string', default='',
     help='Output directory for pspec_boot files (default "")')
-
+o.add_option('--oldsigloss', action='store_true',
+    help='Run signal loss in old mode, where P_out is determined by C_r acting on e.')
 opts,args = o.parse_args(sys.argv[1:])
 
 #Basic parameters
@@ -43,14 +44,15 @@ INJECT_SIG = opts.inject
 
 ### FUNCTIONS ###
 
-def frf(shape): #FRF NOISE
+def frf(shape,doublelen=False): #FRF NOISE
     shape = shape[1]*2,shape[0] #(2*times,freqs)
     dij = oqe.noise(size=shape)
     wij = n.ones(shape,dtype=bool) #XXX flags are all true (times,freqs)
     #dij and wij are (times,freqs)
     _d,_w,_,_ = fringe.apply_frf(aa,dij,wij,ij[0],ij[1],pol=POL,bins=bins,firs=fir)
     _d = n.transpose(_d)
-    _d = _d[:,shape[0]/4:shape[0]/2+shape[0]/4]
+    if doublelen: _d = _d
+    else: _d = _d[:,shape[0]/4:shape[0]/2+shape[0]/4]
     return _d
 
 def cov(m):
@@ -283,7 +285,19 @@ for boot in xrange(opts.nboot):
     if INJECT_SIG > 0.: #Create a fake EoR signal to inject
         print '     INJECTING SIMULATED SIGNAL'
         if opts.frfeor:
+            ## FRF once ##
             eor = (frf((len(chans),timelen)) * INJECT_SIG).T #create FRF-ered noise
+            """
+            ## FRF twice ## XXX
+            eor1 = (frf((len(chans),timelen),doublelen=True) * INJECT_SIG).T
+            dij = eor1
+            wij = n.ones(eor1.shape,dtype=bool) #XXX flags are all true (times,freqs)
+            #dij and wij are (times,freqs)
+            eor,_,_,_ = fringe.apply_frf(aa,dij,wij,ij[0],ij[1],pol=POL,bins=bins,firs=fir)
+            eor = eor.T
+            eor = eor[:,dij.shape[0]/4:dij.shape[0]/2+dij.shape[0]/4]
+            eor = eor.T
+            """
         else:
             eor = (oqe.noise((len(chans),timelen)) * INJECT_SIG).T
         data_dict_2 = {}
@@ -306,12 +320,19 @@ for boot in xrange(opts.nboot):
     else: #no groups (slower)
         ds2I,ds2C = ds2,ds2 #identity and covariance case dataset is the same
         dseI,dseC = dse,dse
+
+    #Edit C that's applied to e to be determined from d+e
+    for newkey in newkeys:
+        C_r = ds2C.C(newkey)
+        dseC.set_C({newkey:C_r})
     
     #OQE stuff
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex)
+    FCe = n.zeros((nchan,nchan), dtype=n.complex)
     qI = n.zeros((nchan,data_dict[key].shape[0]), dtype=n.complex)
     qC = n.zeros((nchan,data_dict[key].shape[0]), dtype=n.complex)
+    qCe = n.zeros((nchan,data_dict[key].shape[0]), dtype=n.complex)
     for k,key1 in enumerate(newkeys):
         #print '   ',k+1,'/',len(keys)
         for key2 in newkeys[k:]:
@@ -320,13 +341,16 @@ for boot in xrange(opts.nboot):
             else:
                 FC += ds2C.get_F(key1,key2,cov_flagging=False)
                 FI += dseI.get_F(key1,key2,use_cov=False,cov_flagging=False) #only eor
+                FCe += dseC.get_F(key1,key2,cov_flagging=False) #only eor
                 qC += ds2C.q_hat(key1,key2,cov_flagging=False)
-                qI += dseI.q_hat(key1,key2,use_cov=False,cov_flagging=False)
-
+                qI += dseI.q_hat(key1,key2,use_cov=False,cov_flagging=False) #only eor
+                qCe += dseC.q_hat(key1,key2,cov_flagging=False) #only eor
     MC,WC = ds2C.get_MW(FC,mode='L^-1') #Cholesky decomposition
     MI,WI = dseI.get_MW(FI,mode='I')
+    MCe,WCe = dseC.get_MW(FCe,mode='L^-1') 
     pC = ds2C.p_hat(MC,qC,scalar=scalar)
     pI = dseI.p_hat(MI,qI,scalar=scalar)
+    pCe = dseC.p_hat(MCe,qCe,scalar=scalar) #C_r applied to e, not C_e (old way of calculating sigloss)
     #print 'pC ~ ', n.median(pC)
     #print 'pI ~ ', n.median(pI)
     
@@ -336,6 +360,7 @@ for boot in xrange(opts.nboot):
     #XXX Final variables
     pI = pIe
     pC = pCr - pCv
+    if opts.oldsigloss: pC = pCe
 
     print '   pI=', n.average(pI.real), 'pC=', n.average(pC.real), 'pI/pC=', n.average(pI.real)/n.average(pC.real)
 
