@@ -106,7 +106,7 @@ def fit_line(phs, fqs, valid):
 def mpr_clean(args):
     return a.deconv.clean(*args,tol=1e-4)[0]
 
-def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True, verbose=False, plot=False, clean=1e-4, noclean=False):
+def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True, verbose=False, plot=False, clean=1e-4, noclean=True):
 #   '''Given redundant measurements, get the phase difference between them. For use on raw data'''
     d12 = d2 * n.conj(d1)
     # For 2D arrays, assume first axis is time. 
@@ -126,8 +126,11 @@ def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True,
     #if not noclean:
     #    for i,(_p,_w) in enumerate(zip(_phs,_wgt)):_phss[i] = a.deconv.clean(_p,_w, tol=clean)[0]
     #else: _phss = _phs
-    pool=mpr.Pool(processes=4)
-    _phss = pool.map(mpr_clean, zip(_phs,_wgt))
+    if not noclean:
+        pool=mpr.Pool(processes=4)
+        _phss = pool.map(mpr_clean, zip(_phs,_wgt))
+    else:
+        _phss = _phs
     t2 = time.time()
     print('Cleaning is taking %f seconds'%(t2-t1))
     _phss = n.abs(_phss)
