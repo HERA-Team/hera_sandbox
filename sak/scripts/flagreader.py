@@ -19,6 +19,7 @@ aipy.scripting.add_standard_options(o, ant=True, pol=True)
 o.add_option('--verbose','-v',dest='verb',action='store_true',help='print intermediate info')
 o.add_option('--wfall','-W',dest='save_wfall',action='store_true',help='Save occupancy waterfall .png file?')
 o.add_option('--focc','-F',dest='save_freq',action='store_true',help='Save frequency occupancy .png file? Same naming convention as default .npz file.')
+o.add_option('--chanaxis',action='store_true',help='Plot frequecy occupancy with respect to channel number, instead of frequency in MHz.')
 o.add_option('--npz','-N',dest='npz',default=None,help='Name of output .npz (neglecting the ".npz" ending) with flag grid and percentage info. Default will be <JD>_<ant>_<pol>_RFI.npz')
 o.add_option('--wimg',dest='wimg',default=None,help='Name of waterfall .png file. Default will be same naming convention as default .npz file.')
 o.add_option('--fimg',dest='fimg',default=None,help='Name of waterfall .png file. Default will be <first file>_f.png .')
@@ -80,6 +81,7 @@ pcnt_f = 100.*np.sum(flg_arr,axis=0)/flg_arr.shape[0]
 pcnt_t = 100.*np.sum(flg_arr,axis=1)/flg_arr.shape[1]
 
 fqs = np.linspace(100.,200.,num=pcnt_f.shape[0])
+chans=range(fqs.size)
 tms = np.linspace(t_arr[0],t_arr[len(t_arr)-1],num=t_arr.shape[0])
 str_tms = jds2hrs(t_arr,hrs=True,sast=True)
 
@@ -98,9 +100,16 @@ if not opts.show and not opts.save_wfall and not opts.save_freq: sys.exit()
 
 if opts.save_freq or opts.show:
     if opts.verb: print 'Plotting frequency-occupancy plot'
-    pylab.step(fqs,pcnt_f,where='mid')
-    pylab.fill_between(fqs,0,pcnt_f,color='blue',alpha=0.3)
-    pylab.xlabel('Frequency [MHz]')
+    if not opts.chanaxis:
+        pylab.step(fqs,pcnt_f,where='mid')
+        pylab.fill_between(fqs,0,pcnt_f,color='blue',alpha=0.3)
+        pylab.xlim(fqs[0],fqs[-1])
+        pylab.xlabel('Frequency [MHz]')
+    else:
+        pylab.step(chans,pcnt_f,where='mid')
+        pylab.fill_between(chans,0,pcnt_f,color='blue',alpha=0.3)
+        pylab.xlim(chans[0],chans[-1])
+        pylab.xlabel('Channel number')
     pylab.ylabel('Occupancy [%]')
     if len(args)==1: pylab.suptitle(file2jd(args[0]),size=15)
     else: pylab.suptitle('%s - %s'%(file2jd(args[0]),file2jd(args[len(args)-1])),size=15)
