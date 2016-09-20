@@ -111,8 +111,6 @@ for s in sets:
             if bl in CONJ: data[k] = data[k].conj()
             data[k] *= bandpass[:,CH0:CH0+NCHAN]
             wgts[k] = np.where(np.abs(data[k]) == 0, 0., 1)
-            #wgts[k] = np.where(np.abs(data[k]) == 0, 0., 1./chisqs[s])
-#import IPython; IPython.embed()
 
 ind = {}
 set1,set2 = sets.keys()[0], sets.keys()[-1]
@@ -125,14 +123,7 @@ lst_res = np.average(lsts[set1][1:] - lsts[set1][:-1])/2
 # for s in sets: chisqs[s] = chisqs[s][ind[s]].T
 ########################################################################
     
-#k1a,k1b,k1c = [(s,'xx',(0,103)) for s in sets]
-#k2a,k2b,k2c = [(s,'xx',(0,111)) for s in sets]
-#k3a,k3b,k3c = [(s,'xx',(0, 95)) for s in sets]
-#ks = [k1a,k1b,k1c,k2a,k2b,k2c,k3a,k3b,k3c]
-#k1a,k1b = [(s,'xx',(0,103)) for s in sets]
-#k2a,k2b = [(s,'xx',(0,111)) for s in sets]
-#k3a,k3b = [(s,'xx',(0, 95)) for s in sets]
-#ks = [k1a,k1b,k2a,k2b,k3a,k3b]
+
 ks = [(s,'xx',bl) for bl in SEPS for s in sets]
 #k1a, = [(s,'xx',(0,103)) for s in sets]
 #k2a, = [(s,'xx',(0,111)) for s in sets]
@@ -157,7 +148,8 @@ def set_C(dst,norm=3e-6):
         dst.set_C({k:Cs[k]})
         #iCs[k] = dst.iC(k)
 
-def get_p(k1,k2,mode,ind_offset=0):
+def get_p(k1,k2,mode,offset=0):
+
     assert(mode in 'IWC')
     if mode == 'I':
         qI = ds.q_hat(k1,k2,use_cov=False)
@@ -170,23 +162,24 @@ def get_p(k1,k2,mode,ind_offset=0):
         return pW * scalar_win
     elif mode == 'C':
         if True:
-            
             #save_data,save_wgt = {},{}
-            if not k1 == k2:
-                #save_data,save_wgt = ds.x.copy(),ds.w.copy()
-                #save_data,save_wgt ={},{}
-                #save_data[k1] = ds.x[k1][ind_offset:]; save_wgt[k1] = ds.w[k1][ind_offset:]
-                #if ind_offset>0: save_data[k2] = ds.x[k2][:,:-ind_offset]; save_wgt[k2] = ds.w[k2][:,:-ind_offset]
-                #ds_new = capo.oqe.DataSet(save_data, save_wgt)
+            ds_new = None
+            if abs(offset) >1e-8:
+                # save_data,save_wgt = data_g.copy(),wgt_g.copy()
+                # #save_data,save_wgt ={},{}
+                # save_data[k1] = data_g[k1][ind_offset:]; save_wgt[k1] = wgt_g[k1][ind_offset:]
+                # if ind_offset>0: save_data[k2] = data_g[k2][:-ind_offset]; save_wgt[k2] = wgt_g[k2][:-ind_offset]
+                # ds_new = capo.oqe.DataSet(save_data, save_wgt)
                 #import IPython; IPython.embed()
-                #set_C(ds_new,1e-6)
+
                 ds_new = capo.oqe.DataSet({k1:data_g[k1][:-offset], k2:data_g[k2][offset:]}, {k1:wgt_g[k1][:-offset], k2:wgt_g[k2][offset:]})
-                iC_dict = {}
-                for k in ds.x:
-                    iC_dict[k] = ds.iC(k)
-                ds_new.set_iC(iC_dict)
             else:
                 ds_new = ds
+            iC_dict = {}
+            for k in ds.x:
+                iC_dict[k] = ds.iC(k)
+            ds_new.set_iC(iC_dict)
+            import IPython; IPython.embed()
         if False:
             save_iC = {}
             for k in (k1,k2): save_iC[k] = ds.iC(k).copy()
@@ -261,7 +254,7 @@ for cnt,k in enumerate(ks):
     capo.plot.waterfall(ds.x[k], drng=3)
     plt.colorbar()
 #plt.savefig('fig1.png')
-plt.show()
+#plt.show()
 
 
 sep_pairs = product(SEPS,SEPS)
@@ -272,7 +265,7 @@ for cnt, bls in enumerate(sep_pairs):
     else: offset = offset_dict[(bls[0],bls[1])]
     ind_offset = int(offset/dlst)
     print ind_offset
-    pC = get_p(k1,k2,'C',ind_offset=ind_offset)
+    pC = get_p(k1,k2,'C',offset=ind_offset)
     plt.subplot(5,1,cnt+1)
     plt.title(bls)
     capo.plot.waterfall(pC, mx=16, drng=7)
