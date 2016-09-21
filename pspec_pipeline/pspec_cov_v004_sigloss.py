@@ -303,8 +303,10 @@ for boot in xrange(opts.nboot):
         data_dict_2 = {}
         data_dict_eor = {}
         for key in data_dict:
-            data_dict_2[key] = data_dict[key].copy() + eor.copy() #add injected signal to data
-            data_dict_eor[key] = eor.copy()
+            if conj_dict[key[1]] == True: eorinject = n.conj(eor.copy()) #conjugate eor for certain baselines
+            else: eorinject = eor.copy()
+            data_dict_2[key] = data_dict[key].copy() + eorinject #add injected signal to data
+            data_dict_eor[key] = eorinject
 
     #Set data
     ds2 = oqe.DataSet() #data + eor
@@ -312,6 +314,12 @@ for boot in xrange(opts.nboot):
     dse = oqe.DataSet() #just eor   
     dse.set_data(dsets=data_dict_eor,conj=conj_dict,wgts=flg_dict)
    
+    #Old Sigloss: Change C in dse to be from ds2
+    newiC = {}
+    for key in keys:
+        newiC[key] = ds2.iC(key).copy()
+    dse.set_iC(newiC)
+
     if True:
         newkeys,ds2C = ds2.group_data(keys,gps) #group data (gps already determined before)
         newkeys,ds2I = ds2.group_data(keys,gps,use_cov=False)
@@ -320,11 +328,6 @@ for boot in xrange(opts.nboot):
     else: #no groups (slower)
         ds2I,ds2C = ds2,ds2 #identity and covariance case dataset is the same
         dseI,dseC = dse,dse
-
-    #Edit C that's applied to e to be determined from d+e
-    for newkey in newkeys:
-        C_r = ds2C.C(newkey)
-        dseC.set_C({newkey:C_r})
     
     #OQE stuff
     FI = n.zeros((nchan,nchan), dtype=n.complex)
@@ -347,10 +350,10 @@ for boot in xrange(opts.nboot):
                 qCe += dseC.q_hat(key1,key2,cov_flagging=False) #only eor
     MC,WC = ds2C.get_MW(FC,mode='L^-1') #Cholesky decomposition
     MI,WI = dseI.get_MW(FI,mode='I')
-    MCe,WCe = dseC.get_MW(FCe,mode='L^-1') 
+    MCe,WCe = dseC.get_MW(FCe,mode='L^-1')
     pC = ds2C.p_hat(MC,qC,scalar=scalar)
     pI = dseI.p_hat(MI,qI,scalar=scalar)
-    pCe = dseC.p_hat(MCe,qCe,scalar=scalar) #C_r applied to e, not C_e (old way of calculating sigloss)
+    pCe = dseC.p_hat(MCe,qCe,scalar=scalar)
     #print 'pC ~ ', n.median(pC)
     #print 'pI ~ ', n.median(pI)
     
@@ -359,8 +362,8 @@ for boot in xrange(opts.nboot):
     pIe = pI
     #XXX Final variables
     pI = pIe
-    pC = pCr - pCv
-    if opts.oldsigloss: pC = pCe
+    if opts.oldsigloss: pC = pCe #C is determined from data+eor but only applied to eor
+    else: pC = pCr - pCv
 
     print '   pI=', n.average(pI.real), 'pC=', n.average(pC.real), 'pI/pC=', n.average(pI.real)/n.average(pC.real)
 
