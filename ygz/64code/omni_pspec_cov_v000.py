@@ -4,6 +4,7 @@ import numpy as np, aipy, capo, pylab as plt, sys, glob
 import md5
 from joblib import Parallel, delayed
 import multiprocessing
+import oqe
 num_cores = multiprocessing.cpu_count()
 
 def dB(sig): return 10*np.log10(np.abs(np.average(sig.real, axis=1)))
@@ -100,7 +101,7 @@ for s in sets:
         #     gains.append(elt[1])
         #     vismdl.append(elt[2])
         #     xtalk.append(elt[3])
-        meta, gains, vismdl, xtalk = capo.omni.from_npz(sets[s], verbose=True)
+        meta, gains, vismdl, xtalk = capo.omni.from_npz(sets[s], bls=SEPS, pols='xx', ants=1,verbose=True)
         lsts[s] = meta['lsts']
     chisqs[s] = meta['chisq'][:,CH0:CH0+NCHAN]
     for pol in vismdl:
@@ -116,8 +117,8 @@ ind = {}
 set1,set2 = sets.keys()[0], sets.keys()[-1]
 lst_res = np.average(lsts[set1][1:] - lsts[set1][:-1])/2
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-#inds = capo.oqe.lst_align(lsts, lstres=lst_res)
-#data,wgts = capo.oqe.lst_align_data(inds, dsets=data, wgts=wgts)
+#inds = oqe.lst_align(lsts, lstres=lst_res)
+#data,wgts = oqe.lst_align_data(inds, dsets=data, wgts=wgts)
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 # for s in sets: chisqs[s] = chisqs[s][ind[s]].T
@@ -136,17 +137,17 @@ def set_C(dst,norm=3e-6):
     Cs,iCs = {},{}
     #import IPython; IPython.embed()
     for k in dst.x.keys():
-        #Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki != k])
-        #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],ds.w[ki][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
+        #Cs[k] = sum([oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki != k])
+        #Cs[k] = sum([oqe.cov(ds.x[ki][:,400:],ds.w[ki][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
         Ndim = dst.x[k].shape[0]
-        Cs[k] = capo.oqe.cov(dst.x[k][:,0:],dst.w[k][:,0:])+norm*np.identity(Ndim)
+        Cs[k] = oqe.cov(dst.x[k][:,0:],dst.w[k][:,0:])+norm*np.identity(Ndim)
         #import IPython; IPython.embed()
         #w = np.where(ds.w[ki] > 0, 1, 0)
-        #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],w[:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
+        #Cs[k] = sum([oqe.cov(ds.x[ki][:,400:],w[:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
         #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in ks if ki != k])
         #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in data if ki[2] != k[2]])
         dst.set_C({k:Cs[k]})
-        #iCs[k] = dst.iC(k)
+        iCs[k] = dst.iC(k)
 
 def get_p(k1,k2,mode,offset=0):
 
@@ -169,17 +170,18 @@ def get_p(k1,k2,mode,offset=0):
                 # #save_data,save_wgt ={},{}
                 # save_data[k1] = data_g[k1][ind_offset:]; save_wgt[k1] = wgt_g[k1][ind_offset:]
                 # if ind_offset>0: save_data[k2] = data_g[k2][:-ind_offset]; save_wgt[k2] = wgt_g[k2][:-ind_offset]
-                # ds_new = capo.oqe.DataSet(save_data, save_wgt)
+                # ds_new = oqe.DataSet(save_data, save_wgt)
                 #import IPython; IPython.embed()
 
-                ds_new = capo.oqe.DataSet({k1:data_g[k1][:-offset], k2:data_g[k2][offset:]}, {k1:wgt_g[k1][:-offset], k2:wgt_g[k2][offset:]})
+                ds_new = oqe.DataSet({k1:data_g[k1][:-offset], k2:data_g[k2][offset:]}, {k1:wgt_g[k1][:-offset], k2:wgt_g[k2][offset:]})
             else:
                 ds_new = ds
-            iC_dict = {}
-            for k in ds.x:
-                iC_dict[k] = ds.iC(k)
-            ds_new.set_iC(iC_dict)
-            import IPython; IPython.embed()
+            # iC_dict = {}
+            # for k in ds.x:
+            #     iC_dict[k] = ds.iC(k)
+            # ds_new.set_iC(iC_dict)
+            ds_new.set_C(ds._C)
+            #import IPython; IPython.embed()
         if False:
             save_iC = {}
             for k in (k1,k2): save_iC[k] = ds.iC(k).copy()
@@ -205,6 +207,7 @@ def get_p(k1,k2,mode,offset=0):
             print "computing power spectrum for ", k1, k2
             qC = ds_new.q_hat(k1,k2)
             FC = ds_new.get_F(k1,k2)
+            #import IPython; IPython.embed()
             MC,WC = ds_new.get_MW(FC, mode='F^-1/2')
             pC = ds_new.p_hat(MC,qC)
         return pC * scalar
@@ -241,11 +244,11 @@ from itertools import product
 
 data_g, wgt_g = {},{}
 for k in data:
-    lst_g,data_g[k],wgt_g[k] = capo.oqe.lst_grid(lsts[k[0]],data[k])
+    lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k])
 ################################
-ds = capo.oqe.DataSet(data_g, wgt_g)
+ds = oqe.DataSet(data_g, wgt_g)
 #import IPython; IPython.embed()
-set_C(ds,1e-6)
+set_C(ds,3e-6)
 #set_C(0)
 #pI,pW,pC = get_p(ks[0],ks[1])
 #################################
@@ -271,6 +274,7 @@ for cnt, bls in enumerate(sep_pairs):
     capo.plot.waterfall(pC, mx=16, drng=7)
     plt.colorbar()
 plt.show()
+import IPython; IPython.embed()
 #for cnt,k in enumerate(ks):
 #    print k
     #plt.subplot(NK,1,cnt+1)
