@@ -1,3 +1,18 @@
+--------WATCH--------
+To update:
+scp enterprise.sese.asu.edu:watch.txt .
+mv watch.txt watch_YYMMDD.txt
+add that file to list in plwa.py
+run plwa
+savefig('watch_YYMMDD.png')
+zip alerts.txt+watch.out together and put on wiki with watch_YYMMDD.png
+
+Other side is at:
+ssh 196.24.41.252 -p2222
+ssh obs@paper1.karoo.kat.ac.za
+rm watch.txt
+
+
 --------WATERFALL--------
 PAPER flagging waterfall plots:
 	waterfall.py contains the class that does work and can be run interactively
