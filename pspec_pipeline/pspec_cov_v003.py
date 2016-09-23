@@ -5,6 +5,7 @@ import aipy as a, numpy as n, pylab as p, capo, capo.frf_conv as fringe
 import glob, optparse, sys, random
 from scipy.linalg import fractional_matrix_power
 import capo.zsa as zsa
+import capo.oqe as oqe
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
@@ -71,6 +72,7 @@ if opts.loss:
 def frf(shape,loc=0,scale=1): #FRF NOISE
     shape = shape[1]*2,shape[0] #(2*times,freqs)
     dij = noise(shape,loc=loc,scale=scale)
+    #dij = oqe.noise(size=shape)
     #bins = fringe.gen_frbins(inttime)
     #frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
     #timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
@@ -160,6 +162,25 @@ def get_Q(mode, n_k): #encodes the fourier transform from freq to delay
 SEP = opts.sep #XXX used only for signal loss paths?
 
 #Read even&odd data
+if 'even' in args[0] or 'odd' in args[0]:
+    dsets = {
+    'even': [x for x in args if 'even' in x],
+    'odd' : [x for x in args if 'odd' in x]
+    }
+else:
+    jds = []
+    for arg in args:
+        jds.append(arg.split('zen')[1].split('.')[1])
+    lenjds = len(n.unique(jds)) #length of unique JDs
+    if lenjds == 1: dsets = {'even': args, 'odd': args}
+    elif lenjds == 2:
+        dsets = {
+        'even': [x for x in args if n.unique(jds)[0] in x],
+        'odd': [x for x in args if n.unique(jds)[1] in x]
+        }
+print dsets
+
+"""
 dsets = {
     #'only': glob.glob('sep0,1/*242.[3456]*uvL'),
     #'vissim1' : glob.glob('/home/cacheng/capo/ctc/tables/203files/pspec_Jy.uv'), 
@@ -169,6 +190,7 @@ dsets = {
     'even': [x for x in args if 'even' in x],
     'odd' : [x for x in args if 'odd' in x]
 }
+"""
 print dsets
 
 #Read signal loss data
@@ -258,6 +280,25 @@ if LST_STATS:
 else: cnt,var = n.ones_like(lsts.values()[0]), n.ones_like(lsts.values()[0])
 
 #Align data in LST (even/odd data might have a different number of LSTs)
+lstr, order = {}, {}
+lstres = 0.001
+for k in lsts: #orders LSTs to find overlap
+    order[k] = n.argsort(lsts[k])
+    lstr[k] = n.around(lsts[k][order[k]] / lstres) * lstres
+lsts_final = None
+for i,k1 in enumerate(lstr.keys()):
+    for k2 in lstr.keys()[i:]:
+        if lsts_final is None: lsts_final = n.intersect1d(lstr[k1],lstr[k2]) #XXX LSTs much match exactly
+        else: lsts_final = n.intersect1d(lsts_final,lstr[k2])
+inds = {}
+for k in lstr: #selects correct LSTs from data
+    inds[k] = order[k].take(lstr[k].searchsorted(lsts_final))
+lsts = lsts[lsts.keys()[0]][inds[lsts.keys()[0]]]
+for k in days:
+    for bl in data[k]:
+        data[k][bl],flgs[k][bl] = data[k][bl][inds[k]],flgs[k][bl][inds[k]]
+
+"""# XXX found a bug in this original code (lsts['even'] and lsts['odd'] are different!)
 if True:
 #if False:
     #print [lsts[k][0] for k in days] #initial lst for even/odd data
@@ -278,8 +319,8 @@ else:
     for k in days:
         for bl in data[k]:
             data[k][bl], flgs[k][bl] = n.array(data[k][bl][:]), n.array(flgs[k][bl][:])
-
 lsts = lsts.values()[0] #same set of LST values for both even/odd data
+"""
 daykey = data.keys()[0]
 blkey = data[daykey].keys()[0]
 ij = a.miriad.bl2ij(blkey)
@@ -313,7 +354,7 @@ for k in days:
         for bl in data[k]:
             d = data[k][bl][:,chans] * jy2T
             flg = flgs[k][bl][:,chans]
-            if conj[bl]: d = n.conj(d) #conjugate if necessary
+            if conj[a.miriad.bl2ij(bl)]: d = n.conj(d) #conjugate if necessary
             if opts.noise_only:
                 x[k][bl] = frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
             else:
@@ -599,9 +640,9 @@ for boot in xrange(opts.nboot):
     #pC[m] *= 1.25 # signal loss, low-SNR XXX
     #MI = fractional_matrix_power(FI,-0.5)
     pI = n.dot(MI, qI) * scalar 
-    
+
+    print 'pI ~ ', n.median(pI)    
     print 'pC ~ ', n.median(pC)
-    print 'pI ~ ', n.median(pI)
  
     if PLOT:
         p.subplot(411); capo.arp.waterfall(qC, mode='real'); p.colorbar(shrink=.5)
