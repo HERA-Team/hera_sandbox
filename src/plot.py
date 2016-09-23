@@ -25,7 +25,7 @@ def waterfall(d, mode='log', mx=None, drng=None, recenter=False, **kwargs):
     return plt.imshow(d, vmax=mx, vmin=mn, aspect='auto', interpolation='nearest', **kwargs)
 
 def plot_hmap_ortho(h, cmap='jet', mode='log', mx=None, drng=None, 
-        res=0.25, verbose=False):
+        res=0.25, verbose=False, normalize=False):
     m = Basemap(projection='ortho',lat_0=90,lon_0=180,rsphere=1.)
     if verbose:
         print 'SCHEME:', h.scheme()
@@ -37,7 +37,7 @@ def plot_hmap_ortho(h, cmap='jet', mode='log', mx=None, drng=None,
     ax,ay,az = a.coord.latlong2xyz(n.array([0,0]))
     data = h[x,y,z]
     data.shape = lats.shape
-    data /= h[0,0,1]
+    if normalize: data /= h[0,0,1]
     data = data_mode(data, mode)
     m.drawmapboundary()
     m.drawmeridians(n.arange(0, 360, 30))

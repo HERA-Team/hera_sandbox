@@ -13,3 +13,5 @@ kmk/data
 kmk/calfiles
 jsd/uCal/Data
 jsd/uCal/Old
+.DS_Store
+.ipynb_checkpoints

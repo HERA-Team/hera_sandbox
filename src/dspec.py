@@ -1,6 +1,6 @@
 import aipy as a, numpy as n
 import capo as C
-
+import numpy as np #lets start the transition away from n
 def wedge_width_by_bl(aa, sdf, nchan, offset=0., horizon=1.):
     '''Generate dict of (upper,lower) bounds of delay-domain wedge for 
     baseline (i,j).  Bounds are given in bin number, derived from sdf (the
@@ -70,4 +70,23 @@ def apply_delay_filter(aa, data, wgts, i, j, wedges, phs2lst=False, jd=None,
             dtm, dtr, i = delay_filter(dt, wt, uthresh, lthresh, **kwargs)
             dmdl[t] = dtm; dres[t] = dtr; info.update(i)
         return dmdl, dres, info
+def delayfiltercov(C,horizon_bins=5,eig_cut_dnr=2):
+    #delay filter a spectral covariance matrix
+    #horizon_bins = distance delay=0 to be retained, ie the size of the wedge in bins
+    # eig_cut_dnr = retain eigenvalues with a dynamic range of  median(dnr)*eig_cut_dnr 
+    # where dnr is max(dspec eigenvector)/mean(abs(dpsec eigenvector outside horizon))    
+    #
+    # returns filtered_covariance,matching_projection matrix
+    S,V = np.linalg.eig(C)
+    dV = np.fft.ifft(V,axis=0)
+    #calculate eigenvalue cut, selecting only those eigenvectors with strong delay spectrum signals
+    dnr = np.max(np.abs(dV),axis=0)/np.mean(np.abs(dV)[horizon_bins:-horizon_bins,:],axis=0)
+    median_dnr = np.median(dnr)
+    eig_cut_dnr *= median_dnr
+    S[dnr<eig_cut_dnr] = 0 #apply eigenvalue cut
+    #mask outside wedge
+    dV[horizon_bins:-horizon_bins,:] = 0 # mask out stuff outside the horizon
+    V_filtered = np.fft.fft(dV,axis=0)
+    #return filtered covariance and its matching projection matrix
+    return np.einsum('ij,j,jk',V_filtered,S,V_filtered.T),np.einsum('ij,j,jk',V_filtered,S!=0,V_filtered.T)
 

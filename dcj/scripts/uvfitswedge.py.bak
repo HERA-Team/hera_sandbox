@@ -1,0 +1,148 @@
+import time
+from astropy.io import fits
+import os,sys
+import numpy as n
+from pylab import *
+import capo
+import aipy as a
+poles = ['xx','yy','xy','yx']
+WINDOW='blackman-harris'
+maxbl = 2000
+minbl = 0.01
+def i2a(i):
+    #convert from MWA to unit ant index
+    tens = int(i/8)+1
+    ones = i%8
+    return tens*10+ones
+def a2i(a):
+    #convert from unit to MWA ant index
+    eights = int(a/10)-1
+    ones = a%10
+    return eights*8+ones
+def gethdufreqs(D):
+    nfreqs = D.header['NAXIS4']
+    f0  = D.header['CRVAL4']
+    df = D.header['CDELT4']
+    fi0 = D.header['CRPIX4']
+    return n.arange(f0-df*fi0,f0-df*fi0 + nfreqs*df,df)
+def length(A):
+    return n.sqrt(n.dot(A,A))
+
+#BEGIN SETTING UP ALL THE STUFF
+if len(sys.argv)<2:sys.exit()
+F = fits.open(sys.argv[1])
+D = F[0]
+times = D.data.field('DATE')
+t_int = n.diff(times).max()*24*3600
+print "t_int = ",t_int
+totalt = n.ceil((times.max() - times.min())*24*3600 + t_int)
+print "total observing time = ",totalt
+Ntimes = n.ceil(totalt/t_int)
+print "ntimes = ",Ntimes
+bls = D.data.field('BASELINE')
+ant2 = (bls%256).astype(int)
+ant1 = ((bls-ant2)/256).astype(int)
+uvws  = n.array(zip(D.data.field('UU'),D.data.field('VV'),D.data.field('WW')))*1e9 #bl vectors in ns
+Nants = len(set(ant2))
+Nmax = ant2.max()
+freqs = gethdufreqs(D)
+df = n.diff(freqs)[0]
+delays  =   n.fft.fftfreq(freqs.shape[0],df/1e9) #delays in ns
+print "n_ant = ",Nants
+print n.sum((ant2-ant1)==0)
+Nblt = D.data.field('DATA').shape[0]
+Nbl = Nblt/Ntimes
+MAXBL = n.max(bls)
+Nfreqs = D.data.field('DATA').shape[3]
+Npol = D.data.field('DATA').shape[4]
+#form up a list of baselines, sorted by length
+bl_lengths = []
+bls_sorted = []
+for i in range(Nblt):
+    if bls[i] in bls_sorted:continue
+    if length(uvws[i])>maxbl or length(uvws[i])<minbl:continue
+    bl_lengths.append(length(uvws[i]))
+    bls_sorted.append(bls[i])
+    
+I = n.argsort(bl_lengths)
+bls_sorted = n.array(bls_sorted)[I]
+bl_lengths = n.array(bl_lengths)[I] 
+P = n.zeros((len(bl_lengths),Nfreqs))
+P2 = n.zeros((len(bl_lengths),Nfreqs))
+
+C = n.zeros((len(bl_lengths),1))
+print P.shape,len(bl_lengths),Nfreqs
+tic = time.time()
+
+for uvfile in sys.argv[1:]:
+    outfile = os.path.basename(uvfile).replace('.uvfits','.p')
+    F = fits.open(uvfile)
+    D = F[0]
+    times = D.data.field('DATE')
+    t_int = n.diff(times).max()*24*3600
+    print "t_int = ",t_int
+    totalt = n.ceil((times.max() - times.min())*24*3600 + t_int)
+    print "total observing time = ",totalt
+    Ntimes = n.ceil(totalt/t_int)
+    print "ntimes = ",Ntimes
+    bls = D.data.field('BASELINE')
+    ant2 = (bls%256).astype(int)
+    ant1 = ((bls-ant2)/256).astype(int)
+    uvws  = n.array(zip(D.data.field('UU'),D.data.field('VV'),D.data.field('WW')))*1e9 #bl vectors in ns
+
+        #if True:
+    window = None
+    for i in range(Nblt):
+        bl = bls[i]
+        bli = n.abs(bls_sorted-bl).argmin() #find the baseline length index
+        if ant1[i]==ant2[i]:continue
+        
+        uvw = uvws[i]
+        bldelay = length(uvw)
+        if bldelay>maxbl or bldelay<minbl:continue #throw out bls longer than 600m
+        #grab the data from the big chunk of data in RAM
+        data = D.data.field('DATA')[i,:,:,:,0,0] + 1j*D.data.field('DATA')[i,:,:,:,0,1] 
+        mask = (D.data.field('DATA')[i,:,:,:,0,2]==0).squeeze()
+        data = n.ma.masked_where(mask,data.squeeze())
+
+        #compute the psf matrix
+        _w = n.fft.ifft(1-mask)
+        gain = n.abs(_w[0])           
+        if gain==0:continue #skip on if theres no data!
+        if window is None:
+            window = a.dsp.gen_window(data.shape[0],WINDOW)
+        dd      =   n.fft.ifft(window*data)
+        area = n.zeros_like(dd).astype(n.int)
+        area[n.abs(delays)<bldelay] = 1
+        #print "Number of in-horizon delay bins",
+        #print n.sum(area)
+
+        _d_cl, info = a.deconv.clean(dd, _w, tol=1e-6, area=area, stop_if_div=False,
+            maxiter=1000,verbose=False)
+        dd = n.fft.fftshift(dd)
+        _d_cl = n.fft.fftshift(_d_cl)
+        res = n.fft.fftshift(info['res'])
+        #print '.',
+        try:
+            P[bli,:] += _d_cl + res
+            P2[bli,:] += (_d_cl+ res) * n.conj(_d_cl+ res)
+            C[bli] += 1
+        except IndexError as e:
+            print bl
+            raise(e)
+    #save the sum,var and counts for later multiplication
+    print outfile+'.npz'
+    n.savez(outfile,P=P,P2=P2,C=C,delays=delays,bl_lengths=bl_lengths,freq=n.mean(freqs))
+#P[C>0] /= C[C>0]
+#P2[C>0] /= C[C>0]
+
+PROD = (P*n.conj(P) - P2)
+PROD[C>0] /= 2*C[C>0]
+PROD = n.sqrt(PROD)
+
+
+print "time to scan bls and dt = ",time.time()-tic
+imshow(n.log10(n.abs(PROD.T)),aspect='auto')
+n.savez('mywedge',P=P,delays=delays,bl_lengths=bl_lengths,freq=n.mean(freqs))
+colorbar()
+show()

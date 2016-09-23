@@ -139,3 +139,10 @@ def get_dict_of_uv_data(filenames, antstr, polstr, decimate=1, decphs=0, verbose
     if return_lsts: times = lsts
     return n.array(times), dat, flg
 
+def list2str(li):
+    '''Take list of baselines and convert to string format for plot_uv'''
+    s = ''
+    for i in li:
+        s += '_'.join(map(str,i)) + ','
+    return s[:-1]
+
