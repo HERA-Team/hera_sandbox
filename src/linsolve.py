@@ -19,71 +19,123 @@ def ast_getterms(n):
         else: raise ValueError('Unsupported operation: %s' % str(n.op))
     else: raise ValueError('Unsupported: %s' % str(n))
 
-def order_terms(terms, consts={}):
-    '''Reorder terms to obey (const1,const2,...,prm) ordering.'''
-    def cmp(x,y):
-        if not type(x) is str: return -1
-        if not type(y) is str: return 1
-        if x in consts: return -1
-        if y in consts: return 1
-        return 0
-    for L in terms: L.sort(cmp)
-    return terms
+def get_name(s, isconj=False):
+    if not type(s) is str:
+        if isconj: return s, False
+        else: return s
+    rv = s
+    if rv.endswith('_'): rv = rv[:-1]
+    if isconj: return rv, s.endswith('_')
+    else: return rv
 
-def term_check(terms, consts):
-    '''Validate that each term has only 1 unsolved parameter.'''
-    for t in terms:
-        for ti in t[:-1]:
-            assert(not type(ti) is str or ti in consts)
+class Constant:
+    def __init__(self, name, **kwargs):
+        if type(name) is str:
+            self.name = get_name(name)
+            self.val = kwargs[self.name]
+        else: self.name, self.val = name, name
+    def shape(self):
+        try: return self.val.shape
+        except(AttributeError): return ()
+    def get_val(self, name=None):
+        if name is not None:
+            name, conj = get_name(name, isconj=True)
+            assert(self.name == name)
+            if conj: return self.val.conjugate()
+            else: return self.val
+        else: return self.val
+
+class Parameter:
+    def __init__(self, name):
+        self.name = get_name(name)
+    def get_prefactor(self, name, prefactor, wgt=1.):
+        f = prefactor
+        name, conj = get_name(name, isconj=True)
+        assert(self.name == name)
+        # XXX for now, always assuming parameters are complex
+        if conj: # f * (p-qi) = f*p - f*i*q
+            return f, -1j*f
+        else: # f * (p+qi) = f*p + f*i*q
+            return f, 1j*f
+    def put_matrix(self, name, m, prm_order, prefactor, wgt=1.):
+        ordr,ordi = 2*prm_order[self.name], 2*prm_order[self.name]+1 # XXX
+        cr,ci = self.get_prefactor(name, prefactor, wgt=wgt) # XXX
+        m[ordr], m[ordi] = cr, ci # XXX
+    def get_sol(self, x, prm_order):
+        ordr,ordi = 2*prm_order[self.name], 2*prm_order[self.name]+1 # XXX
+        return {self.name: x[ordr] + 1j*x[ordi]} # XXX
 
 class LinearEquation:
     def __init__(self, val, **kwargs):
         if type(val) is str:
             n = ast.parse(val, mode='eval')
             val = ast_getterms(n)
-        self.consts = kwargs
-        self.terms = order_terms(val, self.consts)
-        term_check(self.terms, self.consts)
-        self.prms = set([t[-1] for t in self.terms])
-    def _get_const(self, c):
-        if type(c) is str: return self.consts[c]
-        else: return c
-    def matrix_line(self, prm_order, dtype=np.float):
+        self.wgt = kwargs.pop('wgt',1.)
+        self.process_terms(val, **kwargs)
+    def process_terms(self, terms, **kwargs):
+        self.consts, self.prms = {}, {}
+        for term in terms:
+            for t in term:
+                try:
+                    c = Constant(t, **kwargs) # raises KeyError if not a constant
+                    self.consts[c.name] = c
+                except(KeyError): # must be a parameter then
+                    p = Parameter(t)
+                    self.prms[p.name] = p
+        self.terms = self.order_terms(terms)
+    def order_terms(self, terms):
+        '''Reorder terms to obey (const1,const2,...,prm) ordering.'''
+        def cmp(x,y):
+            if self.prms.has_key(get_name(x)): return 1
+            if self.prms.has_key(get_name(y)): return -1
+            return 0
+        for L in terms: L.sort(cmp)
+        # Validate that each term has exactly 1 unsolved parameter.
+        for t in terms:
+            assert(self.prms.has_key(get_name(t[-1])))
+            for ti in t[:-1]:
+                assert(type(ti) is not str or self.consts.has_key(get_name(ti)))
+        return terms
+    def matrix_line(self, prm_order, dtype=np.complex): # XXX
         '''Make a new equation line, with parameter order dictated by prm_order={prm:index}'''
-        m = np.zeros((1,len(prm_order)), dtype=dtype)
-        self.put_matrix(m, prm_order, 0)
+        m = np.zeros(2*len(prm_order), dtype=dtype) # XXX
+        self.put_matrix(m, prm_order)
         return m.squeeze()
-    def put_matrix(self, m, prm_order, eqnum, wgt=1.):
+    def eval_consts(self, const_list, wgt=1.):
+        const_list = [self.consts[get_name(c)].get_val(c) for c in const_list]
+        return wgt * reduce(lambda x,y: x*y, const_list, 1.)
+    def put_matrix(self, m, prm_order):
         '''Populate a pre-made (# eqs,# prms) with this equation in line eqnum'''
-        for t in self.terms:
-            m[eqnum,prm_order[t[-1]]] = wgt * reduce(lambda x,y: x*y, 
-                    [self._get_const(ti) for ti in t[:-1]], 1)
+        for term in self.terms:
+            p = self.prms[get_name(term[-1])]
+            f = self.eval_consts(term[:-1], self.wgt)
+            p.put_matrix(term[-1], m, prm_order, f, self.wgt)
         
 class LinearSolver:
     '''Estimate parameters using (AtA)^-1At)'''
     def __init__(self, data, wgts, **kwargs):
-        self.prm_order = {}
-        self.keys = data.keys()
-        self.consts = kwargs
-        self.eqs = [LinearEquation(k,**kwargs) for k in self.keys]
-        # infer dtype for later arrays
-        self.dtype = np.float
-        for dset in [data, self.consts]: # XXX maybe don't want all consts checked?
-            for k in dset:
-                try: dtype = dset[k].dtype
-                except(AttributeError): dtype = type(dset[k])
-                self.dtype = np.promote_types(self.dtype, dtype)
-        for eq in self.eqs:
-            for prm in eq.prms:
-                self.prm_order[prm] = self.prm_order.get(prm,len(self.prm_order))
-        self.nprms = len(self.prm_order)
         self.data = data
         self.wgts = wgts
+        self.keys = data.keys()
+        self.eqs = [LinearEquation(k,wgts=wgts[k], **kwargs) for k in self.keys]
+        # XXX add ability to have more than one measurment for a key=equation
+        # infer dtype for later arrays
+        #self.dtype = np.float
+        #for dset in [data, self.consts]: # maybe don't want all consts checked?
+        #    for k in dset:
+        #        try: dtype = dset[k].dtype
+        #        except(AttributeError): dtype = type(dset[k])
+        #        self.dtype = np.promote_types(self.dtype, dtype)
+        self.prms = {}
+        for eq in self.eqs: self.prms.update(eq.prms)
+        self.consts = {}
+        for eq in self.eqs: self.consts.update(eq.consts)
+        self.prm_order = {}
+        for i,p in enumerate(self.prms): self.prm_order[p] = i
     def _A_shape(self):
         sh = []
         for k in self.consts:
-            try: shk = self.consts[k].shape
-            except(AttributeError): continue
+            shk = self.consts[k].shape()
             if len(shk) > len(sh): sh += [0] * (len(shk)-len(sh))
             for i in xrange(min(len(sh),len(shk))): sh[i] = max(sh[i],shk[i])
         for k in self.wgts:
@@ -91,12 +143,13 @@ class LinearSolver:
             except(AttributeError): continue
             if len(shk) > len(sh): sh += [0] * (len(shk)-len(sh))
             for i in xrange(min(len(sh),len(shk))): sh[i] = max(sh[i],shk[i])
-        return [len(self.eqs),self.nprms]+sh
+        return [len(self.eqs),2*len(self.prm_order)]+sh # XXX
     def get_A(self):
         #A = lil_matrix((len(self.eqs),self.nprms), dtype=dtype)
-        A = np.zeros(self._A_shape(), dtype=self.dtype)
-        for i,(k,eq) in enumerate(zip(self.keys,self.eqs)): 
-            eq.put_matrix(A, self.prm_order, i, self.wgts[k])
+        #A = np.zeros(self._A_shape(), dtype=self.dtype)
+        #XXX A could be sparse, even if AtAiAt isn't
+        A = np.zeros(self._A_shape(), dtype=np.complex) # XXX
+        for i,eq in enumerate(self.eqs): eq.put_matrix(A[i], self.prm_order)
         #return csr_matrix(A)
         return A
     def get_AtAiAt(self, A=None, rcond=1e-10):
@@ -120,5 +173,86 @@ class LinearSolver:
         AtAiAt = self.get_AtAiAt()
         x = np.einsum('ij...,j...->i...', AtAiAt, y)
         sol = {}
-        for k in self.prm_order: sol[k] = x[self.prm_order[k]]
-        return sol        
+        for p in self.prms.values(): sol.update(p.get_sol(x,self.prm_order))
+        return sol
+
+# XXX need to add support for conjugated constants
+def conjterm(term, mode='amp'):
+    f = {'amp':1,'phs':-1,'real':1,'imag':1j}[mode] # if KeyError, mode was invalid
+    terms = [[f,t[:-1]] if t.endswith('_') else [t] for t in term]
+    return reduce(lambda x,y: x+y, terms)
+
+def jointerms(terms): return '+'.join(['*'.join(map(str,t)) for t in terms])
+
+class LogProductSolver(LinearSolver): # XXX probably shouldn't inherit
+    '''For equations that are purely products (e.g. x*y*z = m), use 
+    logarithms to linearize.  For complex variables, a trailing '_' in
+    the name is used to denote conjugation (e.g. x*y_ parses as x * y.conj()).
+    For LogProductSolver to work'''
+    def __init__(self, data, wgts, **kwargs):
+        keys = data.keys()
+        eqs = [ast_getterms(ast.parse(k, mode='eval')) for k in keys]
+        logamp, logphs = {}, {}
+        logampw, logphsw = {}, {}
+        for k,eq in zip(keys,eqs):
+            assert(len(eq) == 1) # equations have to be purely products---no adds
+            eqamp = jointerms([conjterm([t],mode='amp') for t in eq[0]])
+            eqphs = jointerms([conjterm([t],mode='phs') for t in eq[0]])
+            dk = np.log(data[k])
+            logamp[eqamp],logphs[eqphs] = dk.real, dk.imag
+            logampw[eqamp],logphsw[eqphs] = wgts[k], wgts[k]
+        logamp_consts, logphs_consts = {}, {}
+        for k in kwargs:
+            c = np.log(kwargs[k])
+            logamp_consts[k], logphs_consts[k] = c.real, c.imag
+        self.ls_amp = LinearSolver(logamp, logampw, **logamp_consts)
+        self.ls_phs = LinearSolver(logphs, logphsw, **logphs_consts)
+    def solve(self):
+        sol_amp = self.ls_amp.solve()
+        sol_phs = self.ls_phs.solve()
+        sol = {}
+        for k in sol_amp: sol[k] = np.exp(sol_amp[k] + 1j*sol_phs[k])   
+        return sol
+
+def taylor_expand(term, consts={}, prepend='d'):
+    '''First-order Taylor expand a term (product of variables) wrt all
+    parameters except those listed in consts.'''
+    terms = []
+    terms.append(term)
+    for i,t in enumerate(term):
+        if type(t) is not str or get_name(t) in consts: continue
+        terms.append(term[:i]+[prepend+t]+term[i+1:])
+    return terms
+
+class LinProductSolver(LinearSolver): # XXX probably shouldn't inherit
+    '''For equations that are purely products (e.g. x*y*z = m), use 
+    1st order Taylor expansion to linearize.  For complex variables, a trailing '_' in
+    the name is used to denote conjugation (e.g. x*y_ parses as x * y.conj()).
+    Approximate parameter solutions needs to be passed in as sols.'''
+    def __init__(self, data, wgts, sols, **kwargs):
+        self.prepend = 'd' # XXX make this something hard to collide with
+        keys = data.keys()
+        eqs = [ast_getterms(ast.parse(k, mode='eval')) for k in keys]
+        dlin, wlin = {}, {}
+        taylors = []
+        for eq in eqs:
+            assert(len(eq) == 1) # equations have to be purely products---no adds
+            taylors.append(taylor_expand(eq[0], kwargs, prepend=self.prepend))
+        self.sol0 = sols
+        kwargs.update(sols)
+        for k,taylor in zip(keys,taylors):
+            eq = LinearEquation(taylor[1:], **kwargs) # exclude zero-order term
+            ans0 = eq.eval_consts(taylor[0])
+            nk = jointerms(eq.terms)
+            dlin[nk],wlin[nk] = data[k]-ans0, wgts[k]
+        self.ls = LinearSolver(dlin, wlin, **kwargs)
+    def solve(self):
+        dsol = self.ls.solve()
+        sol = {}
+        for dk in dsol:
+            print dk, dsol[dk]
+            k = dk[len(self.prepend):]
+            sol[k] = self.sol0[k] + dsol[dk]
+        return sol
+
+        
