@@ -48,22 +48,22 @@ class Constant:
 class Parameter:
     def __init__(self, name):
         self.name = get_name(name)
-    def get_prefactor(self, name, prefactor, wgt=1.):
-        f = prefactor
-        name, conj = get_name(name, isconj=True)
-        assert(self.name == name)
-        # XXX for now, always assuming parameters are complex
-        if conj: # f * (p-qi) = f*p - f*i*q
-            return f, -1j*f
-        else: # f * (p+qi) = f*p + f*i*q
-            return f, 1j*f
-    def put_matrix(self, name, m, prm_order, prefactor, wgt=1.):
-        ordr,ordi = 2*prm_order[self.name], 2*prm_order[self.name]+1 # XXX
-        cr,ci = self.get_prefactor(name, prefactor, wgt=wgt) # XXX
-        m[ordr], m[ordi] = cr, ci # XXX
+    def put_matrix(self, name, m, eqnum, prm_order, prefactor, complex=True):
+        if complex: # XXX for now, either everything's complex or everything's real
+            name,conj = get_name(name, True)
+            ordr,ordi = 2*prm_order[self.name], 2*prm_order[self.name]+1 # XXX
+            cr,ci = prefactor.real, prefactor.imag
+            i = 2*eqnum
+            # (cr,ci) * (pr,pi) = (cr*pr-ci*pi, ci*pr+cr*pi)
+            m[i,ordr], m[i,ordi] = cr, -ci # the real component
+            m[i+1,ordr], m[i+1,ordi] = ci, cr # the imag component
+            if conj: m[i,ordi], m[i+1,ordi] = -m[i,ordi], -m[i+1,ordi]
+        else: m[eqnum,prm_order[self.name]] = prefactor
     def get_sol(self, x, prm_order):
-        ordr,ordi = 2*prm_order[self.name], 2*prm_order[self.name]+1 # XXX
-        return {self.name: x[ordr] + 1j*x[ordi]} # XXX
+        if x.shape[0] > len(prm_order): # detect that we are complex
+            ordr,ordi = 2*prm_order[self.name], 2*prm_order[self.name]+1 # XXX
+            return {self.name: x[ordr] + 1j*x[ordi]} # XXX
+        else: return {self.name: x[prm_order[self.name]]}
 
 class LinearEquation:
     def __init__(self, val, **kwargs):
@@ -96,20 +96,15 @@ class LinearEquation:
             for ti in t[:-1]:
                 assert(type(ti) is not str or self.consts.has_key(get_name(ti)))
         return terms
-    def matrix_line(self, prm_order, dtype=np.complex): # XXX
-        '''Make a new equation line, with parameter order dictated by prm_order={prm:index}'''
-        m = np.zeros(2*len(prm_order), dtype=dtype) # XXX
-        self.put_matrix(m, prm_order)
-        return m.squeeze()
     def eval_consts(self, const_list, wgt=1.):
         const_list = [self.consts[get_name(c)].get_val(c) for c in const_list]
         return wgt * reduce(lambda x,y: x*y, const_list, 1.)
-    def put_matrix(self, m, prm_order):
+    def put_matrix(self, m, eqnum, prm_order, complex=True):
         '''Populate a pre-made (# eqs,# prms) with this equation in line eqnum'''
         for term in self.terms:
             p = self.prms[get_name(term[-1])]
             f = self.eval_consts(term[:-1], self.wgt)
-            p.put_matrix(term[-1], m, prm_order, f, self.wgt)
+            p.put_matrix(term[-1], m, eqnum, prm_order, f, complex)
         
 class LinearSolver:
     '''Estimate parameters using (AtA)^-1At)'''
@@ -119,19 +114,16 @@ class LinearSolver:
         self.keys = data.keys()
         self.eqs = [LinearEquation(k,wgts=wgts[k], **kwargs) for k in self.keys]
         # XXX add ability to have more than one measurment for a key=equation
-        # infer dtype for later arrays
-        #self.dtype = np.float
-        #for dset in [data, self.consts]: # maybe don't want all consts checked?
-        #    for k in dset:
-        #        try: dtype = dset[k].dtype
-        #        except(AttributeError): dtype = type(dset[k])
-        #        self.dtype = np.promote_types(self.dtype, dtype)
         self.prms = {}
         for eq in self.eqs: self.prms.update(eq.prms)
         self.consts = {}
         for eq in self.eqs: self.consts.update(eq.consts)
         self.prm_order = {}
         for i,p in enumerate(self.prms): self.prm_order[p] = i
+        # infer dtype for later arrays
+        self.complex = kwargs.pop('complex',False)
+        for dset in [data, self.consts]:
+            for k in dset: self.complex |= np.iscomplexobj(dset[k])
     def _A_shape(self):
         sh = []
         for k in self.consts:
@@ -143,13 +135,14 @@ class LinearSolver:
             except(AttributeError): continue
             if len(shk) > len(sh): sh += [0] * (len(shk)-len(sh))
             for i in xrange(min(len(sh),len(shk))): sh[i] = max(sh[i],shk[i])
-        return [len(self.eqs),2*len(self.prm_order)]+sh # XXX
+        if self.complex: return [2*len(self.eqs),2*len(self.prm_order)]+sh # XXX
+        else: return [len(self.eqs),len(self.prm_order)]+sh # XXX
     def get_A(self):
         #A = lil_matrix((len(self.eqs),self.nprms), dtype=dtype)
         #A = np.zeros(self._A_shape(), dtype=self.dtype)
         #XXX A could be sparse, even if AtAiAt isn't
-        A = np.zeros(self._A_shape(), dtype=np.complex) # XXX
-        for i,eq in enumerate(self.eqs): eq.put_matrix(A[i], self.prm_order)
+        A = np.zeros(self._A_shape(), dtype=np.float) # float even if complex (r/i treated separately)
+        for i,eq in enumerate(self.eqs): eq.put_matrix(A, i, self.prm_order, self.complex)
         #return csr_matrix(A)
         return A
     def get_AtAiAt(self, A=None, rcond=1e-10):
@@ -167,7 +160,8 @@ class LinearSolver:
         w = np.array([self.wgts[k] for k in self.keys])
         w.shape += (1,) * (d.ndim-w.ndim)
         d.shape += (1,) * (w.ndim-d.ndim)
-        return d * w
+        dw = d * w
+        return dw.view(np.float)
     def solve(self):
         y = self.get_weighted_data()
         AtAiAt = self.get_AtAiAt()
@@ -250,7 +244,6 @@ class LinProductSolver(LinearSolver): # XXX probably shouldn't inherit
         dsol = self.ls.solve()
         sol = {}
         for dk in dsol:
-            print dk, dsol[dk]
             k = dk[len(self.prepend):]
             sol[k] = self.sol0[k] + dsol[dk]
         return sol
