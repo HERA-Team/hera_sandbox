@@ -301,6 +301,7 @@ class FirstCal(object):
         tune=kwargs.get('tune',True)
         plot=kwargs.get('plot',False)
         clean=kwargs.get('clean',1e-4)
+        noclean=kwargs.get('noclean',True)
 #        use_offset = kwargs.get('use_offset',False)
         blpair2delay = {}
         blpair2offset = {}
@@ -314,7 +315,7 @@ class FirstCal(object):
             d2 = dd[:,:,self.info.bl_index(bl2)]
             w2 = ww[:,:,self.info.bl_index(bl2)]
             if True:
-                delay,offset = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs,window=window,tune=tune,plot=plot,verbose=verbose,clean=clean)
+                delay,offset = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs,window=window,tune=tune,plot=plot,verbose=verbose,clean=clean,noclean=noclean)
             if False:
                 _,(delay,offset),_ = red.redundant_bl_cal(d1,w1,d2,w2,self.fqs,window=window,verbose=verbose,use_offset=use_offset)
             blpair2delay[(bl1,bl2)] = delay

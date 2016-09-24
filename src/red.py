@@ -132,7 +132,7 @@ def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True,
     else:
         _phss = _phs
     t2 = time.time()
-    print('Cleaning is taking %f seconds'%(t2-t1))
+    #print('Cleaning is taking %f seconds'%(t2-t1))
     _phss = n.abs(_phss)
     #get bin of phase
     mxs = n.argmax(_phss, axis=-1)
@@ -153,7 +153,7 @@ def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True,
             dly = n.angle(d*n.exp(-2j*n.pi*tau*fqs))
             dt,off = fit_line(dly,fqs,valid)
             dts.append(dt), offs.append(off)
-        print('Linear Fitting is taking %f seconds'%(time.time()-t1))
+        #print('Linear Fitting is taking %f seconds'%(time.time()-t1))
         dts = n.array(dts)
         offs = n.array(offs)
 
