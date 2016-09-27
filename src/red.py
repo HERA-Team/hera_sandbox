@@ -20,7 +20,8 @@ def group_redundant_bls(antpos):
                     i,j = antpos[ri,ci], antpos[rj,cj]
                     if i > j: i,j,c = j,i,True
                     else: c = False
-                    bl = ij2bl(i,j)
+                    #bl = ij2bl(i,j)
+                    bl = (i,j)
                     bls[sep] = bls.get(sep,[]) + [bl]
                     conj[bl] = c
     return bls, conj

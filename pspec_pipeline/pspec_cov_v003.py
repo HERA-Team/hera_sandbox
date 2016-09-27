@@ -1,11 +1,7 @@
 #! /usr/bin/env python
 
-<<<<<<< HEAD
-import aipy as a, numpy as n, capo
 from matplotlib import pylab as p
-=======
 import aipy as a, numpy as n, pylab as p, capo, capo.frf_conv as fringe
->>>>>>> be68b0d6b8e06ef9210bd9d6582f404c53cf46a8
 import glob, optparse, sys, random
 from scipy.linalg import fractional_matrix_power
 import capo.zsa as zsa
@@ -307,7 +303,7 @@ for k in days:
 
 #Extract frequency range of data
 x = {}
-#NOISE = frf((len(chans),len(lsts)),loc=0,scale=1e7) #same noise for all bl
+#if opts.noise_only: NOISE = frf((len(chans),len(lsts)),loc=0,scale=1) #same noise for all bl
 for k in days:
     x = {}
     f = {}
@@ -319,7 +315,7 @@ for k in days:
             flg = flgs[k][bl][:,chans]
             if conj[bl]: d = n.conj(d) #conjugate if necessary
             if opts.noise_only:
-                x[k][bl] = frf((len(chans),len(lsts)),loc=0,scale=1e7) #diff noise for each bl
+                x[k][bl] = frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
             else:
                 d = n.transpose(d) #now (freqs,times)
                 x[k][bl] = d 
@@ -558,7 +554,7 @@ for boot in xrange(opts.nboot):
         p.subplot(121); capo.arp.waterfall(FC, drng=4)
         p.subplot(122); capo.arp.waterfall(FI, drng=4)
         p.show()
-
+    
     #print 'Psuedoinverse of FC'
 
     #other choices for M
@@ -597,13 +593,16 @@ for boot in xrange(opts.nboot):
     MC /= norm; WC = n.dot(MC, FC)
 
     print '   Generating ps'
-    if opts.noise_only: scalar = 1
+    #if opts.noise_only: scalar = 1
     pC = n.dot(MC, qC) * scalar
     #pC[m] *= 1.81 # signal loss, high-SNR XXX
     #pC[m] *= 1.25 # signal loss, low-SNR XXX
-    
     #MI = fractional_matrix_power(FI,-0.5)
     pI = n.dot(MI, qI) * scalar 
+    
+    print 'pC ~ ', n.median(pC)
+    print 'pI ~ ', n.median(pI)
+ 
     if PLOT:
         p.subplot(411); capo.arp.waterfall(qC, mode='real'); p.colorbar(shrink=.5)
         p.subplot(412); capo.arp.waterfall(pC, mode='real'); p.colorbar(shrink=.5)

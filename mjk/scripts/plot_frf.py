@@ -8,12 +8,13 @@ import numpy as np
 #mpl.rcParams['font.size']  = 12
 mpl.rcParams['legend.numpoints']  = 1
 mpl.rcParams['legend.frameon'] = False
-mpl.rcParams['legend.fontsize'] = 8
+mpl.rcParams['legend.fontsize'] = 12
 #mpl.rcParams['figure.dpi'] = 300
 #mpl.rcParams['savefig.dpi'] = 300
 #mpl.rcParams['savefig.format'] ='png'
 #mpl.rcParams['lines.markeredgewidth'] = 0
-#mpl.rcParams['lines.markersize'] = 7
+mpl.rcParams['lines.linewidth'] = 4
+mpl.rcParams['figure.figsize'] = (12,5)
 import pickle
 import matplotlib.cm as cmx
 import matplotlib.colors as colors
@@ -31,7 +32,7 @@ opts,args = o.parse_args(sys.argv[1:])
 def get_colors(N):
     '''Returns function with N unique colors'''
     norm=colors.Normalize(vmin=0,vmax=N-1)
-    scal_map=cmx.ScalarMappable(norm=norm,cmap='hsv')
+    scal_map=cmx.ScalarMappable(norm=norm,cmap='brg')
     def map_index_to_rgb(index):
         return scal_map.to_rgba(index)
     return map_index_to_rgb

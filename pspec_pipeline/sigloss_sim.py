@@ -3,6 +3,7 @@ import aipy as a, numpy as n, pylab as p, capo
 import capo.frf_conv as fringe
 import glob, optparse, sys, random
 import capo.zsa as zsa
+from IPython import embed
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
@@ -28,8 +29,6 @@ LST_STATS = False
 DELAY = False
 NGPS = 5
 INJECT_SIG = opts.inject_sig
-FRF_WIDTH = 401
-NOISE = .0
 PLOT = opts.plot
 
 ### FUNCTIONS ###
@@ -219,20 +218,22 @@ lsts = lsts.values()[0] #same set of LST values for both even/odd data
 daykey = data.keys()[0]
 blkey = data[daykey].keys()[0]
 ij = a.miriad.bl2ij(blkey)
+if blconj[blkey]: ij = (ij[1], ij[0])
 #ij = (64, 49) 
 
 #Prep FRF Stuff
 bins = fringe.gen_frbins(inttime)
 frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
-timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
+timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2-4])
 _,blconj,_ = zsa.grid2ij(aa.ant_layout)
-if blconj[a.miriad.ij2bl(ij[0],ij[1])]: fir = {(ij[0],ij[1],POL):n.conj(firs)}
-else: fir = {(ij[0],ij[1],POL):firs}
+#if blconj[a.miriad.ij2bl(ij[0],ij[1])]: fir = {(ij[0],ij[1],POL):n.conj(firs)}
+#else: fir = {(ij[0],ij[1],POL):firs}
+fir = {(ij[0],ij[1],POL):firs}
 
 #Extract frequency range of data 
 xi = {}
 f = {}
-#NOISE = frf((len(chans),len(lsts)),loc=0,scale=1e7) #same noise on each bl
+#NOISE = frf((len(chans),len(lsts)),loc=0,scale=1) #same noise on each bl
 for k in days:
     xi[k] = {}
     f[k] = {}
@@ -242,7 +243,8 @@ for k in days:
         if conj[bl]: d = n.conj(d) #conjugate if necessary
         shape = d.shape #(times,freqs)
         if opts.noise_only:
-            xi[k][bl] = frf((len(chans),len(lsts)),loc=0,scale=1e7) #diff noise for each bl
+            #xi[k][bl] = frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
+            xi[k][bl] =  frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
         else:
              xi[k][bl] = n.transpose(d, [1,0]) #swap time and freq axes
         f[k][bl] = n.transpose(flg, [1,0])
@@ -252,7 +254,6 @@ nbls = len(bls_master)
 print 'Baselines:', nbls
 
 #Bootstrapping
-
 for boot in xrange(opts.nboot):
 
     print '%d / %d' % (boot+1,opts.nboot)   
@@ -262,7 +263,7 @@ for boot in xrange(opts.nboot):
     x = {}
     for k in days:
         x[k] = {}
-        for bl in xi[k]: x[k][bl] = xi[k][bl] 
+        for bl in xi[k]: x[k][bl] = xi[k][bl].copy()
     #XXX x is JUST data
 
     Q = [get_Q(i,nchan) for i in xrange(nchan)] #get Q matrix (does FT from freq to delay)
@@ -278,7 +279,7 @@ for boot in xrange(opts.nboot):
             _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
             _I[k][bl] = n.identity(_C[k][bl].shape[0])
             _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl]) # XXX
-            _Ix[k][bl] = x[k][bl].copy() # XXX
+            _Ix[k][bl] = x[k][bl] # XXX
             if PLOT and True:
                 print a.miriad.bl2ij(bl), k
                 p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
@@ -402,12 +403,12 @@ for boot in xrange(opts.nboot):
     MC /= norm; WC = n.dot(MC, FC)
 
     print '   Generating ps'
-    if opts.noise_only: scalar = 1
+    #if opts.noise_only: scalar = 1
     pC = n.dot(MC, qC) * scalar
     pI = n.dot(MI, qI) * scalar 
 
     #XXX Overwriting to new variables
-    pCv = pC
+    pCv = pC.copy()
     pIv = pI
 
     
@@ -416,11 +417,11 @@ for boot in xrange(opts.nboot):
 
     if INJECT_SIG > 0.: #Create a fake EoR signal to inject
         print 'INJECTING SIMULATED SIGNAL'
-        eor = frf((shape[1],shape[0]),loc=0,scale=1e7) * INJECT_SIG #create FRF-ered noise
+        eor = frf((shape[1],shape[0]),loc=0,scale=1) * INJECT_SIG #create FRF-ered noise
         x = {}
         for k in days:
             x[k] = {}
-            for bl in xi[k]: x[k][bl] = xi[k][bl] + eor #add injected signal to data
+            for bl in xi[k]: x[k][bl] = xi[k][bl].copy() + eor.copy() #add injected signal to data
         if False and PLOT:
             p.subplot(211); capo.arp.waterfall(eor1, mode='real'); p.colorbar()
             p.subplot(212); capo.arp.waterfall(eor2, mode='real'); p.colorbar(); p.show()
@@ -567,7 +568,7 @@ for boot in xrange(opts.nboot):
     MC /= norm; WC = n.dot(MC, FC)
 
     print '   Generating ps'
-    if opts.noise_only: scalar = 1
+    #if opts.noise_only: scalar = 1
     pC = n.dot(MC, qC) * scalar
     pI = n.dot(MI, qI) * scalar 
 
@@ -597,7 +598,7 @@ for boot in xrange(opts.nboot):
     if len(opts.output) > 0: outpath = opts.output+'/pspec_bootsigloss%04d.npz' % boot
     else: outpath = 'pspec_bootsigloss%04d.npz' % boot
     n.savez(outpath, kpl=kpl, scalar=scalar, times=n.array(lsts),
-        pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
+        pk_vs_t=pC, pCv = pCv, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI, freq=fq,
         cmd=' '.join(sys.argv))
 
 
