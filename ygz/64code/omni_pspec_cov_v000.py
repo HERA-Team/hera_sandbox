@@ -2,7 +2,7 @@
 
 import numpy as np, aipy, capo, pylab as plt, sys, glob
 import md5
-import oqe
+import oqe, os
 def dB(sig): return 10*np.log10(np.abs(np.average(sig.real, axis=1)))
 
 def find_sep(aa, bls, drow=None, dcol=None):
@@ -84,8 +84,11 @@ bm = np.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 # correction for beam^2
 scalar = capo.pspec.X2Y(z) * bm * B
 B_win = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW] #proper normalization
 scalar_win = capo.pspec.X2Y(z) * bm * B_win
-dataDIR = '/home/yunfanz/EoR/DATA128/DATA/'
-#dataDIR = '/Users/yunfanzhang/local/DATA128/DATA/'
+cwd = os.getcwd()
+if cwd.startswith('/Users/yunfanzhang/'):
+    dataDIR = '/Users/yunfanzhang/local/DATA128/DATA/'
+elif cwd.startswith('/home/yunfanz/'):
+    dataDIR = '/home/yunfanz/EoR/DATA128/DATA/'
 sets = {
     #'day0' : sys.argv[1:],
     #'day0' : glob.glob('zen.2456714.*.xx.npz'),
@@ -208,7 +211,7 @@ plt.show()
 for cnt,k in enumerate(ks):
     plt.subplot(NK,1,cnt+1)
     pC = get_p(k,k,'C')
-    plt.title(k[0])
+    plt.title(k)
     capo.plot.waterfall(pC, mx=16, drng=7)
     plt.colorbar()
 plt.show()
