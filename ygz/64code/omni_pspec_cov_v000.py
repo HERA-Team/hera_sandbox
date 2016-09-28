@@ -97,7 +97,15 @@ lsts = {}
 chisqs = {}
 for s in sets:
     if not lsts.has_key(s):
-        meta, gains, vismdl, xtalk = capo.omni.from_npz(sets[s], verbose=True)
+        # res = Parallel(n_jobs=4)(delayed(from_npz)(file) for file in sets[s])
+        # #import IPython; IPython.embed()
+        # meta, gains, vismdl, xtalk = [],[],[],[]
+        # for i, elt in enumerate(res):
+        #     meta.append(elt[0])
+        #     gains.append(elt[1])
+        #     vismdl.append(elt[2])
+        #     xtalk.append(elt[3])
+        meta, gains, vismdl, xtalk = capo.omni.from_npz(sets[s], bls=SEPS, pols='xx', ants=1,verbose=True)
         lsts[s] = meta['lsts']
     chisqs[s] = meta['chisq'][:,CH0:CH0+NCHAN]
     for pol in vismdl:
@@ -108,19 +116,10 @@ for s in sets:
             if bl in CONJ: data[k] = data[k].conj()
             data[k] *= bandpass[:,CH0:CH0+NCHAN]
             wgts[k] = np.where(np.abs(data[k]) == 0, 0., 1)
-            #wgts[k] = np.where(np.abs(data[k]) == 0, 0., 1./chisqs[s])
-ds = capo.oqe.DataSet(data, wgts)
+
 ind = {}
 set1,set2 = sets.keys()[0], sets.keys()[-1]
 lst_res = np.average(lsts[set1][1:] - lsts[set1][:-1])/2
-inds = capo.oqe.lst_align(lsts, lstres=lst_res)
-data,wgts = capo.oqe.lst_align_data(inds, dsets=data, wgts=wgts)
-#for k in data:
-#    (s,pol,bl) = k
-#    data[k] = data[k][inds[s]]
-#    wgts[k] = wgts[k][inds[s]]
-for s in sets: chisqs[s] = chisqs[s][ind[s]].T
-ds = capo.oqe.DataSet(data, wgts)
     
 #k1a,k1b,k1c = [(s,'xx',(0,103)) for s in sets]
 #k2a,k2b,k2c = [(s,'xx',(0,111)) for s in sets]
