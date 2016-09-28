@@ -13,6 +13,7 @@ X2Y = capo.pspec.X2Y(z)      #[h^-3 Mpc^3] / [str * GHz]
 bb = 0.1*(20./203)   # total window in GHz
 df = 0.1/203
 
+phsd=False
 nchan = 20
 schan = 90
 polstr = 'xx'
@@ -53,6 +54,10 @@ with open(Cname, 'r') as f1:
         bl,DelT,Opp = line.rstrip('\n').split(',')
         if bl != '0_26_0_38' and bl != '0_38_0_26': continue
         DelT, Opp = float(DelT), float(Opp)
+        ##########
+        #DelT = 0.027     #peak as seen in find_corr for channel 100
+        ###########
+        print Opp
         norm = X2Y*bb*Omp*Omp/Opp    #1.E6 is K2 to mK2
         T1, dat1, flg1 = capo.arp.get_dict_of_uv_data(F1,antstr='0_26',polstr=polstr)
         T2, dat2, flg2 = capo.arp.get_dict_of_uv_data(F2,antstr='0_38',polstr=polstr)
@@ -80,7 +85,8 @@ with open(Cname, 'r') as f1:
         #Phase data to the src with which the approach points were computed
         phs1, phs2 = n.zeros(data1.shape,dtype='complex64'), n.zeros(data2.shape,dtype='complex64')
         t026 = 2456249.2666900107
-        t038 = 2456249.3086900176
+        #t038 = 2456249.3086900176
+        t038 = 2456249.3000900176
 
         ind = 0
         aa.set_jultime(t026)
@@ -94,8 +100,8 @@ with open(Cname, 'r') as f1:
         for t2 in T2:
             phs2[ind][:] = aa.gen_phs(src,0,38)
             ind = ind+1
-        #data1, data2 = n.multiply(data1,phs1),n.multiply(data2,phs2)
-        data1, data2 = n.multiply(data1,phs1.conj()),n.multiply(data2,phs2.conj())
+        if phsd: data1, data2 = n.multiply(data1,phs1),n.multiply(data2,phs2)
+        #data1, data2 = n.multiply(data1,phs1.conj()),n.multiply(data2,phs2.conj())
 
         dau1, dau2 = [],[]
         for datnu in data1:
@@ -103,7 +109,7 @@ with open(Cname, 'r') as f1:
             datatau = dl_tr.nu2tau(datnu)
             dau1.append(datatau)
         for datnu in data2:
-            datnu = datnu[schan:schan+nchan]*norm           # only one of data1, data2 needs to be normalized such
+            datnu = datnu[schan:schan+nchan]#*norm           # only one of data1, data2 needs to be normalized such
             datatau = dl_tr.nu2tau(datnu)
             dau2.append(datatau)
 
@@ -111,20 +117,28 @@ with open(Cname, 'r') as f1:
 dau1, dau2 = n.array(dau1), n.array(dau2)
 data = n.multiply(n.conjugate(dau1), dau2)
 print "shape of data: ", data.shape
-print data.all()
+#print data.all()
 
-P=[]
-for ind in n.arange(len(taulist)): P.append(n.mean(data.T[ind]))
+P,Q=[],[]
+for ind in n.arange(len(taulist)):
+    pp = n.abs(n.mean(data.T[ind]))
+    qq = n.mean(data.T[ind]).real
+    P.append(pp)
+    Q.append(qq)
 #print len(taulist), len(P)
 #kz = taulist*2*n.pi/Y
 kz = cosmo_units.eta2kparr(taulist*1.E-9,z)     #This function needs tau in Hz^-1
 
+k, Pb = n.abs(n.array(kz)), n.abs(data)
+Deldata = k*k*k*Pb/2/(n.pi**2)
+print "Deldatashape", Deldata.shape
+#import IPython; IPython.embed()
 
 #print "shapes of arrays:", data1.shape, data2.shape
 #Bootstrap resampling
 B = 100
-bootmean, booterr = boot_simple.bootstrap(B, data)
-
+bootmean, booterr = boot_simple.bootstrap(B, Deldata)
+#print bootmean
 
 #plotting
 fig = p.figure()
@@ -133,13 +147,20 @@ ax = fig.add_subplot(311)
 ax.set_xlabel('kz')
 ax.set_ylabel(r'$P(k) K^{2} (h^{-1} Mpc)^{3}$')
 p.plot(kz,P,'bo')
+p.plot(kz,Q,'go')
+p.plot(kz,(10*2*n.pi**2)/n.abs(kz)**3,'ro')    #input
+ax.set_yscale('log')
+p.ylim(1.E2,1.E7)
 ax = fig.add_subplot(312)
-ax.errorbar(kz, bootmean, yerr=booterr, fmt='ok', ecolor='gray', alpha=0.5)
+#ax.errorbar(kz, n.abs(bootmean), yerr=booterr, fmt='ok', ecolor='gray', alpha=0.5)
+ax.errorbar(k, n.abs(bootmean), yerr=booterr, fmt='ok', ecolor='gray', alpha=0.5)
 #ax.set_ylim([0,0.5])
 #ax.set_yscale('log')
 ax.set_xlabel('kz')
 ax.set_ylabel(r'$P(k) K^{2} (h^{-1} Mpc)^{3}$')
 ax = fig.add_subplot(313)
 plotp.Del_v_Eta(ax,kz,P)
+#p.plot(kz,10*n.ones(kz.size),'ro')
+
 p.show()
 
