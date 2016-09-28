@@ -142,7 +142,7 @@ def set_C(norm=3e-6):
     for k in ks:
         #Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki != k])
         #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],ds.w[ki][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
-        Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
+        Cs[k] = sum([oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
         #w = np.where(ds.w[ki] > 0, 1, 0)
         #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],w[:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
         #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in ks if ki != k])
@@ -192,9 +192,9 @@ def get_p(k1,k2,mode):
 
 data_g, wgt_g = {},{}
 for k in data:
-    lst_g,data_g[k],wgt_g[k] = capo.oqe.lst_grid(lsts[k[0]],data[k])
+    lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k])
 ################################
-ds = capo.oqe.DataSet(data_g, wgt_g)
+ds = oqe.DataSet(data_g, wgt_g)
 
 set_C(3e-6)
 #pI,pW,pC = get_p(ks[0],ks[1])
