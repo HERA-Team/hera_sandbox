@@ -60,7 +60,7 @@ SEPS = [(1,4), (1,48)]
 #CH0,NCHAN = 90, 31
 CH0,NCHAN = 110, 51
 #bandpass = np.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/bandpass.npz')['bandpass']
-bandpass = np.load('/Users/yunfanzhang/local/DATA128/bandpass.npz')['bandpass']
+bandpass = np.load('bandpass.npz')['bandpass']
 bandpass.shape = (1,-1)
 fqs = np.linspace(.1,.2,bandpass.size)
 WINDOW = 'blackman-harris'
@@ -78,7 +78,8 @@ B_win = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW] #proper normalizatio
 scalar_win = capo.pspec.X2Y(z) * bm * B_win
 
 #dataDIR = '/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/'
-dataDIR = '/Users/yunfanzhang/local/DATA128/DATA/'
+#dataDIR = '/Users/yunfanzhang/local/DATA128/DATA/'
+dataDIR = '/home/yunfanz/EoR/DATA128/DATA/'
 sets = {
     #'day0' : sys.argv[1:],
     #'day0' : glob.glob('zen.2456714.*.xx.npz'),

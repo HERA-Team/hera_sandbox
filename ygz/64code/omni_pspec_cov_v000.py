@@ -68,7 +68,7 @@ SEPS = [(0,103), (0,111), (0,95)]
 #SEPS += [(3,105),(3,106)]
 #CH0,NCHAN = 90, 31
 CH0,NCHAN = 110, 51
-bandpass = np.load('/Users/yunfanzhang/local/DATA128/bandpass.npz')['bandpass']
+bandpass = np.load('bandpass.npz')['bandpass']
 bandpass.shape = (1,-1)
 fqs = np.linspace(.1,.2,bandpass.size)
 WINDOW = 'blackman-harris'
@@ -84,8 +84,8 @@ bm = np.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 # correction for beam^2
 scalar = capo.pspec.X2Y(z) * bm * B
 B_win = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW] #proper normalization
 scalar_win = capo.pspec.X2Y(z) * bm * B_win
-
-dataDIR = '/Users/yunfanzhang/local/DATA128/DATA/'
+dataDIR = '/home/yunfanz/EoR/DATA128/DATA'
+#dataDIR = '/Users/yunfanzhang/local/DATA128/DATA/'
 sets = {
     #'day0' : sys.argv[1:],
     #'day0' : glob.glob('zen.2456714.*.xx.npz'),
