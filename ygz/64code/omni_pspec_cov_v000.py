@@ -190,8 +190,13 @@ def get_p(k1,k2,mode):
             pC = ds.p_hat(MC,qC)
         return pC * scalar
 
-#set_C(1e-6)
-set_C(0)
+data_g, wgt_g = {},{}
+for k in data:
+    lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k])
+################################
+ds = oqe.DataSet(data_g, wgt_g)
+
+set_C(3e-6)
 #pI,pW,pC = get_p(ks[0],ks[1])
 
 for cnt,k in enumerate(ks):
