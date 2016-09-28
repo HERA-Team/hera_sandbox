@@ -208,13 +208,13 @@ for cnt,k in enumerate(ks):
     plt.colorbar()
 plt.show()
 
-for cnt,k in enumerate(ks):
-    plt.subplot(NK,1,cnt+1)
-    pC = get_p(k,k,'C')
-    plt.title(k)
-    capo.plot.waterfall(pC, mx=16, drng=7)
-    plt.colorbar()
-plt.show()
+# for cnt,k in enumerate(ks):
+#     plt.subplot(NK,1,cnt+1)
+#     pC = get_p(k,k,'C')
+#     plt.title(k)
+#     capo.plot.waterfall(pC, mx=16, drng=7)
+#     plt.colorbar()
+# plt.show()
 
 sep_pairs = product(SEPS,SEPS)
 for cnt, bls in enumerate(sep_pairs):
@@ -240,4 +240,4 @@ plt.legend()
 plt.show()
 '''
 
-import IPython; IPython.embed()
+#import IPython; IPython.embed()
