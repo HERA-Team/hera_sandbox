@@ -59,8 +59,8 @@ CONJ = [
     (0,97) ,  # 11
     (12,43) , # 12
     (57,64) ] # 15
-
-SEPS = [(0,103), (0,111), (0,95)]
+SEPS = [(0,103), (0,111)]
+#SEPS = [(0,103), (0,111), (0,95)]
 #SEPS += [(2,105), (1,83)]
 #SEPS += [(0,79), (0,78)]
 #SEPS += [(0,70),(0,71)]
@@ -92,8 +92,8 @@ elif cwd.startswith('/home/yunfanz/'):
 sets = {
     #'day0' : sys.argv[1:],
     #'day0' : glob.glob('zen.2456714.*.xx.npz'),
-    'day1' : glob.glob(dataDIR+'zen.2456715.5*.xx.npz'),
-    'day2' : glob.glob(dataDIR+'zen.2456716.5*.xx.npz'),
+    'day1' : glob.glob(dataDIR+'zen.2456715.*.xx.npz'),
+    'day2' : glob.glob(dataDIR+'zen.2456716.*.xx.npz'),
 }
 data,wgts = {}, {}
 lsts = {}
@@ -145,8 +145,10 @@ def set_C(norm=3e-6):
     for k in ks:
         #Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki != k])
         #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],ds.w[ki][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
-        Cs[k] = sum([oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
-        #w = np.where(ds.w[ki] > 0, 1, 0)
+        #Cs[k] = sum([oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
+        Ndim = ds.x[k].shape[0]
+        Cs[k] = oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(Ndim)
+#w = np.where(ds.w[ki] > 0, 1, 0)
         #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],w[:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
         #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in ks if ki != k])
         #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in data if ki[2] != k[2]])
@@ -198,7 +200,7 @@ for k in data:
     lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k])
 ################################
 ds = oqe.DataSet(data_g, wgt_g)
-
+#import IPython; IPython.embed()
 set_C(3e-6)
 #pI,pW,pC = get_p(ks[0],ks[1])
 
@@ -215,18 +217,22 @@ plt.show()
 #     capo.plot.waterfall(pC, mx=16, drng=7)
 #     plt.colorbar()
 # plt.show()
-
+from itertools import product
 sep_pairs = product(SEPS,SEPS)
 for cnt, bls in enumerate(sep_pairs):
     k1 = (set1,pol,bls[0])
     k2 = (set2,pol,bls[1])
-    if set1==set2: continue
+    #if set1==set2: continue
     if bls[0] != bls[1]: continue
-    pC = get_p(k1,k2,'C')
-    plt.subplot(5,1,cnt+1)
-    plt.title(bls)
+    pC = get_p(k1,k1,'C')
+    plt.subplot(6,1,cnt+1)
+    plt.title(set1+set1+str(bls))
     capo.plot.waterfall(pC, mx=16, drng=7)
-    plt.colorbar()
+    plt.subplot(6,1,cnt+3)
+    pC = get_p(k1,k2,'C')
+    plt.title(set1+set2+str(bls))
+    capo.plot.waterfall(pC, mx=16, drng=7)
+    #plt.colorbar()
 plt.show()
 
 '''
@@ -240,4 +246,4 @@ plt.legend()
 plt.show()
 '''
 
-#import IPython; IPython.embed()
+import IPython; IPython.embed()
