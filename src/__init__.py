@@ -1,4 +1,4 @@
-import pfb, pspec, dspec, red, fringe, miriad
+import pfb, pspec, dspec, red, fringe, miriad, linsolve
 import fringe as frf_conv # for backward compatibility
 import oqe
 import warnings
