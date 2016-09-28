@@ -92,8 +92,8 @@ elif cwd.startswith('/home/yunfanz/'):
 sets = {
     #'day0' : sys.argv[1:],
     #'day0' : glob.glob('zen.2456714.*.xx.npz'),
-    'day1' : glob.glob(dataDIR+'zen.2456715.*.xx.npz'),
-    'day2' : glob.glob(dataDIR+'zen.2456716.*.xx.npz'),
+    'day1' : glob.glob(dataDIR+'zen.2456715.5*.xx.npz'),
+    'day2' : glob.glob(dataDIR+'zen.2456716.5*.xx.npz'),
 }
 data,wgts = {}, {}
 lsts = {}
@@ -224,12 +224,16 @@ for cnt, bls in enumerate(sep_pairs):
     k2 = (set2,pol,bls[1])
     #if set1==set2: continue
     if bls[0] != bls[1]: continue
-    pC = get_p(k1,k1,'C')
-    plt.subplot(6,1,cnt+1)
+    pC = get_p(k1,k1,'I')
+    plt.subplot(9,1,cnt+1)
     plt.title(set1+set1+str(bls))
     capo.plot.waterfall(pC, mx=16, drng=7)
-    plt.subplot(6,1,cnt+3)
-    pC = get_p(k1,k2,'C')
+    pC = get_p(k2,k2,'C')
+    plt.subplot(9,1,cnt+3)
+    plt.title(set1+set1+str(bls))
+    capo.plot.waterfall(pC, mx=16, drng=7)
+    plt.subplot(9,1,cnt+5)
+    pC = get_p(k1,k2,'I')
     plt.title(set1+set2+str(bls))
     capo.plot.waterfall(pC, mx=16, drng=7)
     #plt.colorbar()
