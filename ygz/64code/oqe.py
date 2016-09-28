@@ -133,7 +133,7 @@ class DataSet:
         if t is None: return self._C[k]
         # If t is provided, Calculate C for the provided time index, including flagging
         w = self.w[k][:,t:t+1]
-        if np.all(w<1.e-20): return self._C[k]
+        if np.all(w<1.e-12): return self._C[k]
         return self._C[k] * (w * w.T)       #!!!!!!!!!!!!!!!!!!!!!!!!
     def set_C(self, d):
         self.clear_cache(d.keys())
