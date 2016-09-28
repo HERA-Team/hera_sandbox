@@ -2,7 +2,7 @@
 
 import numpy as np, aipy, capo, pylab as plt, sys, glob
 import md5
-
+import oqe
 def dB(sig): return 10*np.log10(np.abs(np.average(sig.real, axis=1)))
 
 def find_sep(aa, bls, drow=None, dcol=None):
@@ -92,7 +92,6 @@ sets = {
     'day1' : glob.glob(dataDIR+'zen.2456715.5*.xx.npz'),
     'day2' : glob.glob(dataDIR+'zen.2456716.5*.xx.npz'),
 }
-import IPython; IPython.embed()
 data,wgts = {}, {}
 lsts = {}
 chisqs = {}
@@ -193,9 +192,9 @@ def get_p(k1,k2,mode):
 
 data_g, wgt_g = {},{}
 for k in data:
-    lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k])
+    lst_g,data_g[k],wgt_g[k] = capo.oqe.lst_grid(lsts[k[0]],data[k])
 ################################
-ds = oqe.DataSet(data_g, wgt_g)
+ds = capo.oqe.DataSet(data_g, wgt_g)
 
 set_C(3e-6)
 #pI,pW,pC = get_p(ks[0],ks[1])
