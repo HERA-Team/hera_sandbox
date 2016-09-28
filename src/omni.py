@@ -243,7 +243,7 @@ def from_npz(filename, pols=None, bls=None, ants=None, verbose=False):
     '''
     if type(filename) is str: filename = [filename]
     if type(pols) is str: pols = [pols]
-    if type(bls) is tuple: bls = [bls]
+    if type(bls) is tuple and type(bls[0]) is int: bls = [bls]
     if type(ants) is int: ants = [ants]
     #filename = np.array(filename)
     meta, gains, vismdl, xtalk = {}, {}, {}, {}
@@ -261,10 +261,9 @@ def from_npz(filename, pols=None, bls=None, ants=None, verbose=False):
                     if not gains.has_key(pol): gains[pol] = {}
                     gains[pol][ant] = gains[pol].get(ant,[]) + [np.copy(npz[k])]
             try: pol,bl = parse_key(k)
-            except(ValueError):   # this modules doesn't read chisq and other files
-                continue
-            if (pols != None) and (pol not in pols): continue
-            if (bls != None) and (bl not in bls): continue
+            except(ValueError): continue
+            if (pols is not None) and (pol not in pols): continue
+            if (bls is not None) and (bl not in bls): continue
             if k.startswith('<'):
                 if not vismdl.has_key(pol): vismdl[pol] = {}
                 vismdl[pol][bl] = vismdl[pol].get(bl,[]) + [np.copy(npz[k])]
@@ -275,9 +274,6 @@ def from_npz(filename, pols=None, bls=None, ants=None, verbose=False):
                     xtalk[pol][bl] = dat
                 else: #append to array
                     xtalk[pol][bl] = np.vstack((xtalk[pol].get(bl),dat))
-
-
-
         # for k in [f for f in npz.files if f.startswith('<')]:
         #     pol,bl = parse_key(k)
         #     if not vismdl.has_key(pol): vismdl[pol] = {}
