@@ -84,7 +84,7 @@ bm = np.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 # correction for beam^2
 scalar = capo.pspec.X2Y(z) * bm * B
 B_win = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW] #proper normalization
 scalar_win = capo.pspec.X2Y(z) * bm * B_win
-dataDIR = '/home/yunfanz/EoR/DATA128/DATA'
+dataDIR = '/home/yunfanz/EoR/DATA128/DATA/'
 #dataDIR = '/Users/yunfanzhang/local/DATA128/DATA/'
 sets = {
     #'day0' : sys.argv[1:],
@@ -92,6 +92,7 @@ sets = {
     'day1' : glob.glob(dataDIR+'zen.2456715.5*.xx.npz'),
     'day2' : glob.glob(dataDIR+'zen.2456716.5*.xx.npz'),
 }
+import IPython; IPython.embed()
 data,wgts = {}, {}
 lsts = {}
 chisqs = {}
