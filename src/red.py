@@ -95,9 +95,12 @@ def fit_line(phs, fqs, valid):
     fqs = fqs.compress(valid)
     dly = phs.compress(valid)
     B = n.zeros((fqs.size,1)); B[:,0] = dly
-    A = n.zeros((fqs.size,2)); A[:,0] = fqs*2*n.pi; A[:,1] = 1
+    #A = n.zeros((fqs.size,2)); A[:,0] = fqs*2*n.pi; A[:,1] = 1
+    A = n.zeros((fqs.size,1)); A[:,0] = fqs*2*n.pi#; A[:,1] = 1
     try:
-        dt,off = n.linalg.lstsq(A,B)[0].flatten()
+        #dt,off = n.linalg.lstsq(A,B)[0].flatten()
+        dt = n.linalg.lstsq(A,B)[0][0][0]
+        off = 0.0
         return dt,off
     except ValueError:
         import IPython 
@@ -146,50 +149,44 @@ def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True,
     if tune:
     #loop over the linear fits
         t1 = time.time()
-        for tau,d in zip(taus,d12_sum):
+        for ii,(tau,d) in enumerate(zip(taus,d12_sum)):
             valid = n.where(d != 0, 1, 0) # Throw out zeros, which NaN in the log below
             #print valid.any()
             valid = n.logical_and(valid, n.logical_and(fqs>.11,fqs<.19))
             dly = n.angle(d*n.exp(-2j*n.pi*tau*fqs))
             dt,off = fit_line(dly,fqs,valid)
             dts.append(dt), offs.append(off)
+            if plot:
+                p.subplot(411)
+                p.plot(fqs,n.angle(d12_sum[ii]), linewidth=2)
+                p.plot(fqs,d12_sum[ii], linewidth=2)
+                p.plot(fqs, n.exp((2j*n.pi*fqs*(tau+dt))+off))
+                p.hlines(n.pi, .1,.2,linestyles='--',colors='k')
+                p.hlines(-n.pi, .1,.2,linestyles='--',colors='k')
+                p.subplot(412)
+                p.plot(fqs,n.unwrap(dly)+2*n.pi*tau*fqs, linewidth=2)
+                p.plot(fqs,dly+2*n.pi*tau*fqs, linewidth=2,ls='--')
+                p.plot(fqs,2*n.pi*tau*fqs, linewidth=2,ls='-.')
+                p.plot(fqs,2*n.pi*(tau+dt)*fqs + off, linewidth=2,ls=':')
+                p.subplot(413)
+                p.plot(dlys, n.abs(_phs[ii]),'-.')
+                p.xlim(-400,400)
+                p.subplot(414)
+                p.plot(fqs,dly, linewidth=2)
+                p.plot(fqs,off+dt*fqs*2*n.pi, '--')
+                p.hlines(n.pi, .1,.2,linestyles='--',colors='k')
+                p.hlines(-n.pi, .1,.2,linestyles='--',colors='k')
+                print 'tau=', tau
+                print 'tau + dt=', tau+dt
+                p.xlabel('Frequency (GHz)', fontsize='large')
+                p.ylabel('Phase (radians)', fontsize='large')
+        p.show()
+
         #print('Linear Fitting is taking %f seconds'%(time.time()-t1))
         dts = n.array(dts)
         offs = n.array(offs)
 
-        if plot:
-            #p.plot(fqs,n.unwrap(dly), linewidth=2)
-            p.subplot(411)
-            p.plot(fqs,n.angle(d12_sum), linewidth=2)
-            p.plot(fqs,d12_sum, linewidth=2)
-            p.plot(fqs, n.exp((2j*n.pi*fqs*(tau+dt))+off))
-            p.hlines(n.pi, .1,.2,linestyles='--',colors='k')
-            p.hlines(-n.pi, .1,.2,linestyles='--',colors='k')
-            p.subplot(412)
-            p.plot(fqs,n.unwrap(dly)+2*n.pi*tau*fqs, linewidth=2)
-            p.plot(fqs,dly+2*n.pi*tau*fqs, linewidth=2,ls='--')
-            p.plot(fqs,2*n.pi*tau*fqs, linewidth=2,ls='.-')
-            p.plot(fqs,2*n.pi*(tau+dt)*fqs + off, linewidth=2,ls=':')
-            #ax = p.gca()
-            p.subplot(413)
-            p.plot(dlys, _phs,'.-')
-            p.xlim(-400,400)
-            p.subplot(414)
-            p.plot(fqs,dly, linewidth=2)
-            #p.plot(fqs,n.unwrap(dly), linewidth=2)
-            p.plot(fqs,off+dt*fqs*2*n.pi, '--')
-            p.hlines(n.pi, .1,.2,linestyles='--',colors='k')
-            p.hlines(-n.pi, .1,.2,linestyles='--',colors='k')
-            print 'tau=', tau
-            print 'tau + dt=', tau+dt
-            p.show()
-            #p.plot(fqs,n.angle(d12_sum), linewidth=2)
-            p.xlabel('Frequency (GHz)', fontsize='large')
-            p.ylabel('Phase (radians)', fontsize='large')
-            #p.plot(fqs,n.unwrap(dly))
-            #p.plot(fqs_val,pp[0] + pp[1]*fqs_val)
-            #p.show()
-    # Pull out an integral number of phase wraps
+           # Pull out an integral number of phase wraps
     #if verbose: print tau, dtau, mxs, dt, off
     info = {'dtau':dts, 'off':offs, 'mx':mxs} # Some information about last step, useful for detecting screwups
     if verbose: print info, taus, tausdts+offs
