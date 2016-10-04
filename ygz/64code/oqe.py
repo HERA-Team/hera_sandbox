@@ -23,11 +23,19 @@ def cov(d1, w1, d2=None, w2=None):
     return C / np.where(W > 1, W-1, 1)
 
 def get_Q(mode, n_k, window='none'): #encodes the fourier transform from freq to delay
+    
     if not DELAY:
-        _m = np.zeros((n_k,), dtype=np.complex)
-        _m[mode] = 1. #delta function at specific delay mode
-        m = np.fft.fft(np.fft.ifftshift(_m)) * aipy.dsp.gen_window(n_k, window) #FFT it to go to freq
-        Q = np.einsum('i,j', m, m.conj()) #dot it with its conjugate
+        if np.array(mode).size>1:
+            mode = np.array(mode)
+            _m = np.zeros((mode.size, n_k), dtype=np.complex)
+            _m[mode,mode] = 1. #delta function at specific delay mode
+            m = np.fft.fft(np.fft.ifftshift(_m)) * aipy.dsp.gen_window(n_k, window)#.reshape((1,-1)) #FFT it to go to freq
+            Q = np.einsum('ij,ik->ijk', m, m.conj()) #dot it with its conjugate
+        else:
+            _m = np.zeros((n_k,), dtype=np.complex)
+            _m[mode] = 1. #delta function at specific delay mode
+            m = np.fft.fft(np.fft.ifftshift(_m)) * aipy.dsp.gen_window(n_k, window) #FFT it to go to freq
+            Q = np.einsum('i,j', m, m.conj()) #dot it with its conjugate
         return Q
     else:
         # XXX need to have this depend on window
@@ -296,14 +304,10 @@ class DataSet:
                 #for m1 in self._iCt[k1]: # XXX not all m1/m2 pairs may exist in data
                 #    for m2 in self._iCt[k2]:
                         F[(k1,m1,k2,m2)] = np.zeros((nchan,nchan), dtype=np.complex)
-                        iCQ1,iCQ2 = {}, {}
-                        for ch in xrange(nchan): # this loop is nchan^3
-                            Q = get_Q(ch,nchan)
-                            iCQ1[ch] = np.dot(self._iCt[k1][m1],Q) #C^-1 Q
-                            iCQ2[ch] = np.dot(self._iCt[k2][m2],Q) #C^-1 Q
-                        for i in xrange(nchan): # this loop goes as nchan^4
-                            for j in xrange(nchan):
-                                F[(k1,m1,k2,m2)][i,j] += np.einsum('ij,ji', iCQ1[i], iCQ2[j]) #C^-1 Q C^-1 Q 
+                        Q = get_Q(np.arange(nchan),nchan)
+                        iCQ1 = np.einsum('ij,ljk->lik',self._iCt[k1][m1],Q)
+                        iCQ2 = np.einsum('ij,ljk->lik',self._iCt[k2][m2],Q)
+                        F[(k1,m1,k2,m2)] += np.einsum('kij,lji->kl', iCQ1, iCQ2) #C^-1 Q C^-1 Q 
                         if np.isnan(F[(k1,m1,k2,m2)]).any():
                             print 'nan detected in F'
                             import IPython; IPython.embed()
