@@ -268,7 +268,7 @@ for cnt,k in enumerate(ks):
 sep_pairs = product(SEPS,SEPS)
 for cnt, bls in enumerate(sep_pairs):
     k1 = (set1,pol,bls[0])
-    k2 = (set2,pol,bls[1])
+    k2 = (set1,pol,bls[1])
     if bls[0] == bls[1]: offset = 0
     else: offset = offset_dict[(bls[0],bls[1])]
     ind_offset = int(offset/dlst)

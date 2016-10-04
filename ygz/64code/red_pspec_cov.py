@@ -1,8 +1,13 @@
 #! /usr/bin/env python
-
-import numpy as np, aipy, capo, pylab as plt, sys, glob
+import matplotlib
+matplotlib.use('Agg')
+import numpy as np, aipy, capo, matplotlib.pyplot as plt, sys, glob
 import md5
 import oqe, os
+import fileinput
+import cProfile
+
+pr = cProfile.Profile()
 def dB(sig): return 10*np.log10(np.abs(np.average(sig.real, axis=1)))
 
 def find_sep(aa, bls, drow=None, dcol=None):
@@ -189,10 +194,13 @@ def get_p(k1,k2,mode):
             # XXX deal with diff w for k1,k2
             pC = np.array([pCs[sums[k1][i]][:,i] for i in xrange(ds.w[k1].shape[1])]).T
         else:
+            pr.enable()
             qC = ds.q_hat(k1,k2)
             FC = ds.get_F(k1,k2)
             MC,WC = ds.get_MW(FC, mode='F^-1/2')
             pC = ds.p_hat(MC,qC)
+            pr.disable()
+            pr.print_stats(sort='time')
         return pC * scalar
 
 data_g, wgt_g = {},{}
@@ -207,8 +215,9 @@ set_C(3e-6)
 for cnt,k in enumerate(ks):
     plt.subplot(NK,1,cnt+1)
     capo.plot.waterfall(ds.x[k], drng=3)
+    plt.title(k)
     plt.colorbar()
-plt.show()
+plt.savefig('timeseries.png')
 
 # for cnt,k in enumerate(ks):
 #     plt.subplot(NK,1,cnt+1)
@@ -237,7 +246,8 @@ for cnt, bls in enumerate(sep_pairs):
     plt.title(set1+set2+str(bls))
     capo.plot.waterfall(pC, mx=16, drng=7)
     #plt.colorbar()
-plt.show()
+
+plt.savefig('pspc.png')
 
 '''
 pC1 = get_p(k1a,k1b,'C')
@@ -250,4 +260,4 @@ plt.legend()
 plt.show()
 '''
 
-import IPython; IPython.embed()
+#import IPython; IPython.embed()

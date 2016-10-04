@@ -1,6 +1,7 @@
 #! /usr/bin/env python
-
-import numpy as np, aipy, capo, pylab as plt, sys, glob
+import matplotlib
+matplotlib.use('Agg')
+import numpy as np, aipy, capo, matplotlib.pyplot as plt, sys, glob
 import md5
 import oqe, os
 def dB(sig): return 10*np.log10(np.abs(np.average(sig.real, axis=1)))
@@ -205,8 +206,9 @@ set_C(3e-6)
 for cnt,k in enumerate(ks):
     plt.subplot(NK,1,cnt+1)
     capo.plot.waterfall(ds.x[k], drng=3)
+    plt.title(k)
     plt.colorbar()
-plt.show()
+plt.savefig('timeseries.png')
 
 for cnt,k in enumerate(ks):
     plt.subplot(NK,1,cnt+1)
@@ -214,7 +216,7 @@ for cnt,k in enumerate(ks):
     plt.title(k)
     capo.plot.waterfall(pC, mx=16, drng=7)
     plt.colorbar()
-plt.show()
+plt.savefig('pspc.png')
 
 '''
 pC1 = get_p(k1a,k1b,'C')
