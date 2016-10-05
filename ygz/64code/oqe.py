@@ -23,19 +23,22 @@ def cov(d1, w1, d2=None, w2=None):
     return C / np.where(W > 1, W-1, 1)
 
 def get_Q(mode, n_k, window='none'): #encodes the fourier transform from freq to delay
+    if np.array(mode).size>1:
+        Q = np.zeros(np.array(mode).size, n_k, n_k):
+        for m in mode:
+            Q[m] = get_Q(m, n_k, window=window)
     
     if not DELAY:
-        if np.array(mode).size>1:
-            mode = np.array(mode)
-            _m = np.zeros((mode.size, n_k), dtype=np.complex)
-            _m[mode,mode] = 1. #delta function at specific delay mode
-            m = np.fft.fft(np.fft.ifftshift(_m)) * aipy.dsp.gen_window(n_k, window)#.reshape((1,-1)) #FFT it to go to freq
-            Q = np.einsum('ij,ik->ijk', m, m.conj()) #dot it with its conjugate
-        else:
-            _m = np.zeros((n_k,), dtype=np.complex)
-            _m[mode] = 1. #delta function at specific delay mode
-            m = np.fft.fft(np.fft.ifftshift(_m)) * aipy.dsp.gen_window(n_k, window) #FFT it to go to freq
-            Q = np.einsum('i,j', m, m.conj()) #dot it with its conjugate
+        # if np.array(mode).size>1:
+        #     mode = np.array(mode)
+        #     _m = np.zeros((mode.size, n_k), dtype=np.complex)
+        #     _m[mode,mode] = 1. #delta function at specific delay mode
+        #     m = np.fft.fft(np.fft.ifftshift(_m)) * aipy.dsp.gen_window(n_k, window)#.reshape((1,-1)) #FFT it to go to freq
+        #     Q = np.einsum('ij,ik->ijk', m, m.conj()) #dot it with its conjugate
+        _m = np.zeros((n_k,), dtype=np.complex)
+        _m[mode] = 1. #delta function at specific delay mode
+        m = np.fft.fft(np.fft.ifftshift(_m)) * aipy.dsp.gen_window(n_k, window) #FFT it to go to freq
+        Q = np.einsum('i,j', m, m.conj()) #dot it with its conjugate
         return Q
     else:
         # XXX need to have this depend on window
