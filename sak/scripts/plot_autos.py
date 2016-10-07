@@ -3,7 +3,6 @@ import sys, numpy as np, aipy
 from matplotlib import pyplot as plt
 import os
 
-
 uvfiles = sys.argv[1:]
 #get initial info from first file
 uv = aipy.miriad.UV(uvfiles[0])
