@@ -53,6 +53,9 @@ def plot_hmap_ortho(h, cmap='jet', mode='log', mx=None, drng=None,
     #map.contourf(cx,cy,data,levels,linewidth=0,cmap=cmap)
     
 def plot_phase_ratios(data):
+    '''Plots ratios of baselines given in data. 
+       Data is a nested dictionary. First key is baseline, second key is pol. 
+    '''
     bls = data.keys()
     nbls = len(bls)
     pol = data[bls[0]].keys()[0]
