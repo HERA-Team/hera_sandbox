@@ -31,30 +31,31 @@ _T=[]
 for p,d in uv.all(): 
     _,_t,_ = p
     _T.append(_t)
-ntimes = len(_T)*len(args)
+ntimes = len(_T)
 del(uv)
 assert(nants == len(antpos.keys())) #check the cal file and uv files are going to cooperate
-
-if not opts.autos: times,data,flags = capo.arp.get_dict_of_uv_data(args,'cross',opts.pol) 
-else: times,data,flags = capo.arp.get_dict_of_uv_data(args,'all',opts.pol)
 
 vis_stor = np.zeros((nants,nchan,ntimes),dtype='complex128')
 flg_stor = np.zeros_like(vis_stor)
 
-for i in range(nants):
-    for j in range(nants):
-        if not opts.autos:
-            if i==j: continue #neglect autos
-        else:
-            if i!=j: continue #neglect crosses
-        try: 
-            vis_stor[i,:,:]+=np.absolute(data[(i,j)][opts.pol].T)
-            #flg_stor[i,:,:]+=np.logical_not(flags[(i,j)][opts.pol]).astype('complex128')
-            flg_stor[i,:,:] += np.ones((nchan,ntimes),dtype='complex128')
-        except KeyError:
-            if i<j: print 'KeyError on (%i,%i)'%(i,j) #this should not happen
-            continue
-
+for uv in args:
+    print '    Reading %s...'%uv
+    if not opts.autos: times,data,flags = capo.arp.get_dict_of_uv_data([uv],'cross',opts.pol) 
+    else: times,data,flags = capo.arp.get_dict_of_uv_data([uv],'all',opts.pol)
+    for i in range(nants):
+        for j in range(nants):
+            if not opts.autos:
+                if i==j: continue #neglect autos
+            else:
+                if i!=j: continue #neglect crosses
+            try: 
+                vis_stor[i,:,:]+=np.absolute(data[(i,j)][opts.pol].T)
+                #flg_stor[i,:,:]+=np.logical_not(flags[(i,j)][opts.pol]).astype('complex128')
+                flg_stor[i,:,:] += np.ones((nchan,ntimes),dtype='complex128')
+            except KeyError:
+                if i<j: print 'KeyError on (%i,%i)'%(i,j) #this should not happen
+                continue
+    #del(uv)
 #average all abs visibilities |Vij| over j per i
 mean_stor = np.absolute(vis_stor)/np.absolute(flg_stor) 
 
@@ -97,16 +98,24 @@ _avg = np.array(_avg)
 mean_avg = np.nanmean(_avg) #I know, terrible variable name, but that's what it is!
 std_avg = np.nanstd(_avg)
 
+out = []
+
 for i in ga:
     plt.plot(i,_avg[i],'bo',ms=8)
+    if _avg[i]<=mean_avg-std_avg: out.append(i)
     if not badants is None:
         if i in badants:
             plt.plot(i,_avg[i],'kx',ms=10)
 plt.axhline(mean_avg,color='k')
+
 plt.fill_between(ga,mean_avg-std_avg,mean_avg+std_avg,color='b',alpha=0.5)
 plt.fill_between(ga,mean_avg-2*std_avg,mean_avg+2*std_avg,color='b',alpha=0.4)
+
 plt.grid()
 plt.xlim(ga[0]-0.5,ga[-1]+0.5)
 plt.ylabel(r'$\left\langle |V_{ij}| \right\rangle_{j,t,\nu}$',size=15)
 plt.xlabel('Antenna number')
-plt.show()
+#plt.show()
+plt.ylim(0,0.045)
+plt.savefig('%s_meanVij.png'%uv)
+print out
