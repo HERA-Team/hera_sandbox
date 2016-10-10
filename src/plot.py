@@ -52,3 +52,31 @@ def plot_hmap_ortho(h, cmap='jet', mode='log', mx=None, drng=None,
     #levels = n.arange(mn-step, mx+step, step)
     #map.contourf(cx,cy,data,levels,linewidth=0,cmap=cmap)
     
+def plot_phase_ratios(data):
+    bls = data.keys()
+    nbls = len(bls)
+    pol = data[bls[0]].keys()
+
+    nratios = (nbls * (nbls-1))/2
+    r = int(divmod(nratios,3)[0] + np.ceil(divmod(nratios,3)[1]/3.))
+    c = 3
+    ncross = []
+    for k in range(nbls): 
+        for i in range(k+1,nbls): 
+            ncross.append((bls[k],bls[i]))
+
+    fig = p.figure(figsize=(16,12))
+    for i,k in enumerate(ncross):
+        ax = p.subplot(r,c,i+1)
+        p.title(str(k),color='magenta')
+        g = 1.0
+        capo.plot.waterfall(data[k[0]][pol]*np.conj(data[k[-1]][pol])*g, mode='phs', cmap='jet', mx=np.pi, drng=2*np.pi)
+        p.grid(0)
+        if divmod(i,c)[-1] != 0:  ax.yaxis.set_visible(False) 
+        if divmod(i,c)[0] != r-1: ax.xaxis.set_visible(False)
+    p.xlabel('Channel Number')
+    p.ylabel('Integration')
+    p.suptitle('Phase Ratios of Redundant Visibilities', fontsize=26)
+
+    cax = fig.add_axes([0.2, 0.06, 0.6, 0.01])
+    p.colorbar(cax=cax, orientation='horizontal')
