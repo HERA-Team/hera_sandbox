@@ -64,14 +64,7 @@ CONJ = [
     (0,97) ,  # 11
     (12,43) , # 12
     (57,64) ] # 15
-SEPS = [(0,103), (0,111)]
-#SEPS = [(0,103), (0,111), (0,95)]
-#SEPS += [(2,105), (1,83)]
-#SEPS += [(0,79), (0,78)]
-#SEPS += [(0,70),(0,71)]
-#SEPS += [(1,107),(0,51)]
-#SEPS += [(3,105),(3,106)]
-#CH0,NCHAN = 90, 31
+SEPS = [(0,103)]
 CH0,NCHAN = 110, 51
 bandpass = np.load('bandpass.npz')['bandpass']
 bandpass.shape = (1,-1)
@@ -92,11 +85,11 @@ scalar_win = capo.pspec.X2Y(z) * bm * B_win
 cwd = os.getcwd()
 if cwd.startswith('/Users/yunfanzhang/'):
     dataDIR = '/Users/yunfanzhang/local/DATA128/DATA/'
+elif cwd.startswith('/Users/yunfanz/'):
+    dataDIR = '/Users/yunfanz/Data/PAPER128/DATA/'
 elif cwd.startswith('/home/yunfanz/'):
     dataDIR = '/home/yunfanz/EoR/DATA128/DATA/'
 sets = {
-    #'day0' : sys.argv[1:],
-    #'day0' : glob.glob('zen.2456714.*.xx.npz'),
     'day1' : glob.glob(dataDIR+'zen.2456715.*.xx.npz'),
     'day2' : glob.glob(dataDIR+'zen.2456716.*.xx.npz'),
 }
@@ -105,59 +98,31 @@ lsts = {}
 chisqs = {}
 for s in sets:
     if not lsts.has_key(s):
-        # res = Parallel(n_jobs=4)(delayed(from_npz)(file) for file in sets[s])
-        # #import IPython; IPython.embed()
-        # meta, gains, vismdl, xtalk = [],[],[],[]
-        # for i, elt in enumerate(res):
-        #     meta.append(elt[0])
-        #     gains.append(elt[1])
-        #     vismdl.append(elt[2])
-        #     xtalk.append(elt[3])
         meta, gains, vismdl, xtalk = capo.omni.from_npz(sets[s], bls=SEPS, pols='xx', ants=1,verbose=True)
         lsts[s] = meta['lsts']
     chisqs[s] = meta['chisq'][:,CH0:CH0+NCHAN]
     for pol in vismdl:
-        #for bl in vismdl[pol]:
         for bl in SEPS:
             k = (s,pol,bl)
             data[k] = vismdl[pol][bl][:,CH0:CH0+NCHAN]
             if bl in CONJ: data[k] = data[k].conj()
             data[k] *= bandpass[:,CH0:CH0+NCHAN]
-            #data[k] = data[k][1500:-100,:]
             wgts[k] = np.where(np.abs(data[k]) == 0, 0., 1)
-#import IPython; IPython.embed()
+
 ind = {}
 set1,set2 = sets.keys()[0], sets.keys()[-1]
 lst_res = np.average(lsts[set1][1:] - lsts[set1][:-1])/2
-    
-#k1a,k1b,k1c = [(s,'xx',(0,103)) for s in sets]
-#k2a,k2b,k2c = [(s,'xx',(0,111)) for s in sets]
-#k3a,k3b,k3c = [(s,'xx',(0, 95)) for s in sets]
-#ks = [k1a,k1b,k1c,k2a,k2b,k2c,k3a,k3b,k3c]
-#k1a,k1b = [(s,'xx',(0,103)) for s in sets]
-#k2a,k2b = [(s,'xx',(0,111)) for s in sets]
-#k3a,k3b = [(s,'xx',(0, 95)) for s in sets]
-#ks = [k1a,k1b,k2a,k2b,k3a,k3b]
+
 ks = [(s,'xx',bl) for bl in SEPS for s in sets]
-#k1a, = [(s,'xx',(0,103)) for s in sets]
-#k2a, = [(s,'xx',(0,111)) for s in sets]
-#k3a, = [(s,'xx',(0, 95)) for s in sets]
-#ks = [k1a,k2a,k3a]
+
 NK = len(ks)
 
 def set_C(norm=3e-6):
     ds.clear_cache()
     Cs,iCs = {},{}
     for k in ks:
-        #Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki != k])
-        #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],ds.w[ki][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
-        #Cs[k] = sum([oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
         Ndim = ds.x[k].shape[0]
         Cs[k] = oqe.cov(ds.x[k][:,:],ds.w[k][:,])+norm*np.identity(Ndim)
-#w = np.where(ds.w[ki] > 0, 1, 0)
-        #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],w[:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
-        #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in ks if ki != k])
-        #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in data if ki[2] != k[2]])
         ds.set_C({k:Cs[k]})
         iCs[k] = ds.iC(k)
 
@@ -206,16 +171,36 @@ def get_p(k1,k2,mode):
 
 data_g, wgt_g = {},{}
 for k in data:
-    lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k])
-    data_g[k], wgt_g[k] = data_g[k][1500:-100], wgt_g[k][1500:-100]
+    lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=1500)
+    data_g[k], wgt_g[k] = data_g[k][550:1200], wgt_g[k][550:1200]
 ################################
 #import IPython; IPython.embed()
 ds = oqe.DataSet(data_g, wgt_g)
 #import IPython; IPython.embed()
-set_C(3e-6)
-#Simport IPython; IPython.embed()
-#pI,pW,pC = get_p(ks[0],ks[1])
+# def lst_align(lsts1,lsts2,lstres,offset=0):
+#     i=0
+#     if lsts1[0]+offset>lsts2[0]:
+#         while lsts1[0]+offset>lsts2[i]: i += 1
+#         Npt = min(lsts1.size,lsts2.size-i)
+#         return np.arange(0,Npt),np.arange(i,Npt+i)
+#     else:
+#         while lsts1[i]+offset>lsts2[0]: i += 1
+#         Npt = min(lsts1.size-i,lsts2.size)
+#         return np.arange(i,Npt+i),n.arange(0,Npt)
 
+# ind[set1], ind[set2] = lst_align(lsts[set1], lsts[set2], lstres=lst_res)
+
+# for k in data.keys():
+#     (s,pol,bl) = k
+#     data[k] = data[k][ind[s]]     #aligning the lsts
+#     wgts[k] = wgts[k][ind[s]]
+# ds = capo.oqe.DataSet(data, wgts)
+
+
+
+
+set_C(3e-6)
+#import IPython; IPython.embed()
 for cnt,k in enumerate(ks):
     plt.subplot(NK,1,cnt+1)
     capo.plot.waterfall(ds.x[k], drng=3)
@@ -223,16 +208,7 @@ for cnt,k in enumerate(ks):
     plt.colorbar()
 plt.savefig('timeseries.png')
 
-# for cnt,k in enumerate(ks):
-#     plt.subplot(NK,1,cnt+1)
-#     pC = get_p(k,k,'C')
-#     plt.title(k)
-#     capo.plot.waterfall(pC, mx=16, drng=7)
-#     plt.colorbar()
-# plt.show()
-#from itertools import product
-#sep_pairs = product(SEPS,SEPS)
-#for cnt, bls in enumerate(sep_pairs):
+
 bls = (0,103)
 k1 = (set1,pol,(0,103))
 k2 = (set2,pol,(0,103))
@@ -251,23 +227,7 @@ plt.subplot(3,1,3)
 plt.title(set1+set2+str(bls)+'C')
 capo.plot.waterfall(pC, mx=16, drng=7)
 plt.colorbar()
-    # plt.subplot(9,1,cnt+5)
-    # pC = get_p(k1,k2,'I')
-    # plt.title(set1+set2+str(bls))
-    # capo.plot.waterfall(pC, mx=16, drng=7)
-    #plt.colorbar()
-plt.show()
-#plt.savefig('pspc.png')
 
-'''
-pC1 = get_p(k1a,k1b,'C')
-pC2 = get_p(k2a,k2b,'C')
-pC3 = get_p(k3a,k3b,'C')
-plt.plot(np.abs(np.median(pC1, axis=1).real), 'r', label='pC1',)
-plt.plot(np.abs(np.median(pC2, axis=1).real), 'b', label='pC2',)
-plt.plot(np.abs(np.median(pC3, axis=1).real), 'k', label='pC3',)
-plt.legend()
 plt.show()
-'''
 
 import IPython; IPython.embed()

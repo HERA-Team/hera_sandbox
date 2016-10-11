@@ -4,6 +4,7 @@ matplotlib.use('Agg')
 import numpy as np, aipy, capo, matplotlib.pyplot as plt, sys, glob
 import md5
 import oqe, os
+import cProfile
 def dB(sig): return 10*np.log10(np.abs(np.average(sig.real, axis=1)))
 
 def find_sep(aa, bls, drow=None, dcol=None):
@@ -88,6 +89,8 @@ scalar_win = capo.pspec.X2Y(z) * bm * B_win
 cwd = os.getcwd()
 if cwd.startswith('/Users/yunfanzhang/'):
     dataDIR = '/Users/yunfanzhang/local/DATA128/DATA/'
+elif cwd.startswith('/Users/yunfanz/'):
+    dataDIR = '/Users/yunfanz/DATA/DATA128/DATA/'
 elif cwd.startswith('/home/yunfanz/'):
     dataDIR = '/home/yunfanz/EoR/DATA128/DATA/'
 sets = {

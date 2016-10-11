@@ -7,13 +7,13 @@ num_cores = multiprocessing.cpu_count()
 #@p.ion()
 #fqs = n.linspace(.1,.2,203)
 fq = .15
-bl1, bl2 = (0,26),(0,26)
+bl1, bl2 = (0,103),(0,103)
 N = 4   #number of universes to average over
 
 VIS = False
 REDNORM = 1.
-
-aa = a.cal.get_aa('psa6240_v003', n.array([fq]))
+aa = aipy.cal.get_aa('psa6622_v001',np.array([fq])) #128
+#aa = a.cal.get_aa('psa6240_v003', n.array([fq]))
 #h = a.healpix.HealpixMap(nside=256)
 h = a.healpix.HealpixMap(nside=64)
 h.set_interpol(False)
