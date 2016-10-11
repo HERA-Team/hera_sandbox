@@ -384,35 +384,32 @@ def get_phase(fqs,tau, offset=False):
     else:
         return np.exp(-2j*np.pi*fqs*tau)
 
-def save_gains_fc(s,f,pol,filename,ubls=None,ex_ants=None,verbose=False):
+def save_gains_fc(s,fqs,pol,filename,ubls=None,ex_ants=None,verbose=False):
     """
     s: solutions
-    f: frequencies
+    fqs: frequencies
     pol: polarization of single antenna i.e. 'x', or 'y'.
     filename: if a specific file was used (instead of many), change output name
     ubls: unique baselines used to solve for s'
     ex_ants: antennae excluded to solve for s'
     """
 #    if isinstance(filename, list): filename=filename[0] #XXX this is evil. why?
-    NBINS = len(f)
+    NBINS = len(fqs)
     s2 = {}
     for k,i in s.iteritems():
+        #len > 1 means that one is using the "tune" parameter in omni.firstcal
         if len(i)>1:
-            #len > 1 means that one is using the "tune" parameter in omni.firstcal
-            #s2[str(k)+pol] = get_phase(f,i,offset=True).reshape(1,-1) #reshape plays well with omni apply
-#            s2[str(k)+pol] = get_phase(f,i,offset=True).reshape(-1,NBINS) #reshape plays well with omni apply
-            s2[str(k)+pol] = get_phase(f,i,offset=True).T #reshape plays well with omni apply
+            s2[str(k)+pol] = get_phase(fqs,i,offset=True).T
             s2['d'+str(k)] = i[0]
             s2['o'+str(k)] = i[1]
             if verbose: print 'dly=%f , off=%f'%i
         else:
-            #s2[str(k)+pol] = omni.get_phase(f,i).reshape(1,-1) #reshape plays well with omni apply
-            #s2[str(k)+pol] = omni.get_phase(f,i).reshape(-1,NBINS) #reshape plays well with omni apply
-            s2[str(k)+pol] = get_phase(f,i).T #reshape plays well with omni apply
+            s2[str(k)+pol] = get_phase(fqs,i).T #reshape plays well with omni apply
             s2['d'+str(k)] = i
             if verbose: print 'dly=%f'%i
     if not ubls is None: s2['ubls']=ubls
     if not ex_ants is None: s2['ex_ants']=ex_ants
+    s2['freqs']=fqs#in GHz
     outname='%s.fc.npz'%filename
     import sys
     s2['cmd'] = ' '.join(sys.argv)
