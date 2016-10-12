@@ -7,12 +7,12 @@ num_cores = multiprocessing.cpu_count()
 #fqs = n.linspace(.1,.2,203)
 fq = .15
 bl1, bl2 = (0,103),(0,95)
-N = 10   #number of universes to average over
+N = 2400   #number of universes to average over
 
 VIS = False
-REDNORM = 1261990. #REDNORM is the peak of baseline_ton
+REDNORM = 1228687.26108#1261990. #REDNORM is the peak of baseline_ton
 
-aa = aipy.cal.get_aa('psa6622_v001',np.array([fq])) #128
+aa = a.cal.get_aa('psa6622_v001',n.array([fq])) #128
 #aa = a.cal.get_aa('psa6240_v003', n.array([fq]))
 #h = a.healpix.HealpixMap(nside=256)
 h = a.healpix.HealpixMap(nside=64)
@@ -31,7 +31,7 @@ eq = n.array([ex,ey,ez], dtype=ex.dtype)
 
 plt = None
 #TT = n.arange(2455700,2455701,1/a.const.sidereal_day*42.9*0.5) #*5 for speed
-TT = n.arange(2455700.2,2455700.8,0.001)
+TT = n.arange(2455700.3,2455700.7,0.00025)
 NORM = float(TT.size)/1000.
 def find_corr(i):
     print i
