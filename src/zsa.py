@@ -176,3 +176,16 @@ def flatten_reds(reds):
     for r in reds:
         freds += r
     return freds
+
+def order_data(dd, info):
+    '''Order data in dict, where pol is first key and bl tuple is second key, the same way an info object is oriented'''
+    d = {}
+    for bl in dd.keys():
+        for pol in dd[bl].keys():
+            if bl in info.bl_order(): 
+                if not d.has_key(bl): d[bl] = {}
+                d[bl][pol] = dd[bl][pol]
+            else:
+                if not d.has_key(bl[::-1]): d[bl[::-1]] = {}
+                d[bl[::-1]][pol] = n.conj(dd[bl][pol])
+    return d
