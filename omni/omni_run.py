@@ -57,7 +57,7 @@ for filename in args:
     files[filename] = {}
     for p in pols:
         fn = filename.split('.')
-        fn[-2] = p
+        fn[3] = p
         files[filename][p] = '.'.join(fn)
 
 #Create info

@@ -28,8 +28,8 @@ class TestFirstCal(unittest.TestCase):
         self.dataxx = {}
         self.wgtsxx = {}
         for (i,j) in data.keys():
-            self.dataxx[(i,j)] = data[(i,j)]['xx'][0:3,:]
-            self.wgtsxx[(i,j)] = np.logical_not(flags[(i,j)]['xx'])[0:3,:]
+            self.dataxx[(i,j)] = data[(i,j)]['xx']#[0:3,:]
+            self.wgtsxx[(i,j)] = np.logical_not(flags[(i,j)]['xx'])#[0:3,:]
 
 
     def test_run_firstcal(self):
