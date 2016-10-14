@@ -190,10 +190,9 @@ def order_data(dd, info):
                 d[bl[::-1]][pol] = n.conj(dd[bl][pol])
     return d
 
-def run_nb(workdir, fileroot, notebook):
+def run_nb(workdir, fileroot, agdir=''):
 
     from shutil import copy
-    from rtpipe import get_notebook
     from subprocess import call
 
     os.environ['fileroot'] = fileroot

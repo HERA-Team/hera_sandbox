@@ -52,7 +52,7 @@ def plot_hmap_ortho(h, cmap='jet', mode='log', mx=None, drng=None,
     #levels = np.arange(mn-step, mx+step, step)
     #map.contourf(cx,cy,data,levels,linewidth=0,cmap=cmap)
     
-def omni_view(reds,vis,pol,int=10,chan=500,norm=False,cursor=True,save=None,colors=None,symbols=None):
+def omni_view(reds,vis,pol,int=10,chan=500,norm=False,cursor=True,save=None,colors=None,symbols=None, ex_ants=[]):
     if not colors:
         colors = ["#006BA4", "#FF7F0E", "#2CA02C", "#D61D28", "#9467BD", "#8C564B", "#E377C2", "#7F7F7F", "#BCBD22", "#17BECF"]
     if not symbols: 
@@ -63,12 +63,13 @@ def omni_view(reds,vis,pol,int=10,chan=500,norm=False,cursor=True,save=None,colo
     bl = []
     ngps = len(reds)
     if save:
-        p.clf()
-        p.cla()
+        plt.clf()
+        plt.cla()
     for i,gp in enumerate(reds):
         c = colors[i%len(colors)]
         s = symbols[i/len(colors)]
         for r in gp:
+            if np.any([ant in r for ant in ex_ants]): continue
             try:
                 points.append(vis[r][pol][int,chan])
                 bl.append(r)
@@ -82,25 +83,25 @@ def omni_view(reds,vis,pol,int=10,chan=500,norm=False,cursor=True,save=None,colo
     max_y=0
     for i,pt in enumerate(points):
         if norm:
-            p.scatter(pt.real/np.abs(pt), pt.imag/np.abs(pt), c=col[i], marker=sym[i], s=50, label='{}'.format(bl[i]))
+            plt.scatter(pt.real/np.abs(pt), pt.imag/np.abs(pt), c=col[i], marker=sym[i], s=50, label='{}'.format(bl[i]))
         else:        
-            p.scatter(pt.real, pt.imag, c=col[i], marker=sym[i], s=50, label='{}'.format(bl[i]))
+            plt.scatter(pt.real, pt.imag, c=col[i], marker=sym[i], s=50, label='{}'.format(bl[i]))
             if np.abs(pt.real) > max_x: max_x = np.abs(pt.real)
             if np.abs(pt.imag) > max_y: max_y = np.abs(pt.imag)
             
     if norm:         
-        p.xlim(-1,1)
-        p.ylim(-1,1)
+        plt.xlim(-1,1)
+        plt.ylim(-1,1)
     else: 
-        p.xlim(-max_x-.1*max_x,max_x+.1*max_x)
-        p.ylim(-max_y-.1*max_y,max_y+.1*max_y)
-    p.ylabel('imag(V)')
-    p.xlabel('real(V)')
+        plt.xlim(-max_x-.1*max_x,max_x+.1*max_x)
+        plt.ylim(-max_y-.1*max_y,max_y+.1*max_y)
+    plt.ylabel('imag(V)')
+    plt.xlabel('real(V)')
     if cursor:
         from mpldatacursor import datacursor
         datacursor(formatter='{label}'.format)
     if save:
-        p.savefig(save)
+        plt.savefig(save)
     return None
 
 def omni_view_gif(filenames, name='omni_movie.gif'):
