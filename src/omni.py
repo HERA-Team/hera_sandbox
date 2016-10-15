@@ -285,7 +285,7 @@ class FirstCal(object):
         self.wgts = wgts
         #if wgts != None: self.wgts = wgts
         #else: self.wgts = np.ones_like(self.data)
-    def data_to_delays(self, verbose=False, **kwargs):
+    def data_to_delays(self, **kwargs):
         '''data = dictionary of visibilities. 
            info = FirstCalRedundantInfo class
            can give it kwargs:
@@ -297,11 +297,7 @@ class FirstCal(object):
                 1. baseline pair : delays
                 2. baseline pari : offset 
         '''
-        window=kwargs.get('window','none')
-        tune=kwargs.get('tune',True)
-        plot=kwargs.get('plot',False)
-        clean=kwargs.get('clean',1e-4)
-#        use_offset = kwargs.get('use_offset',False)
+        verbose = kwargs.get('verbose', False)
         blpair2delay = {}
         blpair2offset = {}
         dd = self.info.order_data(self.data)
@@ -313,51 +309,42 @@ class FirstCal(object):
             w1 = ww[:,:,self.info.bl_index(bl1)]
             d2 = dd[:,:,self.info.bl_index(bl2)]
             w2 = ww[:,:,self.info.bl_index(bl2)]
-            if True:
-                delay,offset = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs,window=window,tune=tune,plot=plot,verbose=verbose,clean=clean)
-            if False:
-                _,(delay,offset),_ = red.redundant_bl_cal(d1,w1,d2,w2,self.fqs,window=window,verbose=verbose,use_offset=use_offset)
+            delay,offset = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs,**kwargs)
             blpair2delay[(bl1,bl2)] = delay
             blpair2offset[(bl1,bl2)] = offset
         return blpair2delay, blpair2offset
     def get_N(self,nblpairs):
         return sps.eye(nblpairs) 
-    def get_M(self, verbose=False, **kwargs):
-        M = np.zeros((len(self.info.bl_pairs),1))
-        O = np.zeros((len(self.info.bl_pairs),1))
-        blpair2delay,blpair2offset = self.data_to_delays(verbose=verbose, **kwargs)
+    def get_M(self, **kwargs):
+        blpair2delay,blpair2offset = self.data_to_delays(**kwargs)
+        sz = len(blpair2delay[blpair2delay.keys()[0]])
+        M = np.zeros((len(self.info.bl_pairs),sz))
+        O = np.zeros((len(self.info.bl_pairs),sz))
         for pair in blpair2delay:
-            M[self.info.blpair_index(pair)] = blpair2delay[pair]
-            O[self.info.blpair_index(pair)] = blpair2offset[pair]
+            M[self.info.blpair_index(pair),:] = blpair2delay[pair]
+            O[self.info.blpair_index(pair),:] = blpair2offset[pair]
             
         return M,O
-    def run(self, verbose=False, offset=False, **kwargs):
+    def run(self, **kwargs):
+        verbose = kwargs.get('verbose', False)
+        offset = kwargs.get('offset', False)
         #make measurement matrix 
         print "Geting M,O matrix"
-        self.M,self.O = self.get_M(verbose=verbose, **kwargs)
-        #self.M = np.append(self.M, [0.0,0.0,0.0])
-        #self.O = np.append(self.O, [0.0,0.0,0.0])
-        #make noise matrix
-        #N = self.get_N(len(self.info.bl_pairs)+3) 
+        self.M,self.O = self.get_M(**kwargs)
         print "Geting N matrix"
-        #import IPython; IPython.embed()
         N = self.get_N(len(self.info.bl_pairs)) 
         #self._N = np.linalg.inv(N)
         self._N = N #since just using identity now
+
         #get coefficients matrix,A
         self.A = sps.csr_matrix(self.info.A)
         print 'Shape of coefficient matrix: ', self.A.shape
-#        ones = np.ones((1,self.A.shape[1]))
-        #index:antenna => 9:80, 11:104, 13:53
-#        deg1 = np.zeros((1,self.A.shape[1])); deg1[:,9] = 1.0; deg1[:,11] = 1.0
-#        deg2 = np.zeros((1,self.A.shape[1])); deg2[:,9] = 1.0; deg2[:,13] = 1.0
-#        self.A = np.concatenate([self.A,ones,deg1,deg2])
-        #solve for delays
+
+#        solve for delays
         print "Inverting A.T*N^{-1}*A matrix"
         invert = self.A.T.dot(self._N.dot(self.A)).todense() #make it dense for pinv
-#        invert = np.dot(self.A.T,np.dot(self._N,self.A))
         dontinvert = self.A.T.dot(self._N.dot(self.M)) #converts it all to a dense matrix
-        #definitely want to use pinv here and not solve since invert is probably singular. 
+#        definitely want to use pinv here and not solve since invert is probably singular. 
         self.xhat = np.dot(np.linalg.pinv(invert),dontinvert)
         #solve for offset
         if offset:
@@ -366,7 +353,6 @@ class FirstCal(object):
             dontinvert =self.A.T.dot(self._N.dot(self.O))
             self.ohat = np.dot(np.linalg.pinv(invert),dontinvert)
             #turn solutions into dictionary
-#            import IPython; IPython.embed()
             return dict(zip(self.info.subsetant,zip(self.xhat,self.ohat)))
         else:
             #turn solutions into dictionary
@@ -388,29 +374,32 @@ def get_phase(fqs,tau, offset=False):
     else:
         return np.exp(-2j*np.pi*fqs*tau)
 
-def save_gains_fc(s,f,pol,filename,ubls=None,ex_ants=None,verbose=False):
+def save_gains_fc(s,fqs,pol,filename,ubls=None,ex_ants=None,verbose=False):
     """
     s: solutions
-    f: frequencies
+    fqs: frequencies
     pol: polarization of single antenna i.e. 'x', or 'y'.
     filename: if a specific file was used (instead of many), change output name
     ubls: unique baselines used to solve for s'
     ex_ants: antennae excluded to solve for s'
     """
 #    if isinstance(filename, list): filename=filename[0] #XXX this is evil. why?
+    NBINS = len(fqs)
     s2 = {}
     for k,i in s.iteritems():
+        #len > 1 means that one is using the "tune" parameter in omni.firstcal
         if len(i)>1:
-            #len > 1 means that one is using the "tune" parameter in omni.firstcal
-            s2[str(k)+pol] = get_phase(f,i,offset=True).reshape(1,-1) #reshape plays well with omni apply
+            s2[str(k)+pol] = get_phase(fqs,i,offset=True).T
             s2['d'+str(k)] = i[0]
+            s2['o'+str(k)] = i[1]
             if verbose: print 'dly=%f , off=%f'%i
         else:
-            s2[str(k)+pol] = omni.get_phase(f,i).reshape(1,-1) #reshape plays well with omni apply
+            s2[str(k)+pol] = get_phase(fqs,i).T #reshape plays well with omni apply
             s2['d'+str(k)] = i
             if verbose: print 'dly=%f'%i
     if not ubls is None: s2['ubls']=ubls
     if not ex_ants is None: s2['ex_ants']=ex_ants
+    s2['freqs']=fqs#in GHz
     outname='%s.fc.npz'%filename
     import sys
     s2['cmd'] = ' '.join(sys.argv)

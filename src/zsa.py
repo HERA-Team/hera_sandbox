@@ -219,3 +219,35 @@ def get_ants(mfile, pol='xx', search='f1', columns=['fengine', 'plate', 'rx', 's
         final_strings[k] = ','.join(final_strings[k])
 
     return final_strings[pol[0]]
+def order_data(dd, info):
+    '''Order data in dict, where pol is first key and bl tuple is second key, the same way an info object is oriented'''
+    d = {}
+    for bl in dd.keys():
+        for pol in dd[bl].keys():
+            if bl in info.bl_order(): 
+                if not d.has_key(bl): d[bl] = {}
+                d[bl][pol] = dd[bl][pol]
+            else:
+                if not d.has_key(bl[::-1]): d[bl[::-1]] = {}
+                d[bl[::-1]][pol] = n.conj(dd[bl][pol])
+    return d
+
+def run_nb(workdir, fileroot, agdir=''):
+
+    from shutil import copy
+    from subprocess import call
+
+    os.environ['fileroot'] = fileroot
+    if agdir: #git directory
+        os.environ['agdir'] = agdir
+
+    os.chdir(workdir)
+    copy(nb, '{0}/{1}.ipynb'.format(workdir, fileroot))
+
+    cmd = 'jupyter nbconvert {0}.ipynb --inplace --execute --to notebook --allow-errors --ExecutePreprocessor.timeout=3600'.format(fileroot).split(' ')
+    status = call(cmd)
+
+    cmd = 'jupyter trust {0}.ipynb'.format(fileroot).split(' ')
+    status = call(cmd)
+
+    return True
