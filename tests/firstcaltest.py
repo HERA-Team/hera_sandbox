@@ -34,7 +34,7 @@ class TestFirstCal(unittest.TestCase):
 
     def test_run_firstcal(self):
         fc = capo.omni.FirstCal(self.dataxx,self.wgtsxx,self.fqs,self.info)
-        sols = fc.run(tune=True,verbose=False,offset=True,plot=False)
+        sols = fc.run(finetune=True,verbose=False,plot=False,noclean=True,offset=False,average=False,window='none')
         capo.omni.save_gains_fc(sols,self.fqs,self.pol[0],filename=self.raw_data[0],ubls=' ',ex_ants=[],verbose=False)
         self.assertTrue(os.path.exists(self.raw_data[0]+'.fc.npz'))
         npzfile = self.raw_data[0]+'.fc.npz'
@@ -50,6 +50,46 @@ class TestFirstCal(unittest.TestCase):
             self.assertIsInstance(k,int)
         for k in g[g.keys()[0]].keys():
             self.assertTupleEqual(g[self.pol[0]][k].shape,(len(self.dataxx[self.dataxx.keys()[0]][:,0]),len(self.fqs)))
+
+
+    def test_run_firstcal_average(self):
+        fc = capo.omni.FirstCal(self.dataxx,self.wgtsxx,self.fqs,self.info)
+        sols = fc.run(finetune=True,verbose=True,plot=False,noclean=True,offset=False,average=True,window='none')
+        capo.omni.save_gains_fc(sols,self.fqs,self.pol[0],filename=self.raw_data[0],ubls=' ',ex_ants=[],verbose=False)
+        self.assertTrue(os.path.exists(self.raw_data[0]+'.fc.npz'))
+        npzfile = self.raw_data[0]+'.fc.npz'
+        npzdata = np.load(npzfile) 
+        for k in ['cmd','ubls','ex_ants']: assert(k in npzdata.keys())
+        for k in npzdata.keys():
+            if k.isdigit():
+                self.assertTrue(str(k)+'d' in npzdata.keys())
+        #test compatibility with capo.omni_from_npz.
+        _,g,_,_ = capo.omni.from_npz(npzfile)
+        self.assertEqual(g.keys(),[self.pol[0]])
+        for k in g[g.keys()[0]].keys(): 
+            self.assertIsInstance(k,int)
+        for k in g[g.keys()[0]].keys():
+            self.assertTupleEqual(g[self.pol[0]][k].shape,(1,len(self.fqs)))
+
+    def test_run_firstcal_average_clean(self):
+        fc = capo.omni.FirstCal(self.dataxx,self.wgtsxx,self.fqs,self.info)
+        sols = fc.run(finetune=True,verbose=True,plot=False,noclean=False,offset=False,average=True,window='none')
+        capo.omni.save_gains_fc(sols,self.fqs,self.pol[0],filename=self.raw_data[0],ubls=' ',ex_ants=[],verbose=False)
+        self.assertTrue(os.path.exists(self.raw_data[0]+'.fc.npz'))
+        npzfile = self.raw_data[0]+'.fc.npz'
+        npzdata = np.load(npzfile) 
+        for k in ['cmd','ubls','ex_ants']: assert(k in npzdata.keys())
+        for k in npzdata.keys():
+            if k.isdigit():
+                self.assertTrue(str(k)+'d' in npzdata.keys())
+        #test compatibility with capo.omni_from_npz.
+        _,g,_,_ = capo.omni.from_npz(npzfile)
+        self.assertEqual(g.keys(),[self.pol[0]])
+        for k in g[g.keys()[0]].keys(): 
+            self.assertIsInstance(k,int)
+        for k in g[g.keys()[0]].keys():
+            self.assertTupleEqual(g[self.pol[0]][k].shape,(1,len(self.fqs)))
+ 
           
     def test_plot_redundant(self):
         reds2plot = self.reds[3] #random set of redundant baseliens
