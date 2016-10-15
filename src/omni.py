@@ -234,10 +234,19 @@ def to_npz(filename, meta, gains, vismdl, xtalk):
             d['(%d,%d) %s' % (bl[0],bl[1],pol)] = xtalk[pol][bl]
     np.savez(filename,**d)
 
-def from_npz(filename, verbose=False):
+def from_npz(filename, pols=None, bls=None, ants=None, verbose=False):
     '''Reconstitute results from to_npz, returns meta, gains, vismdl, xtalk, each
-    keyed first by polarization, and then by bl/ant/keyword.'''
+    keyed first by polarization, and then by bl/ant/keyword.
+    Optional variables:
+    pols: list of polarizations. default: None, return all
+    bls: list of baselines. default: None, return all
+    ants: list of antennas for gain. default: None, return all
+    '''
     if type(filename) is str: filename = [filename]
+    if type(pols) is str: pols = [pols]
+    if type(bls) is tuple and type(bls[0]) is int: bls = [bls]
+    if type(ants) is int: ants = [ants]
+    #filename = np.array(filename)
     meta, gains, vismdl, xtalk = {}, {}, {}, {}
     def parse_key(k):
         bl,pol = k.split()
@@ -246,22 +255,42 @@ def from_npz(filename, verbose=False):
     for f in filename:
         if verbose: print 'Reading', f
         npz = np.load(f)
-        for k in [f for f in npz.files if f.startswith('<')]:
-            pol,bl = parse_key(k)
-            if not vismdl.has_key(pol): vismdl[pol] = {}
-            vismdl[pol][bl] = vismdl[pol].get(bl,[]) + [np.copy(npz[k])]
-        for k in [f for f in npz.files if f.startswith('(')]:
-            pol,bl = parse_key(k)
-            if not xtalk.has_key(pol): xtalk[pol] = {}
-            dat = np.resize(np.copy(npz[k]),vismdl[pol][vismdl[pol].keys()[0]][0].shape) #resize xtalk to be like vismdl (with a time dimension too)
-            if xtalk[pol].get(bl) is None: #no bl key yet
-                xtalk[pol][bl] = dat
-            else: #append to array
-                xtalk[pol][bl] = np.vstack((xtalk[pol].get(bl),dat))
-        for k in [f for f in npz.files if f[0].isdigit()]:
-            pol,ant = k[-1:],int(k[:-1])
-            if not gains.has_key(pol): gains[pol] = {}
-            gains[pol][ant] = gains[pol].get(ant,[]) + [np.copy(npz[k])]
+        for k in npz.files:
+            if k[0].isdigit():
+                pol,ant = k[-1:],int(k[:-1])
+                if (pols==None or pol in pols) and (ants==None or ant in ants): 
+                    if not gains.has_key(pol): gains[pol] = {}
+                    gains[pol][ant] = gains[pol].get(ant,[]) + [np.copy(npz[k])]
+            try: pol,bl = parse_key(k)
+            except(ValueError): continue
+            if (pols is not None) and (pol not in pols): continue
+            if (bls is not None) and (bl not in bls): continue
+            if k.startswith('<'):
+                if not vismdl.has_key(pol): vismdl[pol] = {}
+                vismdl[pol][bl] = vismdl[pol].get(bl,[]) + [np.copy(npz[k])]
+            elif k.startswith('('):
+                if not xtalk.has_key(pol): xtalk[pol] = {}
+                dat = np.resize(np.copy(npz[k]),vismdl[pol][vismdl[pol].keys()[0]][0].shape) #resize xtalk to be like vismdl (with a time dimension too)
+                if xtalk[pol].get(bl) is None: #no bl key yet
+                    xtalk[pol][bl] = dat
+                else: #append to array
+                    xtalk[pol][bl] = np.vstack((xtalk[pol].get(bl),dat))
+        # for k in [f for f in npz.files if f.startswith('<')]:
+        #     pol,bl = parse_key(k)
+        #     if not vismdl.has_key(pol): vismdl[pol] = {}
+        #     vismdl[pol][bl] = vismdl[pol].get(bl,[]) + [np.copy(npz[k])]
+        # for k in [f for f in npz.files if f.startswith('(')]:
+        #     pol,bl = parse_key(k)
+        #     if not xtalk.has_key(pol): xtalk[pol] = {}
+        #     dat = np.resize(np.copy(npz[k]),vismdl[pol][vismdl[pol].keys()[0]][0].shape) #resize xtalk to be like vismdl (with a time dimension too)
+        #     if xtalk[pol].get(bl) is None: #no bl key yet
+        #         xtalk[pol][bl] = dat
+        #     else: #append to array
+        #         xtalk[pol][bl] = np.vstack((xtalk[pol].get(bl),dat))
+        # for k in [f for f in npz.files if f[0].isdigit()]:
+        #     pol,ant = k[-1:],int(k[:-1])
+        #     if not gains.has_key(pol): gains[pol] = {}
+        #     gains[pol][ant] = gains[pol].get(ant,[]) + [np.copy(npz[k])]
         kws = ['chi','hist','j','l','f']
         for kw in kws:
             for k in [f for f in npz.files if f.startswith(kw)]:

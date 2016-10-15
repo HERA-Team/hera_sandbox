@@ -41,10 +41,10 @@ def lst_grid(lsts, data, wgts=None, lstbins=6300, wgtfunc=lambda dt,res: np.exp(
     if wgts is None: wgts = np.where(np.abs(data) == 0, 0, 1.)
     sumgrid,wgtgrid = 0, 0
     for lst,d,w in zip(lsts,data,wgts):
-        print lst
         dt = lstgrid - lst
         wf = wgtfunc(dt,lstres); wf.shape = (-1,) + (1,)*(data.ndim-1)
         d.shape, w.shape = (1,-1), (1,-1)
+        #print lst, dt
         wgtgrid += w * wf
         sumgrid += d * w * wf 
     datgrid = np.where(wgtgrid > 1e-10, sumgrid/wgtgrid, 0)
@@ -133,7 +133,8 @@ class DataSet:
         if t is None: return self._C[k]
         # If t is provided, Calculate C for the provided time index, including flagging
         w = self.w[k][:,t:t+1]
-        return self._C[k] * (w * w.T)
+        if np.all(w<1.e-20): return self._C[k]
+        return self._C[k] * (w * w.T)       #!!!!!!!!!!!!!!!!!!!!!!!!
     def set_C(self, d):
         self.clear_cache(d.keys())
         for k in d: self._C[k] = d[k]
@@ -154,13 +155,20 @@ class DataSet:
             U,S,V = np.linalg.svd(C.conj()) # conj in advance of next step
             S += self.lmin # ensure invertibility
             self.set_iC({k:np.einsum('ij,j,jk', V.T, 1./S, U.T)})
-        if t is None: return self._iC[k]
+        if t is None: 
+            #self._iCt[k] = self._iC[k]  #!!!!!!!!!!!!!!
+            return self._iC[k]
         # If t is provided, Calculate iC for the provided time index, including flagging
         w = self.w[k][:,t:t+1]
         m = hash(w)
         if not self._iCt.has_key(k): self._iCt[k] = {}
         if not self._iCt[k].has_key(m):
             self._iCt[k][m] = np.linalg.pinv(self.C(k,t), rcond=rcond)
+            if np.isnan(self._iCt[k][m]).any():
+                print 'nan in iCt'
+                #self._iCt[k][m] = 1e12*np.ones_like(self._iCt[k][m])
+                import IPython; IPython.embed()
+                # raise(ValueError)
         return self._iCt[k][m]
     def set_iC(self, d):
         for k in d: self._iC[k] = d[k]
@@ -296,6 +304,10 @@ class DataSet:
                         for i in xrange(nchan): # this loop goes as nchan^4
                             for j in xrange(nchan):
                                 F[(k1,m1,k2,m2)][i,j] += np.einsum('ij,ji', iCQ1[i], iCQ2[j]) #C^-1 Q C^-1 Q 
+                        if np.isnan(F[(k1,m1,k2,m2)]).any():
+                            print 'nan detected in F'
+                            import IPython; IPython.embed()
+                            raise(ValueError)
                 return F
         else:
             #iC1 = np.linalg.inv(self.C(k1) * np.identity(nchan))
@@ -336,7 +348,12 @@ class DataSet:
             #U,S,V = np.linalg.svd(F)
             #M = np.einsum('ij,j,jk', V.T, 1./S, U.T)
         elif mode == 'F^-1/2':
-            U,S,V = np.linalg.svd(F)
+            try: U,S,V = np.linalg.svd(F)
+            except(ValueError):
+                import IPython; IPython.embed()
+                raise(ValueError)
+
+            S = np.maximum(S,1e-12)
             M = np.einsum('ij,j,jk', V.T, 1./np.sqrt(S), U.T)
         elif mode == 'I':
             M = np.identity(F.shape[0], dtype=F.dtype)

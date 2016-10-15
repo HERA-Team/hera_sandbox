@@ -4,7 +4,7 @@ import aipy as a, numpy as n, pylab as p, ephem as e
 aa = a.cal.get_aa('psa6240_v003',n.array([.15]))
 nants = len(aa)
 rad2deg=180/n.pi
-src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
+src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15)
 #src=a.fit.RadioSpecial("Sun")
 
 p.figure()

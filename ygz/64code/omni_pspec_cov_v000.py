@@ -1,7 +1,8 @@
 #! /usr/bin/env python
 
 import numpy as np, aipy, capo, pylab as plt, sys, glob
-
+import md5
+import oqe, os
 def dB(sig): return 10*np.log10(np.abs(np.average(sig.real, axis=1)))
 
 def find_sep(aa, bls, drow=None, dcol=None):
@@ -14,6 +15,22 @@ def find_sep(aa, bls, drow=None, dcol=None):
         if not dcol is None and abs(icol - jcol) != dcol: continue
         rv.append((i,j))
     return rv
+
+def rebin_lst(binsize, lsts, d, w):
+    bins = lsts/binsize
+    b0 = int(bins[0])
+    bmax = int(np.ceil(np.max(bins)))
+    dbin = np.zeros((bmax,d.shape[1]), dtype=d.dtype)
+    dwgt = np.zeros(dbin.shape, dtype=np.float)
+    for i,b in enumerate(bins-b0):
+        db = b % 1
+        w1,w2 = (1-db) * w[i], db * w[i] # linearly interpolate between bins
+        dbin[np.floor(b)] += w1 * d[i]
+        dwgt[np.floor(b)] += w1
+        dbin[np.ceil(b)] += w2 * d[i]
+        dwgt[np.ceil(b)] += w2
+    lstbin = (b0 + np.arange(bmax)) * binsize
+    return lstbin, dbin / np.where(dwgt > 0, dwgt, 1), dwgt
 
 SEPS = [
     (0,103) , #  1
@@ -43,22 +60,20 @@ CONJ = [
     (12,43) , # 12
     (57,64) ] # 15
 
-#SEPS = [(0,103), (0,111), (0,95)]
+SEPS = [(0,103), (0,111), (0,95)]
 #SEPS += [(2,105), (1,83)]
 #SEPS += [(0,79), (0,78)]
 #SEPS += [(0,70),(0,71)]
 #SEPS += [(1,107),(0,51)]
 #SEPS += [(3,105),(3,106)]
-#CH0,NCHAN = 0, 203
-bandpass = np.load('bandpass.npz')['bandpass']; bandpass.shape = (1,-1)
+#CH0,NCHAN = 90, 31
+CH0,NCHAN = 110, 51
+bandpass = np.load('bandpass.npz')['bandpass']
+bandpass.shape = (1,-1)
 fqs = np.linspace(.1,.2,bandpass.size)
-aa = aipy.cal.get_aa('psa6622_v003', fqs)
-#CH0,NCHAN = 110,51
-CH0,NCHAN = 0,203
-aa.select_chans(np.arange(CH0,CH0+NCHAN))
-afreqs = aa.get_afreqs()
 WINDOW = 'blackman-harris'
 win = aipy.dsp.gen_window(NCHAN, WINDOW); win.shape = (-1,1)
+afreqs = fqs[CH0:CH0+NCHAN]
 fq = np.average(afreqs)
 z = capo.pspec.f2z(fq)
 sdf = fqs[1]-fqs[0]
@@ -69,21 +84,31 @@ bm = np.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 # correction for beam^2
 scalar = capo.pspec.X2Y(z) * bm * B
 B_win = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW] #proper normalization
 scalar_win = capo.pspec.X2Y(z) * bm * B_win
-
+cwd = os.getcwd()
+if cwd.startswith('/Users/yunfanzhang/'):
+    dataDIR = '/Users/yunfanzhang/local/DATA128/DATA/'
+elif cwd.startswith('/home/yunfanz/'):
+    dataDIR = '/home/yunfanz/EoR/DATA128/DATA/'
 sets = {
     #'day0' : sys.argv[1:],
     #'day0' : glob.glob('zen.2456714.*.xx.npz'),
-    'day1' : glob.glob('zen.2456715.*.xx.npz'),
-    'day2' : glob.glob('zen.2456716.*.xx.npz'),
-    'day4' : glob.glob('zen.2456718.*.xx.npz'),
-    'day5' : glob.glob('zen.2456719.*.xx.npz'),
+    'day1' : glob.glob(dataDIR+'zen.2456715.5*.xx.npz'),
+    'day2' : glob.glob(dataDIR+'zen.2456716.5*.xx.npz'),
 }
 data,wgts = {}, {}
 lsts = {}
 chisqs = {}
 for s in sets:
     if not lsts.has_key(s):
-        meta, gains, vismdl, xtalk = capo.omni.from_npz(sets[s], bls=SEPS, verbose=True)
+        # res = Parallel(n_jobs=4)(delayed(from_npz)(file) for file in sets[s])
+        # #import IPython; IPython.embed()
+        # meta, gains, vismdl, xtalk = [],[],[],[]
+        # for i, elt in enumerate(res):
+        #     meta.append(elt[0])
+        #     gains.append(elt[1])
+        #     vismdl.append(elt[2])
+        #     xtalk.append(elt[3])
+        meta, gains, vismdl, xtalk = capo.omni.from_npz(sets[s], bls=SEPS, pols='xx', ants=1,verbose=True)
         lsts[s] = meta['lsts']
     chisqs[s] = meta['chisq'][:,CH0:CH0+NCHAN]
     for pol in vismdl:
@@ -94,34 +119,10 @@ for s in sets:
             if bl in CONJ: data[k] = data[k].conj()
             data[k] *= bandpass[:,CH0:CH0+NCHAN]
             wgts[k] = np.where(np.abs(data[k]) == 0, 0., 1)
-            #wgts[k] = np.where(np.abs(data[k]) == 0, 0., 1./chisqs[s])
-data_g,wgts_g = {}, {}
-for k in data:
-    print 'Gridding', k
-    lsts_g,data_g[k],wgts_g[k] = capo.oqe.lst_grid(lsts[k[0]], data[k], wgts=wgts[k])
+
+ind = {}
 set1,set2 = sets.keys()[0], sets.keys()[-1]
-lst_res = np.average(lsts[set1][1:] - lsts[set1][:-1])
-
-def k2eq(k):
-    return 'g%s * bl%d_%d' % ((k[0],) + k[-1])
-data_eqs, wgts_eqs = {}, {}
-sol0 = {}
-for k in data_g:
-    data_eqs[k2eq(k)], wgts_eqs[k2eq(k)] = data_g[k], wgts_g[k]
-    sol0['g'+k[0]] = np.ones_like(data_g[k])
-    sol0['bl%d_%d' % k[-1]] = data_g[k]
-ls = capo.linsolve.LinProductSolver(data_eqs, wgts_eqs, sol0)
-sol1 = ls.solve()
-for cnt,i in enumerate([1,2,4,5]):
-    plt.subplot(1,4,cnt+1)
-    capo.plot.waterfall(sol1['gday%d' % i], mode='lin', mx=1.2, drng=.4)
-plt.show()
-import IPython; IPython.embed()
-
-inds = capo.oqe.lst_align(lsts, lstres=lst_res)
-data,wgts = capo.oqe.lst_align_data(inds, dsets=data, wgts=wgts)
-for s in sets: chisqs[s] = chisqs[s][inds[s]].T
-ds = capo.oqe.DataSet(data, wgts)
+lst_res = np.average(lsts[set1][1:] - lsts[set1][:-1])/2
     
 #k1a,k1b,k1c = [(s,'xx',(0,103)) for s in sets]
 #k2a,k2b,k2c = [(s,'xx',(0,111)) for s in sets]
@@ -138,16 +139,17 @@ ks = [(s,'xx',bl) for bl in SEPS for s in sets]
 #ks = [k1a,k2a,k3a]
 NK = len(ks)
 
-def set_C(norm=3e-6, tstart=400, tend=None, skip=None):
+def set_C(norm=3e-6):
     ds.clear_cache()
     Cs,iCs = {},{}
     for k in ks:
-        #sumbls = [ki for ki in ks if (ki != k) and (ki[2] != k[2])]
-        #sumbls = [ki for ki in ks if (ki != k) and (ki[2] == k[2])]
-        sumbls = [ki for ki in ks if (ki == k) and (ki[2] == k[2])]
-        #sumbls = [ki for ki in ks if (ki[2] == k[2])]
-        print k, sumbls
-        Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,tstart:tend:skip],ds.w[ki][:,tstart:tend:skip])+norm*np.identity(NCHAN) for ki in sumbls])
+        #Cs[k] = sum([capo.oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki != k])
+        #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],ds.w[ki][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
+        Cs[k] = sum([oqe.cov(ds.x[k][:,400:],ds.w[k][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
+        #w = np.where(ds.w[ki] > 0, 1, 0)
+        #Cs[k] = sum([capo.oqe.cov(ds.x[ki][:,400:],w[:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
+        #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in ks if ki != k])
+        #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in data if ki[2] != k[2]])
         ds.set_C({k:Cs[k]})
         iCs[k] = ds.iC(k)
 
@@ -157,20 +159,47 @@ def get_p(k1,k2,mode):
         qI = ds.q_hat(k1,k2,use_cov=False)
         FI = ds.get_F(k1,k2,use_cov=False)
         MI,WI = ds.get_MW(FI, mode='I')
-        pI = ds.p_hat(MI,qI,scalar=scalar)
-        return pI
+        pI = ds.p_hat(MI,qI)
+        return pI * scalar
     elif mode == 'W':
         pW = 1.6*2*np.fft.fftshift(np.fft.ifft(win*data[k1].T, axis=0) * np.fft.ifft(win*data[k2].T, axis=0).conj(), axes=0)
         return pW * scalar_win
     elif mode == 'C':
-        qC = ds.q_hat(k1,k2)
-        FC = ds.get_F(k1,k2)
-        MC,WC = ds.get_MW(FC, mode='F^-1/2')
-        pC = ds.p_hat(MC,qC,scalar=scalar)
-        return pC
+        if False:
+            save_iC = {}
+            for k in (k1,k2): save_iC[k] = ds.iC(k).copy()
+            iCs,sums = {},{}
+            for k in (k1,k2):
+                iCs[k] = {}
+                sums[k] = [md5.md5(ds.w[k][:,i]).digest() for i in xrange(ds.w[k].shape[1])]
+                for i,s in enumerate(sums[k]): iCs[k][s] = ds.w[k][:,i:i+1]
+                for s in iCs[k].keys():
+                    w = iCs[k][s]
+                    iCs[k][s] = np.linalg.pinv(ds.C(k) * (w * w.T), rcond=1e-12)
+            pCs = {}
+            for s in iCs[k].keys():
+                ds.set_iC({k1:iCs[k1][s], k2:iCs[k2][s]})
+                qC = ds.q_hat(k1,k2)
+                FC = ds.get_F(k1,k2)
+                MC,WC = ds.get_MW(FC, mode='F^-1/2')
+                pCs[s] = ds.p_hat(MC,qC)
+            ds.set_iC(save_iC)
+            # XXX deal with diff w for k1,k2
+            pC = np.array([pCs[sums[k1][i]][:,i] for i in xrange(ds.w[k1].shape[1])]).T
+        else:
+            qC = ds.q_hat(k1,k2)
+            FC = ds.get_F(k1,k2)
+            MC,WC = ds.get_MW(FC, mode='F^-1/2')
+            pC = ds.p_hat(MC,qC)
+        return pC * scalar
 
-#set_C(1e-6)
-set_C(0)
+data_g, wgt_g = {},{}
+for k in data:
+    lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k])
+################################
+ds = oqe.DataSet(data_g, wgt_g)
+
+set_C(3e-6)
 #pI,pW,pC = get_p(ks[0],ks[1])
 
 for cnt,k in enumerate(ks):
@@ -180,38 +209,11 @@ for cnt,k in enumerate(ks):
 plt.show()
 
 for cnt,k in enumerate(ks):
-    #plt.subplot(3,2,cnt+1)
-    #capo.plot.waterfall(ds.iC(k), mode='phs')
-    #capo.plot.waterfall(ds.iC(k), mx=0, drng=7)
-    plt.plot(ds.iC(k).diagonal())
-    #plt.colorbar()
-plt.show()
-
-import IPython; IPython.embed()
-
-for cnt,k in enumerate(ks):
-    #plt.subplot(NK,1,cnt+1)
+    plt.subplot(NK,1,cnt+1)
     pC = get_p(k,k,'C')
-    #pC = get_p(k,('day2',)+k[1:],'C')
-    plt.title(k[0])
-    #capo.plot.waterfall(pC, mx=16, drng=7)
-    #capo.plot.waterfall(pC.real, mx=1e9, drng=2e9)
-    #capo.plot.waterfall(pC.real)
-    #plt.plot(np.abs(np.median(pC[:,400:], axis=1).real))
-    plt.plot(np.average(pC[:,400:], axis=1).real)
-    #plt.colorbar()
-plt.show()
-
-#k1 = ('day1','xx',(0,103))
-#k2 = ('day2','xx',(0,103))
-k1 = ('day1','xx',(0,111))
-k2 = ('day2','xx',(0,111))
-plt.subplot(131)
-capo.plot.waterfall(ds.iC(k1), drng=3); plt.colorbar()
-plt.subplot(132)
-capo.plot.waterfall(ds.iC(k2), drng=3); plt.colorbar()
-plt.subplot(133)
-capo.plot.waterfall(ds.iC(k1)-ds.iC(k2), drng=3); plt.colorbar()
+    plt.title(k)
+    capo.plot.waterfall(pC, mx=16, drng=7)
+    plt.colorbar()
 plt.show()
 
 '''

@@ -239,8 +239,8 @@ class TestLogProductSolver(unittest.TestCase):
         self.assertAlmostEqual(np.angle(y*z.conjugate()), 0.)
         # check projection of degenerate mode
         self.assertAlmostEqual(np.angle(x), 0.)
-        self.assertAlmostEqual(np.angle(x), 0.)
         self.assertAlmostEqual(np.angle(y), 0.)
+        self.assertAlmostEqual(np.angle(z), 0.)
      
 class TestLinProductSolver(unittest.TestCase):
     def test_init(self):
@@ -261,7 +261,7 @@ class TestLinProductSolver(unittest.TestCase):
         x,y,z = 1., 2., 3.
         keys = ['x*y', 'x*z', 'y*z']
         d,w = {}, {}
-        for k in keys: d[k],w[k] = eval(k)+0j, 1.
+        for k in keys: d[k],w[k] = eval(k), 1.
         sol0 = {}
         for k in 'xyz': sol0[k] = eval(k)+.01
         ls = linsolve.LinProductSolver(d,w,sol0)
@@ -293,7 +293,20 @@ class TestLinProductSolver(unittest.TestCase):
         self.assertAlmostEqual(x*y.conjugate(), d['x*y_'], 3)
         self.assertAlmostEqual(x*z.conjugate(), d['x*z_'], 3)
         self.assertAlmostEqual(y*z.conjugate(), d['y*z_'], 3)
-        
+    def test_complex_array_solve(self):
+        x = np.arange(30, dtype=np.complex); x.shape = (3,10)
+        y = np.arange(30, dtype=np.complex); y.shape = (3,10)
+        z = np.arange(30, dtype=np.complex); z.shape = (3,10)
+        d,w = {'x*y':x*y, 'x*z':x*z, 'y*z':y*z}, {}
+        for k in d.keys(): w[k] = np.ones(d[k].shape)
+        sol0 = {}
+        for k in 'xyz': sol0[k] = eval(k) + .01
+        ls = linsolve.LinProductSolver(d,w,sol0)
+        ls.prm_order = {'x':0,'y':1,'z':2}
+        sol = ls.solve()
+        np.testing.assert_almost_equal(sol['x'], x, 2)
+        np.testing.assert_almost_equal(sol['y'], y, 2)
+        np.testing.assert_almost_equal(sol['z'], z, 2)
         
 if __name__ == '__main__':
     unittest.main()

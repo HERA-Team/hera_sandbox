@@ -92,30 +92,45 @@ print "Average over %d time points" % len(data1)
 data1, data2 = n.array(data1), n.array(data2)
 data = n.multiply(n.conjugate(data1), data2)*norm
 #data is shaped [timesample, channel]
-P=[]
-for ind in n.arange(len(taulist)): P.append(n.mean(data.T[ind]))
+P,Q=[],[]
+for ind in n.arange(len(taulist)):
+    pp = n.abs(n.mean(data.T[ind]))
+    qq = n.mean(data.T[ind]).real
+    P.append(pp)
+    Q.append(qq)
 #kz = taulist*2*n.pi/Y
 kz = cosmo_units.eta2kparr(taulist*1.E-9,z)     #This function needs tau in Hz^-1
 
+k, Pb = n.abs(n.array(kz)), n.abs(data)
+Deldata = k*k*k*Pb/2/(n.pi**2)
+print "Deldatashape", Deldata.shape
+#import IPython; IPython.embed()
 
+#print "shapes of arrays:", data1.shape, data2.shape
 #Bootstrap resampling
 B = 100
-bootmean, booterr = boot_simple.bootstrap(B, data)
-
+bootmean, booterr = boot_simple.bootstrap(B, Deldata)
+#print bootmean
 
 #plotting
 fig = p.figure()
-ax = fig.add_subplot(311)
+ax = fig.add_subplot(411)
 #plotp.P_v_Eta(ax,kz,P)
 ax.set_xlabel('kz')
 ax.set_ylabel(r'$P(k) K^{2} (h^{-1} Mpc)^{3}$')
 p.plot(kz,P,'bo')
-ax = fig.add_subplot(312)
-ax.errorbar(kz, bootmean, yerr=booterr, fmt='ok', ecolor='gray', alpha=0.5)
+p.plot(kz,Q,'go')
+p.plot(kz,(10*2*n.pi**2)/n.abs(kz)**3,'ro')    #input
+ax.set_yscale('log')
+ax = fig.add_subplot(412)
+#ax.errorbar(kz, n.abs(bootmean), yerr=booterr, fmt='ok', ecolor='gray', alpha=0.5)
+ax.errorbar(k, n.abs(bootmean), yerr=booterr, fmt='ok', ecolor='gray', alpha=0.5)
 #ax.set_ylim([0,0.5])
 #ax.set_yscale('log')
 ax.set_xlabel('kz')
 ax.set_ylabel(r'$P(k) K^{2} (h^{-1} Mpc)^{3}$')
-ax = fig.add_subplot(313)
+ax = fig.add_subplot(413)
 plotp.Del_v_Eta(ax,kz,P)
+#p.plot(kz,10*n.ones(kz.size),'ro')
+ax = fig.add_subplot(414)
 p.show()

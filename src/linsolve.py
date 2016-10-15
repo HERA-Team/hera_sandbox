@@ -161,7 +161,11 @@ class LinearSolver:
         w.shape += (1,) * (d.ndim-w.ndim)
         d.shape += (1,) * (w.ndim-d.ndim)
         dw = d * w
-        return dw.view(np.float)
+        if np.iscomplexobj(dw):
+            rv = np.empty((2*dw.shape[0],)+dw.shape[1:], dtype=np.float)
+            rv[::2],rv[1::2] = dw.real, dw.imag
+            return rv
+        else: return dw.view(np.float)
     def solve(self):
         y = self.get_weighted_data()
         AtAiAt = self.get_AtAiAt()
