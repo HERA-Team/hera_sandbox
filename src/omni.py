@@ -285,7 +285,7 @@ class FirstCal(object):
         self.wgts = wgts
         #if wgts != None: self.wgts = wgts
         #else: self.wgts = np.ones_like(self.data)
-    def data_to_delays(self, verbose=False, **kwargs):
+    def data_to_delays(self, **kwargs):
         '''data = dictionary of visibilities. 
            info = FirstCalRedundantInfo class
            can give it kwargs:
@@ -297,12 +297,7 @@ class FirstCal(object):
                 1. baseline pair : delays
                 2. baseline pari : offset 
         '''
-        window=kwargs.get('window','none')
-        tune=kwargs.get('tune',True)
-        plot=kwargs.get('plot',False)
-        clean=kwargs.get('clean',1e-4)
-        noclean=kwargs.get('noclean',True)
-#        use_offset = kwargs.get('use_offset',False)
+        verbose = kwargs.get('verbose', False)
         blpair2delay = {}
         blpair2offset = {}
         dd = self.info.order_data(self.data)
@@ -314,21 +309,14 @@ class FirstCal(object):
             w1 = ww[:,:,self.info.bl_index(bl1)]
             d2 = dd[:,:,self.info.bl_index(bl2)]
             w2 = ww[:,:,self.info.bl_index(bl2)]
-#            if bl1==(43,89) or bl2==(43,89): 
-#                plot=True
-#                print '                        ', (bl1,bl2)
-            if True:
-                delay,offset = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs,window=window,tune=tune,plot=plot,verbose=verbose,clean=clean,noclean=noclean)
- #               plot=False
-            if False:
-                _,(delay,offset),_ = red.redundant_bl_cal(d1,w1,d2,w2,self.fqs,window=window,verbose=verbose,use_offset=use_offset)
+            delay,offset = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs,**kwargs)
             blpair2delay[(bl1,bl2)] = delay
             blpair2offset[(bl1,bl2)] = offset
         return blpair2delay, blpair2offset
     def get_N(self,nblpairs):
         return sps.eye(nblpairs) 
-    def get_M(self, verbose=False, **kwargs):
-        blpair2delay,blpair2offset = self.data_to_delays(verbose=verbose, **kwargs)
+    def get_M(self, **kwargs):
+        blpair2delay,blpair2offset = self.data_to_delays(**kwargs)
         sz = len(blpair2delay[blpair2delay.keys()[0]])
         M = np.zeros((len(self.info.bl_pairs),sz))
         O = np.zeros((len(self.info.bl_pairs),sz))
@@ -337,10 +325,12 @@ class FirstCal(object):
             O[self.info.blpair_index(pair),:] = blpair2offset[pair]
             
         return M,O
-    def run(self, verbose=False, offset=False, **kwargs):
+    def run(self, **kwargs):
+        verbose = kwargs.get('verbose', False)
+        offset = kwargs.get('offset', False)
         #make measurement matrix 
         print "Geting M,O matrix"
-        self.M,self.O = self.get_M(verbose=verbose, **kwargs)
+        self.M,self.O = self.get_M(**kwargs)
         print "Geting N matrix"
         N = self.get_N(len(self.info.bl_pairs)) 
         #self._N = np.linalg.inv(N)
