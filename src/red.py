@@ -94,25 +94,30 @@ def fit_line(phs, fqs, valid):
     fqs = fqs.compress(valid)
     dly = phs.compress(valid)
     B = n.zeros((fqs.size,1)); B[:,0] = dly
-    A = n.zeros((fqs.size,2)); A[:,0] = fqs; A[:,1] = 1
+    A = n.zeros((fqs.size,2)); A[:,0] = fqs*2*n.pi; A[:,1] = 1
     dt,off = n.linalg.lstsq(A,B)[0].flatten()
     return dt,off
 
-def redundant_bl_cal_simple(d1,d2,fqs, window='blackman-harris', tune=True, verbose=False, plot=False):
+def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True, verbose=False, plot=False, clean=1e-4):
     '''Given redundant measurements, get the phase difference between them.
        For use on raw data'''
     d12 = d2 * n.conj(d1)
     # For 2D arrays, assume first axis is time and integrate over it
-    if d12.ndim > 1: d12_sum= n.sum(d12,axis=0)
-    else: d12_sum = d12
+    if d12.ndim > 1: 
+        d12_sum= n.sum(d12,axis=0)
+        d12_wgt= n.sum(w1*w2,axis=0) 
+    else: 
+        d12_sum = d12
+        d12_wgt = w1*w2
     #normalize data to maximum so that we minimize fft articats from RFI
+    d12_sum *= d12_wgt
     d12_sum = d12_sum/n.where(n.abs(d12_sum)==0., 1., n.abs(d12_sum)) 
     window = a.dsp.gen_window(d12_sum.size, window=window)
     dlys = n.fft.fftfreq(fqs.size, fqs[1]-fqs[0])
     # FFT and deconvolve the weights to get the phs
-    _phs = n.fft.ifft(window*d12_sum)
-#    _wgt = n.fft.ifft(window*d12_wgt)
-#    _phs,info = a.deconv.clean(_phs, _wgt, tol=clean)
+    _phs = n.fft.fft(window*d12_sum)
+    _wgt = n.fft.fft(window*d12_wgt)
+    _phs,info = a.deconv.clean(_phs, _wgt, tol=clean)
     _phs = n.abs(_phs)
     #get bin of phase
     mx = n.argmax(_phs)
@@ -126,7 +131,7 @@ def redundant_bl_cal_simple(d1,d2,fqs, window='blackman-harris', tune=True, verb
 #        import IPython; IPython.embed()
         valid = n.where(n.abs(d12_sum) > 0, 1, 0) # Throw out zeros, which NaN in the log below
         valid = n.logical_and(valid, n.logical_and(fqs>.11,fqs<.19))
-        dly = n.angle(d12_sum*n.exp(2j*n.pi*tau*fqs))
+        dly = n.angle(d12_sum*n.exp(-2j*n.pi*tau*fqs))
 #        fqs_val = fqs.compress(valid)
 #        #dly = n.real(n.log(d12_sum.compress(valid) * n.exp(2j*n.pi*tau*fqs_val))/(2j*n.pi))
 #        import IPython; IPython.embed() 
@@ -137,21 +142,43 @@ def redundant_bl_cal_simple(d1,d2,fqs, window='blackman-harris', tune=True, verb
 #        off,dt = n.polyfit(dly,fqs_val,1)
         dt,off = fit_line(dly,fqs,valid)
         if plot:
-            p.plot(fqs,dly, linewidth=2)
+            #p.plot(fqs,n.unwrap(dly), linewidth=2)
+            p.subplot(411)
             p.plot(fqs,n.angle(d12_sum), linewidth=2)
+            p.plot(fqs,d12_sum, linewidth=2)
+            p.plot(fqs, n.exp((2j*n.pi*fqs*(tau+dt))+off))
+            p.hlines(n.pi, .1,.2,linestyles='--',colors='k')
+            p.hlines(-n.pi, .1,.2,linestyles='--',colors='k')
+            p.subplot(412)
+            p.plot(fqs,n.unwrap(dly)+2*n.pi*tau*fqs, linewidth=2)
+            p.plot(fqs,dly+2*n.pi*tau*fqs, linewidth=2,ls='--')
+            p.plot(fqs,2*n.pi*tau*fqs, linewidth=2,ls='.-')
+            p.plot(fqs,2*n.pi*(tau+dt)*fqs + off, linewidth=2,ls=':')
+            #ax = p.gca()
+            p.subplot(413)
+            p.plot(dlys, _phs,'.-')
+            p.xlim(-400,400)
+            p.subplot(414)
+            p.plot(fqs,dly, linewidth=2)
+            #p.plot(fqs,n.unwrap(dly), linewidth=2)
+            p.plot(fqs,off+dt*fqs*2*n.pi, '--')
+            p.hlines(n.pi, .1,.2,linestyles='--',colors='k')
+            p.hlines(-n.pi, .1,.2,linestyles='--',colors='k')
+            print 'tau=', tau
+            print 'tau + dt=', tau+dt
+            p.show()
+            #p.plot(fqs,n.angle(d12_sum), linewidth=2)
             p.xlabel('Frequency (GHz)', fontsize='large')
             p.ylabel('Phase (radians)', fontsize='large')
-            ax = p.gca()
-            #p.plot(fqs,off+dt*fqs)
             #p.plot(fqs,n.unwrap(dly))
 #        print off
 #    #    p.plot(fqs_val,pp[0] + pp[1]*fqs_val)
-            p.show()
+            #p.show()
     # Pull out an integral number of phase wraps
     #if verbose: print tau, dtau, mxs, dt, off
     info = {'dtau':dt, 'off':off, 'mx':mx} # Some information about last step, useful for detecting screwups
     if verbose: print info, tau, tau+dt+off
-    return tau+dt+off
+    return tau+dt,off
 
 
 
