@@ -87,12 +87,12 @@ cwd = os.getcwd()
 if cwd.startswith('/Users/yunfanzhang/'):
     dataDIR = '/Users/yunfanzhang/local/DATA128/DATA/'
 elif cwd.startswith('/Users/yunfanz/'):
-    dataDIR = '/Users/yunfanz/Data/PAPER128/DATA/'
+    dataDIR = '/Users/yunfanz/Projects/21cm/Data/PAPER128/DATA/'
 elif cwd.startswith('/home/yunfanz/'):
-    dataDIR = '/home/yunfanz/EoR/DATA128/DATA/'
+    dataDIR = '/home/yunfanz/Projects/21cm/Data/DATA128/DATA/'
 sets = {
-    'day1' : glob.glob(dataDIR+'zen.2456715.*.xx.npz'),
-    'day2' : glob.glob(dataDIR+'zen.2456716.*.xx.npz'),
+    'day1' : glob.glob(dataDIR+'zen.2456715.5*.xx.npz'),
+    'day2' : glob.glob(dataDIR+'zen.2456716.5*.xx.npz'),
 }
 data,wgts = {}, {}
 lsts = {}
