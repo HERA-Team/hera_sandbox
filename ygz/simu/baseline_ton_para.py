@@ -7,13 +7,13 @@ num_cores = multiprocessing.cpu_count()
 #@p.ion()
 #fqs = n.linspace(.1,.2,203)
 fq = .15
-bl1, bl2 = (0,26),(0,26)
-N = 4   #number of universes to average over
+bl1, bl2 = (0,103),(0,103)
+N = 2400   #number of universes to average over
 
 VIS = False
 REDNORM = 1.
-
-aa = a.cal.get_aa('psa6240_v003', n.array([fq]))
+aa = a.cal.get_aa('psa6622_v001',n.array([fq])) #128
+#aa = a.cal.get_aa('psa6240_v003', n.array([fq]))
 #h = a.healpix.HealpixMap(nside=256)
 h = a.healpix.HealpixMap(nside=64)
 h.set_interpol(False)
@@ -31,7 +31,7 @@ eq = n.array([ex,ey,ez], dtype=ex.dtype)
 
 plt = None
 #TT = n.arange(2455700,2455701,1/a.const.sidereal_day*42.9*0.5) #*5 for speed
-TT = n.arange(2455700.2,2455700.8,0.001)
+TT = n.arange(2455700.49,2455700.51,0.0001)
 NORM = float(TT.size)/1000.
 #for i in xrange(N):
 def find_corr(i):
