@@ -176,3 +176,78 @@ def flatten_reds(reds):
     for r in reds:
         freds += r
     return freds
+
+def get_ants(mfile, pol='xx', search='f1', columns=['fengine', 'plate', 'rx', 'stations', 'ant']):
+    '''Get antennas corresponding to search string. Given mfile.
+       Search string can be 
+            f{i} for fengine i : returns all antennas on a specific fengine. 
+            r{i} for receiverator i : returns all antennas on a specific recieverator.
+            f{i} and r{j} : overlap of fengine i and recieverator j.
+            etc.. 
+
+        Logicals are read from left to right.
+            e.g. f2 and r3 or r3 = ((f2 and r3) or r3)
+        
+        returns x and y pol strings as a dictionary. 
+    '''
+    #get dataframe from map file. Make sure columns are in order below.
+    mapping = {'f':'fengine', 'r': 'rx'}
+    d = pd.read_csv(mfile, sep=' -> ', names=columns)
+
+    splits = np.array(search.split(' '))
+    merge_these = []
+    for i in splits[::2]:
+        #loop throguh f's and r's. Get where True.
+        map_key = mapping[i[0]]
+        merge_these.append( d[map_key].str.contains(i) )
+    final_truth = merge_these[0]
+    for i,k in enumerate(splits[1::2]):
+        #loop through and's and or's. 
+        if k=='and':
+            final_truth = np.logical_and(final_truth, merge_these[i+1])
+        elif k=='or':
+            final_truth = np.logical_or(final_truth, merge_these[i+1])
+        else:
+            continue
+
+    final_ants = d['ant'][final_truth].as_matrix()
+    final_strings = {'x': [], 'y': []}
+    for f in final_ants:
+        if f.endswith('X'): final_strings['x'].append(f[1:-1])
+        elif f.endswith('Y'): final_strings['y'].append(f[1:-1])
+    for k in final_strings:
+        final_strings[k] = ','.join(final_strings[k])
+
+    return final_strings[pol[0]]
+def order_data(dd, info):
+    '''Order data in dict, where pol is first key and bl tuple is second key, the same way an info object is oriented'''
+    d = {}
+    for bl in dd.keys():
+        for pol in dd[bl].keys():
+            if bl in info.bl_order(): 
+                if not d.has_key(bl): d[bl] = {}
+                d[bl][pol] = dd[bl][pol]
+            else:
+                if not d.has_key(bl[::-1]): d[bl[::-1]] = {}
+                d[bl[::-1]][pol] = n.conj(dd[bl][pol])
+    return d
+
+def run_nb(workdir, fileroot, agdir=''):
+
+    from shutil import copy
+    from subprocess import call
+
+    os.environ['fileroot'] = fileroot
+    if agdir: #git directory
+        os.environ['agdir'] = agdir
+
+    os.chdir(workdir)
+    copy(nb, '{0}/{1}.ipynb'.format(workdir, fileroot))
+
+    cmd = 'jupyter nbconvert {0}.ipynb --inplace --execute --to notebook --allow-errors --ExecutePreprocessor.timeout=3600'.format(fileroot).split(' ')
+    status = call(cmd)
+
+    cmd = 'jupyter trust {0}.ipynb'.format(fileroot).split(' ')
+    status = call(cmd)
+
+    return True
