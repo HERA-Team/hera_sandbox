@@ -146,7 +146,7 @@ class DataSet:
         if t is None: return self._C[k]
         # If t is provided, Calculate C for the provided time index, including flagging
         w = self.w[k][:,t:t+1]
-        if np.all(w<1.e-12): return self._C[k]
+        if np.all(w<1.e-8): return self._C[k]
         return self._C[k] * (w * w.T)       #!!!!!!!!!!!!!!!!!!!!!!!!
     def set_C(self, d):
         self.clear_cache(d.keys())
@@ -268,6 +268,7 @@ class DataSet:
                     w = self.w[k]
                     ms = [hash(w[:,i]) for i in xrange(w.shape[1])]
                     for i,m in enumerate(ms): inds[m] = inds.get(m,[]) + [i]
+                    #this just sets 
                     iCxs = {}
                     for m in inds:
                         x = self.x[k][:,inds[m]]
@@ -276,7 +277,7 @@ class DataSet:
                         iCx[k][:,inds[m]] = np.dot(iC,x)
                         #iCx[k].put(inds[m], np.dot(iC,x), axis=1)
                 iC1x,iC2x = iCx[k1], iCx[k2]
-                #import IPython; IPython.embed()
+                import IPython; IPython.embed()
         else:
             #iC1x, iC2x = self.x[k1].copy(), self.x[k2].copy()
             iC1x, iC2x = np.dot(self.I(k1), self.x[k1]), np.dot(self.I(k2), self.x[k2])
