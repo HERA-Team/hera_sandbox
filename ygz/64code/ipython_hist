@@ -1,0 +1,84 @@
+iC1,iC2 = self.iC(k1), self.iC(k2)
+iC1.shape
+import numpy as np
+np.linalg.eigh(iC1)
+np.linalg.eigh(iC1).shape
+np.linalg.eigh(iC1)[0].shape
+np.linalg.eigh(iC1)[1].shape
+np.linalg.eigh(iC1)[2].shape
+P = np.linalg.eigh(iC1)[1]
+np.dot(P.T,iC,P)
+iC
+np.dot(P,iC,P.T)
+np.dot?
+np.einsum('ij,jk,kl->il',P.T,iC1,P)
+np.einsum('ij,jk,kl->il',P,iC1,P.T)
+np.einsum('ij,jk,kl->il',P,iC1,P.T).std()
+P
+np.linalg.eigh(iC1)[0]
+np.linalg.eigh(iC1)[1]
+P1 = np.linalg.eigh(iC1)[1]
+np.einsum('ij,jk,kl->il',P,iC1,P.T).std()
+np.einsum('ij,jk,kl->il',P1.T,iC1,P1).std()
+np.einsum('ij,jk,kl->il',P1.T,iC1,P1)
+np.einsum('ij,jk,kl->il',P1,iC1,P1.T)
+x1, x2 = self.x[k1], self.x[k2]
+x1.shape
+(C1-C1.T)
+(iC1-iC1.T)
+(iC1-iC1.T).std()
+(iC1-iC1.T.conj).std()
+(iC1-iC1.T.conj()).std()
+np.linalg.eigvalsh(iC1)
+np.linalg.eigh(iC1)[0]
+np.diagonal(np.einsum('ij,jk,kl->il',P1.T,iC1,P1))
+np.diagonal(np.einsum('ij,jk,kl->il',P1,iC1,P1.T))
+np.diagonal(np.einsum('ij,jk,kl->il',P1.T.conj(),iC1,P1))
+iD1 = np.diag(np.linalg.eigvalsh(iC1))
+iD1
+iD1.shape
+x1D = np.dot(P1.T.conj(),x1)
+import pylab as plt
+f, (ax1, ax2) = plt.subplots(1,2)
+plt.ion()
+plt.show()
+ax1.imshow(x1)
+ax1.imshow(np.abs(x1))
+ax1.imshow(np.abs(x1.T))
+ax2.imshow(np.abs(x1D.T))
+x1D.std())
+x1D.std()
+x1.std()
+x1D
+P1
+x1D
+plt.figure()
+plt.imshow(x1D)
+plt.imshow(x1D.real)
+plt.colorbar()
+plt.figure()
+plt.imshow(x1D[10:].real)
+plt.imshow(np.log(x1D[:]).real)
+plt.clf()
+plt.imshow(D1)
+plt.imshow(iD1)
+plt.colorbar()
+iD1
+iCD1 = 1D1
+iCD1 = iD1
+iD1 = np.diagonal(iD1)
+iD1
+iD2, P2 = np.linalg.eigh(iC2)
+iCD2 = np.diag(iD2)
+plt.clf()
+plt.plot(iD1)
+plt.plot(iD2)
+x2D = np.dot(P2.T.conj(), x2)
+x2D
+plt.clf()
+plt.imshow(np.abs(x2D-x1D))
+plt.imshow(np.abs(x2D-x1D)[:,190:360])
+plt.imshow(np.abs(x2D)[:,190:360])
+plt.imshow(np.log(np.abs(x1D))[:,190:360])
+plt.imshow(np.log(np.abs(x2D))[:,190:360])
+plt.imshow(np.log(np.abs(x2D-x1D))[:,190:360])
