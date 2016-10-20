@@ -9,9 +9,13 @@ a.scripting.add_standard_options(o,cal=True,pol=True)
 o.add_option('--plot', action='store_true', help='Plot things.')
 o.add_option('--ubls', default='', help='Unique baselines to use, separated by commas (ex: 1_4,64_49).')
 o.add_option('--ex_ants', default='', help='Antennas to exclude, separated by commas (ex: 1,4,64,49).')
+o.add_option('--outpath', default=None,help='Output path of solution npz files. Default will be the same directory as the data files.')
+o.add_option('--plot', action='store_true', default=False, help='Turn on plotting in firstcal class.')
+o.add_option('--verbose', action='store_true', default=False, help='Turn on verbose.')
 opts,args = o.parse_args(sys.argv[1:])
-connection_file=opts.cal
-PLOT=opts.plot
+print opts.plot
+print opts.verbose
+
 
 def flatten_reds(reds):
     freds = []
@@ -19,40 +23,8 @@ def flatten_reds(reds):
         freds += r
     return freds
 
-def save_gains(s,f,pol,filename=None,ubls=None,ex_ants=None):
-    """
-    s: solutions
-    f: frequencies
-    pol: polarization
-    filename: if a specific file was used (instead of many), change output name
-    ubls: unique baselines used to solve for s'
-    ex_ants: antennae excluded to solve for s'
-    """
-    s2 = {}
-    delays = []
-    for k,i in s.iteritems():
-        s2[str(k)] = omni.get_phase(f,i)
-        try:
-            delays.append([k,i[0],i[1]])
-        except(TypeError,IndexError):
-            delays.append([k,i])
-    s2['delays'] = np.array(delays)
-    if not ubls is None: s2['ubls']=ubls
-    if not ex_ants is None: s2['ex_ants']=ex_ants
-    if not filename is None:
-        outname='%s.fc.npz'%filename
-    else:
-        outname='fcgains.%s.npz'%pol
-    print 'Saving fcgains to %s'%outname
-    n.savez(outname,**s2)
 
-def normalize_data(datadict):
-    d = {}
-    for key in datadict.keys():
-        d[key] = datadict[key]/n.where(n.abs(datadict[key]) == 0., 1., n.abs(datadict[key]))
-    return d 
 
-    
 #hera info assuming a hex of 19 and 128 antennas
 aa = a.cal.get_aa(opts.cal, n.array([.150]))
 ex_ants = []
@@ -69,24 +41,33 @@ print 'Excluding Antennas:',ex_ants
 if len(ubls) != None: print 'Using Unique Baselines:',ubls
 info = omni.aa_to_info(aa, fcal=True, ubls=ubls, ex_ants=ex_ants)
 reds = flatten_reds(info.get_reds())
-#redstest = infotest.get_reds()#for plotting 
+#redstest = infotest.get_reds()#for plotting
 
 print 'Number of redundant baselines:',len(reds)
 #Read in data here.
 ant_string =','.join(map(str,info.subsetant))
 bl_string = ','.join(['_'.join(map(str,k)) for k in reds])
-datainfo, data, flags = arp.get_dict_of_uv_data(args, bl_string, opts.pol, verbose=True)
-dataxx = {} #not necessarily xx data inside
+times, data, flags = arp.get_dict_of_uv_data(args, bl_string, opts.pol, verbose=True)
+datapack,wgtpack = {},{}
 for (i,j) in data.keys():
-    dataxx[(i,j)] = data[(i,j)][opts.pol]
-fqs = datainfo['freqs']
-dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, fqs[1]-fqs[0]))
+    datapack[(i,j)] = data[(i,j)][opts.pol]
+    wgtpack[(i,j)] = np.logical_not(flags[(i,j)][opts.pol])
+nfreq = datapack[datapack.keys()[0]].shape[1] #XXX less hacky than previous hardcode, but always safe?
+fqs = n.linspace(.1,.2,nfreq)
+dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, np.diff(fqs)[0]))
 
 #gets phase solutions per frequency.
-fc = omni.FirstCal(dataxx,fqs,info)
-sols = fc.run()
+fc = omni.FirstCal(datapack,wgtpack,fqs,info)
+#XXX setting offset to false for TESTING -- does not make a difference
+#sols = fc.run(tune=True,verbose=opts.verbose,offset=True,plot=opts.plot)
+sols = fc.run(tune=True,verbose=opts.verbose,offset=False,plot=opts.plot)
+
 
 #Save solutions
-if len(args)==1: save_gains(sols,fqs, opts.pol, filename=args[0], ubls=ubls, ex_ants=ex_ants)
-else: save_gains(sols,fqs, opts.pol, ubls=ubls, ex_ants=ex_ants) 
-
+if len(args)==1: filename=args[0]
+else: filename='fcgains.%s.npz'%opts.pol #if averaging a bunch together of files together.
+if not opts.outpath is None:
+    outname='%s/%s'%(opts.outpath,filename.split('/')[-1])
+else:
+    outname='%s'%filename
+omni.save_gains_fc(sols,fqs, opts.pol[0], outname, ubls=ubls, ex_ants=ex_ants)
