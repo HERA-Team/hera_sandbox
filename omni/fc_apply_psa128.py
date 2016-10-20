@@ -31,8 +31,8 @@ for i,filename in enumerate(args):
         fcdata = np.load(fcfile)
         gains = {}
         for k in fcdata.keys():
-            if k.isdigit():
-                gains[int(k)] = fcdata[k]
+            if k.endswith(opts.pol[0]):
+                gains[int(k[:-1])] = fcdata[k][0,:]
         
         newfile = filename+'f' #saves in same place as uvcRRE file
         if os.path.exists(newfile):
