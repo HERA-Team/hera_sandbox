@@ -50,6 +50,7 @@ for ant in medians.keys():
     do[int(ant)] = [medians['d'+ant]]
 for f in args:
     fname = '.'.join(f.split('.')[:-2] + ['median'])
+    pol = fname.split('.')[3]
     omni.save_gains_fc(do,fqs,pol[0],fname)
 
 
