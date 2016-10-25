@@ -270,7 +270,12 @@ def from_npz(filename, pols=None, bls=None, ants=None, verbose=False):
                 vismdl[pol][bl] = vismdl[pol].get(bl,[]) + [np.copy(npz[k])]
             elif k.startswith('('):
                 if not xtalk.has_key(pol): xtalk[pol] = {}
-                dat = np.resize(np.copy(npz[k]),vismdl[pol][vismdl[pol].keys()[0]][0].shape) #resize xtalk to be like vismdl (with a time dimension too)
+                try:
+                    dat = np.resize(np.copy(npz[k]),vismdl[pol][vismdl[pol].keys()[0]][0].shape) #resize xtalk to be like vismdl (with a time dimension too)
+                except(KeyError):
+                    for tempkey in npz.files: 
+                        if tempkey.startswith('<'): break
+                    dat = np.resize(np.copy(npz[k]),npz[tempkey].shape) #resize xtalk to be like vismdl (with a time dimension too)
                 if xtalk[pol].get(bl) is None: #no bl key yet
                     xtalk[pol][bl] = dat
                 else: #append to array
