@@ -48,7 +48,7 @@ def lst_align(lsts, lstres=.001):
     inds = {}
     for k in lstr: #selects correct LSTs from data
         inds[k] = order[k].take(lstr[k].searchsorted(lsts_final))
-    return inds 
+    return inds
 
 def lst_align_data(inds, dsets, wgts=None, lsts=None):
     for k in dsets:

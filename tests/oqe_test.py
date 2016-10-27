@@ -31,6 +31,28 @@ class TestMethods(unittest.TestCase):
         n = oqe.noise((1024,1024))
         self.assertEqual(n.shape, (1024,1024))
         self.assertAlmostEqual(np.var(n), 1, 2)
+    def test_lst_grid(self):
+        SZ = 300
+        #lsts = np.linspace(np.pi/2, 3*np.pi/2, SZ)
+        lsts = np.linspace(0, 2*np.pi, SZ)
+        x,y = np.indices((SZ, SZ/3))
+        t = 2*np.pi*x/SZ
+        data = np.exp(1j*y*t)
+        wgts = np.ones(data.shape, dtype=np.float)
+        lst_g, data_g, wgt_g = oqe.lst_grid(lsts, data, wgts, lstbins=400)
+        x,y = np.indices(data_g.shape)
+        ans = np.exp(2j*np.pi*x/data_g.shape[0]*y)
+        from scipy.interpolate import interp1d
+        f = interp1d(t[:,0], data, kind=1, axis=0, fill_value=0, bounds_error=False, assume_sorted=True)
+        data_g2 = f(lst_g)
+        
+        #np.testing.assert_almost_equal(data_g, ans, 3)
+        import pylab as plt
+        plt.subplot(141); capo.plot.waterfall(data, mode='real', mx=1, drng=2)
+        plt.subplot(142); capo.plot.waterfall(data_g, mode='real', mx=1, drng=2)
+        plt.subplot(143); capo.plot.waterfall(data_g2, mode='real', mx=1, drng=2)
+        plt.subplot(144); capo.plot.waterfall(data_g2-ans, mode='real', mx=1, drng=2)
+        plt.show()
 
 class TestDataSet(unittest.TestCase):
     @classmethod
