@@ -31,10 +31,14 @@ o.add_option('--otherbls', type='string', default=None,
     help='Use other baseline type to determine C. Specify baseline type as command argument (ex: --otherbls="0,2")')
 o.add_option('--CnoFRF', action='store_true',
     help='Use non-FRF data to determine C.')
+o.add_option('--Cfg', action='store_true',
+    help='Use fg data to determine C.')
 o.add_option('--frf', action='store_true',
     help='FRF noise.')
 o.add_option('--lmode',type='int', default=None,
     help='Eigenvalue mode of C (in decreasing order) to be the minimum value used in C^-1')
+o.add_option('--Clongtime', action='store_true',
+    help='Use full dataset range in time to estimate C.')
 o.add_option('--output', type='string', default='',
     help='Output directory for pspec_boot files (default "")')
 
@@ -83,65 +87,46 @@ def get_Q(mode, n_k): #encodes the fourier transform from freq to delay
         Q[mode,mode] = 1
         return Q
 
-def load_otherbls():
-    dsets_sep2 = {}
-    for k in dsets:
-        dsets_sep2[k] = []
-        for file in dsets[k]:
-            oldsep = filter(lambda x: 'sep' in x, file.split('/'))[0]
-            newsep = oldsep.split('p')[0]+'p'+opts.otherbls[1:-1]
-            dsets_sep2[k].append(file.replace(oldsep,newsep))
-    data_dict_sep2 = {}
-    flg_dict_sep2 = {}
-    conj_dict_sep2 = {}
-    lsts_sep2,data_sep2,flgs_sep2 = {},{},{}
-    keys_sep2 = []
-    print 'Reading in data for',newsep
+def load_other():
+    dsets_other = {}
+    if opts.Clongtime:
+        dsets_final = {}
+        for k in dsets:
+            firstfile = dsets[k][0]
+            dsets_final[k] = glob.glob('/'.join(firstfile.split('/')[:-1])+'/lst.*'+firstfile.split('.')[-1]) #full time range
+    else: dsets_final = dsets
+    for k in dsets_final: 
+        dsets_other[k] = []
+        for file in dsets_final[k]:
+            if opts.Cfg: dsets_other[k].append('../../lstbin_fg/'+file.split('/')[1] + '/' + file.split('/')[-1][:-1]) #fg containing data
+            elif opts.CnoFRF: dsets_other[k].append(file[:-1]) #gets rid of 'L' on filename
+            elif opts.otherbls != None:
+                oldsep = filter(lambda x: 'sep' in x, file.split('/'))[0]
+                newsep = oldsep.split('p')[0]+'p'+opts.otherbls[1:-1]
+                dsets_other[k].append(file.replace(oldsep,newsep))
+            elif opts.Clongtime != None: dsets_other[k].append(file) 
+    data_dict_other = {}
+    flg_dict_other = {}
+    conj_dict_other = {}
+    lsts_other,data_other,flgs_other = {},{},{}
+    keys_other = []
+    print 'Reading in other set of data to estimate C'
     for k in days:
-        lsts_sep2[k],data_sep2[k],flgs_sep2[k] = capo.miriad.read_files(dsets_sep2[k], antstr=antstr, polstr=POL)
-        lsts_sep2[k] = n.array(lsts_sep2[k]['lsts'])
-        for bl in data_sep2[k]:
-            d = n.array(data_sep2[k][bl][POL])[:,chans] * jy2T  #extract frequency range
-            flg = n.array(flgs_sep2[k][bl][POL])[:,chans]
-            key_sep2 = (k,bl,POL)
-            keys_sep2.append(key_sep2)
-            data_dict_sep2[key_sep2] = d
-            flg_dict_sep2[key_sep2] = n.logical_not(flg)
-            conj_dict_sep2[key_sep2[1]] = conj[a.miriad.ij2bl(bl[0],bl[1])]
-    ds_sep2 = oqe.DataSet()
-    inds = oqe.lst_align(lsts_sep2)
-    data_dict,flg_dict,lsts = oqe.lst_align_data(inds,dsets=data_dict_sep2,wgts=flg_dict_sep2,lsts=lsts_sep2)
-    ds_sep2.set_data(dsets=data_dict_sep2,conj=conj_dict_sep2,wgts=flg_dict_sep2)
-    return keys_sep2, ds_sep2
-
-def load_noFRF():
-    dsets_nofrf = {}
-    for k in dsets:
-        dsets_nofrf[k] = []
-        for file in dsets[k]:
-            dsets_nofrf[k].append(file[:-1]) #gets rid of 'L' on filename
-    data_dict_nofrf = {}
-    flg_dict_nofrf = {}
-    conj_dict_nofrf = {}
-    lsts_nofrf,data_nofrf,flgs_nofrf = {},{},{}
-    keys_nofrf = []
-    print 'Reading in non-FRF data'
-    for k in days:
-        lsts_nofrf[k],data_nofrf[k],flgs_nofrf[k] = capo.miriad.read_files(dsets_nofrf[k], antstr=antstr, polstr=POL)
-        lsts_nofrf[k] = n.array(lsts_nofrf[k]['lsts'])
-        for bl in data_nofrf[k]:
-            d = n.array(data_nofrf[k][bl][POL])[:,chans] * jy2T  #extract frequency range
-            flg = n.array(flgs_nofrf[k][bl][POL])[:,chans]
-            key_nofrf = (k,bl,POL)
-            keys_nofrf.append(key_nofrf)
-            data_dict_nofrf[key_nofrf] = d
-            flg_dict_nofrf[key_nofrf] = n.logical_not(flg)
-            conj_dict_nofrf[key_nofrf[1]] = conj[key_nofrf[1]]
-    ds_nofrf = oqe.DataSet()
-    inds = oqe.lst_align(lsts_nofrf)
-    data_dict,flg_dict,lsts = oqe.lst_align_data(inds,dsets=data_dict_nofrf,wgts=flg_dict_nofrf,lsts=lsts_nofrf)
-    ds_nofrf.set_data(dsets=data_dict_nofrf,conj=conj_dict_nofrf,wgts=flg_dict_nofrf)
-    return keys_nofrf, ds_nofrf
+        lsts_other[k],data_other[k],flgs_other[k] = capo.miriad.read_files(dsets_other[k], antstr=antstr, polstr=POL,verbose=True)
+        lsts_other[k] = n.array(lsts_other[k]['lsts'])
+        for bl in data_other[k]:
+            d = n.array(data_other[k][bl][POL])[:,chans] * jy2T  #extract frequency range
+            flg = n.array(flgs_other[k][bl][POL])[:,chans]
+            key_other = (k,bl,POL)
+            keys_other.append(key_other)
+            data_dict_other[key_other] = d
+            flg_dict_other[key_other] = n.logical_not(flg)
+            conj_dict_other[key_other[1]] = conj[key_other[1]]
+    ds_other = oqe.DataSet()
+    inds = oqe.lst_align(lsts_other)
+    data_dict,flg_dict,lsts = oqe.lst_align_data(inds,dsets=data_dict_other,wgts=flg_dict_other,lsts=lsts_other)
+    ds_other.set_data(dsets=data_dict_other,conj=conj_dict_other,wgts=flg_dict_other)
+    return keys_other, ds_other
 
 def change_C(keys,ds,keys_2=None,ds_2=None): #changes C in the dataset
     newC = {}
@@ -163,9 +148,10 @@ def change_C(keys,ds,keys_2=None,ds_2=None): #changes C in the dataset
                     if key2 != key: sep_avgC.append(ds.C(key2))
                 sep_avgC = n.average(sep_avgC,axis=0) #average over other baselines
                 newC[key] = sep_avgC
-    elif opts.CnoFRF: #DETERMINE C FROM NON-FRF DATA
+    elif opts.CnoFRF or opts.Cfg or opts.Clongtime: #DETERMINE C FROM NON-FRF DATA OR FG DATA
         for key in keys:
-            newC[key] = ds_2.C(key)
+            newC[key] = ds_2.C(key)# /2.5 #XXX
+            #n.fill_diagonal(newC[key],newC[key].diagonal()/8.0) #XXX
     else:
         print 'Specify an option of how to change C.'
         sys.exit()
@@ -313,18 +299,40 @@ if PLOT and False:
 #Change C if wanted
 if opts.changeC:
     if opts.otherbls != None and opts.otherbls.split('"')[1] != bl2sep[a.miriad.ij2bl(keys[0][1][0],keys[0][1][1])]:
-        keys_2, ds_2 = load_otherbls()
-    elif opts.CnoFRF:
-        keys_2, ds_2 = load_noFRF()
+        keys_2, ds_2 = load_other()
+    elif opts.CnoFRF or opts.Cfg or opts.Clongtime:
+        keys_2, ds_2 = load_other()
     else: keys_2, ds_2 = None, None
     newC = change_C(keys,ds,keys_2,ds_2)
-    #XXX plotting
-    #p.subplot(122)
-    #p.imshow(n.real(newC[key]),aspect='auto',vmax=150000,vmin=-150000)
-    #p.subplot(121)
-    #p.imshow(n.real(ds.C(key)),aspect='auto',vmax=150000,vmin=-150000)
-    #p.show()
-    ds.set_C(newC)
+    # Plotting
+    if True:
+        p.figure(figsize=(10,5))
+        p.subplot(131); p.title('Original C')
+        capo.plot.waterfall(ds.C(key));p.colorbar()
+        p.subplot(132); p.title('New C')
+        capo.plot.waterfall(newC[key]);p.colorbar()
+        p.subplot(133); p.title('Original - New')
+        capo.plot.waterfall(ds.C(key)-newC[key]);p.colorbar()
+        p.show()
+        # Waterfall plots
+        U,S,V = n.linalg.svd(newC[key].conj())
+        newiC = n.einsum('ij,j,jk', V.T, 1./S, U.T)
+        p.figure(figsize=(13,7))
+        p.subplot(511); p.title('x (Original)')
+        capo.plot.waterfall(ds.x[key],mx=2,drng=2.5);p.colorbar()
+        p.subplot(512); p.title('x (New)')
+        try: capo.plot.waterfall(ds_2.x[key],mx=2,drng=2.5);p.colorbar()
+        except: pass #no ds_2 data for some change_C options
+        p.subplot(513); p.title('C^-1 x (Original)')
+        capo.plot.waterfall(n.dot(ds.iC(key),ds.x[key]));p.colorbar()
+        p.subplot(514); p.title('C^-1 x (New)')
+        try: capo.plot.waterfall(n.dot(ds_2.iC(key),ds_2.x[key]));p.colorbar()
+        except: pass
+        p.subplot(515); p.title('C^-1 (New) to x (Original)')
+        capo.plot.waterfall(n.dot(newiC,ds.x[key]));p.colorbar()
+        p.tight_layout()
+        p.show()
+        ds.set_C(newC)
 
 #Bootstrapping        
 for boot in xrange(opts.nboot):
@@ -337,7 +345,17 @@ for boot in xrange(opts.nboot):
     else: #no groups (slower)
         newkeys = [random.choice(keys) for key in keys] #sample w/replacement for bootstrapping
         dsI,dsC = ds,ds #identity and covariance case dataset is the same
-    
+   
+    # Plotting
+    if False:
+        p.figure(figsize=(10,3))
+        p.subplot(211); p.title('C^-1 (New) to x (Original)')
+        capo.plot.waterfall(n.dot(newiC,ds.x[key]));p.colorbar()
+        p.subplot(212); p.title('C^-1 x (groups)')
+        capo.plot.waterfall(n.dot(dsC.iC(newkeys[0]),dsC.x[newkeys[0]]));p.colorbar()
+        p.tight_layout()
+        p.show()
+ 
     ### Calculate pC just based on the data/simulation noise (no eor injection) ###
     print '   Getting pCv'
 
@@ -357,7 +375,7 @@ for boot in xrange(opts.nboot):
                 qC += dsC.q_hat(key1,key2,cov_flagging=False)
                 qI += dsI.q_hat(key1,key2,use_cov=False,cov_flagging=False) 
 
-    MC,WC = dsC.get_MW(FC,mode='L^-1') #Cholesky decomposition
+    MC,WC = dsC.get_MW(FC,mode='F^-1/2')#'L^-1') #Cholesky decomposition
     MI,WI = dsI.get_MW(FI,mode='I')
     pC = dsC.p_hat(MC,qC,scalar=scalar)
     pI = dsI.p_hat(MI,qI,scalar=scalar)
@@ -401,16 +419,19 @@ for boot in xrange(opts.nboot):
 
     if INJECT_SIG > 0.: #Create a fake EoR signal to inject
         print '     INJECTING SIMULATED SIGNAL'
+        if opts.Clongtime: tlen = ds_2.x[key].shape[1]
+        else: tlen = timelen
         if opts.frfeor:
-            ## FRF once ##
-            eor = (frf((len(chans),timelen)) * INJECT_SIG).T #create FRF-ered noise
+            ## FRF once ##  
+            eor = (frf((len(chans),tlen)) * INJECT_SIG).T #create FRF-ered noise
         else:
-            eor = (oqe.noise((len(chans),timelen)) * INJECT_SIG).T
+            eor = (oqe.noise((len(chans),tlen)) * INJECT_SIG).T
         data_dict_2 = {}
         data_dict_eor = {}
         for key in data_dict:
             if conj_dict[key[1]] == True: eorinject = n.conj(eor.copy()) #conjugate eor for certain baselines
             else: eorinject = eor.copy()
+            eorinject = eor[:data_dict[key].shape[0],:]
             data_dict_2[key] = data_dict[key].copy() + eorinject #add injected signal to data
             data_dict_eor[key] = eorinject
 
@@ -423,7 +444,7 @@ for boot in xrange(opts.nboot):
     #Change C if wanted
     
     if opts.changeC:
-        if (opts.otherbls != None and opts.otherbls.split('"')[1] != bl2sep[a.miriad.ij2bl(keys[0][1][0],keys[0][1][1])]) or opts.CnoFRF: #for different baseline case or non-FRF data case
+        if (opts.otherbls != None and opts.otherbls.split('"')[1] != bl2sep[a.miriad.ij2bl(keys[0][1][0],keys[0][1][1])]) or opts.CnoFRF or opts.Cfg or opts.Clongtime: 
             ds_2.clear_cache() #empties C's that are stored already so that it will be computed based off of data + eor
             for key2 in keys_2:
                 ds_2.x[key2] = ds_2.x[key2] + eor.T #add eor
@@ -455,7 +476,7 @@ for boot in xrange(opts.nboot):
                 qC += ds2C.q_hat(key1,key2,cov_flagging=False)
                 qI += dseI.q_hat(key1,key2,use_cov=False,cov_flagging=False)
 
-    MC,WC = ds2C.get_MW(FC,mode='L^-1') #Cholesky decomposition
+    MC,WC = ds2C.get_MW(FC,mode='F^-1/2')#'L^-1') #Cholesky decomposition
     MI,WI = dseI.get_MW(FI,mode='I')
     pC = ds2C.p_hat(MC,qC,scalar=scalar)
     pI = dseI.p_hat(MI,qI,scalar=scalar)

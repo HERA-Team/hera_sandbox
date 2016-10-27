@@ -29,18 +29,21 @@ o.add_option('-i', '--inject', type='float', default=0.,
     help='EOR injection level.')
 o.add_option('--output', type='string', default='',
     help='Output directory for pspec_boot files (default "")')
+o.add_option('--lmode',type='int', default=None,
+    help='Eigenvalue mode of C (in decreasing order) to be the minimum value used in C^-1')
 o.add_option('--oldsigloss', action='store_true',
     help='Run signal loss in old mode, where P_out is determined by C_r acting on e.')
 opts,args = o.parse_args(sys.argv[1:])
 
 #Basic parameters
-random.seed(0)
+n.random.seed(0)
 POL = opts.pol 
 LST_STATS = False
 DELAY = False
 NGPS = 5 #number of groups to break the random sampled bls into
 PLOT = opts.plot
 INJECT_SIG = opts.inject
+LMODE = opts.lmode
 
 ### FUNCTIONS ###
 
@@ -153,7 +156,7 @@ for key in keys: #populate list of baselines
 print 'Baselines:', len(bls_master)
 
 #Align and create dataset
-ds = oqe.DataSet()
+ds = oqe.DataSet(lmode=LMODE)
 inds = oqe.lst_align(lsts)
 data_dict,flg_dict,lsts = oqe.lst_align_data(inds,dsets=data_dict,wgts=flg_dict,lsts=lsts) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
 
@@ -287,7 +290,7 @@ for boot in xrange(opts.nboot):
         if opts.frfeor:
             ## FRF once ##
             eor = (frf((len(chans),timelen)) * INJECT_SIG).T #create FRF-ered noise
-            """
+            """ 
             ## FRF twice ## XXX
             eor1 = (frf((len(chans),timelen),doublelen=True) * INJECT_SIG).T
             dij = eor1
@@ -309,9 +312,9 @@ for boot in xrange(opts.nboot):
             data_dict_eor[key] = eorinject
 
     #Set data
-    ds2 = oqe.DataSet() #data + eor
+    ds2 = oqe.DataSet(lmode=LMODE) #data + eor
     ds2.set_data(dsets=data_dict_2,conj=conj_dict,wgts=flg_dict)
-    dse = oqe.DataSet() #just eor   
+    dse = oqe.DataSet(lmode=LMODE) #just eor   
     dse.set_data(dsets=data_dict_eor,conj=conj_dict,wgts=flg_dict)
    
     #Old Sigloss: Change C in dse to be from ds2
@@ -364,9 +367,10 @@ for boot in xrange(opts.nboot):
     pI = pIe
     if opts.oldsigloss: pC = pCe #C is determined from data+eor but only applied to eor
     else: pC = pCr - pCv
-
-    print '   pI=', n.average(pI.real), 'pC=', n.average(pC.real), 'pI/pC=', n.average(pI.real)/n.average(pC.real)
-
+    
+    print '   pCv=', n.median(pCv.real), 'pIv=', n.median(pIv)
+    print '   pIe=', n.median(pI.real), 'pCr=', n.median(pC.real), 'pIe/pCr=', n.median(pI.real)/n.median(pC.real)
+    
     if PLOT:
         p.plot(kpl, n.average(pC.real, axis=1), 'b.-')
         p.plot(kpl, n.average(pI.real, axis=1), 'k.-')

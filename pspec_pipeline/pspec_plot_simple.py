@@ -7,13 +7,21 @@ import sys, optparse, re, os
 o=optparse.OptionParser()
 o.add_option('--cov', action='store', type='float', default=None,
             help='scale factor for signal loss in covariance removal')
+o.add_option('--nonoise', action='store_true',
+            help="Don't plot noise curve.")
+o.add_option('--SENSE', default=None,
+            help='21cmSENSE .npz file used to plot noise curve.')
 opts,args = o.parse_args(sys.argv[1:])
 
 def noise_level(freq=None):
     tsys = 500e3 #mK
-    inttime = 32 #2473. #seconds.#SK # XXX fix with new integration. get it from frfilter_numbers.py
+    #inttime = 32 #sec
+    inttime = 1957 #PSA128 optimal FRF: get it from frfilter_numbers.py
+    #inttime = 3365 #PSA64 optimal FRF
     nbls=59 #number of baselines used (if using multiple seps, average the numbers?)
-    ndays = 1 #31 #effectively this many days
+    #nbls=51
+    ndays = 20 #31 #effectively this many days
+    #ndays = 100
     nseps = 1 #number of seps used
     folding = 2
     nlsts = 6 #number of LST hours in time-range
@@ -29,7 +37,7 @@ def noise_level(freq=None):
     B = sdf*freqs.size
     bm = n.polyval(C.pspec.DEFAULT_BEAM_POLY, freq) * 2.35 #correction for beam^2
     scalar = X2Y * bm #* B
-    fr_correct = 1 #1.66 #get it from frfilter_numbers.py
+    fr_correct = 1.77 #get it from frfilter_numbers.py
     print 'scalar:', scalar
     print 'BM:', bm
     print 'Tsys:', tsys
@@ -203,19 +211,26 @@ p.subplot(121)
 #p.vlines(-k_h, -1e7, 1e8, linestyles='--', linewidth=1.5)
 p.xlabel(r'$k_\parallel\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$P(k)[\ {\rm mK}^2\ (h^{-1}\ {\rm Mpc})^3]$',fontsize='large')
+#p.ylim(-0.5e11,1.5e11)
 p.grid()
 
 p.subplot(122)
 #noise curve
 kpl_pos = ks[k0+1:]
 theo_noise = noise_level(freq=freq)
-p.plot(n.array(kpl_pos), 2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2), 'c--')
+if opts.SENSE != None: 
+    sensefile = n.load(opts.SENSE)
+    theo_noise = sensefile['T_errs']
+    kpl_pos = sensefile['ks']
+if opts.nonoise: pass
+else: p.plot(n.array(kpl_pos), 2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2), 'c--')
 n.savez('noise_curve.npz',kpls=kpl_pos,noise=2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2))
 #p.vlines(k_h, -1e7, 1e7, linestyles='--', linewidth=1.5)
 p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')
 p.xlim(0, 0.6)
+p.ylim(1e-1,1e9)
 p.grid()
 #plot noise_curve that's saved from plot_pk_k3pk_zsa_2.py
 #try:

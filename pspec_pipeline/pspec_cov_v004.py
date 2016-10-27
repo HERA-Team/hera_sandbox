@@ -23,18 +23,21 @@ o.add_option('--diff', action='store_true',
     help='Noise is different for all baseline.') 
 o.add_option('--frf', action='store_true',
     help='FRF noise.')
+o.add_option('--lmode',type='int', default=None,
+    help='Eigenvalue mode of C (in decreasing order) to be the minimum value used in C^-1')
 o.add_option('--output', type='string', default='',
     help='Output directory for pspec_boot files (default "")')
 
 opts,args = o.parse_args(sys.argv[1:])
 
 #Basic parameters
-random.seed(0)
+n.random.seed(0)
 POL = opts.pol 
 LST_STATS = False
 DELAY = False
 NGPS = 5 #number of groups to break the random sampled bls into
 PLOT = opts.plot
+LMODE = opts.lmode
 
 ### FUNCTIONS ###
 
@@ -75,7 +78,17 @@ if 'even' in args[0] or 'odd' in args[0]:
     'even': [x for x in args if 'even' in x],
     'odd' : [x for x in args if 'odd' in x]
     }
-else: dsets = {'even': args, 'odd': args}
+else: 
+    jds = []
+    for arg in args:
+        jds.append(arg.split('zen')[1].split('.')[1]) 
+    lenjds = len(n.unique(jds)) #length of unique JDs
+    if lenjds == 1: dsets = {'even': args, 'odd': args}
+    elif lenjds == 2:
+        dsets = {
+        'even': [x for x in args if n.unique(jds)[0] in x],
+        'odd': [x for x in args if n.unique(jds)[1] in x]
+        }
 print dsets
 
 #Get uv file info
@@ -142,10 +155,9 @@ bls_master = []
 for key in keys: #populate list of baselines
     if key[0] == keys[0][0]: bls_master.append(key[1])
 print 'Baselines:', len(bls_master)
-bls_master = bls_master[0:20]
 
 #Align and create dataset
-ds = oqe.DataSet()
+ds = oqe.DataSet(lmode=LMODE)
 inds = oqe.lst_align(lsts)
 data_dict,flg_dict,lsts = oqe.lst_align_data(inds,dsets=data_dict,wgts=flg_dict,lsts=lsts) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
 
@@ -192,7 +204,7 @@ if LST_STATS:
     var = n.array(var.values()[0]) #all baselines should be the same
 else: cnt,var = n.ones_like(lsts), n.ones_like(lsts)
 
-if PLOT and False:
+if PLOT and True:
     for key in keys:
         p.subplot(311); capo.arp.waterfall(ds.x[key], mode='real')
         p.colorbar()
@@ -200,13 +212,16 @@ if PLOT and False:
         p.subplot(323); capo.arp.waterfall(ds.C(key))
         p.colorbar()
         p.title('C')
-        #p.subplot(324); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
+        U,S,V = n.linalg.svd(ds.C(key).conj()) 
+        S += S[LMODE-1]
+        p.subplot(324); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
         p.subplot(313); capo.arp.waterfall(n.dot(ds.iC(key),ds.x[key]), mode='real')#,drng=6000,mx=3000)
         p.colorbar()
         p.title('C^-1 x')
         p.suptitle(key)
         p.tight_layout()
         p.show()
+        p.semilogy(S);p.title('Eigenvalues');p.show()
 
 #Bootstrapping        
 for boot in xrange(opts.nboot):
@@ -220,6 +235,24 @@ for boot in xrange(opts.nboot):
         newkeys = [random.choice(keys) for key in keys] #sample w/replacement for bootstrapping
         dsI,dsC = ds,ds #identity and covariance case dataset is the same
 
+    if PLOT and True:
+        for newkey in newkeys:
+            p.subplot(311); capo.arp.waterfall(dsC.x[newkey], mode='real')
+            p.colorbar()
+            p.title('Data x')
+            p.subplot(323); capo.arp.waterfall(dsC.C(newkey))
+            p.colorbar()
+            p.title('C')
+            U,S,V = n.linalg.svd(dsC.C(newkey).conj())
+            p.subplot(324); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
+            p.subplot(313); capo.arp.waterfall(n.dot(dsC.iC(newkey),dsC.x[newkey]), mode='real')#,drng=6000,mx=3000)
+            p.colorbar()
+            p.title('C^-1 x')
+            p.suptitle(newkey)
+            p.tight_layout()
+            p.show()
+            p.semilogy(S);p.title('Eigenvalues');p.show()
+
     #OQE Stuff
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex) #{}
@@ -231,11 +264,11 @@ for boot in xrange(opts.nboot):
             if key1[0] == key2[0] or key1[1] == key2[1]: 
                 continue #don't do even w/even or bl w/same bl
             else:
-                            
+                #print key1,key2 
                 qC += dsC.q_hat(key1,key2,cov_flagging=False)
                 qI += dsI.q_hat(key1,key2,use_cov=False,cov_flagging=False) 
                 FC += dsC.get_F(key1,key2,cov_flagging=False)
-                FI += dsI.get_F(key1,key2,use_cov=False,cov_flagging=False)    
+                FI += dsI.get_F(key1,key2,use_cov=False,cov_flagging=False)   
                 """
                 qC += dsC.q_hat(key1,key2,cov_flagging=True)
                 qI += dsI.q_hat(key1,key2,use_cov=False,cov_flagging=True) 
@@ -248,6 +281,7 @@ for boot in xrange(opts.nboot):
                     try: FC[(('even', 0),Fkey[1],('odd', 1),Fkey[3])] += FC_single[Fkey]
                     except: FC[(('even', 0),Fkey[1],('odd', 1),Fkey[3])] = FC_single[Fkey]
                 """
+    #import IPython;IPython.embed()
     MC,WC = dsC.get_MW(FC,mode='L^-1') #Cholesky decomposition
     MI,WI = dsI.get_MW(FI,mode='I')
     pC = dsC.p_hat(MC,qC,scalar=scalar)

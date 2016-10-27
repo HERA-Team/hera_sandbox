@@ -3,7 +3,7 @@ import aipy as a, numpy as n, pylab as p, capo
 import capo.frf_conv as fringe
 import glob, optparse, sys, random
 import capo.zsa as zsa
-#import capo.oqe as oqe
+import capo.oqe as oqe
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
@@ -37,8 +37,8 @@ PLOT = opts.plot
 #function uses aa, ij, afreqs, inttime, POL
 def frf(shape,loc=0,scale=1):
     shape = shape[1]*2,shape[0] #(2*times,freqs)
-    dij = noise(shape,loc=loc,scale=scale) 
-    #dij = oqe.noise(size=shape)
+    #dij = noise(shape,loc=loc,scale=scale) 
+    dij = oqe.noise(size=shape)
     #bins = fringe.gen_frbins(inttime)
     #frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
     #timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
@@ -264,7 +264,7 @@ for k in days:
         if conj[a.miriad.bl2ij(bl)]: d = n.conj(d) #conjugate if necessary
         shape = d.shape #(times,freqs)
         if opts.noise_only:
-            xi[k][bl] = frf((len(chans),len(lsts)),loc=0,scale=1e7) #diff noise for each bl
+            xi[k][bl] = frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
         else:
              xi[k][bl] = n.transpose(d, [1,0]) #swap time and freq axes
         f[k][bl] = n.transpose(flg, [1,0])
@@ -496,7 +496,7 @@ for boot in xrange(opts.nboot):
     MC /= norm; WC = n.dot(MC, FC)
 
     print '   Generating ps'
-    if opts.noise_only: scalar = 1
+    #if opts.noise_only: scalar = 1
     pC = n.dot(MC, qC) * scalar
     #pC[m] *= 1.81 # signal loss, high-SNR XXX
     #pC[m] *= 1.25 # signal loss, low-SNR XXX
