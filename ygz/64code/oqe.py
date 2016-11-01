@@ -167,6 +167,8 @@ class DataSet:
             C = self.C(k)
             U,S,V = np.linalg.svd(C.conj()) # conj in advance of next step
             S += self.lmin # ensure invertibility
+            #S[-25:] = S[-25] #!!!!
+            #import IPython; IPython.embed()
             self.set_iC({k:np.einsum('ij,j,jk', V.T, 1./S, U.T)})
         if t is None: 
             #self._iCt[k] = self._iC[k]  #!!!!!!!!!!!!!!
@@ -260,6 +262,9 @@ class DataSet:
             if not cov_flagging:
                 iC1,iC2 = self.iC(k1), self.iC(k2)
                 iC1x, iC2x = np.dot(iC1, self.x[k1]), np.dot(iC2, self.x[k2])
+                iD1, P1 = np.linalg.eigh(iC1)
+                iD2, P2 = np.linalg.eigh(iC2)
+                #import IPython; IPython.embed()
             else:
                 iCx = {}
                 for k in (k1,k2):
@@ -277,7 +282,7 @@ class DataSet:
                         iCx[k][:,inds[m]] = np.dot(iC,x)
                         #iCx[k].put(inds[m], np.dot(iC,x), axis=1)
                 iC1x,iC2x = iCx[k1], iCx[k2]
-                import IPython; IPython.embed()
+                #import IPython; IPython.embed()
         else:
             #iC1x, iC2x = self.x[k1].copy(), self.x[k2].copy()
             iC1x, iC2x = np.dot(self.I(k1), self.x[k1]), np.dot(self.I(k2), self.x[k2])

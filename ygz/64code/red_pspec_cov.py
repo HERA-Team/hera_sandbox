@@ -162,8 +162,8 @@ def get_p(k1,k2,mode):
             pC = np.array([pCs[sums[k1][i]][:,i] for i in xrange(ds.w[k1].shape[1])]).T
         else:
             #pr.enable()
-            qC = ds.q_hat(k1,k2,cov_flagging=False)
-            FC = ds.get_F(k1,k2,cov_flagging=False)
+            qC = ds.q_hat(k1,k2,cov_flagging=True)
+            FC = ds.get_F(k1,k2,cov_flagging=True)
             MC,WC = ds.get_MW(FC, mode='F^-1/2')
             pC = ds.p_hat(MC,qC)
             #pr.disable()
@@ -174,6 +174,9 @@ data_g, wgt_g = {},{}
 for k in data:
     lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=1500)
     data_g[k], wgt_g[k] = data_g[k][550:1200], wgt_g[k][550:1200]
+    # lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=6000)
+    # data_g[k], wgt_g[k] = data_g[k][2200:5000], wgt_g[k][2200:5000]
+    wgt_g[k] = np.where(wgt_g[k]>0.4*np.max(wgt_g[k]),1,0)
 k1, k2 = data.keys()
 data_g[('mean','xx',(0,103))] = (data_g[k1]+data_g[k2])/2
 wgt_g[('mean','xx',(0,103))] = (wgt_g[k1]+wgt_g[k2])/2
@@ -203,14 +206,14 @@ wgt_g[('mean','xx',(0,103))] = (wgt_g[k1]+wgt_g[k2])/2
 
 
 ds = oqe.DataSet(data_g, wgt_g)
-set_C(norm=3.)
+set_C(norm=300.)
 #import IPython; IPython.embed()
-for cnt,k in enumerate(ks):
-    plt.subplot(NK,1,cnt+1)
-    capo.plot.waterfall(ds.x[k], drng=3)
-    plt.title(k)
-    plt.colorbar()
-plt.savefig('timeseries.png')
+# for cnt,k in enumerate(ks):
+#     plt.subplot(NK,1,cnt+1)
+#     capo.plot.waterfall(ds.x[k], drng=3)
+#     plt.title(k)
+#     plt.colorbar()
+# plt.savefig('timeseries.png')
 
 
 bls = (0,103)
@@ -218,16 +221,16 @@ k1 = (set1,pol,(0,103))
 k2 = (set2,pol,(0,103))
 k3 = ('mean','xx',(0,103))
 
-#f, (ax1, ax2, ax3) = plt.subplots(1,3)
-# pC = get_p(k1,k1,'C')
-# plt.title(set1+set1+str(bls)+'C')
-# waterfall(pC, ax=ax1, mx=16, drng=7)
+f, (ax1, ax2, ax3) = plt.subplots(3,1)
+pC = get_p(k2,k2,'C')
+plt.title(set2+set2+str(bls)+'C')
+waterfall(pC, ax=ax1, mx=16, drng=7)
 #plt.colorbar()
-plt.figure()
+#plt.figure()
 pC = get_p(k1,k2,'C')
 plt.title(set1+set1+str(bls)+'I')
-waterfall(pC, mx=16, drng=7)
-plt.colorbar()
+waterfall(pC, ax=ax2, mx=16, drng=7)
+#plt.colorbar()
 #pC = get_p(k1,k2,'C')
 #plt.subplot(3,1,3)
 #plt.title(set1+set2+str(bls)+'C')
@@ -236,4 +239,4 @@ plt.colorbar()
 
 plt.show()
 
-import IPython; IPython.embed()
+#import IPython; IPython.embed()

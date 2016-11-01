@@ -240,8 +240,11 @@ from itertools import product
 
 data_g, wgt_g = {},{}
 for k in data:
-    lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=6000)
-    data_g[k], wgt_g[k] = data_g[k][2200:5000], wgt_g[k][2200:5000]
+    # lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=6000)
+    # data_g[k], wgt_g[k] = data_g[k][2200:5000], wgt_g[k][2200:5000]
+    lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=1500)
+    data_g[k], wgt_g[k] = data_g[k][550:1200], wgt_g[k][550:1200]
+    wgt_g[k] = np.where(wgt_g[k]>0.5*np.max(wgt_g[k]),1,0)
 ################################
 ds = oqe.DataSet(data_g, wgt_g)
 #import IPython; IPython.embed()
