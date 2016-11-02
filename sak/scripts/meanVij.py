@@ -109,13 +109,13 @@ for i in ga:
 plt.axhline(mean_avg,color='k')
 
 plt.fill_between(ga,mean_avg-std_avg,mean_avg+std_avg,color='b',alpha=0.5)
-plt.fill_between(ga,mean_avg-2*std_avg,mean_avg+2*std_avg,color='b',alpha=0.4)
+plt.fill_between(ga,mean_avg-2*std_avg,mean_avg+2*std_avg,color='b',alpha=0.2)
 
 plt.grid()
 plt.xlim(ga[0]-0.5,ga[-1]+0.5)
 plt.ylabel(r'$\left\langle |V_{ij}| \right\rangle_{j,t,\nu}$',size=15)
 plt.xlabel('Antenna number')
-#plt.show()
+plt.show()
 plt.ylim(0,0.045)
-plt.savefig('%s_meanVij.png'%uv)
+#plt.savefig('%s_meanVij.png'%uv)
 print out

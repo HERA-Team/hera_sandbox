@@ -2,26 +2,22 @@
 import aipy, capo as C, optparse, numpy as np, matplotlib.pyplot as plt, sys
 o = optparse.OptionParser()
 o.set_description(__doc__)
-o.set_usage('find_crosspols_recursive.py *pp.uvcRRE (only use one pol, ask for others in option)')
-aipy.scripting.add_standard_options(o, cal=True, pol=True)
+o.set_usage('find_crosspols_recursive.py *xx.uvcRRE (only use XX pol, script will find the others).')
+aipy.scripting.add_standard_options(o, cal=True)
 o.add_option('-A','--startant',dest='startant',default='0',help='antenna to start relative to (default is all antennae, i.e. start with zero)')
 o.add_option('-b','--badants',dest='ba',default=None,help='bad antennae to remove, separated by commas. e.g. "-b 1,2,3"')
 o.add_option('-v','--verbose',dest='verb',action='store_true',help='Toggle verbosity')
 opts, args = o.parse_args(sys.argv[1:])
 
-#parse pols
-pol_strs = opts.pol.split(',')
-if len(pol_strs)!=2: 
-    print 'use one linpol and one crosspol'
-    raise Exception
-
 #parse files: assumes both pols are in the same directory
-if pol_strs[0] in args[0]:
-    p1files = args
-    p2files = [w.replace(pol_strs[0],pol_strs[1]) for w in args]
+if 'xx' in args[0]:
+    xxfiles = args
+    xyfiles = [w.replace('xx','xy') for w in args]
+    yxfiles = [w.replace('xx','yx') for w in args]
+    yyfiles = [w.replace('xx','yy') for w in args]
 else:
-    p2files = args
-    p1files = [w.replace(pol_strs[1],pol_strs[0]) for w in args]
+    print 'Hand this script the xx files. Assumes all pols are in the same directory'
+    raise Exception
 
 #parse array data
 
@@ -40,10 +36,12 @@ for anchor_ant in range(int(opts.startant),nants):
         all_avgs[anchor_ant,:] = np.nan
         continue
     #data read
-    tp1,dp1,fp1 = C.arp.get_dict_of_uv_data(p1files,antstr=str(anchor_ant),polstr=pol_strs[0])
-    tp2,dp2,fp2 = C.arp.get_dict_of_uv_data(p2files,antstr=str(anchor_ant),polstr=pol_strs[1])
+    tpxx,dpxx,fpxx = C.arp.get_dict_of_uv_data(xxfiles,antstr=str(anchor_ant),polstr='xx')
+    tpxy,dpxy,fpxy = C.arp.get_dict_of_uv_data(xyfiles,antstr=str(anchor_ant),polstr='xy')
+    tpyx,dpyx,fpyx = C.arp.get_dict_of_uv_data(yxfiles,antstr=str(anchor_ant),polstr='yx')
+    tpyy,dpyy,fpyy = C.arp.get_dict_of_uv_data(yyfiles,antstr=str(anchor_ant),polstr='yy')
     #data analysis
-    bl_length,avg_ratios,stdevs = [],[],[]
+    avg_ratios = []
     for ant in range(nants):
         #parse miriad keys
         if anchor_ant == ant:
@@ -53,14 +51,19 @@ for anchor_ant in range(int(opts.startant),nants):
         elif anchor_ant < ant: tup = (anchor_ant,ant)
         else: tup = (ant,anchor_ant)
         try:
-            avg_p1 = np.nanmean(np.absolute(dp1[tup][pol_strs[0]]))
+            avg_xx = np.nanmean(np.absolute(dpxx[tup]['xx']))
         except IndexError:
             print 'Index error on antenna %i'%ant
             continue
-        avg_p2 = np.nanmean(np.absolute(dp2[tup][pol_strs[1]]))
-        ratio = avg_p2/avg_p1
+        avg_xy = np.nanmean(np.absolute(dpxy[tup]['xy']))
+        avg_yx = np.nanmean(np.absolute(dpyx[tup]['yx']))
+        avg_yy = np.nanmean(np.absolute(dpyy[tup]['yy']))
+        ratio = (avg_xy + avg_yx)/(avg_xx + avg_yy)
         avg_ratios.append(ratio)
-    del(tp1);del(dp1);del(fp1);del(tp2);del(dp2);del(fp2)
+    del(tpxx);del(dpxx);del(fpxx)
+    del(tpxy);del(dpxy);del(fpxy)
+    del(tpyx);del(dpyx);del(fpyx)
+    del(tpyy);del(dpyy);del(fpyy)
     
     #crosspol'd antennae are the ones that deviate from avg by 2 sigma
     crosspols = np.where(avg_ratios > np.nanmean(avg_ratios)+2*np.nanstd(avg_ratios))[0]

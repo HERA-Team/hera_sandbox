@@ -6,6 +6,8 @@ o.set_usage('find_crosspols.py *pp.uvcRRE (only use one pol, ask for others in o
 aipy.scripting.add_standard_options(o, cal=True, ant=True, pol=True)
 o.add_option('-b','--badants',dest='ba',default=None,help='bad antennae to remove, separated by commas. e.g. "-b 1,2,3"')
 o.add_option('-m','--maskbad',dest='mb',action='store_true',help='Instead of plotting an "X" over bad antennae, neglect plotting them entirely.')
+o.add_option('--noBL',dest='nobl',action='store_true',help='Turn off plot with BL length')
+o.add_option('-v','--verbose',dest='verb',action='store_true',help='Toggle verbosity')
 opts, args = o.parse_args(sys.argv[1:])
 
 #parse pols
@@ -66,9 +68,13 @@ for ant in range(nants):
     plt.text(L,ratio,str(ant))
     if ant in badants: plt.plot(L,ratio,'kx',ms=10)
 
+if opts.verb: print np.where(avg_ratios > np.nanmean(avg_ratios)+2*np.nanstd(avg_ratios))
 #format
 plt.xlabel('Basline length [m]')
 plt.xlim(0,300)
 plt.ylabel(r'$\langle | V_{a,j} | \rangle_{t,\nu}$',size=20)
 plt.suptitle('Relative to antenna %i'%anchor_ant,size=15)
-plt.show()
+if not opts.nobl: plt.show()
+plt.close()
+
+import IPython;IPython.embed()
