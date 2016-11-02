@@ -88,7 +88,7 @@ def find_corr(i, bm_fngs):
 if __name__ == '__main__':
     bfs = prepare(TT)
 
-    corr = Parallel(n_jobs=24)(delayed(find_corr)(i, bfs) for i in xrange(N))
+    corr = Parallel(n_jobs=num_cores)(delayed(find_corr)(i, bfs) for i in xrange(N))
     corr = np.array(corr)
     print 'shape of corr:',corr.shape
 
