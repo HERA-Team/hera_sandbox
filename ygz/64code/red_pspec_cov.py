@@ -176,7 +176,7 @@ for k in data:
     data_g[k], wgt_g[k] = data_g[k][550:1200], wgt_g[k][550:1200]
     # lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=6000)
     # data_g[k], wgt_g[k] = data_g[k][2200:5000], wgt_g[k][2200:5000]
-    wgt_g[k] = np.where(wgt_g[k]>0.4*np.max(wgt_g[k]),1,0)
+    wgt_g[k] = np.where(wgt_g[k]>0.5*np.max(wgt_g[k]),1,0)
 k1, k2 = data.keys()
 data_g[('mean','xx',(0,103))] = (data_g[k1]+data_g[k2])/2
 wgt_g[('mean','xx',(0,103))] = (wgt_g[k1]+wgt_g[k2])/2
@@ -206,7 +206,7 @@ wgt_g[('mean','xx',(0,103))] = (wgt_g[k1]+wgt_g[k2])/2
 
 
 ds = oqe.DataSet(data_g, wgt_g)
-set_C(norm=300.)
+set_C(norm=100000.)
 #import IPython; IPython.embed()
 # for cnt,k in enumerate(ks):
 #     plt.subplot(NK,1,cnt+1)
@@ -224,18 +224,20 @@ k3 = ('mean','xx',(0,103))
 f, (ax1, ax2, ax3) = plt.subplots(3,1)
 pC = get_p(k2,k2,'C')
 plt.title(set2+set2+str(bls)+'C')
-waterfall(pC, ax=ax1, mx=16, drng=7)
+im1 = waterfall(pC, ax=ax1, mx=16, drng=7)
 #plt.colorbar()
 #plt.figure()
 pC = get_p(k1,k2,'C')
 plt.title(set1+set1+str(bls)+'I')
-waterfall(pC, ax=ax2, mx=16, drng=7)
+im2 = waterfall(pC, ax=ax2, mx=16, drng=7)
 #plt.colorbar()
 #pC = get_p(k1,k2,'C')
 #plt.subplot(3,1,3)
 #plt.title(set1+set2+str(bls)+'C')
 #capo.plot.waterfall(pC, mx=16, drng=7)
-#plt.colorbar()
+f.colorbar(im1, ax=ax1)
+f.colorbar(im2, ax=ax2)
+#f.colorbar()
 
 plt.show()
 
