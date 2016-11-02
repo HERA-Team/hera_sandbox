@@ -6,7 +6,7 @@ from joblib import Parallel, delayed
 import multiprocessing
 import oqe
 import os
-num_cores = multiprocessing.cpu_count()
+from waterfall import waterfall
 
 def dB(sig): return 10*np.log10(np.abs(np.average(sig.real, axis=1)))
 
@@ -21,23 +21,6 @@ def find_sep(aa, bls, drow=None, dcol=None):
         if not dcol is None and abs(icol - jcol) != dcol: continue
         rv.append(((icol - jcol)[0],(irow - jrow)[0]))
     return rv
-
-def rebin_lst(binsize, lsts, d, w):  #d: data in time by freq. 
-    bins = lsts/binsize
-    b0 = int(bins[0])
-    bmax = int(np.ceil(np.max(bins)))
-    dbin = np.zeros((bmax,d.shape[1]), dtype=d.dtype)
-    dwgt = np.zeros(dbin.shape, dtype=np.float)
-    for i,b in enumerate(bins-b0):
-        db = b % 1
-        w1,w2 = (1-db) * w[i], db * w[i] # linearly interpolate between bins
-        dbin[np.floor(b)] += w1 * d[i]
-        dwgt[np.floor(b)] += w1
-        dbin[np.ceil(b)] += w2 * d[i]
-        dwgt[np.ceil(b)] += w2
-    lstbin = (b0 + np.arange(bmax)) * binsize
-    return lstbin, dbin / np.where(dwgt > 0, dwgt, 1), dwgt
-
 
 CONJ = [
     (0,103) , #  1
@@ -87,7 +70,7 @@ if cwd.startswith('/Users/yunfanzhang/'):
 elif cwd.startswith('/Users/yunfanz/'):
     dataDIR = '/Users/yunfanz/Data/PAPER128/DATA/'
 elif cwd.startswith('/home/yunfanz/'):
-    dataDIR = '/home/yunfanz/EoR/DATA128/DATA/'
+    dataDIR = '/home/yunfanz/Projects/21cm/Data/DATA128/DATA/'
 sets = {
     #'day0' : sys.argv[1:],
     #'day0' : glob.glob('zen.2456714.*.xx.npz'),
@@ -97,24 +80,12 @@ sets = {
 data,wgts = {}, {}
 lsts = {}
 chisqs = {}
-# def from_npz(file):
-#      res = capo.omni.from_npz(file,verbose=True)
-#      return res
 for s in sets:
     if not lsts.has_key(s):
-        # res = Parallel(n_jobs=4)(delayed(from_npz)(file) for file in sets[s])
-        # #import IPython; IPython.embed()
-        # meta, gains, vismdl, xtalk = [],[],[],[]
-        # for i, elt in enumerate(res):
-        #     meta.append(elt[0])
-        #     gains.append(elt[1])
-        #     vismdl.append(elt[2])
-        #     xtalk.append(elt[3])
         meta, gains, vismdl, xtalk = capo.omni.from_npz(sets[s], bls=SEPS, pols='xx', ants=1,verbose=True)
         lsts[s] = meta['lsts']
     chisqs[s] = meta['chisq'][:,CH0:CH0+NCHAN]
     for pol in vismdl:
-        #for bl in vismdl[pol]:
         for bl in SEPS:
             k = (s,pol,bl)
             data[k] = vismdl[pol][bl][:,CH0:CH0+NCHAN]
@@ -135,10 +106,6 @@ lst_res = np.average(lsts[set1][1:] - lsts[set1][:-1])/2
     
 
 ks = [(s,'xx',bl) for bl in SEPS for s in sets]
-#k1a, = [(s,'xx',(0,103)) for s in sets]
-#k2a, = [(s,'xx',(0,111)) for s in sets]
-#k3a, = [(s,'xx',(0, 95)) for s in sets]
-#ks = [k1a,k2a,k3a]
 NK = len(ks)
 
 def set_C(dst,norm=3e-6):
@@ -150,11 +117,6 @@ def set_C(dst,norm=3e-6):
         #Cs[k] = sum([oqe.cov(ds.x[ki][:,400:],ds.w[ki][:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
         Ndim = dst.x[k].shape[0]
         Cs[k] = oqe.cov(dst.x[k][:,0:],dst.w[k][:,0:])+norm*np.identity(Ndim)
-        #import IPython; IPython.embed()
-        #w = np.where(ds.w[ki] > 0, 1, 0)
-        #Cs[k] = sum([oqe.cov(ds.x[ki][:,400:],w[:,400:])+norm*np.identity(NCHAN) for ki in ks if ki[2] != k[2]])
-        #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in ks if ki != k])
-        #Cs[k] = sum([ds.C(k)+norm*np.identity(NCHAN) for ki in data if ki[2] != k[2]])
         dst.set_C({k:Cs[k]})
         iCs[k] = dst.iC(k)
 
@@ -233,6 +195,7 @@ def lst_align(lsts1,lsts2,offset=0):
         return np.arange(i,Npt+i),n.arange(0,Npt)
 
 offset_dict = {((1,48), (1,4)):0.031,((1,4), (1,48)):0.031}
+offset_dict[(())]
 dlst = lst_res
 #ind[set1], ind[set2] = lst_align(lsts[set1], lsts[set2])
 
@@ -254,7 +217,7 @@ set_C(ds,3e-6)
 #################################
 for cnt,k in enumerate(ks):
     plt.subplot(NK,1,cnt+1)
-    capo.plot.waterfall(ds.x[k], drng=3)
+    waterfall(ds.x[k], drng=3)
     plt.colorbar()
 #plt.savefig('fig1.png')
 #plt.show()
