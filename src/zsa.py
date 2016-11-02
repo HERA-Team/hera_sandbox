@@ -1,5 +1,6 @@
 import aipy as a, numpy as n, pylab as p
 import sys, scipy
+import capo.omni as omni
 
 
 def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='blackman-harris',
@@ -146,3 +147,32 @@ def list2str(li):
         s += '_'.join(map(str,i)) + ','
     return s[:-1]
 
+def flag_by_chisq(filenames, nsig=12, deg=8, outfile=False):
+    '''Use the omnical global chisq to flag the model visibilities.'''
+    m,g,v,x = omni.from_npz(filenames)
+    chisq = m['chisq']
+    #iterate twice on flattening bandpass to find rfi
+    mask = n.zeros_like(chisq, dtype=n.bool)
+    #Run loop twice to get better fit after removing large rfi
+    for i in range(2):
+        wgts = n.logical_not(mask)
+        chisq *= wgts
+        med_chisq = n.median(chisq, axis=0) 
+        w = n.median(chisq,axis=0)!=0. 
+        fit = n.polyfit(n.arange(len(med_chisq))[w], n.log10(med_chisq[w]), deg=8)
+        flat_chisq = chisq/10**n.polyval(fit, n.arange(len(med_chisq)))
+        med = n.median(flat_chisq)
+        sig = n.sqrt(n.median(n.abs(flat_chisq-med)**2))
+        mask |= n.where(flat_chisq > (med + nsig*sig), True, False)
+        #import IPython; IPython.embed()
+    f = n.logical_not(mask)#weights for the data
+    if outfile:
+       pass 
+    return m,g,v,x,f
+
+def flatten_reds(reds):
+    'Take a list of lists and flattens it'
+    freds = []
+    for r in reds:
+        freds += r
+    return freds

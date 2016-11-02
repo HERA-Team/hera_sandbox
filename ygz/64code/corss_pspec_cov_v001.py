@@ -41,6 +41,7 @@ def rebin_lst(binsize, lsts, d, w):  #d: data in time by freq.
 
 CONJ = [
     (0,103) , #  1
+    (0,95),
     (1,4) ,   #  2
     (1,48),
     (1,18),
@@ -53,6 +54,7 @@ CONJ = [
 
 SEPS = [(1,4), (1,48),(1,18)]
 SEPS = [(1,4), (1,48)]
+SEPS = [(0,103), (0,95)]
 #SEPS += [(2,105), (1,83)]
 #SEPS += [(0,79), (0,78)]
 #SEPS += [(0,70),(0,71)]
@@ -238,8 +240,11 @@ from itertools import product
 
 data_g, wgt_g = {},{}
 for k in data:
-    lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=6000)
-    data_g[k], wgt_g[k] = data_g[k][2200:5000], wgt_g[k][2200:5000]
+    # lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=6000)
+    # data_g[k], wgt_g[k] = data_g[k][2200:5000], wgt_g[k][2200:5000]
+    lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=1500)
+    data_g[k], wgt_g[k] = data_g[k][550:1200], wgt_g[k][550:1200]
+    wgt_g[k] = np.where(wgt_g[k]>0.5*np.max(wgt_g[k]),1,0)
 ################################
 ds = oqe.DataSet(data_g, wgt_g)
 #import IPython; IPython.embed()
