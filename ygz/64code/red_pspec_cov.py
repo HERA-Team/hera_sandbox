@@ -206,7 +206,7 @@ wgt_g[('mean','xx',(0,103))] = (wgt_g[k1]+wgt_g[k2])/2
 
 
 ds = oqe.DataSet(data_g, wgt_g)
-set_C(norm=100000.)
+set_C(norm=0.)
 #import IPython; IPython.embed()
 # for cnt,k in enumerate(ks):
 #     plt.subplot(NK,1,cnt+1)

@@ -3,11 +3,11 @@
 import numpy as np, aipy, capo, pylab as plt, sys, glob
 import md5
 from joblib import Parallel, delayed
-import multiprocessing
+import multiprocessing, joblib
 import oqe
 import os
 from waterfall import waterfall
-
+num_cores = multiprocessing.cpu_count()
 def dB(sig): return 10*np.log10(np.abs(np.average(sig.real, axis=1)))
 
 aa = aipy.cal.get_aa('psa6622_v001',np.array([.15]))
@@ -181,7 +181,7 @@ def get_p(k1,k2,mode,offset=0):
             #import IPython; IPython.embed()
             MC,WC = ds_new.get_MW(FC, mode='F^-1/2')
             pC = ds_new.p_hat(MC,qC)
-        return pC * scalar
+        return pC * scalar, offset
 
 def lst_align(lsts1,lsts2,offset=0):
     i=0
@@ -195,7 +195,8 @@ def lst_align(lsts1,lsts2,offset=0):
         return np.arange(i,Npt+i),n.arange(0,Npt)
 
 offset_dict = {((1,48), (1,4)):0.031,((1,4), (1,48)):0.031}
-offset_dict[(())]
+offset_dict[((0,103),(0,95))] = 0.0548
+offset_dict[((0,95),(0,103))] = 0.0548
 dlst = lst_res
 #ind[set1], ind[set2] = lst_align(lsts[set1], lsts[set2])
 
@@ -211,36 +212,54 @@ for k in data:
 ################################
 ds = oqe.DataSet(data_g, wgt_g)
 #import IPython; IPython.embed()
-set_C(ds,3e-6)
+set_C(ds,3e4)
 #set_C(0)
 #pI,pW,pC = get_p(ks[0],ks[1])
 #################################
-for cnt,k in enumerate(ks):
-    plt.subplot(NK,1,cnt+1)
-    waterfall(ds.x[k], drng=3)
-    plt.colorbar()
+# for cnt,k in enumerate(ks):
+#     plt.subplot(NK,1,cnt+1)
+#     waterfall(ds.x[k], drng=3)
+    # plt.colorbar()
 #plt.savefig('fig1.png')
 #plt.show()
 
 
-sep_pairs = product(SEPS,SEPS)
-for cnt, bls in enumerate(sep_pairs):
-    k1 = (set1,pol,bls[0])
-    k2 = (set1,pol,bls[1])
-    if bls[0] == bls[1]: 
-        continue
-        #offset = 0
-    else: 
-        try: offset = offset_dict[(bls[0],bls[1])]
-        except:
-            continue
-    ind_offset = int(offset/dlst)
-    print ind_offset
-    pC = get_p(k1,k2,'C',offset=ind_offset)
-    plt.subplot(5,1,cnt+1)
-    plt.title(bls)
-    capo.plot.waterfall(pC, mx=16, drng=7)
+# sep_pairs = product(SEPS,SEPS)
+# pC=[]
+# for cnt, bls in enumerate(sep_pairs):
+#     k1 = (set1,pol,bls[0])
+#     k2 = (set1,pol,bls[1])
+#     if bls[0] == bls[1]: 
+#         continue
+#         #offset = 0
+#     else: 
+#         try: offset = offset_dict[(bls[0],bls[1])]
+#         except:
+#             continue
+#     ind_offset = int(offset/dlst)
+#     print ind_offset
+#     psc = get_p(k1,k2,'C',offset=0)
+#     #import IPython; IPython.embed()
+#     pC.append(psc)
+#     plt.subplot(5,1,cnt+1)
+#     plt.title(bls)
+#     capo.plot.waterfall(pC[-1], mx=16, drng=7)
+#     plt.colorbar()
+# plt.show()
+# import IPython; IPython.embed()
+
+k1 = (set1,'xx',(0,103))
+k2 = (set1,'xx',(0,95))
+oflist = 10*(np.arange(10)-5)+int(0.0548/dlst)
+res = Parallel(n_jobs=num_cores)(delayed(get_p)(k1,k2,'C',ofst) for ofst in oflist)
+pC, OFST = zip(*res)
+#import IPython; IPython.embed()
+for cnt, ofst in enumerate(OFST):
+    psc = pC[cnt]
+    plt.subplot(10,1,cnt+1)
+    plt.title(ofst)
+    capo.plot.waterfall(psc, mx=16, drng=7)
     plt.colorbar()
 plt.show()
-import IPython; IPython.embed()
+
 
