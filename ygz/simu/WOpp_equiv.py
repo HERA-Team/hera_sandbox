@@ -5,7 +5,7 @@ from scipy import signal
 #@p.ion()
 #fqs = n.linspace(.1,.2,203)
 fq = .15
-bl1, bl2 = (0,26),(0,26)
+bl1, bl2 = (0,103),(0,103)
 #cuedict = {'26_23':0.125, '26_38': 0.042, '26_50': 0.083,'26_26':0., '50_57':0.122}
 cuedict = {'26_26':0.,'26_38': 0.032557,'26_46': -0.034, '26_50':0.073557,'13_32':0.030557,'13_14':0.066557,'50_59':0.071557}
 # #REDNORM = 0.000150070063408  #peak of bl1=bl2
@@ -18,7 +18,7 @@ try: ver = cuedict[str(bl1[1])+'_'+str(bl2[1])]
 except(KeyError): ver = 0.
 print 'DelT = ', ver
 T0 = 2455700.5
-T1 = n.arange(2455700.2,2455700.8,0.001)
+T1 = n.arange(2455700.3,2455700.7,0.001)
 #############################################################################
 if COMPARE:
     fname = 'blout_'+str(bl1[0])+'_'+str(bl1[1])+'_'+str(bl2[0])+'_'+str(bl2[1])+'.npz'
@@ -28,7 +28,7 @@ if COMPARE:
     #try: meancorr = meancorr/BLUENORM
     #except: pass 
 #############################################################################
-aa = a.cal.get_aa('psa6240_v003', n.array([fq]))
+aa = a.cal.get_aa('psa6622_v003', n.array([fq]))
 aa.set_jultime(T0)
 
 h = a.healpix.HealpixMap(nside=64)

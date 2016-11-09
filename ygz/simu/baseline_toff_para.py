@@ -7,7 +7,7 @@ num_cores = multiprocessing.cpu_count()
 #fqs = np.linspace(.1,.2,203)
 fq = .15
 bl1, bl2 = (0,103),(0,95)
-N = 240   #number of universes to average over
+N = 2400   #number of universes to average over
 
 VIS = False
 REDNORM = 1228687.26108#1261990. #REDNORM is the peak of baseline_ton
@@ -110,13 +110,11 @@ if __name__ == '__main__':
 
     p.figure()
     p.subplot(211)
-    #p.plot(TT-2455700.5,np.abs(np.mean(corr,axis=0)))
     p.plot(TT-2455700.5,np.real(meancorr))
     p.plot(TT-2455700.5,np.imag(meancorr))
     p.axvline(ver,color='k',alpha=0.5,linewidth=3)
     p.grid()
     p.subplot(212)
-    #p.plot(TT-2455700.5,np.abs(np.mean(corr,axis=0)))
     p.plot(TT-2455700.5,np.abs(meancorr))
     p.axvline(ver,color='k',alpha=0.5,linewidth=3)
     p.grid()
