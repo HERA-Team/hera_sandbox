@@ -34,41 +34,52 @@ sep2ij, blconj, bl2sep = C.zsa.grid2ij(aa.ant_layout)
 
 #read data
 tpxx,dpxx,fpxx = C.arp.get_dict_of_uv_data(xxfiles,antstr='cross',polstr='xx',verbose=True)
-tpxy,dpxy,fpxy = C.arp.get_dict_of_uv_data(xyfiles,antstr='cross',polstr='xy',verbose=True)
-tpyx,dpyx,fpyx = C.arp.get_dict_of_uv_data(yxfiles,antstr='cross',polstr='yx',verbose=True)
+#tpxy,dpxy,fpxy = C.arp.get_dict_of_uv_data(xyfiles,antstr='cross',polstr='xy',verbose=True)
+#tpyx,dpyx,fpyx = C.arp.get_dict_of_uv_data(yxfiles,antstr='cross',polstr='yx',verbose=True)
 tpyy,dpyy,fpyy = C.arp.get_dict_of_uv_data(yyfiles,antstr='cross',polstr='yy',verbose=True)
 
 nants = 112 #XXX
 
 ### Bad Antennas ###
-antpowers = []
+antpowers_xx = []
+antpowers_yy = []
 print 'Looping over reference antennas...'
 for anchor_ant in range(int(opts.startant),nants):
     if anchor_ant in badants:
         avg_ratios.append(np.nan)
         continue
     #data analysis
-    avg_ratios = []
+    avg_ratios_xx = []
+    avg_ratios_yy = []
     for ant in range(nants):
         if anchor_ant == ant: #neglect auto
-            avg_ratios.append(np.nan)
+            avg_ratios_xx.append(np.nan)
+            avg_ratios_yy.append(np.nan)
             continue
         elif anchor_ant < ant: tup = (anchor_ant,ant)
         else: tup = (ant,anchor_ant)
         #if str(tup[0])+'_'+str(tup[1]) not in sep2ij['0,2'].split(','): #only use sep 0,2 to find bad ants
-        #    continue
-        hor_index1 = 86
-        hor_index2 = 115
-        avg_xx = np.nanmean(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpxx[tup]['xx'],fpxx[tup]['xx']),axes=1))[:,hor_index1:hor_index2]) / np.nanmean(np.delete(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpxx[tup]['xx'],fpxx[tup]['xx']),axes=1)),np.s_[hor_index1:hor_index2],axis=1)) #dynamic range
-        avg_xy = np.nanmean(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpxy[tup]['xy'],fpxy[tup]['xy']),axes=1))[:,hor_index1:hor_index2]) / np.nanmean(np.delete(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpxy[tup]['xy'],fpxy[tup]['xy']),axes=1)),np.s_[hor_index1:hor_index2],axis=1)) #dynamic range
-        avg_yx = np.nanmean(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpyx[tup]['yx'],fpyx[tup]['yx']),axes=1))[:,hor_index1:hor_index2]) / np.nanmean(np.delete(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpyx[tup]['yx'],fpyx[tup]['yx']),axes=1)),np.s_[hor_index1:hor_index2],axis=1)) #dynamic range
-        avg_yy = np.nanmean(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpyy[tup]['yy'],fpyy[tup]['yy']),axes=1))[:,hor_index1:hor_index2]) / np.nanmean(np.delete(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpyy[tup]['yy'],fpyy[tup]['yy']),axes=1)),np.s_[hor_index1:hor_index2],axis=1)) #dynamic range
-        ratio = (avg_xy + avg_yx)/(avg_xx + avg_yy) #identify bad antennas
-        avg_ratios.append(ratio)    
-    baddies = np.where(avg_ratios > np.nanmean(avg_ratios)+2*np.nanstd(avg_ratios))[0]
-    if opts.verb: print anchor_ant,':',baddies
-    antpowers.append(np.nanmean(avg_ratios))
-
+            #continue
+        #hor_index1 = 86 #horizon location
+        #hor_index2 = 115
+        #avg_xx = np.nanmean(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpxx[tup]['xx'],fpxx[tup]['xx']),axes=1))[:,hor_index1:hor_index2]) / np.nanmean(np.delete(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpxx[tup]['xx'],fpxx[tup]['xx']),axes=1)),np.s_[hor_index1:hor_index2],axis=1)) #dynamic range
+        #avg_xy = np.nanmean(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpxy[tup]['xy'],fpxy[tup]['xy']),axes=1))[:,hor_index1:hor_index2]) #/ np.nanmean(np.delete(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpxy[tup]['xy'],fpxy[tup]['xy']),axes=1)),np.s_[hor_index1:hor_index2],axis=1)) #dynamic range
+        #avg_yx = np.nanmean(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpyx[tup]['yx'],fpyx[tup]['yx']),axes=1))[:,hor_index1:hor_index2]) #/ np.nanmean(np.delete(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpyx[tup]['yx'],fpyx[tup]['yx']),axes=1)),np.s_[hor_index1:hor_index2],axis=1)) #dynamic range
+        #avg_yy = np.nanmean(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpyy[tup]['yy'],fpyy[tup]['yy']),axes=1))[:,hor_index1:hor_index2]) / np.nanmean(np.delete(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpyy[tup]['yy'],fpyy[tup]['yy']),axes=1)),np.s_[hor_index1:hor_index2],axis=1)) #dynamic range
+        avg_xx = np.nanmean(np.absolute(dpxx[tup]['xx']))
+        avg_yy = np.nanmean(np.absolute(dpyy[tup]['yy']))
+        ratio_xx = avg_xx #identify bad antennas
+        ratio_yy = avg_yy
+        avg_ratios_xx.append(ratio_xx)    
+        avg_ratios_yy.append(ratio_yy)
+    baddies_xx = np.where(avg_ratios_xx < np.nanmean(avg_ratios_xx) / 4 )[0]
+    baddies_yy = np.where(avg_ratios_yy < np.nanmean(avg_ratios_yy) / 4 )[0]
+    if opts.verb: 
+        print anchor_ant,'(xx):',baddies_xx
+        print anchor_ant,'(yy):',baddies_yy
+    antpowers_xx.append(np.nanmean(avg_ratios_xx))
+    antpowers_yy.append(np.nanmean(avg_ratios_yy))
 print "   FINAL BAD ANTENNAS:" 
-print np.where(antpowers > np.mean(antpowers)+2*np.std(antpowers))[0]
+print "   xx: ",np.where(antpowers_xx < np.mean(antpowers_xx)-2*np.std(antpowers_xx))[0]
+print "   yy: ",np.where(antpowers_yy < np.mean(antpowers_yy)-2*np.std(antpowers_yy))[0]
 import IPython;IPython.embed()
