@@ -232,7 +232,7 @@ else: fir = {(ij[0],ij[1],POL):firs}
 #Extract frequency range of data 
 xi = {}
 f = {}
-#NOISE = frf((len(chans),len(lsts)),loc=0,scale=1e7) #same noise on each bl
+NOISE = frf((len(chans),len(lsts)),loc=0,scale=1) #same noise on each bl
 for k in days:
     xi[k] = {}
     f[k] = {}
@@ -242,7 +242,7 @@ for k in days:
         if conj[bl]: d = n.conj(d) #conjugate if necessary
         shape = d.shape #(times,freqs)
         if opts.noise_only:
-            xi[k][bl] = frf((len(chans),len(lsts)),loc=0,scale=1e7) #diff noise for each bl
+            xi[k][bl] = NOISE #frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
         else:
              xi[k][bl] = n.transpose(d, [1,0]) #swap time and freq axes
         f[k][bl] = n.transpose(flg, [1,0])
@@ -416,7 +416,7 @@ for boot in xrange(opts.nboot):
 
     if INJECT_SIG > 0.: #Create a fake EoR signal to inject
         print 'INJECTING SIMULATED SIGNAL'
-        eor = frf((shape[1],shape[0]),loc=0,scale=1e7) * INJECT_SIG #create FRF-ered noise
+        eor = frf((shape[1],shape[0]),loc=0,scale=1) * INJECT_SIG #create FRF-ered noise
         x = {}
         for k in days:
             x[k] = {}
