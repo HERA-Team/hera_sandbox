@@ -27,7 +27,7 @@ def mfunc(uv,p,d,f):
         if pol[1] == 'y': newpol2 = 'x'
     else: newpol2 = pol[1]
     newpol = newpol1+newpol2
-    index = numpy.where(t[newpol]['times'] == p[1])[0][0] #XXX times must match exactly
+    index = numpy.where(t[newpol]['times'] == p[1])[0][0] #times must match exactly
     d = data[newpol][p[2]][newpol][index] #collect information from correct pol file
     f = flags[newpol][p[2]][newpol][index]
     return p,d,f
@@ -36,8 +36,19 @@ pols = ['xx','xy','yx','yy']
 for filename in args:
     files,t,data,flags = {},{},{},{}
     for pol in pols:
+        if not os.path.exists(filename.replace('xx',pol)):
+            print '%s not found'%filename.replace('xx',pol)
+            break #some files do not have all pols due to incomplete restore
         files[pol] = filename.replace('xx',pol) #dictionary of files by pol
-        t[pol],data[pol],flags[pol] = capo.miriad.read_files([files[pol]],antstr='all',polstr=pol,verbose=True) #read all the pol files
+        t[pol],data[pol],flags[pol] = capo.miriad.read_files([files[pol]], antstr='all', polstr=pol, verbose=True) #read all the pol files
+    
+    if len(files)!=4: continue #some files do not have all pols due to incomplete restore (2)
+    
+    check = [numpy.all(t['xx']['times'] == t['xy']['times']),numpy.all(t['xx']['times'] == t['yx']['times']),numpy.all(t['xx']['times'] == t['yy']['times'])]
+    if not numpy.all(check):
+        print 'missing integrations'
+        continue #some files do not have all times - incomple restore?
+    
     for pol in files: #loop through 4 pols
         uvi = aipy.miriad.UV(files[pol])
         print files[pol], '->', files[pol]+'c'

@@ -3,7 +3,7 @@
 #$ -cwd
 #$ -l h_vmem=5G
 #$ -j y
-#$ -N firstcal
+#$ -N correct128
 #$ -o grid_output
 
 source activate PAPER
@@ -19,10 +19,10 @@ FX2ANTS="97,10,91,58,72,107,105,64,42,31,43,33,15,22,47,2"
 
 for DIR in $JD_DIRS
 do
-    OUTPATH=${DIR}
-    echo Working on data in ${OUTPATH}
+    JD=`basename ${DIR}`
+    echo Working on data in ${DIR}
     
-    if (( ${DIR} < '2456677'))
+    if (( ${JD} < '2456677'))
         then
             echo ${PATH2CAPO}/sak/scripts/correct_psa128_pols.py -a ${XPOLS} -b ${FX2ANTS} ${DIR}/*xx.uvcRRE
             ${PATH2CAPO}/sak/scripts/correct_psa128_pols.py -a ${XPOLS} -b ${FX2ANTS} ${DIR}/*xx.uvcRRE
