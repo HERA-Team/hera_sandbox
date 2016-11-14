@@ -66,7 +66,7 @@ def waterfall(d, mode='log', mx=None, drng=None, recenter=False, **kwargs):
     mn = mx - drng
     return plt.imshow(d, vmax=mx, vmin=mn, aspect='auto', interpolation='nearest', **kwargs)
 
-def full_data_view(d, f, mx=None, drng=None, save=None, clean=1e-3, verbose=False **kwargs):
+def full_data_view(d, f, mx=None, drng=None, save=None, clean=1e-3, verbose=False, **kwargs):
     flags = np.logical_not(f).astype(np.float)
     if np.ma.isMaskedArray(d): d = d.filled(0)
     if mx is None: mx = d.max()
@@ -114,7 +114,7 @@ def full_data_view(d, f, mx=None, drng=None, save=None, clean=1e-3, verbose=Fals
         if gain[chan] == 0: continue
         _dw[:,chan],info = a.deconv.clean(_dw[:,chan],_ker[:,chan],tol=clean)
         _dw[:,chan] += info['res'] / gain[chan]
-    dr = np.ma.array(np.fft.fftshift(_dw, axes=0)) #XXX check axes call
+    dr = np.ma.array(np.fft.fftshift(_dw, axes=0))
     im3 = axarr[3].imshow(np.log10(np.absolute(dr)), aspect='auto', interpolation='nearest', vmax=mx, vmin=mn, **kwargs)
     axarr[3].set_xlabel('Frequency')
     axarr[3].set_ylabel('Delay-rate bin')

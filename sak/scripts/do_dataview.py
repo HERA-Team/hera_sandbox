@@ -1,5 +1,6 @@
+#!/usr/bin/env python
+print 'Hello World!'
 import sys, capo as C, matplotlib.pyplot as plt, optparse, aipy as a
-
 o = optparse.OptionParser()
 o.set_usage('do_dataview.py [options] *.uv')
 a.scripting.add_standard_options(o, ant=True, pol=True)
