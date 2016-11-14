@@ -6,16 +6,17 @@ import numpy
 import sys, optparse, os
 
 o = optparse.OptionParser()
-#a.scripting.add_standard_options(o, ant=True)
+o.set_usage('correct_psa128_pols.py *xx.uvcRRE [xx pol only, it will find the other pols, assuming they are in the same directories]')
 o.add_option('-a','--ant',default=[], help='Comma-separated antenna numbers to swap pols.')
+o.add_option('-b','--badant',default=[],help='Comma-separated antenna numbers to remove from file')
 opts,args = o.parse_args(sys.argv[1:])
 
-ANTS = []
-for a in opts.ant.split(','):
-    ANTS.append(int(a)) #antennas that need to be swapped x->y, y->x
+ANTS = map(int,opts.ant.split(',')) #antennas that need to be swapped x->y, y->x
+BADANTS = map(int,opts.badant.split(','))
 
 def mfunc(uv,p,d,f):
     ant1,ant2 = p[2]
+    if ant1 in BADANTS or ant2 in BADANTS: return p,None,None
     if ant1 not in ANTS and ant2 not in ANTS: return p,d,f
     if ant1 in ANTS:
         if pol[0] == 'x': newpol1 = 'y'
