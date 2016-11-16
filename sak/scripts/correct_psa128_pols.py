@@ -7,12 +7,15 @@ import sys, optparse, os
 
 o = optparse.OptionParser()
 o.set_usage('correct_psa128_pols.py *xx.uvcRRE [xx pol only, it will find the other pols, assuming they are in the same directories]')
-o.add_option('-a','--ant',default=[], help='Comma-separated antenna numbers to swap pols.')
-o.add_option('-b','--badant',default=[],help='Comma-separated antenna numbers to remove from file')
+o.add_option('-a','--ant',default='', help='Comma-separated antenna numbers to swap pols.')
+o.add_option('-b','--badant',default=None,help='Comma-separated antenna numbers to remove from file')
 opts,args = o.parse_args(sys.argv[1:])
 
 ANTS = map(int,opts.ant.split(',')) #antennas that need to be swapped x->y, y->x
-BADANTS = map(int,opts.badant.split(','))
+if not opts.badant is None: 
+    BADANTS = map(int,opts.badant.split(','))
+else:
+    BADANTS = []
 
 def mfunc(uv,p,d,f):
     ant1,ant2 = p[2]
