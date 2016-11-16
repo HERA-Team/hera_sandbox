@@ -8,7 +8,7 @@ num_cores = multiprocessing.cpu_count()
 #fqs = n.linspace(.1,.2,203)
 fq = .15
 bl1, bl2 = (0,103),(0,103)
-N = 2400   #number of universes to average over
+N = 10000   #number of universes to average over
 
 VIS = False
 REDNORM = 1.
@@ -31,7 +31,7 @@ eq = n.array([ex,ey,ez], dtype=ex.dtype)
 
 plt = None
 #TT = n.arange(2455700,2455701,1/a.const.sidereal_day*42.9*0.5) #*5 for speed
-TT = n.arange(2455700.49,2455700.51,0.0001)
+TT = n.arange(2455700.499,2455700.501,0.0001)
 NORM = float(TT.size)/1000.
 #for i in xrange(N):
 def find_corr(i):
@@ -92,7 +92,7 @@ def find_corr(i):
     tempcorr = n.fft.ifftshift(n.fft.ifft(_vis2*n.conj(_vis1)))
     #p.plot(n.abs(corr[i]))
     return tempcorr
-corr = Parallel(n_jobs=num_cores)(delayed(find_corr)(i) for i in xrange(N))
+corr = Parallel(n_jobs=4)(delayed(find_corr)(i) for i in xrange(N))
 corr = n.array(corr)
 print 'shape of corr:',corr.shape
 #import IPython; IPython.embed()
@@ -126,6 +126,6 @@ p.subplot(212)
 p.plot(TT-2455700.5,n.abs(meancorr))
 p.axvline(ver,color='k',alpha=0.5,linewidth=3)
 p.grid()
-p.show()
+p.savefig('bl_ton_10000')
 
 
