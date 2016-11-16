@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import aipy as a, numpy as n, capo as C, pylab as p
 from joblib import Parallel, delayed
+import sys
 import multiprocessing
 num_cores = multiprocessing.cpu_count()
 
@@ -92,7 +93,7 @@ def find_corr(i):
     tempcorr = n.fft.ifftshift(n.fft.ifft(_vis2*n.conj(_vis1)))
     #p.plot(n.abs(corr[i]))
     return tempcorr
-corr = Parallel(n_jobs=4)(delayed(find_corr)(i) for i in xrange(N))
+corr = Parallel(n_jobs=16)(delayed(find_corr)(i) for i in xrange(N))
 corr = n.array(corr)
 print 'shape of corr:',corr.shape
 #import IPython; IPython.embed()
