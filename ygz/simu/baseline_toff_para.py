@@ -1,13 +1,14 @@
 #! /usr/bin/env python
 import aipy as a, numpy as np, capo as C, pylab as p
 from joblib import Parallel, delayed
+import sys
 import multiprocessing
 num_cores = multiprocessing.cpu_count()
 #@p.ion()
 #fqs = np.linspace(.1,.2,203)
 fq = .15
 bl1, bl2 = (0,103),(0,95)
-N = 2400   #number of universes to average over
+N = 24000   #number of universes to average over
 
 VIS = False
 REDNORM = 1228687.26108#1261990. #REDNORM is the peak of baseline_ton
@@ -29,7 +30,7 @@ if VIS:
     top2 = np.array([tx2,ty2,tz2], dtype=tx2.dtype)
 eq = np.array([ex,ey,ez], dtype=ex.dtype)
 
-TT = np.arange(2455700.3,2455700.7,0.001)
+TT = np.arange(2455700.3,2455700.7,0.0005)
 NORM = float(TT.size)/1000.
 def prepare(TT):
     aa.set_jultime(2455700.5)
@@ -58,6 +59,7 @@ def prepare(TT):
 
 def find_corr(i, bm_fngs):
     print i
+    sys.stdout.flush()
     sky = np.random.normal(size=h.map.size)
     h.map = sky # assume sky is in eq coord
     #import IPython; IPythonp.embed()
@@ -86,9 +88,11 @@ def find_corr(i, bm_fngs):
     return temp
 
 if __name__ == '__main__':
+    print 'preparing bfs'
     bfs = prepare(TT)
+    print 'done'
 
-    corr = Parallel(n_jobs=num_cores)(delayed(find_corr)(i, bfs) for i in xrange(N))
+    corr = Parallel(n_jobs=12)(delayed(find_corr)(i, bfs) for i in xrange(N))
     corr = np.array(corr)
     print 'shape of corr:',corr.shape
 
@@ -98,7 +102,7 @@ if __name__ == '__main__':
     try: ver = cuedict[str(bl1[1])+'_'+str(bl2[1])]
     except(KeyError): ver = 0.
     meancorr = np.mean(corr,axis=0)
-    meancorr = meancorr/REDNORM        #REDNORM is the peak of baseline_ton
+    meancorr = meancorr/1.e6        #REDNORM is the peak of baseline_ton
     maxind = np.argmax(np.abs(meancorr))
     absmax = np.abs(meancorr[maxind])
     print '############## baseline_toff RESULT for', bl1, bl2, '#####################'
@@ -118,6 +122,7 @@ if __name__ == '__main__':
     p.plot(TT-2455700.5,np.abs(meancorr))
     p.axvline(ver,color='k',alpha=0.5,linewidth=3)
     p.grid()
-    p.show()
+    p.savefig('toff_24000')
+#p.show()
 
 
