@@ -251,9 +251,10 @@ set_C(ds,3e4)
 k1 = (set1,'xx',(0,103))
 k2 = (set1,'xx',(0,95))
 oflist = 10*(np.arange(10)-5)+int(0.0548/dlst)
-res = Parallel(n_jobs=num_cores)(delayed(get_p)(k1,k2,'C',ofst) for ofst in oflist)
+n_jobs = min(oflist.size, num_cores)
+res = Parallel(n_jobs=n_jobs)(delayed(get_p)(k1,k2,'C',ofst) for ofst in oflist)
 pC, OFST = zip(*res)
-#import IPython; IPython.embed()
+
 for cnt, ofst in enumerate(OFST):
     psc = pC[cnt]
     plt.subplot(10,1,cnt+1)
@@ -261,5 +262,4 @@ for cnt, ofst in enumerate(OFST):
     capo.plot.waterfall(psc, mx=16, drng=7)
     plt.colorbar()
 plt.show()
-
-
+import IPython; IPython.embed()
