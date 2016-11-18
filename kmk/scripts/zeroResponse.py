@@ -101,6 +101,7 @@ if __name__ == '__main__':
     o.add_option('--data_file', default='zen.2456895.51490.xx.uvcRRE')
     o.add_option('--calfile', default='test')
     o.add_option('--gsm_dir', default='/home/kara/capo/kmk/gsm/gsm_raw/')
+    o.add_option('--fileout', default='sim_results.uv')
 
     opts,args = o.parse_args(sys.argv[1:])
     sim_dir = opts.sim_dir
@@ -108,6 +109,7 @@ if __name__ == '__main__':
     data_file = opts.data_file
     calfile = opts.calfile
     gsm_dir = opts.gsm_dir
+    fileout = opts.fileout
 
     # select 150 MHz and 160 MHz for u-mode calibration test
     freq = 0.100
@@ -133,16 +135,22 @@ if __name__ == '__main__':
     aa_freqs = aa.get_freqs()
     print "array parameters imported"
 
-    t = np.array([-3.0,-2.0,-1.0,0.0,1.0,2.0,3.0])
-    sim_data = []
-    for i in xrange(len(ij)):
-        gsmMap = makeGSM(path=gsm_dir, nside=64, freq=freqs[i])
-        print "GSM made at freq %f" % freqs[i]
+    #t = np.array([-3.0,-2.0,-1.0,0.0,1.0,2.0,3.0])
+    t = np.array([0.0])
+    os.system('rm -rf '+sim_dir+fileout)
+    sim_data = a.miriad.UV(sim_dir + fileout, status='new')
+    for k in xrange(len(ij)):
+        gsmMap = makeGSM(path=gsm_dir, nside=64, freq=freqs[k])
+        print "GSM made at freq %f" % freqs[k]
         for n in xrange(len(t)): 
-            gsm_vis = calcVis(aa=aa, hpm=gsmMap, ij=ij[i], freq=freqs[i], ha=t[n])
-            vis_data = [ij[i], t[n], freqs[i], gsm_vis]
-            sim_data.append(vis_data)
+            gsm_vis = calcVis(aa=aa, hpm=flatSky, ij=ij[k], freq=freqs[k], ha=t[n])
+            i,j = ij[k]
+            uvw = aa.gen_uvw(i,j,src='z')
+            uvw = np.array([uvw[0,0,k], uvw[1,0,k], uvw[2,0,k]])
+            vis_data = np.ma.array([gsm_vis], mask=False)
+            preamble = (uvw, aa.get_jultime() + t[n], (i,j))
+            print preamble
+            print gsm_vis
+            sim_data.write(preamble, vis_data)
+            print "data written"
 
-    np.array(sim_data)
-    np.savez(sim_dir+'beam_sim_output',sim_data)
-    print sim_data
