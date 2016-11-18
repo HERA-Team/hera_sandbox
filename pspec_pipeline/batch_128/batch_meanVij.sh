@@ -26,11 +26,11 @@ do
     do
         if (( ${JD} < '2456677'))
             then
-                echo ${PATH2CAPO}/sak/scripts/meanVij.py -C ${CAL} -p ${POL} --ba=${FX2ANTS} ${DIR}/*${POL}.uvcRREc --outpath=${OUTPATH}/${JD}.${POL}.txt
-                ${PATH2CAPO}/sak/scripts/meanVij.py -C ${CAL} -p ${POL} --ba=${FX2ANTS} ${DIR}/*${POL}.uvcRREc --outpath=${OUTPATH}/${JD}.${POL}.txt
+                echo ${PATH2CAPO}/sak/scripts/meanVij.py -C ${CAL} -p ${POL} --ba=${FX2ANTS} ${DIR}/*${POL}.uvcRREc --outpath=${OUTPATH}/${JD}.${POL}.txt --skiplast
+                ${PATH2CAPO}/sak/scripts/meanVij.py -C ${CAL} -p ${POL} --ba=${FX2ANTS} ${DIR}/*${POL}.uvcRREc --outpath=${OUTPATH}/${JD}.${POL}.txt --skiplast
             else
-                echo ${PATH2CAPO}/sak/scripts/meanVij.py -C ${CAL} -p ${POL} ${DIR}/*${POL}.uvcRREc --outpath=${OUTPATH}/${JD}.${POL}.txt
-                ${PATH2CAPO}/sak/scripts/meanVij.py -C ${CAL} -p ${POL} ${DIR}/*${POL}.uvcRREc --outpath=${OUTPATH}/${JD}.${POL}.txt
+                echo ${PATH2CAPO}/sak/scripts/meanVij.py -C ${CAL} -p ${POL} ${DIR}/*${POL}.uvcRREc --outpath=${OUTPATH}/${JD}.${POL}.txt --skiplast
+                ${PATH2CAPO}/sak/scripts/meanVij.py -C ${CAL} -p ${POL} ${DIR}/*${POL}.uvcRREc --outpath=${OUTPATH}/${JD}.${POL}.txt --skiplast
         fi
     done
 done

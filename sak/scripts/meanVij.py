@@ -73,15 +73,13 @@ for uv in args:
                     vis_stor[i,:,:]+=np.absolute(data[(j,i)][opts.pol].T)
                     flg_stor[i,:,:] += np.ones((nchan,ntimes),dtype='complex128')
             except KeyError:
-                #if i<j: 
-                #    if i not in badants and j not in badants:
-                #        print 'KeyError on (%i,%i)'%(i,j) #this should not happen
-                if i not in badants and j not in badants: print 'KeyError on (%i,%i)'%(i,j)
+                if i not in badants and j not in badants: 
+                    print 'KeyError on (%i,%i)'%(i,j) #this should not happen
                 continue
-    #del(uv)
+                
 #average all abs visibilities |Vij| over j per i
 mean_stor = np.absolute(vis_stor)/np.absolute(flg_stor)
-import IPython;IPython.embed()
+
 _x,_y,_avg = [],[],[]
 for i in range(nants):
     x,y = antpos[i]['top_x'],antpos[i]['top_y']
