@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+import os
 import aipy
 import numpy
 import capo
@@ -15,8 +16,8 @@ o = optparse.OptionParser()
 o.set_usage('simple_abscal.py *uvcRREO')
 o.set_description(__doc__)
 o.add_option('--plot',dest='plot',default=False,action="store_true")
-o.add_option('--factor',dest='factor',default=None,type='float',
-            help='Factor multiplied by data for absolute calibration.')
+o.add_option('--factor',dest='factor',default=None,type='string',
+            help='Name of npz file containing bandpass.')
 o.add_option('--abscal',dest='abscal',default=False,action="store_true")
 o.add_option('--poly',dest='poly',default=False,action="store_true",
             help="Fit polynomial vs. frequency instead of single number.")
@@ -236,11 +237,14 @@ if opts.plot == True:
 """
 
 if opts.factor != None and opts.abscal == True and opts.poly == False: #if factor is given in command-line
-    factor = opts.factor
+    #factor = opts.factor
+    factor = numpy.load('bandpass.npz')['bandpass']
 
 # Absolute calibrate
-print 'Saving bandpass.npz'
-numpy.savez('bandpass.npz',bandpass=factor)
+if opts.factor == None:
+    print 'Saving bandpass.npz'
+    numpy.savez('bandpass.npz',bandpass=factor)
+
 if opts.abscal == True:
 
     def mfunc(uv,p,d):
@@ -249,10 +253,14 @@ if opts.abscal == True:
 
     for file in args:
         uvi = aipy.miriad.UV(file)
-        uvo = aipy.miriad.UV(file+'G', status='new')
+        newfile = file+'G'
+        if os.path.exists(newfile): 
+            print '   %s exists. Skipping...' % newfile
+            continue
+        uvo = aipy.miriad.UV(newfile, status='new')
         uvo.init_from_uv(uvi)
         uvo.pipe(uvi,mfunc=mfunc)
-        print file, '->', file+'G'
+        print file, '->', newfile
     
 
 

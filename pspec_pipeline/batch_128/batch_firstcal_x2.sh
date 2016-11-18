@@ -1,9 +1,9 @@
 #$ -S /bin/bash
 #$ -V
 #$ -cwd
-#$ -l h_vmem=13G
+#$ -l h_vmem=15G
 #$ -j y
-#$ -N fcal_allEW
+#$ -N fcalx2all
 #$ -o grid_output
 
 source activate PAPER

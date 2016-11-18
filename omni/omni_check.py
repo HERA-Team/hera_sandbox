@@ -59,37 +59,29 @@ if opts.gains == True or opts.chisqant == True:
         print 'Reading',file
         file = numpy.load(file)
         for key in file.keys(): #loop over antennas
+            gain = file[key]
             if key[0] != '<' and key[0] != '(' and key[0].isalpha() != True and opts.gains == True:
-                gain = file[key]
                 antnum = key[:-1]
                 try: gains[antnum].append(gain)
                 except: gains[antnum] = [gain]
                 vmax=1.5
             if key[0] == 'c' and opts.chisqant == True and len(key) > 5: #if plotting chisq per ant
-                gain = file[key]
                 antnum = key.split('chisq')[1][:-1]
                 try: gains[antnum].append(gain)
                 except: gains[antnum] = [gain]
-                vmax=2
+                vmax=0.5
     for key in gains.keys():
         gains[key] = numpy.vstack(numpy.abs(gains[key])) #cool thing to stack 2D arrays that only match in 1 dimension
         mk = numpy.ma.masked_where(gains[key] == 1,gains[key]).mask #flags
         gains[key] = numpy.ma.masked_array(gains[key],mask=mk) #masked array
-    #import IPython;IPython.embed()
-    subplotnum = 1
-    plotnum = 1
-    plt.figure(plotnum,figsize=(10,10))
-    for ant in gains.keys(): #loop over antennas
-        if subplotnum == 26:
-            #break #only generate one page of plots (faster for testing) 
-            plotnum += 1
-            plt.figure(plotnum,figsize=(10,10))
-            subplotnum = 1
-        plt.subplot(5,5,subplotnum)
-        plt.imshow(gains[ant],vmax=vmax,aspect='auto',interpolation='nearest')
-        plt.title(ant,fontsize=10)
-        plt.tick_params(axis='both',which='major',labelsize=6)
-        plt.tight_layout()
-        subplotnum += 1
+    #Plotting
+    f,axarr = plt.subplots(8,14,figsize=(14,8),sharex=True,sharey=True)
+    for ant in range(max(map(int,gains.keys()))+1):
+        i1 = ant/14 #row number
+        i2 = ant%14 #col number
+        axarr[i1,i2].set_title(ant,fontsize=10)
+        axarr[i1,i2].tick_params(axis='both',which='both',labelsize=8)
+        try: axarr[i1,i2].imshow(gains[str(ant)],vmax=vmax,aspect='auto',interpolation='nearest')
+        except: continue
+    f.subplots_adjust(hspace=0.7)
     plt.show()
-

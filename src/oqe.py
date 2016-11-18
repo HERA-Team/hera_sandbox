@@ -35,31 +35,16 @@ def get_Q(mode, n_k, window='none'): #encodes the fourier transform from freq to
         Q[mode,mode] = 1
         return Q
 
-def lst_grid(lsts, data, wgts=None, lstbins=6300, wgtfunc=lambda dt,res: np.exp(-dt**2/(2*res**2))):
-    lstgrid = np.linspace(0, 2*np.pi, lstbins)
-    lstres = lstgrid[1]-lstgrid[0]
-    if wgts is None: wgts = np.where(np.abs(data) == 0, 0, 1.)
-    sumgrid,wgtgrid = 0, 0
-    for lst,d,w in zip(lsts,data,wgts):
-        print lst
-        dt = lstgrid - lst
-        wf = wgtfunc(dt,lstres); wf.shape = (-1,) + (1,)*(data.ndim-1)
-        d.shape, w.shape = (1,-1), (1,-1)
-        wgtgrid += w * wf
-        sumgrid += d * w * wf 
-    datgrid = np.where(wgtgrid > 1e-10, sumgrid/wgtgrid, 0)
-    return lstgrid, datgrid, wgtgrid
-
-def lst_align(lsts, lstres=.001, interpolation='none'):
-    lstgrid = np.arange(0, 2*np.pi, lstres)
+def lst_align(lsts, lstres=.001):    
     lstr, order = {}, {}
     for k in lsts: #orders LSTs to find overlap
         order[k] = np.argsort(lsts[k])
         lstr[k] = np.around(lsts[k][order[k]] / lstres) * lstres
     lsts_final = None
-    for k1 in lstr:
-        if lsts_final is None: lsts_final = np.intersect1d(lstr[k1],lstr[k1])
-        else: lsts_final = np.intersect1d(lsts_final,lstr[k1])
+    for i,k1 in enumerate(lstr.keys()):
+        for k2 in lstr.keys()[i:]:
+            if lsts_final is None: lsts_final = np.intersect1d(lstr[k1],lstr[k2]) #XXX LSTs much match exactly
+            else: lsts_final = np.intersect1d(lsts_final,lstr[k2])
     inds = {}
     for k in lstr: #selects correct LSTs from data
         inds[k] = order[k].take(lstr[k].searchsorted(lsts_final))
@@ -75,10 +60,11 @@ def lst_align_data(inds, dsets, wgts=None, lsts=None):
     return [d for d in [dsets,wgts,lsts] if not d is None]
 
 class DataSet:
-    def __init__(self, dsets=None, wgts=None, lsts=None, conj=None, npzfile=None, lmin=0):
+    def __init__(self, dsets=None, wgts=None, lsts=None, conj=None, npzfile=None, lmin=None, lmode=None):
         self.x, self.w = {}, {}
         self.clear_cache()
         self.lmin = lmin
+        self.lmode = lmode
         if not npzfile is None: self.from_npz(npzfile)
         elif not dsets is None: self.set_data(dsets, wgts=wgts, conj=conj)
     def flatten_data(self, data):
@@ -152,7 +138,9 @@ class DataSet:
         if not self._iC.has_key(k):
             C = self.C(k)
             U,S,V = np.linalg.svd(C.conj()) # conj in advance of next step
-            S += self.lmin # ensure invertibility
+            if self.lmin != None: S += self.lmin # ensure invertibility
+            if self.lmode != None: 
+                S += S[self.lmode-1]
             self.set_iC({k:np.einsum('ij,j,jk', V.T, 1./S, U.T)})
         if t is None: return self._iC[k]
         # If t is provided, Calculate iC for the provided time index, including flagging
@@ -290,8 +278,8 @@ class DataSet:
                         F[(k1,m1,k2,m2)] = np.zeros((nchan,nchan), dtype=np.complex)
                         iCQ1,iCQ2 = {}, {}
                         for ch in xrange(nchan): # this loop is nchan^3
-                            Q = get_Q(ch,nchan)
-                            iCQ1[ch] = np.dot(self._iCt[k1][m1],Q) #C^-1 Q
+                            Q = get_Q(ch,nchan) 
+                            iCQ1[ch] = np.dot(self._iCt[k1][m1],Q) #C^-1 Q # If ERROR: Compute q_hat first
                             iCQ2[ch] = np.dot(self._iCt[k2][m2],Q) #C^-1 Q
                         for i in xrange(nchan): # this loop goes as nchan^4
                             for j in xrange(nchan):

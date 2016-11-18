@@ -4,6 +4,7 @@ import capo.frf_conv as fringe
 import glob, optparse, sys, random
 import capo.zsa as zsa
 from IPython import embed
+import capo.oqe as oqe
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
@@ -37,6 +38,7 @@ PLOT = opts.plot
 def frf(shape,loc=0,scale=1):
     shape = shape[1]*2,shape[0] #(2*times,freqs)
     dij = noise(shape,loc=loc,scale=scale)
+    dij = oqe.noise(shape)
     #bins = fringe.gen_frbins(inttime)
     #frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
     #timebins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[len(afreqs)/2])
@@ -200,6 +202,25 @@ else: cnt,var = n.ones_like(lsts.values()[0]), n.ones_like(lsts.values()[0])
 
 
 #Align data in LST (even/odd data might have a different number of LSTs)
+lstr, order = {}, {}
+lstres = 0.001
+for k in lsts: #orders LSTs to find overlap
+    order[k] = n.argsort(lsts[k])
+    lstr[k] = n.around(lsts[k][order[k]] / lstres) * lstres
+lsts_final = None
+for i,k1 in enumerate(lstr.keys()):
+    for k2 in lstr.keys()[i:]:
+        if lsts_final is None: lsts_final = n.intersect1d(lstr[k1],lstr[k2]) #XXX LSTs much match exactly
+        else: lsts_final = n.intersect1d(lsts_final,lstr[k2])
+inds = {}
+for k in lstr: #selects correct LSTs from data
+    inds[k] = order[k].take(lstr[k].searchsorted(lsts_final))
+lsts = lsts[lsts.keys()[0]][inds[lsts.keys()[0]]]
+for k in days:
+    for bl in data[k]:
+        data[k][bl],flgs[k][bl] = data[k][bl][inds[k]],flgs[k][bl][inds[k]]
+
+"""# XXX found a bug in this original code (lsts['even'] and lsts['odd'] are different!)
 lstmax = max([lsts[k][0] for k in days]) #the larger of the initial lsts
 for k in days:
     #print k
@@ -215,6 +236,7 @@ for k in days:
     for bl in data[k]:
         data[k][bl],flgs[k][bl] = n.array(data[k][bl][:j]),n.array(flgs[k][bl][:j])
 lsts = lsts.values()[0] #same set of LST values for both even/odd data
+"""
 daykey = data.keys()[0]
 blkey = data[daykey].keys()[0]
 ij = a.miriad.bl2ij(blkey)
@@ -240,10 +262,9 @@ for k in days:
     for bl in data[k]:
         d = data[k][bl][:,chans] * jy2T
         flg = flgs[k][bl][:,chans]
-        if conj[bl]: d = n.conj(d) #conjugate if necessary
+        if conj[a.miriad.bl2ij(bl)]: d = n.conj(d) #conjugate if necessary
         shape = d.shape #(times,freqs)
         if opts.noise_only:
-            #xi[k][bl] = frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
             xi[k][bl] =  frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
         else:
              xi[k][bl] = n.transpose(d, [1,0]) #swap time and freq axes
@@ -585,7 +606,7 @@ for boot in xrange(opts.nboot):
     #XXX Final variables
     pI = pIe
     pC = pCr - pCv
-
+    
     print 'pI=', n.average(pI.real), 'pC=', n.average(pC.real), 'pI/pC=', n.average(pI.real)/n.average(pC.real)
    
     if PLOT:

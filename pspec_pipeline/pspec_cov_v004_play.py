@@ -19,6 +19,8 @@ o.add_option('--same', action='store_true',
     help='Noise is the same for all baselines.')
 o.add_option('--diff', action='store_true',
     help='Noise is different for all baseline.') 
+o.add_option('--frfeor', action='store_true',
+    help='FRF injected eor.')
 o.add_option('-i', '--inject', type='float', default=0.,
     help='EOR injection level.')
 o.add_option('--changeC', action='store_true',
@@ -27,25 +29,34 @@ o.add_option('--reg', type='float', default=None,
     help='Regularize C by adding the identity multiplied by the value specified.')
 o.add_option('--otherbls', type='string', default=None,
     help='Use other baseline type to determine C. Specify baseline type as command argument (ex: --otherbls="0,2")')
-o.add_option('--nofrf', action='store_true',
-    help='No fringe-rate filtering of EoR.')
+o.add_option('--CnoFRF', action='store_true',
+    help='Use non-FRF data to determine C.')
+o.add_option('--Cfg', action='store_true',
+    help='Use fg data to determine C.')
+o.add_option('--frf', action='store_true',
+    help='FRF noise.')
+o.add_option('--lmode',type='int', default=None,
+    help='Eigenvalue mode of C (in decreasing order) to be the minimum value used in C^-1')
+o.add_option('--Clongtime', action='store_true',
+    help='Use full dataset range in time to estimate C.')
 o.add_option('--output', type='string', default='',
     help='Output directory for pspec_boot files (default "")')
 
 opts,args = o.parse_args(sys.argv[1:])
 
 #Basic parameters
-random.seed(0)
+n.random.seed(0)
 POL = opts.pol 
 LST_STATS = False
 DELAY = False
 NGPS = 5 #number of groups to break the random sampled bls into
 PLOT = opts.plot
 INJECT_SIG = opts.inject
+LMODE = opts.lmode
 
 ### FUNCTIONS ###
 
-def frf(shape,loc=0,scale=1): #FRF NOISE
+def frf(shape): #FRF NOISE
     shape = shape[1]*2,shape[0] #(2*times,freqs)
     dij = oqe.noise(size=shape)
     wij = n.ones(shape,dtype=bool) #XXX flags are all true (times,freqs)
@@ -76,55 +87,71 @@ def get_Q(mode, n_k): #encodes the fourier transform from freq to delay
         Q[mode,mode] = 1
         return Q
 
-def load_otherbls():
-    dsets_sep2 = {}
-    for k in dsets:
-        dsets_sep2[k] = []
-        for file in dsets[k]:
-            oldsep = filter(lambda x: 'sep' in x, file.split('/'))[0]
-            newsep = oldsep.split('p')[0]+'p'+opts.otherbls[1:-1]
-            dsets_sep2[k].append(file.replace(oldsep,newsep))
-    data_dict_sep2 = {}
-    flg_dict_sep2 = {}
-    conj_dict_sep2 = {}
-    lsts_sep2,data_sep2,flgs_sep2 = {},{},{}
-    keys_sep2 = []
-    print 'Reading in data for',newsep
+def load_other():
+    dsets_other = {}
+    if opts.Clongtime:
+        dsets_final = {}
+        for k in dsets:
+            firstfile = dsets[k][0]
+            dsets_final[k] = glob.glob('/'.join(firstfile.split('/')[:-1])+'/lst.*'+firstfile.split('.')[-1]) #full time range
+    else: dsets_final = dsets
+    for k in dsets_final: 
+        dsets_other[k] = []
+        for file in dsets_final[k]:
+            if opts.Cfg: dsets_other[k].append('../../lstbin_fg/'+file.split('/')[1] + '/' + file.split('/')[-1][:-1]) #fg containing data
+            elif opts.CnoFRF: dsets_other[k].append(file[:-1]) #gets rid of 'L' on filename
+            elif opts.otherbls != None:
+                oldsep = filter(lambda x: 'sep' in x, file.split('/'))[0]
+                newsep = oldsep.split('p')[0]+'p'+opts.otherbls[1:-1]
+                dsets_other[k].append(file.replace(oldsep,newsep))
+            elif opts.Clongtime != None: dsets_other[k].append(file) 
+    data_dict_other = {}
+    flg_dict_other = {}
+    conj_dict_other = {}
+    lsts_other,data_other,flgs_other = {},{},{}
+    keys_other = []
+    print 'Reading in other set of data to estimate C'
     for k in days:
-        lsts_sep2[k],data_sep2[k],flgs_sep2[k] = capo.miriad.read_files(dsets_sep2[k], antstr=antstr, polstr=POL)
-        lsts_sep2[k] = n.array(lsts_sep2[k]['lsts'])
-        for bl in data_sep2[k]:
-            d = n.array(data_sep2[k][bl][POL])[:,chans] * jy2T  #extract frequency range
-            flg = n.array(flgs_sep2[k][bl][POL])[:,chans]
-            key_sep2 = (k,bl,POL)
-            keys_sep2.append(key_sep2)
-            data_dict_sep2[key_sep2] = d
-            flg_dict_sep2[key_sep2] = n.logical_not(flg)
-            conj_dict_sep2[key_sep2[1]] = conj[a.miriad.ij2bl(bl[0],bl[1])]
-    ds_sep2 = oqe.DataSet()
-    lsts_sep2,data_dict_sep2,flg_dict_sep2 = ds_sep2.lst_align(lsts_sep2,dsets=data_dict_sep2,wgts=flg_dict_sep2) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
-    ds_sep2.set_data(dsets=data_dict_sep2,conj=conj_dict_sep2,wgts=flg_dict_sep2)
-    return keys_sep2, ds_sep2
+        lsts_other[k],data_other[k],flgs_other[k] = capo.miriad.read_files(dsets_other[k], antstr=antstr, polstr=POL,verbose=True)
+        lsts_other[k] = n.array(lsts_other[k]['lsts'])
+        for bl in data_other[k]:
+            d = n.array(data_other[k][bl][POL])[:,chans] * jy2T  #extract frequency range
+            flg = n.array(flgs_other[k][bl][POL])[:,chans]
+            key_other = (k,bl,POL)
+            keys_other.append(key_other)
+            data_dict_other[key_other] = d
+            flg_dict_other[key_other] = n.logical_not(flg)
+            conj_dict_other[key_other[1]] = conj[key_other[1]]
+    ds_other = oqe.DataSet()
+    inds = oqe.lst_align(lsts_other)
+    data_dict,flg_dict,lsts = oqe.lst_align_data(inds,dsets=data_dict_other,wgts=flg_dict_other,lsts=lsts_other)
+    ds_other.set_data(dsets=data_dict_other,conj=conj_dict_other,wgts=flg_dict_other)
+    return keys_other, ds_other
 
-def change_C(keys,ds,keys_sep2=None,ds_sep2=None): #changes C in the dataset
+def change_C(keys,ds,keys_2=None,ds_2=None): #changes C in the dataset
     newC = {}
     if opts.reg != None: #REGULARIZE C
         for key in keys:
             newC[key] = ds.C(key) + n.identity(len(ds.C(key)))*opts.reg
-    elif opts.otherbls != None and opts.otherbls.split('"')[1] != bl2sep[a.miriad.ij2bl(keys[0][1][0],keys[0][1][1])]: #DETERMINE C FROM DIFFERENT BASELINE TYPE
-        sep2_avgC = []
-        for key in keys_sep2: 
-            sep2_avgC.append(ds_sep2.C(key))
-        sep2_avgC = n.average(sep2_avgC,axis=0) #average over all baselines
+    elif opts.otherbls != None:
+        if opts.otherbls.split('"')[1] != bl2sep[a.miriad.ij2bl(keys[0][1][0],keys[0][1][1])]: #DETERMINE C FROM DIFFERENT BASELINE TYPE
+            sep2_avgC = []
+            for key in keys_2: 
+                sep2_avgC.append(ds_2.C(key))
+            sep2_avgC = n.average(sep2_avgC,axis=0) #average over all baselines
+            for key in keys:
+                newC[key] = sep2_avgC
+        elif opts.otherbls.split('"')[1] == bl2sep[a.miriad.ij2bl(keys[0][1][0],keys[0][1][1])]: #DETERMINE C FROM SAME BASELINE TYPE BUT NOT THE BASELINE ITSELF
+            for key in keys:
+                sep_avgC = []
+                for key2 in keys:
+                    if key2 != key: sep_avgC.append(ds.C(key2))
+                sep_avgC = n.average(sep_avgC,axis=0) #average over other baselines
+                newC[key] = sep_avgC
+    elif opts.CnoFRF or opts.Cfg or opts.Clongtime: #DETERMINE C FROM NON-FRF DATA OR FG DATA
         for key in keys:
-            newC[key] = sep2_avgC
-    elif opts.otherbls.split('"')[1] == bl2sep[a.miriad.ij2bl(keys[0][1][0],keys[0][1][1])]: #DETERMINE C FROM SAME BASELINE TYPE BUT NOT THE BASELINE ITSELF
-        for key in keys:
-            sep_avgC = []
-            for key2 in keys:
-                if key2 != key: sep_avgC.append(ds.C(key2))
-            sep_avgC = n.average(sep_avgC,axis=0) #average over other baselines
-            newC[key] = sep_avgC
+            newC[key] = ds_2.C(key)# /2.5 #XXX
+            #n.fill_diagonal(newC[key],newC[key].diagonal()/8.0) #XXX
     else:
         print 'Specify an option of how to change C.'
         sys.exit()
@@ -197,7 +224,7 @@ for k in days:
         key = (k,bl,POL)
         data_dict[key] = d
         flg_dict[key] = n.logical_not(flg)
-        conj_dict[key[1]] = conj[a.miriad.ij2bl(bl[0],bl[1])]
+        conj_dict[key[1]] = conj[bl]
 keys = data_dict.keys()
 bls_master = []
 for key in keys: #populate list of baselines
@@ -205,8 +232,9 @@ for key in keys: #populate list of baselines
 print 'Baselines:', len(bls_master)
 
 #Align and create dataset
-ds = oqe.DataSet()
-lsts,data_dict,flg_dict = ds.lst_align(lsts,dsets=data_dict,wgts=flg_dict) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
+ds = oqe.DataSet(lmode=LMODE)
+inds = oqe.lst_align(lsts)
+data_dict,flg_dict,lsts = oqe.lst_align_data(inds,dsets=data_dict,wgts=flg_dict,lsts=lsts)
 
 #Prep FRF Stuff
 timelen = data_dict[keys[0]].shape[0]
@@ -220,13 +248,15 @@ fir = {(ij[0],ij[1],POL):firs}
 
 #If data is replaced by noise
 if opts.noise_only:
-    if opts.same == None and opts.diff == None: 
+    if opts.same == None and opts.diff == None:
         print 'Need to specify if noise is the same on all baselines (--same) or different (--diff)'
         sys.exit()
-    if opts.same: NOISE = frf((len(chans),timelen),loc=0,scale=1) #same noise on all bls
+    if opts.same and opts.frf: NOISE = frf((len(chans),timelen)) #same noise on all bls
+    if opts.same and opts.frf == None: NOISE = oqe.noise(size=(len(chans),timelen))
     for key in data_dict:
         if opts.same: thing = NOISE.T
-        if opts.diff: thing = frf((len(chans),timelen),loc=0,scale=1).T
+        if opts.diff and opts.frf: thing = frf((len(chans),timelen)).T
+        if opts.diff and opts.frf == None: thing = oqe.noise(size=(len(chans),timelen)).T
         if blconj[a.miriad.ij2bl(key[1][0],key[1][1])]: data_dict[key] = n.conj(thing)
         else: data_dict[key] = thing
         flg_dict[key] = n.ones_like(data_dict[key])
@@ -269,17 +299,40 @@ if PLOT and False:
 #Change C if wanted
 if opts.changeC:
     if opts.otherbls != None and opts.otherbls.split('"')[1] != bl2sep[a.miriad.ij2bl(keys[0][1][0],keys[0][1][1])]:
-        keys_sep2, ds_sep2 = load_otherbls()
-    else: keys_sep2, ds_sep2 = None, None
-    newC = change_C(keys,ds,keys_sep2,ds_sep2)
-    #XXX plotting
-    #p.subplot(122)
-    #p.imshow(n.real(newC[key]),aspect='auto',vmax=150000,vmin=-150000)
-    #p.subplot(121)
-    #p.imshow(n.real(ds.C(key)),aspect='auto',vmax=150000,vmin=-150000)
-    #p.show()
-    ds.set_C(newC)
-
+        keys_2, ds_2 = load_other()
+    elif opts.CnoFRF or opts.Cfg or opts.Clongtime:
+        keys_2, ds_2 = load_other()
+    else: keys_2, ds_2 = None, None
+    newC = change_C(keys,ds,keys_2,ds_2)
+    # Plotting
+    if True:
+        p.figure(figsize=(10,5))
+        p.subplot(131); p.title('Original C')
+        capo.plot.waterfall(ds.C(key));p.colorbar()
+        p.subplot(132); p.title('New C')
+        capo.plot.waterfall(newC[key]);p.colorbar()
+        p.subplot(133); p.title('Original - New')
+        capo.plot.waterfall(ds.C(key)-newC[key]);p.colorbar()
+        p.show()
+        # Waterfall plots
+        U,S,V = n.linalg.svd(newC[key].conj())
+        newiC = n.einsum('ij,j,jk', V.T, 1./S, U.T)
+        p.figure(figsize=(13,7))
+        p.subplot(511); p.title('x (Original)')
+        capo.plot.waterfall(ds.x[key],mx=2,drng=2.5);p.colorbar()
+        p.subplot(512); p.title('x (New)')
+        try: capo.plot.waterfall(ds_2.x[key],mx=2,drng=2.5);p.colorbar()
+        except: pass #no ds_2 data for some change_C options
+        p.subplot(513); p.title('C^-1 x (Original)')
+        capo.plot.waterfall(n.dot(ds.iC(key),ds.x[key]));p.colorbar()
+        p.subplot(514); p.title('C^-1 x (New)')
+        try: capo.plot.waterfall(n.dot(ds_2.iC(key),ds_2.x[key]));p.colorbar()
+        except: pass
+        p.subplot(515); p.title('C^-1 (New) to x (Original)')
+        capo.plot.waterfall(n.dot(newiC,ds.x[key]));p.colorbar()
+        p.tight_layout()
+        p.show()
+        ds.set_C(newC)
 
 #Bootstrapping        
 for boot in xrange(opts.nboot):
@@ -287,11 +340,22 @@ for boot in xrange(opts.nboot):
  
     if True: #shuffle and group baselines for bootstrapping
         gps = ds.gen_gps(bls_master, ngps=NGPS)
-        newkeys,dsC,dsI = ds.group_data(keys,gps) 
+        newkeys,dsC = ds.group_data(keys,gps) 
+        newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
     else: #no groups (slower)
         newkeys = [random.choice(keys) for key in keys] #sample w/replacement for bootstrapping
         dsI,dsC = ds,ds #identity and covariance case dataset is the same
-    
+   
+    # Plotting
+    if False:
+        p.figure(figsize=(10,3))
+        p.subplot(211); p.title('C^-1 (New) to x (Original)')
+        capo.plot.waterfall(n.dot(newiC,ds.x[key]));p.colorbar()
+        p.subplot(212); p.title('C^-1 x (groups)')
+        capo.plot.waterfall(n.dot(dsC.iC(newkeys[0]),dsC.x[newkeys[0]]));p.colorbar()
+        p.tight_layout()
+        p.show()
+ 
     ### Calculate pC just based on the data/simulation noise (no eor injection) ###
     print '   Getting pCv'
 
@@ -306,12 +370,12 @@ for boot in xrange(opts.nboot):
             if key1[0] == key2[0] or key1[1] == key2[1]: 
                 continue #don't do even w/even or bl w/same bl
             else:
-                FC += dsC.get_F(key1,key2)
-                FI += dsI.get_F(key1,key2,use_cov=False)    
-                qC += dsC.q_hat(key1,key2)
-                qI += dsI.q_hat(key1,key2,use_cov=False) 
+                FC += dsC.get_F(key1,key2,cov_flagging=False)
+                FI += dsI.get_F(key1,key2,use_cov=False,cov_flagging=False)    
+                qC += dsC.q_hat(key1,key2,cov_flagging=False)
+                qI += dsI.q_hat(key1,key2,use_cov=False,cov_flagging=False) 
 
-    MC,WC = dsC.get_MW(FC,mode='L^-1') #Cholesky decomposition
+    MC,WC = dsC.get_MW(FC,mode='F^-1/2')#'L^-1') #Cholesky decomposition
     MI,WI = dsI.get_MW(FI,mode='I')
     pC = dsC.p_hat(MC,qC,scalar=scalar)
     pI = dsI.p_hat(MI,qI,scalar=scalar)
@@ -355,33 +419,43 @@ for boot in xrange(opts.nboot):
 
     if INJECT_SIG > 0.: #Create a fake EoR signal to inject
         print '     INJECTING SIMULATED SIGNAL'
-        eor = (frf((len(chans),timelen),loc=0,scale=1) * INJECT_SIG).T #create FRF-ered noise
-        if opts.nofrf:
-            eor = (oqe.noise((len(chans),timelen))*INJECT_SIG).T #not FRF-ed
+        if opts.Clongtime: tlen = ds_2.x[key].shape[1]
+        else: tlen = timelen
+        if opts.frfeor:
+            ## FRF once ##  
+            eor = (frf((len(chans),tlen)) * INJECT_SIG).T #create FRF-ered noise
+        else:
+            eor = (oqe.noise((len(chans),tlen)) * INJECT_SIG).T
         data_dict_2 = {}
         data_dict_eor = {}
         for key in data_dict:
-            data_dict_2[key] = data_dict[key].copy() + eor.copy() #add injected signal to data
-            data_dict_eor[key] = eor.copy()
+            if conj_dict[key[1]] == True: eorinject = n.conj(eor.copy()) #conjugate eor for certain baselines
+            else: eorinject = eor.copy()
+            eorinject = eor[:data_dict[key].shape[0],:]
+            data_dict_2[key] = data_dict[key].copy() + eorinject #add injected signal to data
+            data_dict_eor[key] = eorinject
 
     #Set data
-    ds2 = oqe.DataSet() #data + eor
+    ds2 = oqe.DataSet(lmode=LMODE) #data + eor
     ds2.set_data(dsets=data_dict_2,conj=conj_dict,wgts=flg_dict)
-    dse = oqe.DataSet() #just eor   
+    dse = oqe.DataSet(lmode=LMODE) #just eor   
     dse.set_data(dsets=data_dict_eor,conj=conj_dict,wgts=flg_dict)
    
     #Change C if wanted
-    if opts.changeC:
-        if opts.otherbls != None and opts.otherbls.split('"')[1] != bl2sep[a.miriad.ij2bl(keys[0][1][0],keys[0][1][1])]: #for different baseline case
-            ds_sep2.clear_cache() #empties C's that are stored already so that it will be computed based off of data + eor
-            for key2 in keys_sep2: 
-                ds_sep2.x[key2] = ds_sep2.x[key2] + eor.T #add eor 
-        newC2 = change_C(keys,ds2,keys_sep2,ds_sep2) #re-computes C based on ds_sep2+eor
-        ds2.set_C(newC2) #set C
     
+    if opts.changeC:
+        if (opts.otherbls != None and opts.otherbls.split('"')[1] != bl2sep[a.miriad.ij2bl(keys[0][1][0],keys[0][1][1])]) or opts.CnoFRF or opts.Cfg or opts.Clongtime: 
+            ds_2.clear_cache() #empties C's that are stored already so that it will be computed based off of data + eor
+            for key2 in keys_2:
+                ds_2.x[key2] = ds_2.x[key2] + eor.T #add eor
+        newC2 = change_C(keys,ds2,keys_2,ds_2) #re-computes C based on ds_2+eor
+        ds2.set_C(newC2)
+
     if True:
-        newkeys,ds2C,ds2I = ds2.group_data(keys,gps) #group data (gps already determined before)
-        newkeys,dseC,dseI = dse.group_data(keys,gps)
+        newkeys,ds2C = ds2.group_data(keys,gps) #group data (gps already determined before)
+        newkeys,ds2I = ds2.group_data(keys,gps,use_cov=False)
+        newkeys,dseC = dse.group_data(keys,gps)
+        newkeys,dseI = dse.group_data(keys,gps,use_cov=False)
     else: #no groups (slower)
         ds2I,ds2C = ds2,ds2 #identity and covariance case dataset is the same
         dseI,dseC = dse,dse
@@ -397,12 +471,12 @@ for boot in xrange(opts.nboot):
             if key1[0] == key2[0] or key1[1] == key2[1]:
                 continue #don't do even w/even or bl w/same bl
             else:
-                FC += ds2C.get_F(key1,key2)
-                FI += dseI.get_F(key1,key2,use_cov=False) #only eor
-                qC += ds2C.q_hat(key1,key2)
-                qI += dseI.q_hat(key1,key2,use_cov=False)
+                FC += ds2C.get_F(key1,key2,cov_flagging=False)
+                FI += dseI.get_F(key1,key2,use_cov=False,cov_flagging=False) #only eor
+                qC += ds2C.q_hat(key1,key2,cov_flagging=False)
+                qI += dseI.q_hat(key1,key2,use_cov=False,cov_flagging=False)
 
-    MC,WC = ds2C.get_MW(FC,mode='L^-1') #Cholesky decomposition
+    MC,WC = ds2C.get_MW(FC,mode='F^-1/2')#'L^-1') #Cholesky decomposition
     MI,WI = dseI.get_MW(FI,mode='I')
     pC = ds2C.p_hat(MC,qC,scalar=scalar)
     pI = dseI.p_hat(MI,qI,scalar=scalar)
@@ -416,7 +490,8 @@ for boot in xrange(opts.nboot):
     pI = pIe
     pC = pCr - pCv
 
-    print '   pI=', n.average(pI.real), 'pC=', n.average(pC.real), 'pI/pC=', n.average(pI.real)/n.average(pC.real)
+    print '   pCv=', n.median(pCv.real), 'pIv=', n.median(pIv)
+    print '   pI=', n.median(pI.real), 'pC=', n.median(pC.real), 'pI/pC=', n.median(pI.real)/n.median(pC.real)
 
     if PLOT:
         p.plot(kpl, n.average(pC.real, axis=1), 'b.-')
