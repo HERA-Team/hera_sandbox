@@ -10,8 +10,12 @@ o.add_option('-i', '--inject_sig', type='float', default=1.,
     help='Inject signal amplitude.  Default is 1.')
 o.add_option('--plot', action='store_true',
     help='Generate plots')
+o.add_option('--sep', default='sep0,1', action='store',
+    help='Which separation type?')
 o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
+o.add_option('--frpad', type='float',default=1.0,
+    help='frpad to use while filtering eor')
 o.add_option('--output', type='string', default='',
     help='output directory for pspec_boot files (default "")')
 opts,args = o.parse_args(sys.argv[1:])
@@ -78,23 +82,20 @@ def get_Q(mode, n_k):
         return Q
 
 #SEP = 'sep0,1'
+SEP = opts.sep
 #SEP = 'sep1,1'
 #SEP = 'sep-1,1'
 #dsets = {
-    #'only': glob.glob('sep0,1/*242.[3456]*uvL'),
+#    #'only': glob.glob('sep0,1/*242.[3456]*uvL'),
 #    'even': glob.glob('even/'+SEP+'/*242.[3456]*uvAL'),
 #    'odd' : glob.glob('odd/'+SEP+'/*243.[3456]*uvAL'),
-    #'eor': glob.glob('even/'+SEP+'/*242.[3456]*signalL'),
-    #'fg' : glob.glob('*242.[3456]*uvA'),
+#    #'eor': glob.glob('even/'+SEP+'/*242.[3456]*signalL'),
+#    #'fg' : glob.glob('*242.[3456]*uvA'),
 #}
 dsets = {
     'even': [x for x in args if 'even' in x],
     'odd' : [x for x in args if 'odd' in x]
 }
-print 'Number of even data sets: {0:d}'.format(len(dsets['even']))
-print 'Number of odd data sets: {0:d}'.format(len(dsets['odd']))
-for dset_count in xrange(len(dsets['even'])):
-        print dsets['even'][dset_count].split('/')[-1], dsets['odd'][dset_count].split('/')[-1]
 #for i in xrange(10): dsets[i] = glob.glob('lstbinX%d/%s/lst.24562[45]*.[3456]*.uvAL'%(i,SEP))
 
 WINDOW = opts.window
@@ -102,7 +103,12 @@ uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
-inttime = uv['inttime'] * 4 # XXX hack for *E files that have inttime set incorrectly
+#inttime = uv['inttime'] * 4 # XXX hack for *E files that have inttime set incorrectly
+(uvw,t1,(i,j)),d = uv.read()
+(uvw,t2,(i,j)),d = uv.read()
+while t1 == t2:
+    (uvw,t2,(i,j)),d = uv.read()
+inttime = (t2-t1)* (3600*24)
 del(uv)
 
 afreqs = freqs.take(chans)
@@ -114,6 +120,7 @@ z = capo.pspec.f2z(fq)
 aa = a.cal.get_aa(opts.cal, freqs)
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
 jy2T = capo.pspec.jy2T(afreqs)
+sep2ij, blconj, bl2sep = capo.zsa.grid2ij(aa.ant_layout)
 window = a.dsp.gen_window(nchan, WINDOW)
 #if not WINDOW == 'none': window.shape=(1,nchan)
 if not WINDOW == 'none': window.shape=(nchan,1)
@@ -190,12 +197,16 @@ lsts = lsts.values()[0]
 for boot in xrange(opts.nboot):
     print '%d / %d' % (boot+1,opts.nboot)
     x = {}
+    xf = {}
     for k in days:
         x[k] = {}
+        xf[k] = {}
         for bl in data[k]:
             d = data[k][bl][:,chans] * jy2T
+            f = flgs[k][bl][:,chans]
             if conj[bl]: d = n.conj(d)
             x[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
+            xf[k][bl] = n.transpose(f, [1,0])
 
     #eor = x.pop('eor'); days = x.keys() # make up for putting eor in list above
     bls_master = x.values()[0].keys()
@@ -212,13 +223,37 @@ for boot in xrange(opts.nboot):
             for ch in xrange(eor1.shape[0]):
                 eor1[ch] = n.convolve(eor1[ch], fringe_filter, mode='same')
         else: # this one is the exact one
-            bl = a.miriad.bl2ij(bls_master[0])
-            beam_w_fr = capo.frf_conv.get_beam_w_fr(aa, bl)
-            t, firs, frbins,frspace = capo.frf_conv.get_fringe_rate_kernels(beam_w_fr, inttime, FRF_WIDTH)
+            #this update reflects new frf and the time bin alignment April 2016
+            sep = bl2sep[bls_master[0]]
+            c=0
+            while c != -1:
+                ij = map(int, sep2ij[sep].split(',')[c].split('_'))
+                bl1 = a.miriad.ij2bl(*ij)
+                if blconj[bl1]: c+=1
+                else: break
+            bl_ij= a.miriad.bl2ij(bl1)
+            frbins = capo.frf_conv.gen_frbins(inttime)
+            #frbins = n.arange( -.5/inttime+5e-5/2, .5/inttime,5e-5)
+            #use channel 101 like in the frf_filter script
+            frp, bins = capo.frf_conv.aa_to_fr_profile(aa, bl_ij,101, bins= frbins, frpad=opts.frpad)
+            timebins, firs = capo.frf_conv.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[101], startprms=(.001*opts.frpad,.0001))
+
+
+            #this is the arp way
+            #beam_w_fr = capo.frf_conv.get_beam_w_fr(aa, bl)
+            #t, firs, frbins,frspace = capo.frf_conv.get_fringe_rate_kernels(beam_w_fr, inttime, FRF_WIDTH)
+            if conj[bl]: fir = n.conj(firs)
+            else: fir = n.copy(firs)
             for cnt,ch in enumerate(chans):
-                eor1[cnt] = n.convolve(eor1[cnt], firs[ch], mode='same')
+                fg = n.logical_not(xf[k][bl][cnt])
+                eor1[cnt] = n.convolve(eor1[cnt], fir[ch], mode='same')
+                w = n.convolve(fg, n.abs(n.conj(fir[ch])), mode='same')
+                eor1[cnt] = n.where(fg>0, eor1[cnt]/w, 1)
         #eor2 = eor.values()[0] * INJECT_SIG
-        eor = eor1 * INJECT_SIG
+
+        if conj[bl]: eor1 = n.conj(eor1)
+        #noise_array[k][bl] = n.transpose( ed.T * jy2T, [1,0])
+        eor =  n.transpose(eor1.T * INJECT_SIG * jy2T, [1,0])
         for k in days:
             for bl in x[k]: x[k][bl] += eor
         if False and PLOT:
@@ -238,11 +273,9 @@ for boot in xrange(opts.nboot):
         C[k],_C[k],_Cx[k] = {},{},{}
         for bl in x[k]:
             C[k][bl] = cov(x[k][bl])
-            #C[k][bl] = n.identity(C[k][bl].shape[0])
             I[k][bl] = n.identity(C[k][bl].shape[0])
             U,S,V = n.linalg.svd(C[k][bl].conj())
             _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
-            #_C[k][bl] = n.identity(_C[k][bl].shape[0])
             _I[k][bl] = n.identity(_C[k][bl].shape[0])
             #_Cx[k][bl] = n.dot(_C[k][bl], x[k][bl])
             #_Ix[k][bl] = x[k][bl].copy()
@@ -408,9 +441,13 @@ for boot in xrange(opts.nboot):
     print 'Writing pspec_boot%04d.npz' % boot
     outfile = 'pspec_boot%04d.npz'%(boot)
     if not opts.output == '':
-        outfile = opts.output+'/'+outfile
+        outfile =opts.output+'/'+outfile
+    print "Writing", outfile
     n.savez(outfile, kpl=kpl, scalar=scalar, times=n.array(lsts),
-        pC=pC, err_vs_t=1./cnt, temp_noise_var=var, pI=pI,
+        pC=pC, err_vs_t=1./cnt, temp_noise_var=var, pI=pI, 
+        afreqs=afreqs, chans=chans,
         cmd=' '.join(sys.argv))
+
+
 
 

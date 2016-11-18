@@ -33,8 +33,6 @@ o.add_option('--Trcvr',default=100,type=float,help='receiver termp [default 100K
 o.add_option('--rmbls',type=str,help='list of baselines to NOT use, comma delim, integers output by a.miriad.ij2bl')
 o.add_option('--varinttime',type=float,help='integration time of the variances (s, default=inttime)')
 opts,args=o.parse_args(sys.argv[1:])
-if opts.varinttime is None:
-    opts.varinttime=opts.inttime
 
 
 POL = opts.pol
@@ -98,9 +96,12 @@ band_chans = a.scripting.parse_chans(opts.band, uv['nchan'])
 if not opts.inttime is None:
     inttime = opts.inttime
 else:
-    inttime = uv['inttime'] * 4 / (8.*60.) # XXX hack for *E files that have inttime set incorrectly
+    inttime = uv['inttime'] * 4  # XXX hack for *E files that have inttime set incorrectly
 print 'inttime', inttime
 del(uv)
+
+if opts.varinttime is None:
+    opts.varinttime=inttime
 
 afreqs = freqs.take(chans)
 allfreqs = freqs.take(band_chans)
@@ -164,7 +165,7 @@ if set(['even','odd']) == set(days):
         v_e = n.copy(n.array(var1['even'][bl])[:,band_chans])
         c_o = n.copy(n.array(cnt1['odd'][bl])[:,band_chans]) 
         v_o = n.copy(n.array(var1['odd'][bl])[:,band_chans])
-        if conj[bl]: d=n.conj(d)        
+        if conj[bl]: d=n.conj(d)
         x[bl] = n.transpose(d,[1,0])[band_chans,::dlst]
         v_e = n.ma.masked_where(c_e<1,v_e)
         v_o = n.ma.masked_where(c_o<1,v_o)
@@ -182,11 +183,11 @@ trms_data, trms_o_the,trms_e_the = {}, {}, {}
 theo_temp= {}
 
 
-print opts.inttime/opts.varinttime
+print inttime/opts.varinttime
 for bl in bls_master:
     trms_data[bl] = n.sqrt( n.mean(x[bl].conj() * x[bl],axis=1)/2. ).real
-    trms_e_the[bl] = n.sqrt( n.ma.mean(var_e[bl]/cnt_e[bl]/(opts.inttime/opts.varinttime),axis=1) ) * jy2T[band_chans]
-    trms_o_the[bl] = n.sqrt( n.ma.mean(var_o[bl]/cnt_o[bl]/(opts.inttime/opts.varinttime),axis=1) ) * jy2T[band_chans]
+    trms_e_the[bl] = n.sqrt( n.ma.mean(var_e[bl]/cnt_e[bl]/(inttime/opts.varinttime),axis=1) ) * jy2T[band_chans]
+    trms_o_the[bl] = n.sqrt( n.ma.mean(var_o[bl]/cnt_o[bl]/(inttime/opts.varinttime),axis=1) ) * jy2T[band_chans]
 ##GSM emission + antenna temp / sqrt(df*dt*cnt)
     theo_temp[bl]= (opts.Tsky*1e3*(allfreqs/.18)**(-2.8)+opts.Trcvr*1e3)/(n.sqrt( inttime *sdf*1e9))* n.mean(1./n.sqrt(cnt_e[bl]),axis=1)
 #bl_avgeraged counts and vars
@@ -218,10 +219,10 @@ T_vs_bl = n.zeros((len(bls_master),len(band_chans)))
 for i,bl in enumerate(bls_master):
     T_vs_bl[i] = trms_data[bl]
 p.subplot(121)
-p.plot(bls_master,n.mean(T_vs_bl[:,110:150],axis=1))
+p.plot(bls_master,n.mean(T_vs_bl[:,chans],axis=1))
 p.subplot(122)
 p.imshow(n.log(T_vs_bl),aspect='auto',interpolation='nearest')
-T_vs_bl_mean = n.mean(T_vs_bl[:,110:150],axis=1)
+T_vs_bl_mean = n.mean(T_vs_bl[:,chans],axis=1)
 print "hottest baseline = ",bls_master[n.argwhere(T_vs_bl_mean==T_vs_bl_mean.max()).squeeze()]
 p.show()
 for i,bl in enumerate(bls_master):

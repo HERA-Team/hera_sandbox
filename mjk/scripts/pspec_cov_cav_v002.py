@@ -100,7 +100,7 @@ def get_Q(mode, n_k):
         Q[mode,mode] = 1
         return Q
 
-def get_cav(c_mat,nchan,scaling=False):
+def get_cav(c_mat,nchan,chans,scaling=False):
         #Compute Cav by taking diags, averaging and reforming the matrix
         diags =[c_mat.diagonal(count) for count in xrange(nchan-1, -nchan,-1)]
         cav=n.zeros_like(c_mat)
@@ -453,14 +453,14 @@ for k in days:
         C[k][bl] = cov(x[k][bl])
 
         if opts.cav:
-            C[k][bl]=get_cav(C[k][bl],nchan,scaling=opts.auto)
+            C[k][bl]=get_cav(n.copy(C[k][bl]),nchan,chans,scaling=opts.auto)
 
         I[k][bl] = n.identity(C[k][bl].shape[0])
         U,S,V = n.linalg.svd(C[k][bl].conj())
 
-        if S[0] >= 18:
-            C[k][bl]=cov(x[k][bl])
-            U,S,V=n.linalg.svd(C[k][bl].conj())
+        #if S[0] >= 18:
+        #    C[k][bl]=cov(x[k][bl])
+        #    U,S,V=n.linalg.svd(C[k][bl].conj())
 
         _C[k][bl] = n.einsum('ij,j,jk', V.T, 1./S, U.T)
         #_C[k][bl] = n.identity(_C[k][bl].shape[0])

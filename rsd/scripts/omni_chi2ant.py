@@ -31,7 +31,7 @@ def get_blperant(old_info):
     new_info = oi.RedundantInfo()
     new_info.init_from_reds(reds, antpos)
     blperant = new_info.blperant
-    return blperant
+    return (info.subsetant, blperant)
 
 def get_nfreq(filenames):
     """
@@ -40,24 +40,25 @@ def get_nfreq(filenames):
     """
     def __nf(fname):
         omnidata = np.load(fname)
-        omnikeys = filter(lambda s: ',antchisq' in s, omnidata.iterkeys())
-        shape = omnidata[omnikeys[0]].shape
+        omnikeys = filter(lambda s: ',chisq' in s, omnidata.iterkeys())
+        _, nfrequencies = omnidata[omnikeys[0]].shape
+        nantennas = len(omnikeys) - 1 # One of these is the total chisq
         omnidata.close()
-        return shape
+        return (nfrequencies, nantennas)
 
-    _, nfreq, nant = map(set, zip(*map(__nf, filenames)))
+    nfreq, nant = map(set, zip(*map(__nf, filenames)))
     if len(nfreq) != 1:
         raise ValueError('Frequency channels do not match across all data.')
     if len(nant) != 1:
         raise ValueError('Number of antennas does not match across all data.')
     return (nfreq.pop(), nant.pop())
 
-def grab_freq(filename, freq, pol):
+def grab_freq(filename, subsetant, freq, pol):
     """
     Select data from a file along a certain frequency channel.
     """
     omnidata = np.load(filename)
-    antchisq = omnidata[pol + ',antchisq']
+    antchisq = np.array([omnidata[pol + ',chisq%d'%a] for a in subsetant])
     chisq = omnidata[pol + ',chisq']
     if freq == None:
         fstart = 0
@@ -68,7 +69,7 @@ def grab_freq(filename, freq, pol):
     else:
         fstart = int(freq)
         fend = fstart + 1
-    freq_select = np.sum(antchisq[:,fstart:fend,:], axis=1).transpose()
+    freq_select = np.sum(antchisq[:,:,fstart:fend], axis=2)
     active_channels = np.sum(chisq[:,fstart:fend] != 0, axis=1)
     omnidata.close()
     return np.transpose(freq_select / active_channels)
@@ -98,14 +99,14 @@ if __name__ == '__main__':
     # Select the frequency data
     chi2ant = np.empty((0, nant))
     chisq = np.array([])
-    blperant = get_blperant(redinfo)
+    subsetant, blperant = get_blperant(redinfo)
 
     # Get the chisq/ant data and throw it into an array. I'm also collecting the
     # chisq data to verify that the sum of the antenna chi^2 is twice the chisq
     # that gets computed, as it should be. This is in a unit test, but since
     # there's been some code that's been buggy, I'm doing it here again.
     for fname in infiles:
-        chi2ant = np.append(chi2ant, grab_freq(fname, freq, pol), axis=0)
+        chi2ant = np.append(chi2ant, grab_freq(fname, subsetant, freq, pol), axis=0)
 
     # Sum everything up
     sum_chi2ant = np.sum(chi2ant, axis=1)

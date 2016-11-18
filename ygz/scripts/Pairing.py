@@ -36,7 +36,7 @@ dt = 0.001
 dist = 1.5                           #size of cells to store in dictionary.
 corr_tol = 5000.                    #cutoff of minimum correlation
 aa = a.cal.get_aa('psa6240_v003',n.array(list_freq))
-src = a.fit.RadioFixedBody(0, aa.lat, janskies=0., mfreq=.15, name='test')
+src = a.fit.RadioFixedBody(0, aa.lat)
 #src=a.fit.RadioSpecial("Sun")
 fdict1, fdict2 = get_files.get_fdict(dir1), get_files.get_fdict(dir2)
 T_files = fdict1.keys()
@@ -49,7 +49,7 @@ for t in T_iter:
     except(a.phs.PointingError):                                #test if below horizon
         print 'remove',t, len(T_iter), len(T_files)
         T_files.remove(t)
-print T_files
+#print T_files
 #times_coarse = n.arange(T_files[0],T_files[-1]+dt_file, dt)
 #times_fine = n.arange(T_files[0],T_files[-1]+dt_file, dt_fine)
 times_coarse = n.arange(T_files[0],T_files[-1], dt)
@@ -65,13 +65,13 @@ for ni in range(len(list_freq)):
     print 'Time to initialize:', sys_time.clock(), 'seconds'
     print 'fbmampshape, midval', fbmamp.shape, fbmamp[200][200]
 
-    d = select_pair.pair_coarse(aa, src,times_coarse,dist,False, 0.1, True)  #coarsely determine crossings
+    d = select_pair.pair_coarse(aa, src,times_coarse,dist,False, 0.1, northsouth=False)  #coarsely determine crossings
     print 'Time after coarse selection:', sys_time.clock(), 'seconds'
     #pairs_sorted = select_pair.pair_sort(d,freq,fbmamp)        #sort crossings
     #clos_app = select_pair.get_closest(pairs_sorted)           #determine closest approach points
     clos_app = select_pair.alter_clos(d,bm_intpl)            #determine closest approach points
     print 'Found closest approach points after:', sys_time.clock(), 'seconds'
-    pairs_final = select_pair.pair_fin(clos_app,dt_fine,aa,src,freq,fbmamp,multweight=True,noiseweight=True,ovlpweight=True,puv=True)
+    pairs_final = select_pair.pair_fin(clos_app,dt_fine,aa,src,freq,fbmamp,multweight=True,noiseweight=True,ovlpweight=True,puv=False)
     print 'Total time:', sys_time.clock(), 'seconds'
 
     #write result to file and screen
@@ -102,13 +102,15 @@ for ni in range(len(list_freq)):
         #f1.write(blstr+','+lststr+' '+str(fn1)+' '+str(fn2)+' '+str(OPP)+'\n')
         f1.write(blstr+','+lststr+','+str(OPP)+'\n')
     f1.close()
+    print 'compute extension:'
+    print select_pair.pair_ext(pairs_final, aa, bm_intpl, ind=1)
 
     #call plotting routines
-    figname = './corr'+str(int(corr_tol))+str(n.around(list_freq[ni],decimals=3))+'.png'
-    print "Saving scatterplot", figname
-    plot_pair.plot_closapp(clos_app,corr_tol,figname)
+   # figname = './corr'+str(int(corr_tol))+str(n.around(list_freq[ni],decimals=3))+'.png'
+   # print "Saving scatterplot", figname
+   # plot_pair.plot_closapp(clos_app,corr_tol,figname)
 
     #plot sample approach points, puv in pair_fin must be True
-    pair_xampl = select_pair.test_sample(pairs_final)
-    plot_pair.plot_pair_xampl(pair_xampl)
+    #pair_xampl = select_pair.test_sample(pairs_final)
+    #plot_pair.plot_pair_xampl(pair_xampl)
 

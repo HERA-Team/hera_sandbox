@@ -87,13 +87,15 @@ for night in nights:
         print "HERE is what would have been added"
         for obs in obsinfo:
             print obs['filename'],jdpol2obsnum(obs['julian_date'],obs['pol'],obs['length']),
-            print "neighbors",obs.get('neighbor_low',None),obs.get('neighbor_high',None)
+            print "neighbors",obs.get('neighbor_low',None),obs.get('neighbor_high',None),
+            print "length",obs['length']
     elif len(obsinfo)>0:
-        print "adding {len} observations to the still db".format(len=len(obsinfo))
-	try:
-            dbi.add_observations(obsinfo)
-        except:
-            print "problem!"
+    	print "adding {len} observations to the still db".format(len=len(obsinfo))
+        #try:
+        dbi.add_observations(obsinfo)
+        #except:
+        print sys.exc_info()[0]
+        print "problem!"
         #dbi.test_db()
 print "done"
 

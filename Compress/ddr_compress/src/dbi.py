@@ -308,9 +308,10 @@ class DataBaseInterface(object):
         """
         neighbors = {}
         for obs in obslist:
-            obsnum = self.add_observation(obs['julian_date'],obs['pol'],
-                            obs['filename'],obs['host'],
-                            length=obs['length'],status='NEW')
+        	#ORIGINIAL v
+            #obsnum = self.add_observation(obs['julian_date'],obs['pol'],obs['filename'],obs['host'],length=obs['length'],status='NEW')
+            #DEBUG v
+            obsnum = self.add_observation(obs['julian_date'],obs['pol'],obs['filename'],obs['host'],length=float(obs['length']),status='NEW')
             neighbors[obsnum] = (obs.get('neighbor_low',None),obs.get('neighbor_high',None))
         s = self.Session()
         for middleobsnum in neighbors:
