@@ -38,12 +38,7 @@ CONJ = [
 SEPS = [(1,4), (1,48),(1,18)]
 SEPS = [(1,4), (1,48)]
 SEPS = [(0,103), (0,95)]
-#SEPS += [(2,105), (1,83)]
-#SEPS += [(0,79), (0,78)]
-#SEPS += [(0,70),(0,71)]
-#SEPS += [(1,107),(0,51)]
-#SEPS += [(3,105),(3,106)]
-#CH0,NCHAN = 90, 31
+
 CH0,NCHAN = 110, 51
 #bandpass = np.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/bandpass.npz')['bandpass']
 bandpass = np.load('bandpass.npz')['bandpass']
@@ -95,7 +90,7 @@ for s in sets:
 
 ind = {}
 set1,set2 = sets.keys()[0], sets.keys()[-1]
-lst_res = np.average(lsts[set1][1:] - lsts[set1][:-1])/2
+
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 #inds = oqe.lst_align(lsts, lstres=lst_res)
 #data,wgts = oqe.lst_align_data(inds, dsets=data, wgts=wgts)
@@ -123,36 +118,26 @@ def set_C(dst,norm=3e-6):
 def get_p(k1,k2,mode,offset=0):
 
     assert(mode in 'IWC')
-    if mode == 'I':
-        qI = ds.q_hat(k1,k2,use_cov=False)
-        FI = ds.get_F(k1,k2,use_cov=False)
-        MI,WI = ds.get_MW(FI, mode='I')
-        pI = ds.p_hat(MI,qI)
-        return pI * scalar
-    elif mode == 'W':
-        pW = 1.6*2*np.fft.fftshift(np.fft.ifft(win*data[k1].T, axis=0) * np.fft.ifft(win*data[k2].T, axis=0).conj(), axes=0)
-        return pW * scalar_win
-    elif mode == 'C':
-        if True:
+    if True:
             #save_data,save_wgt = {},{}
-            ds_new = None
-            if abs(offset) >1e-8:
-                # save_data,save_wgt = data_g.copy(),wgt_g.copy()
-                # #save_data,save_wgt ={},{}
-                # save_data[k1] = data_g[k1][ind_offset:]; save_wgt[k1] = wgt_g[k1][ind_offset:]
-                # if ind_offset>0: save_data[k2] = data_g[k2][:-ind_offset]; save_wgt[k2] = wgt_g[k2][:-ind_offset]
-                # ds_new = oqe.DataSet(save_data, save_wgt)
-                #import IPython; IPython.embed()
-
-                ds_new = oqe.DataSet({k1:data_g[k1][:-offset], k2:data_g[k2][offset:]}, {k1:wgt_g[k1][:-offset], k2:wgt_g[k2][offset:]})
-            else:
-                ds_new = ds
-            # iC_dict = {}
-            # for k in ds.x:
-            #     iC_dict[k] = ds.iC(k)
-            # ds_new.set_iC(iC_dict)
-            ds_new.set_C(ds._C)
-            #import IPython; IPython.embed()
+        ds_new = None
+        if abs(offset) >1e-8:
+            ds_new = oqe.DataSet({k1:data_g[k1][:-offset], k2:data_g[k2][offset:]}, {k1:wgt_g[k1][:-offset], k2:wgt_g[k2][offset:]})
+        else:
+            ds_new = ds
+        ds_new.set_C(ds._C)
+        #import IPython; IPython.embed()
+    if mode == 'I':
+        qI = ds_new.q_hat(k1,k2,use_cov=False)
+        FI = ds_new.get_F(k1,k2,use_cov=False)
+        MI,WI = ds_new.get_MW(FI, mode='I')
+        pI = ds_new.p_hat(MI,qI)
+        return pI * scalar, offset
+    elif mode == 'W':
+        of_data1 = data_g[k1][:-offset].T; of_data2 = data_g[k2][offset:].T
+        pW = 1.6*2*np.fft.fftshift(np.fft.ifft(win*of_data1, axis=0) * np.fft.ifft(win*of_data2, axis=0).conj(), axes=0)
+        return pW * scalar_win, offset
+    elif mode == 'C':
         if False:
             save_iC = {}
             for k in (k1,k2): save_iC[k] = ds.iC(k).copy()
@@ -175,13 +160,19 @@ def get_p(k1,k2,mode,offset=0):
             # XXX deal with diff w for k1,k2
             pC = np.array([pCs[sums[k1][i]][:,i] for i in xrange(ds.w[k1].shape[1])]).T
         else:
-            print "computing power spectrum for ", k1, k2
+            print "computing power spectrum for ", k1, k2, offset
             qC = ds_new.q_hat(k1,k2)
             FC = ds_new.get_F(k1,k2)
             #import IPython; IPython.embed()
             MC,WC = ds_new.get_MW(FC, mode='F^-1/2')
             pC = ds_new.p_hat(MC,qC)
         return pC * scalar, offset
+def get_p_batch(k1,k2,mode,offset_ls=[0]):
+    respC = []
+    for of in offset_ls:
+        pc, _ = get_p(k1,k2,mode,of)
+    respC.append(pc)
+    return respC, offset_ls
 
 def lst_align(lsts1,lsts2,offset=0):
     i=0
@@ -197,18 +188,20 @@ def lst_align(lsts1,lsts2,offset=0):
 offset_dict = {((1,48), (1,4)):0.031,((1,4), (1,48)):0.031}
 offset_dict[((0,103),(0,95))] = 0.0548
 offset_dict[((0,95),(0,103))] = 0.0548
-dlst = lst_res
+
 #ind[set1], ind[set2] = lst_align(lsts[set1], lsts[set2])
 
 from itertools import product
 
 data_g, wgt_g = {},{}
+nlst = 2400
 for k in data:
     # lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=6000)
     # data_g[k], wgt_g[k] = data_g[k][2200:5000], wgt_g[k][2200:5000]
-    lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=1500)
-    data_g[k], wgt_g[k] = data_g[k][550:1200], wgt_g[k][550:1200]
+    lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=nlst)
+    data_g[k], wgt_g[k] = data_g[k][nlst/3:nlst*4/5], wgt_g[k][nlst/3:nlst*4/5]
     wgt_g[k] = np.where(wgt_g[k]>0.5*np.max(wgt_g[k]),1,0)
+dlst = np.average(lst_g[1:] - lst_g[:-1])/2
 ################################
 ds = oqe.DataSet(data_g, wgt_g)
 #import IPython; IPython.embed()
@@ -216,50 +209,37 @@ set_C(ds,3e4)
 #set_C(0)
 #pI,pW,pC = get_p(ks[0],ks[1])
 #################################
-# for cnt,k in enumerate(ks):
-#     plt.subplot(NK,1,cnt+1)
-#     waterfall(ds.x[k], drng=3)
-    # plt.colorbar()
-#plt.savefig('fig1.png')
-#plt.show()
 
-
-# sep_pairs = product(SEPS,SEPS)
-# pC=[]
-# for cnt, bls in enumerate(sep_pairs):
-#     k1 = (set1,pol,bls[0])
-#     k2 = (set1,pol,bls[1])
-#     if bls[0] == bls[1]: 
-#         continue
-#         #offset = 0
-#     else: 
-#         try: offset = offset_dict[(bls[0],bls[1])]
-#         except:
-#             continue
-#     ind_offset = int(offset/dlst)
-#     print ind_offset
-#     psc = get_p(k1,k2,'C',offset=0)
-#     #import IPython; IPython.embed()
-#     pC.append(psc)
-#     plt.subplot(5,1,cnt+1)
-#     plt.title(bls)
-#     capo.plot.waterfall(pC[-1], mx=16, drng=7)
-#     plt.colorbar()
-# plt.show()
-# import IPython; IPython.embed()
 
 k1 = (set1,'xx',(0,103))
 k2 = (set1,'xx',(0,95))
-oflist = 10*(np.arange(10)-5)+int(0.0548/dlst)
-n_jobs = min(oflist.size, num_cores)
-res = Parallel(n_jobs=n_jobs)(delayed(get_p)(k1,k2,'C',ofst) for ofst in oflist)
+oflist = (np.arange(100)-50)+int(0.0548/dlst)
+oflist = oflist[oflist>=0]
+n_jobs = num_cores
+# of_batches = []
+# for n in xrange(n_jobs):
+#     of_batches.append(oflist[n::n_jobs])
+res = Parallel(n_jobs=n_jobs)(delayed(get_p)(k1,k2,'C',ofbatch) for ofbatch in oflist)
+# def postprocess(res):
+#     pC, OFST = zip(*res)
+#     OFST = np.hstack(OFST)
+#     pC = np.hstack(pC)
+#     inds = sorted(range(len(OFST)), key=lambda k: OFST[k])
+#     return OFST[inds], pC[inds]
+# #ofst, pC = postprocess(res)
 pC, OFST = zip(*res)
-
-for cnt, ofst in enumerate(OFST):
-    psc = pC[cnt]
-    plt.subplot(10,1,cnt+1)
-    plt.title(ofst)
-    capo.plot.waterfall(psc, mx=16, drng=7)
-    plt.colorbar()
-plt.show()
+Nlst = pC[-1].shape[1]
+pCt = np.zeros((oflist.size, NCHAN, Nlst))
 import IPython; IPython.embed()
+for i, psc in enumerate(pC):
+    pCt[i] = psc[:,-Nlst:]
+#waterfall(np.mean(pCt, axis=2), mx=16, drng=7)
+
+# for cnt, ofst in enumerate(OFST):
+#     psc = pC[cnt]
+#     plt.subplot(10,1,cnt+1)
+#     plt.title(ofst)
+#     capo.plot.waterfall(psc, mx=16, drng=7)
+#     plt.colorbar()
+# plt.show()
+#import IPython; IPython.embed()

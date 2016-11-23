@@ -206,7 +206,7 @@ wgt_g[('mean','xx',(0,103))] = (wgt_g[k1]+wgt_g[k2])/2
 
 
 ds = oqe.DataSet(data_g, wgt_g)
-set_C(norm=0.)
+set_C(norm=30000.)
 #import IPython; IPython.embed()
 # for cnt,k in enumerate(ks):
 #     plt.subplot(NK,1,cnt+1)
@@ -222,14 +222,14 @@ k2 = (set2,pol,(0,103))
 k3 = ('mean','xx',(0,103))
 
 f, (ax1, ax2, ax3) = plt.subplots(3,1)
-pC = get_p(k2,k2,'C')
+pC1 = get_p(k1,k1,'C')
 plt.title(set2+set2+str(bls)+'C')
-im1 = waterfall(pC, ax=ax1, mx=16, drng=7)
+im1 = waterfall(pC1, ax=ax1, mx=16, drng=7)
 #plt.colorbar()
 #plt.figure()
-pC = get_p(k1,k2,'C')
+pC2 = get_p(k1,k2,'C')
 plt.title(set1+set1+str(bls)+'I')
-im2 = waterfall(pC, ax=ax2, mx=16, drng=7)
+im2 = waterfall(pC2, ax=ax2, mx=16, drng=7)
 #plt.colorbar()
 #pC = get_p(k1,k2,'C')
 #plt.subplot(3,1,3)
@@ -239,6 +239,6 @@ f.colorbar(im1, ax=ax1)
 f.colorbar(im2, ax=ax2)
 #f.colorbar()
 
-plt.show()
+#plt.show()
 
-#import IPython; IPython.embed()
+import IPython; IPython.embed()
