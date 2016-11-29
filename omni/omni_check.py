@@ -67,21 +67,37 @@ if opts.gains == True or opts.chisqant == True:
                 vmax=1.5
             if key[0] == 'c' and opts.chisqant == True and len(key) > 5: #if plotting chisq per ant
                 antnum = key.split('chisq')[1][:-1]
-                try: gains[antnum].append(gain)
-                except: gains[antnum] = [gain]
+                try: gains[antnum].append(gain/numpy.abs(file[str(antnum)+'x'])) #chisq divided by gain
+                except: gains[antnum] = [gain/numpy.abs(file[str(antnum)+'x'])]
                 vmax=0.5
     for key in gains.keys():
         gains[key] = numpy.vstack(numpy.abs(gains[key])) #cool thing to stack 2D arrays that only match in 1 dimension
         mk = numpy.ma.masked_where(gains[key] == 1,gains[key]).mask #flags
         gains[key] = numpy.ma.masked_array(gains[key],mask=mk) #masked array
     #Plotting
+    means = []
+    ants = []
     f,axarr = plt.subplots(8,14,figsize=(14,8),sharex=True,sharey=True)
     for ant in range(max(map(int,gains.keys()))+1):
         i1 = ant/14 #row number
         i2 = ant%14 #col number
         axarr[i1,i2].set_title(ant,fontsize=10)
         axarr[i1,i2].tick_params(axis='both',which='both',labelsize=8)
-        try: axarr[i1,i2].imshow(gains[str(ant)],vmax=vmax,aspect='auto',interpolation='nearest')
+        try: 
+            means.append(numpy.median(gains[str(ant)])) #median, not mean
+            ants.append(ant)
+            axarr[i1,i2].imshow(gains[str(ant)],vmax=vmax,aspect='auto',interpolation='nearest')
         except: continue
     f.subplots_adjust(hspace=0.7)
+    print 'Bad Antennas (starting with highest chisq):',[ants[i] for i in numpy.argsort(means)[::-1]]
+    plt.show()  
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    A = numpy.linspace(0,len(means)-1,len(means))
+    B = numpy.sort(means)[::-1]
+    plt.plot(A,B,'ko')
+    for index,(i,j) in enumerate(zip(A,B)):
+        ax.annotate([ants[k] for k in numpy.argsort(means)[::-1]][index], xy=(i,j),size=10)
+    plt.title('Median Chisq (high to low)')
     plt.show()
+    print '1 sigma cut on median chisq: ',[ants[i] for i in numpy.where(means > numpy.mean(means) + 1.0*numpy.std(means))[0]]
