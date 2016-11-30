@@ -15,7 +15,7 @@ o.add_option('--omnipath',dest='omnipath',default='%s.npz',type='string',
 o.add_option('--firstcal', action='store_true', 
             help='Applying firstcal solutions.')
 o.add_option('--ubls', default=[],
-            help='List of unique baselines to include in *O file, separated by semi-colons (ex: "0,2;0,1").')
+            help='List of unique baselines to include in *O file, separated by semi-colons (ex: "0,2;0,1"). The default will include all baselines.')
 o.add_option('--ba',dest='ba',default=None,
             help='Antennas to exclude, separated by commas.')
 opts,args = o.parse_args(sys.argv[1:])
