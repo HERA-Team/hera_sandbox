@@ -121,8 +121,10 @@ def get_p(k1,k2,mode,offset=0):
     if True:
             #save_data,save_wgt = {},{}
         ds_new = None
-        if abs(offset) >1e-8:
+        if offset >1e-8:
             ds_new = oqe.DataSet({k1:data_g[k1][:-offset], k2:data_g[k2][offset:]}, {k1:wgt_g[k1][:-offset], k2:wgt_g[k2][offset:]})
+        elif offset < -1e-8:
+            ds_new = oqe.DataSet({k1:data_g[k1][-offset:], k2:data_g[k2][:offset]}, {k1:wgt_g[k1][-offset:], k2:wgt_g[k2][:offset]})
         else:
             ds_new = ds
         ds_new.set_C(ds._C)
@@ -134,7 +136,13 @@ def get_p(k1,k2,mode,offset=0):
         pI = ds_new.p_hat(MI,qI)
         return pI * scalar, offset
     elif mode == 'W':
-        of_data1 = data_g[k1][:-offset].T; of_data2 = data_g[k2][offset:].T
+        if offset > 0:
+            of_data1 = data_g[k1][:-offset].T; of_data2 = data_g[k2][offset:].T
+        elif offset < 0:
+            of_data1 = data_g[k1][-offset:].T; of_data2 = data_g[k2][:offset].T
+        else:
+            of_data1 = data_g[k1].T; of_data2 = data_g[k2].T
+        
         pW = 1.6*2*np.fft.fftshift(np.fft.ifft(win*of_data1, axis=0) * np.fft.ifft(win*of_data2, axis=0).conj(), axes=0)
         return pW * scalar_win, offset
     elif mode == 'C':
@@ -213,13 +221,13 @@ set_C(ds,3e4)
 
 k1 = (set1,'xx',(0,103))
 k2 = (set1,'xx',(0,95))
-oflist = (np.arange(100)-50)+int(0.0548/dlst)
-oflist = oflist[oflist>=0]
+oflist = (np.arange(100)-50)-int(0.0548/dlst)
+#oflist = oflist[oflist>=0]
 n_jobs = num_cores
 # of_batches = []
 # for n in xrange(n_jobs):
 #     of_batches.append(oflist[n::n_jobs])
-res = Parallel(n_jobs=n_jobs)(delayed(get_p)(k1,k2,'C',ofbatch) for ofbatch in oflist)
+res = Parallel(n_jobs=n_jobs)(delayed(get_p)(k1,k2,'W',ofbatch) for ofbatch in oflist)
 # def postprocess(res):
 #     pC, OFST = zip(*res)
 #     OFST = np.hstack(OFST)
@@ -228,12 +236,16 @@ res = Parallel(n_jobs=n_jobs)(delayed(get_p)(k1,k2,'C',ofbatch) for ofbatch in o
 #     return OFST[inds], pC[inds]
 # #ofst, pC = postprocess(res)
 pC, OFST = zip(*res)
-Nlst = pC[-1].shape[1]
-pCt = np.zeros((oflist.size, NCHAN, Nlst))
-import IPython; IPython.embed()
+inds = sorted(range(len(OFST)), key=lambda k: pC[k].shape[1])
+Nlst = pC[inds[0]].shape[1]
+#import IPython; IPython.embed()
+pCt = np.zeros((oflist.size, NCHAN, Nlst), dtype=pC[0].dtype)
+
 for i, psc in enumerate(pC):
     pCt[i] = psc[:,-Nlst:]
-#waterfall(np.mean(pCt, axis=2), mx=16, drng=7)
+ps = np.mean(pCt, axis=2)
+import IPython; IPython.embed()
+#waterfall(ps, mx=16, drng=7)
 
 # for cnt, ofst in enumerate(OFST):
 #     psc = pC[cnt]
