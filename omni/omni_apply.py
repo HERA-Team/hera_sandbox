@@ -51,7 +51,7 @@ for f,filename in enumerate(args):
         if opts.firstcal:
             newfile = files[filename][p].split('/')[-1]+'F' #saves in cwd. Firstcal ext.
         else:
-            newfile = files[filename][p].split('/')[-1]+'O' #saves in cwd
+            newfile = '/'.join(omnifile.split('/')[:-1])+'/'+files[filename][p].split('/')[-1]+'O' #saves wherever the omnifile is
         if os.path.exists(newfile):
             print '    %s exists.  Skipping...' % newfile
             continue
