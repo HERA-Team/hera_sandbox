@@ -163,7 +163,7 @@ def flag_by_chisq(filenames, nsig=12, deg=8, outfile=False):
                 chisq *= wgts
                 med_chisq = n.median(chisq, axis=0) 
                 w = n.median(chisq,axis=0)!=0. 
-                fit = n.polyfit(n.arange(len(med_chisq))[w], n.log10(med_chisq[w]), deg=8)
+                fit = n.polyfit(n.arange(len(med_chisq))[w], n.log10(med_chisq[w]), deg=deg)
                 flat_chisq = chisq/10**n.polyval(fit, n.arange(len(med_chisq)))
                 med = n.median(flat_chisq)
                 sig = n.sqrt(n.median(n.abs(flat_chisq-med)**2))
