@@ -22,8 +22,8 @@ def mfunc(uv,p,d,f):
     if p[2] in d2.keys():
         data2 = d2[p[2]][POL_WGTS[s].keys()[1]]
         flags2 = f2[p[2]][POL_WGTS[s].keys()[1]]
-        data2 = data2[n.where(t2['times'] == p[1])[0][0]] #time index to grab from d2
-        flags2 = flags2[n.where(t2['times'] == p[1])[0][0]]
+        data2 = data2[n.argmin(n.abs(t2['times']-p[1]))] #time index to grab from d2
+        flags2 = flags2[n.argmin(n.abs(t2['times']-p[1]))]
         d = ((d*POL_WGTS[s][POL_WGTS[s].keys()[0]]) + (data2*POL_WGTS[s][POL_WGTS[s].keys()[1]]))/2.0
         f = f + flags2
         d = n.ma.masked_array(d,f)
