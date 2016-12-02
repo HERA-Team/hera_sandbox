@@ -2,7 +2,7 @@
 import numpy as np
 
 
-def omni_chisq_to_flags(chisq, K=8, sig=6, sigl=2, smooth=True):
+def omni_chisq_to_flags(chisq, K=8, sigma=6, sigl=2, smooth=True):
     '''Returns a mask of RFI given omnical's chisq statistic'''
     w_sm = np.empty_like(chisq)
     sig = np.empty_like(chisq)
@@ -24,7 +24,7 @@ def omni_chisq_to_flags(chisq, K=8, sig=6, sigl=2, smooth=True):
     #Number of sigma above the residual unsmooth part is.
     f1 = w_rs / sig
     #mask off any points above 'sig' sigma and nan's.
-    f1 = np.ma.array(f1, mask=np.where(f1>sig,1,0)) 
+    f1 = np.ma.array(f1, mask=np.where(f1>sigma,1,0)) 
     f1.mask | np.isnan(f1)
     
     #Start the watershed
@@ -42,7 +42,7 @@ def omni_chisq_to_flags(chisq, K=8, sig=6, sigl=2, smooth=True):
     
     f1ch = np.average(f1.mask, axis=0); f1ch.shape = (1,-1)
     #The cut off value is a made up number here...sig = 'sig' if none flagged.
-    f1.mask = np.logical_or(f1.mask, np.where(f1 > sig*(1-f1ch), 1, 0))
+    f1.mask = np.logical_or(f1.mask, np.where(f1 > sigma*(1-f1ch), 1, 0))
     f1t = np.average(f1.mask, axis=1)
     ts = np.where(f1t > 2*np.median(f1t))
     f1.mask[ts] = 1
