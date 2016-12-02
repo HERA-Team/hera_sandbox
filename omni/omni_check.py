@@ -27,9 +27,9 @@ opts,args = o.parse_args(sys.argv[1:])
 
 
 ### Plot ChiSq ####
+#if opts.pol == -1: pol = args[0].split('.')[3] #XXX hard-coded for *pol.npz files
+pol = 'xx' #XXX
 if opts.chisq == True:
-    if opts.pol == -1:
-        pol = args[0].split('.')[3] #XXX hard-coded for *pol.npz files
     chisqs = []
     for i,file in enumerate(args):
         print 'Reading',file
@@ -52,24 +52,29 @@ if opts.chisq == True:
     plt.show()
 
 
-### Plot Gains ###
+### Plot Gains or Chisqants ###
 if opts.gains == True or opts.chisqant == True:
     gains = {} #or chisqant values, depending on option
-    for i, file in enumerate(args): #loop over files
-        print 'Reading',file
-        file = numpy.load(file)
-        for key in file.keys(): #loop over antennas
-            gain = file[key]
-            if key[0] != '<' and key[0] != '(' and key[0].isalpha() != True and opts.gains == True:
-                antnum = key[:-1]
-                try: gains[antnum].append(gain)
-                except: gains[antnum] = [gain]
+    for i, f in enumerate(args): #loop over files
+        print 'Reading',f
+        file = numpy.load(f)
+        for a in range(128):
+            if opts.chisqant == True: #chisqant / gain
+                try: value = file['chisq'+str(a)+pol[0]]/file[str(a)+pol[0]] #XXX only 0th element of pol
+                except: continue
+                try: gains[a].append(value)
+                except: gains[a] = [value]
+                vmax=0.05
+                vmin=0.0
+            if opts.gains == True:
+                print "option doesn't exist yet"
+                sys.exit()
+                try: value = file[str(a)+pol[0]] #XXX only the 0th element of pol
+                except: continue
+                try: gains[a].append(value)
+                except: gains[a] = [value]
                 vmax=1.5
-            if key[0] == 'c' and opts.chisqant == True and len(key) > 5: #if plotting chisq per ant
-                antnum = key.split('chisq')[1][:-1]
-                try: gains[antnum].append(gain/numpy.abs(file[str(antnum)+'x'])) #chisq divided by gain
-                except: gains[antnum] = [gain/numpy.abs(file[str(antnum)+'x'])]
-                vmax=0.5
+        file.close()
     for key in gains.keys():
         gains[key] = numpy.vstack(numpy.abs(gains[key])) #cool thing to stack 2D arrays that only match in 1 dimension
         mk = numpy.ma.masked_where(gains[key] == 1,gains[key]).mask #flags
@@ -83,10 +88,10 @@ if opts.gains == True or opts.chisqant == True:
         i2 = ant%14 #col number
         axarr[i1,i2].set_title(ant,fontsize=10)
         axarr[i1,i2].tick_params(axis='both',which='both',labelsize=8)
-        try: 
-            means.append(numpy.median(gains[str(ant)])) #median, not mean
+        try:
+            means.append(numpy.median(gains[ant])) #median, not mean
             ants.append(ant)
-            axarr[i1,i2].imshow(gains[str(ant)],vmax=vmax,aspect='auto',interpolation='nearest')
+            axarr[i1,i2].imshow(gains[ant],vmax=vmax,aspect='auto',interpolation='nearest')
         except: continue
     f.subplots_adjust(hspace=0.7)
     print 'Bad Antennas (starting with highest chisq):',[ants[i] for i in numpy.argsort(means)[::-1]]
