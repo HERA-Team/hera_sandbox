@@ -37,7 +37,7 @@ for f,filename in enumerate(args):
         _,t,(a1,a2) = p
         p1,p2 = pol = a.miriad.pol2str[uv['pol']]
         if len(times) == 0 or times[-1] != t: times.append(t)
-        return p, np.logical_or(f,np.where(flags[t],0,d)), flags[t]
+        return p, np.where(np.logical_or(f,flags[t]),0,d), np.logical_or(f,flags[t])
     
     uvi = a.miriad.UV(filename)
     newfile = filename+'R'
