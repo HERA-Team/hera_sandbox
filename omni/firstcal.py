@@ -12,6 +12,9 @@ o.add_option('--outpath', default=None,help='Output path of solution npz files. 
 o.add_option('--plot', action='store_true', default=False, help='Turn on plotting in firstcal class.')
 o.add_option('--verbose', action='store_true', default=False, help='Turn on verbose.')
 opts,args = o.parse_args(sys.argv[1:])
+print opts.plot
+print opts.verbose
+
 
 def flatten_reds(reds):
     freds = []
@@ -39,6 +42,7 @@ print 'Excluding Antennas:',ex_ants
 if len(ubls) != None: print 'Using Unique Baselines:',ubls
 info = omni.aa_to_info(aa, fcal=True, ubls=ubls, ex_ants=ex_ants)
 reds = flatten_reds(info.get_reds())
+#redstest = infotest.get_reds()#for plotting
 
 print 'Number of redundant baselines:',len(reds)
 #Read in data here.
@@ -53,7 +57,10 @@ dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, np.diff(fqs)[0]))
 
 #gets phase solutions per frequency.
 fc = omni.FirstCal(datapack,wgtpack,fqs,info)
-sols = fc.run(finetune=True,verbose=opts.verbose,plot=opts.plot,noclean=True,offset=False,average=True,window='none')
+#XXX setting offset to false for TESTING -- does not make a difference
+#sols = fc.run(tune=True,verbose=opts.verbose,offset=True,plot=opts.plot)
+sols = fc.run(tune=True,verbose=opts.verbose,offset=False,plot=opts.plot)
+
 
 #Save solutions
 if len(args)==1: filename=args[0]
