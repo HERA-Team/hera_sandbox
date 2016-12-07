@@ -109,11 +109,12 @@ def omni_view(reds,vis,pol,int=10,chan=500,norm=False,cursor=True,save=None,colo
     points = np.array(points)
     max_x=0
     max_y=0
+    ax = plt.subplots(111)
     for i,pt in enumerate(points):
         if norm:
-            plt.scatter(pt.real/np.abs(pt), pt.imag/np.abs(pt), c=col[i], marker=sym[i], s=50, label='{}'.format(bl[i]))
+            ax.scatter(pt.real/np.abs(pt), pt.imag/np.abs(pt), c=col[i], marker=sym[i], s=50, label='{}'.format(bl[i]))
         else:        
-            plt.scatter(pt.real, pt.imag, c=col[i], marker=sym[i], s=50, label='{}'.format(bl[i]))
+            ax.scatter(pt.real, pt.imag, c=col[i], marker=sym[i], s=50, label='{}'.format(bl[i]))
             if np.abs(pt.real) > max_x: max_x = np.abs(pt.real)
             if np.abs(pt.imag) > max_y: max_y = np.abs(pt.imag)
             

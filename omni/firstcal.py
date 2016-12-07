@@ -57,10 +57,14 @@ dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, np.diff(fqs)[0]))
 
 #gets phase solutions per frequency.
 fc = omni.FirstCal(datapack,wgtpack,fqs,info)
+<<<<<<< HEAD
 #XXX setting offset to false for TESTING -- does not make a difference
 #sols = fc.run(tune=True,verbose=opts.verbose,offset=True,plot=opts.plot)
 sols = fc.run(tune=True,verbose=opts.verbose,offset=False,plot=opts.plot)
 
+=======
+sols = fc.run(finetune=True,verbose=opts.verbose,plot=opts.plot,noclean=True,offset=False,average=False,window='none')
+>>>>>>> 841c20872d5181279ff4b9058d2882f9a5d07e0e
 
 #Save solutions
 if len(args)==1: filename=args[0]

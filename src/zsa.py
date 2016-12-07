@@ -150,24 +150,28 @@ def list2str(li):
 def flag_by_chisq(filenames, nsig=12, deg=8, outfile=False):
     '''Use the omnical global chisq to flag the model visibilities.'''
     m,g,v,x = omni.from_npz(filenames)
-    chisq = m['chisq']
-    #iterate twice on flattening bandpass to find rfi
-    mask = n.zeros_like(chisq, dtype=n.bool)
-    #Run loop twice to get better fit after removing large rfi
-    for i in range(2):
-        wgts = n.logical_not(mask)
-        chisq *= wgts
-        med_chisq = n.median(chisq, axis=0) 
-        w = n.median(chisq,axis=0)!=0. 
-        fit = n.polyfit(n.arange(len(med_chisq))[w], n.log10(med_chisq[w]), deg=8)
-        flat_chisq = chisq/10**n.polyval(fit, n.arange(len(med_chisq)))
-        med = n.median(flat_chisq)
-        sig = n.sqrt(n.median(n.abs(flat_chisq-med)**2))
-        mask |= n.where(flat_chisq > (med + nsig*sig), True, False)
-        #import IPython; IPython.embed()
-    f = n.logical_not(mask)#weights for the data
+    f = {}
+    for pol in g.keys():
+        if not pol in f: f[pol] = {}
+        for k in g[pol].keys():        
+            chisq = m['chisq'+str(k)+pol[0]]
+            #iterate twice on flattening bandpass to find rfi
+            mask = n.zeros_like(chisq, dtype=n.bool)
+            #Run loop twice to get better fit after removing large rfi
+            for i in range(2):
+                wgts = n.logical_not(mask)
+                chisq *= wgts
+                med_chisq = n.median(chisq, axis=0) 
+                w = n.median(chisq,axis=0)!=0. 
+                fit = n.polyfit(n.arange(len(med_chisq))[w], n.log10(med_chisq[w]), deg=deg)
+                flat_chisq = chisq/10**n.polyval(fit, n.arange(len(med_chisq)))
+                med = n.median(flat_chisq)
+                sig = n.sqrt(n.median(n.abs(flat_chisq-med)**2))
+                mask |= n.where(flat_chisq > (med + nsig*sig), True, False)
+                #import IPython; IPython.embed()
+            f[pol][k] = n.logical_not(mask)#weights for the data
     if outfile:
-       pass 
+        pass 
     return m,g,v,x,f
 
 def flatten_reds(reds):
@@ -177,48 +181,6 @@ def flatten_reds(reds):
         freds += r
     return freds
 
-def get_ants(mfile, pol='xx', search='f1', columns=['fengine', 'plate', 'rx', 'stations', 'ant']):
-    '''Get antennas corresponding to search string. Given mfile.
-       Search string can be 
-            f{i} for fengine i : returns all antennas on a specific fengine. 
-            r{i} for receiverator i : returns all antennas on a specific recieverator.
-            f{i} and r{j} : overlap of fengine i and recieverator j.
-            etc.. 
-
-        Logicals are read from left to right.
-            e.g. f2 and r3 or r3 = ((f2 and r3) or r3)
-        
-        returns x and y pol strings as a dictionary. 
-    '''
-    #get dataframe from map file. Make sure columns are in order below.
-    mapping = {'f':'fengine', 'r': 'rx'}
-    d = pd.read_csv(mfile, sep=' -> ', names=columns)
-
-    splits = np.array(search.split(' '))
-    merge_these = []
-    for i in splits[::2]:
-        #loop throguh f's and r's. Get where True.
-        map_key = mapping[i[0]]
-        merge_these.append( d[map_key].str.contains(i) )
-    final_truth = merge_these[0]
-    for i,k in enumerate(splits[1::2]):
-        #loop through and's and or's. 
-        if k=='and':
-            final_truth = np.logical_and(final_truth, merge_these[i+1])
-        elif k=='or':
-            final_truth = np.logical_or(final_truth, merge_these[i+1])
-        else:
-            continue
-
-    final_ants = d['ant'][final_truth].as_matrix()
-    final_strings = {'x': [], 'y': []}
-    for f in final_ants:
-        if f.endswith('X'): final_strings['x'].append(f[1:-1])
-        elif f.endswith('Y'): final_strings['y'].append(f[1:-1])
-    for k in final_strings:
-        final_strings[k] = ','.join(final_strings[k])
-
-    return final_strings[pol[0]]
 def order_data(dd, info):
     '''Order data in dict, where pol is first key and bl tuple is second key, the same way an info object is oriented'''
     d = {}
@@ -232,19 +194,20 @@ def order_data(dd, info):
                 d[bl[::-1]][pol] = n.conj(dd[bl][pol])
     return d
 
-def run_nb(workdir, fileroot, agdir=''):
+def run_nb(workdir, fileroot, basenotebook, agdir=''):
 
     from shutil import copy
     from subprocess import call
+    import os
 
-    os.environ['fileroot'] = fileroot
     if agdir: #git directory
-        os.environ['agdir'] = agdir
+        os.environ['AGDIR'] = agdir
 
+    nb = basenotebook
     os.chdir(workdir)
     copy(nb, '{0}/{1}.ipynb'.format(workdir, fileroot))
 
-    cmd = 'jupyter nbconvert {0}.ipynb --inplace --execute --to notebook --allow-errors --ExecutePreprocessor.timeout=3600'.format(fileroot).split(' ')
+    cmd = 'jupyter nbconvert {0}.ipynb --inplace --execute --to notebook --allow-errors --ExecutePreprocessor.timeout=15000'.format(fileroot).split(' ')
     status = call(cmd)
 
     cmd = 'jupyter trust {0}.ipynb'.format(fileroot).split(' ')
