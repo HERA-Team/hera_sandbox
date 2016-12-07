@@ -3,7 +3,7 @@
 import aipy as a, numpy as n, pylab as p, capo, capo.frf_conv as fringe
 import glob, optparse, sys, random
 import capo.zsa as zsa
-import capo.oqe as oqe
+import oqe
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
@@ -25,6 +25,8 @@ o.add_option('--frf', action='store_true',
     help='FRF noise.')
 o.add_option('--lmode',type='int', default=None,
     help='Eigenvalue mode of C (in decreasing order) to be the minimum value used in C^-1')
+o.add_option('--lbins',type='int', default=None,
+    help='number of lst_bins to grid into, if None use lst_align')
 o.add_option('--output', type='string', default='',
     help='Output directory for pspec_boot files (default "")')
 
@@ -158,8 +160,11 @@ print 'Baselines:', len(bls_master)
 
 #Align and create dataset
 ds = oqe.DataSet(lmode=LMODE)
-inds = oqe.lst_align(lsts)
-data_dict,flg_dict,lsts = oqe.lst_align_data(inds,dsets=data_dict,wgts=flg_dict,lsts=lsts) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
+if opts.lst_bins:
+    data_dict,flg_dict,lsts = oqe.lst_grid(lsts, data_dict, wgts=flg_dict, lst_bins=opts.lst_bins)
+else:
+    inds = oqe.lst_align(lsts)
+    data_dict,flg_dict,lsts = oqe.lst_align_data(inds,dsets=data_dict,wgts=flg_dict,lsts=lsts) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
 
 #If data is replaced by noise
 if opts.noise_only:
