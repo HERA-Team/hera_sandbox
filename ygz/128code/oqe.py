@@ -1,4 +1,9 @@
 import numpy as np, aipy, random, md5
+from numba import float32, complex64, guvectorize, jit
+from joblib import Parallel, delayed
+import multiprocessing
+num_cores = multiprocessing.cpu_count()
+#Parallel(n_jobs=2)(delayed(sqrt)(i ** 2) for i in range(10))
 
 DELAY = False
 
@@ -47,21 +52,52 @@ def get_Q(mode, n_k, window='none'): #encodes the fourier transform from freq to
         Q = np.zeros_like(C)
         Q[mode,mode] = 1
         return Q
-
 def lst_grid(lsts, data, wgts=None, lstbins=6300, wgtfunc=lambda dt,res: np.exp(-dt**2/(2*res**2))):
     lstgrid = np.linspace(0, 2*np.pi, lstbins)
     lstres = lstgrid[1]-lstgrid[0]
     if wgts is None: wgts = np.where(np.abs(data) == 0, 0, 1.)
-    sumgrid,wgtgrid = 0, 0
-    for lst,d,w in zip(lsts,data,wgts):
-        dt = lstgrid - lst
-        wf = wgtfunc(dt,lstres); wf.shape = (-1,) + (1,)*(data.ndim-1)
-        d.shape, w.shape = (1,-1), (1,-1)
-        #print lst, dt
-        wgtgrid += w * wf
-        sumgrid += d * w * wf 
+    dt = lstgrid.reshape((1,-1))-lsts.reshape((-1,1))
+    wf = wgtfunc(dt,lstres)
+    wgtgrid = np.dot(wf.T, wgts).T
+    sumgrid = np.dot(wf.T, wgts*data).T
     datgrid = np.where(wgtgrid > 1e-10, sumgrid/wgtgrid, 0)
     return datgrid, wgtgrid, lstgrid
+
+def _lst_grid(k, lsts, data, wgts=None, lstbins=6300, lstgrid=None, wgtfunc=lambda dt,res: np.exp(-dt**2/(2*res**2))):
+    if not lstgrid:
+        lstgrid = np.linspace(0, 2*np.pi, lstbins)
+    lstres = lstgrid[1]-lstgrid[0]
+    if wgts is None: wgts = np.where(np.abs(data) == 0, 0, 1.)
+    dt = lstgrid.reshape((1,-1))-lsts.reshape((-1,1))
+    wf = wgtfunc(dt,lstres)
+    wgtgrid = np.dot(wf.T, wgts).T
+    sumgrid = np.dot(wf.T, wgts*data).T
+    datgrid = np.where(wgtgrid > 1e-10, sumgrid/wgtgrid, 0)
+    return k, datgrid, wgtgrid
+def lst_grid_batch(lst_dict, data_dict, wgt_dict=None, lstbins=6300, wgtfunc=lambda dt,res: np.exp(-dt**2/(2*res**2))):
+    lstgrid = np.linspace(0, 2*np.pi, lstbins)
+    result = Parallel(n_jobs=num_cores)(delayed(_lst_grid)(k, lst_dict[k[0]], data_dict[k], 
+        wgt_dict.get(k,None), lstgrid=lstgrid, wgtfunc=wgtfunc) for k in data_dict.keys())
+    data_g, wgt_g = {}
+    for k in data_dict.keys():
+        data_g[k] = result
+    return
+
+    
+# def lst_grid(lsts, data, wgts=None, lstbins=6300, wgtfunc=lambda dt,res: np.exp(-dt**2/(2*res**2))):
+#     lstgrid = np.linspace(0, 2*np.pi, lstbins)
+#     lstres = lstgrid[1]-lstgrid[0]
+#     if wgts is None: wgts = np.where(np.abs(data) == 0, 0, 1.)
+#     sumgrid,wgtgrid = 0, 0
+#     for lst,d,w in zip(lsts,data,wgts):
+#         dt = lstgrid - lst
+#         wf = wgtfunc(dt,lstres); wf.shape = (-1,) + (1,)*(data.ndim-1)
+#         d.shape, w.shape = (1,-1), (1,-1)
+#         #print lst, dt
+#         wgtgrid += w * wf
+#         sumgrid += d * w * wf 
+#     datgrid = np.where(wgtgrid > 1e-10, sumgrid/wgtgrid, 0)
+#     return datgrid, wgtgrid, lstgrid
 
 def lst_align(lsts, lstres=.001, interpolation='none'):
     lstgrid = np.arange(0, 2*np.pi, lstres)

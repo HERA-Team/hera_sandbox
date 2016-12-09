@@ -52,7 +52,7 @@ active=0
 is_listed = False
 pad=ephem.hours(opts.lst_pad*a.img.deg2rad)
 for s in args:
-    print os.path.basename(s).split('.')
+    #print os.path.basename(s).split('.')
     jd = float(string.join(os.path.basename(s).split('.')[1:3],'.'))
     aa.set_jultime(jd)
     #print s,aa.sidereal_time(),repr(aa.sidereal_time())

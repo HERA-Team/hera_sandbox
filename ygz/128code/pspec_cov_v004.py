@@ -15,6 +15,8 @@ o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 o.add_option('--sep', default='sep0,1', action='store',
     help='Which separation directory to use for signal loss data.')
+o.add_option('--sepd', default='sep-1,1', action='store',  #-1,1 is like 0_38
+    help='Second separation type')
 o.add_option('--noise_only', action='store_true',
     help='Instead of injecting noise, Replace data with noise')
 o.add_option('--same', action='store_true',
@@ -27,7 +29,7 @@ o.add_option('--lmode',type='int', default=None,
     help='Eigenvalue mode of C (in decreasing order) to be the minimum value used in C^-1')
 o.add_option('--lbins',type='int', default=None,
     help='number of lst_bins to grid into, if None use lst_align')
-o.add_option('--output', type='string', default='',
+o.add_option('--output', type='string', default='./boot',
     help='Output directory for pspec_boot files (default "")')
 
 opts,args = o.parse_args(sys.argv[1:])
@@ -91,7 +93,7 @@ else:
         'even': [x for x in args if n.unique(jds)[0] in x],
         'odd': [x for x in args if n.unique(jds)[1] in x]
         }
-print dsets
+#print dsets
 
 #Get uv file info
 WINDOW = opts.window
@@ -160,8 +162,12 @@ print 'Baselines:', len(bls_master)
 
 #Align and create dataset
 ds = oqe.DataSet(lmode=LMODE)
-if opts.lst_bins:
-    data_dict,flg_dict,lsts = oqe.lst_grid(lsts, data_dict, wgts=flg_dict, lst_bins=opts.lst_bins)
+if opts.lbins:
+    #import IPython; IPython.embed()
+    lsts_dict = lsts
+    for k in data_dict.keys():
+        #print 'gridding lst for', k
+        data_dict[k],flg_dict[k],lsts = oqe.lst_grid(lsts_dict[k[0]], data_dict[k], wgts=flg_dict[k], lstbins=opts.lbins)
 else:
     inds = oqe.lst_align(lsts)
     data_dict,flg_dict,lsts = oqe.lst_align_data(inds,dsets=data_dict,wgts=flg_dict,lsts=lsts) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
