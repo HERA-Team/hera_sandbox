@@ -274,8 +274,9 @@ for boot in xrange(opts.nboot):
         newkeys = [random.choice(keys) for key in keys] #sample w/replacement for bootstrapping
         dsI,dsC = ds,ds #identity and covariance case dataset is the same
     else:
-        print len(gps), len(gps[0]), len(gps[1]), len(bls_master)
+        
         gps = [sep_avail, sepd_avail]
+        print len(gps), len(gps[0]), len(gps[1]), len(bls_master)
         newkeys,dsC = ds.group_data(keys,gps) 
         newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
 
