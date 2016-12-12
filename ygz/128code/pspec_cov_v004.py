@@ -120,7 +120,7 @@ z = capo.pspec.f2z(fq)
 aa = a.cal.get_aa(opts.cal, afreqs)
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
 sep2ij, blconj, bl2sep = capo.zsa.grid2ij(aa.ant_layout)
-import IPython; IPython.embed()
+#import IPython; IPython.embed()
 jy2T = capo.pspec.jy2T(afreqs)
 window = a.dsp.gen_window(nchan, WINDOW)
 if not WINDOW == 'none': window.shape=(nchan,1)
@@ -167,11 +167,11 @@ for k in days:
     lsts[k],data[k],flgs[k] = capo.miriad.read_files(dsets[k], antstr=antstr, polstr=POL, verbose=True)
     lsts[k] = n.array(lsts[k]['lsts'])
     for bl in data[k]:
-        if tup2usc(bl) in sepls: 
-            sep = SEP
+        if tup2usc(bl) in sepls and k == days[0]: 
+            #sep = SEP
             sep_avail.append(bl)
-        elif tup2usc(bl) in sepdls: 
-            sep = SEPD
+        elif tup2usc(bl) in sepdls and k == days[0]: 
+            #sep = SEPD
             sepd_avail.append(bl)
         else:
             #print 'skipping', bl, tup2usc(bl)
