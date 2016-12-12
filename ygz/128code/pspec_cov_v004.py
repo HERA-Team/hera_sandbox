@@ -159,7 +159,9 @@ def tup2usc(tup):
     return str(tup[0])+'_'+str(tup[1])
 def prostr(sepstr):
     return sepstr[3:]
+        
 sepls = sep2ij[prostr(SEP)]; sepdls = sep2ij[prostr(SEPD)]
+gps = [sepls, sepdls]
 for k in days:
     lsts[k],data[k],flgs[k] = capo.miriad.read_files(dsets[k], antstr=antstr, polstr=POL, verbose=True)
     lsts[k] = n.array(lsts[k]['lsts'])
@@ -167,11 +169,11 @@ for k in days:
         if tup2usc(bl) in sepls: sep = SEP
         elif tup2usc(bl) in sepdls: sep = SEPD
         else:
-            print 'skipping', bl, tup2usc(bl)
+            #print 'skipping', bl, tup2usc(bl)
             continue
         d = n.array(data[k][bl][POL])[:,chans] * jy2T  #extract frequency range
         flg = n.array(flgs[k][bl][POL])[:,chans]
-        key = (k,bl,POL,sep)
+        key = (k,bl,POL)
         data_dict[key] = d
         flg_dict[key] = n.logical_not(flg)
         conj_dict[key[1]] = conj[bl]
@@ -259,7 +261,7 @@ if PLOT and True:
 for boot in xrange(opts.nboot):
     print 'Bootstrap %d / %d' % (boot+1,opts.nboot)
  
-    if True: #shuffle and group baselines for bootstrapping
+    if False: #shuffle and group baselines for bootstrapping
         gps = ds.gen_gps(bls_master, ngps=NGPS)
         newkeys,dsC = ds.group_data(keys,gps) 
         newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
@@ -267,7 +269,8 @@ for boot in xrange(opts.nboot):
         newkeys = [random.choice(keys) for key in keys] #sample w/replacement for bootstrapping
         dsI,dsC = ds,ds #identity and covariance case dataset is the same
     else:
-        pass
+        newkeys,dsC = ds.group_data(keys,gps) 
+        newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
 
     if PLOT and True:
         for newkey in newkeys:
