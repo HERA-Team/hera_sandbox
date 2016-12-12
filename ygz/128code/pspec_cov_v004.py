@@ -43,6 +43,16 @@ NGPS = 5 #number of groups to break the random sampled bls into
 PLOT = opts.plot
 LMODE = opts.lmode
 
+ #################################################
+SEP, SEPD = opts.sep, opts.sepd
+DicT = {'sep0,1_sep-1,1':0.034000, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
+simT = {'sep0,1_sep-1,1':0.033000, 'sep0,1_sep1,1':-0.03099, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
+DelT = simT[SEP+'_'+SEPD]*2*n.pi*(24*3600./a.const.sidereal_day)   #sidereal day?
+print 'DelT=', DelT, 'radians'
+EQUIV = (SEP == SEPD)
+NOGROUP = True
+###################################################
+
 ### FUNCTIONS ###
 
 def frf(shape): #FRF NOISE
@@ -110,6 +120,7 @@ z = capo.pspec.f2z(fq)
 aa = a.cal.get_aa(opts.cal, afreqs)
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
 sep2ij, blconj, bl2sep = capo.zsa.grid2ij(aa.ant_layout)
+import IPython; IPython.embed()
 jy2T = capo.pspec.jy2T(afreqs)
 window = a.dsp.gen_window(nchan, WINDOW)
 if not WINDOW == 'none': window.shape=(nchan,1)
@@ -141,16 +152,26 @@ data_dict = {}
 flg_dict = {}
 conj_dict = {}
 antstr = 'cross'
-_,blconj,_ = zsa.grid2ij(aa.ant_layout)
+#,blconj,_ = zsa.grid2ij(aa.ant_layout)
 days = dsets.keys()
 lsts,data,flgs = {},{},{}
+def tup2usc(tup):
+    return str(tup[0])+'_'+str(tup[1])
+def prostr(sepstr):
+    return sepstr[3:]
+sepls = sep2ij[prostr(SEP)]; sepdls = sep2ij[prostr(SEPD)]
 for k in days:
     lsts[k],data[k],flgs[k] = capo.miriad.read_files(dsets[k], antstr=antstr, polstr=POL, verbose=True)
     lsts[k] = n.array(lsts[k]['lsts'])
     for bl in data[k]:
+        if tup2usc(bl) in sepls: sep = SEP
+        elif tup2usc(bl) in sepdls: sep = SEPD
+        else:
+            print 'skipping', bl, tup2usc(bl)
+            continue
         d = n.array(data[k][bl][POL])[:,chans] * jy2T  #extract frequency range
         flg = n.array(flgs[k][bl][POL])[:,chans]
-        key = (k,bl,POL)
+        key = (k,bl,POL,sep)
         data_dict[key] = d
         flg_dict[key] = n.logical_not(flg)
         conj_dict[key[1]] = conj[bl]
@@ -242,9 +263,11 @@ for boot in xrange(opts.nboot):
         gps = ds.gen_gps(bls_master, ngps=NGPS)
         newkeys,dsC = ds.group_data(keys,gps) 
         newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
-    else: #no groups (slower)
+    elif False: #no groups (slower)
         newkeys = [random.choice(keys) for key in keys] #sample w/replacement for bootstrapping
         dsI,dsC = ds,ds #identity and covariance case dataset is the same
+    else:
+        pass
 
     if PLOT and True:
         for newkey in newkeys:
