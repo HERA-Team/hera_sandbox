@@ -170,6 +170,7 @@ for k in days:
         if tup2usc(bl) in sepls and k == days[0]: 
             #sep = SEP
             sep_avail.append(bl)
+            if EQUIV: sepd_avail.append(bl)
         elif tup2usc(bl) in sepdls and k == days[0]: 
             #sep = SEPD
             sepd_avail.append(bl)
@@ -268,16 +269,16 @@ for boot in xrange(opts.nboot):
  
     if False: #shuffle and group baselines for bootstrapping
         gps = ds.gen_gps(bls_master, ngps=NGPS)
-        newkeys,dsC = ds.group_data(keys,gps) 
+        newkeys,dsC = ds.group_data(keys,gps)
         newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
     elif False: #no groups (slower)
         newkeys = [random.choice(keys) for key in keys] #sample w/replacement for bootstrapping
         dsI,dsC = ds,ds #identity and covariance case dataset is the same
     else:
-        
+        #gp1 = np.random.choice(sep)
         gps = [sep_avail, sepd_avail]
         print len(gps), len(gps[0]), len(gps[1]), len(bls_master)
-        newkeys,dsC = ds.group_data(keys,gps) 
+        newkeys,dsC = ds.group_data(keys,gps)
         newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
 
     if PLOT and True:
@@ -355,7 +356,7 @@ for boot in xrange(opts.nboot):
         p.show()
 
     #Save Output
-    if len(opts.output) > 0: outpath = opts.output+'/pspec_boot%04d.npz' % boot
+    if len(opts.output) > 0: outpath = opts.output+SEP+SEPD+'/pspec_boot%04d.npz' % boot
     else: outpath = 'pspec_boot%04d.npz' % boot
     print '   Writing '+outpath
     n.savez(outpath, kpl=kpl, scalar=scalar, times=n.array(lsts),
