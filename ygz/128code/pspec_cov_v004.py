@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import aipy as a, numpy as n, pylab as p, capo, capo.frf_conv as fringe
-import glob, optparse, sys, random
+import glob, optparse, sys, random, os
 import capo.zsa as zsa
 import oqe
 
@@ -11,6 +11,10 @@ o.add_option('-b', '--nboot', type='int', default=20,
     help='Number of bootstraps.  Default is 20.')
 o.add_option('--plot', action='store_true',
     help='Generate plots')
+# o.add_option('--ngp', action='store_true',
+#     dest='NOGROUP')
+# o.add_option('--ngp', action='store_true',
+#     dest='NOGROUP')
 o.add_option('--window', dest='window', default='blackman-harris',
     help='Windowing function to use in delay transform.  Default is blackman-harris.  Options are: ' + ', '.join(a.dsp.WINDOW_FUNC.keys()))
 o.add_option('--sep', default='sep0,1', action='store',
@@ -45,12 +49,16 @@ LMODE = opts.lmode
 
  #################################################
 SEP, SEPD = opts.sep, opts.sepd
-DicT = {'sep0,1_sep-1,1':0.034000, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
-simT = {'sep0,1_sep-1,1':0.033000, 'sep0,1_sep1,1':-0.03099, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
-DelT = simT[SEP+'_'+SEPD]*2*n.pi*(24*3600./a.const.sidereal_day)   #sidereal day?
+DicT = {'sep0,1_sep-1,1':0.0548, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
+DicS = {'sep0,1_sep-1,1':0.46000}
+DelT = DicT[SEP+'_'+SEPD]*2*n.pi*(24*3600./a.const.sidereal_day)   #sidereal day?
 print 'DelT=', DelT, 'radians'
 EQUIV = (SEP == SEPD)
+if EQUIV: s_factor = 1
+else:
+    s_factor = DicS[SEP+'_'+SEPD]
 NOGROUP = True
+if EQUIV: NOGROUP=False
 ###################################################
 
 ### FUNCTIONS ###
@@ -135,7 +143,7 @@ etas = n.fft.fftshift(capo.pspec.f2eta(afreqs)) #create etas (fourier dual to fr
 kpl = etas * capo.pspec.dk_deta(z) 
 if True:
     bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 #correction for beam^2
-    scalar = capo.pspec.X2Y(z) * bm * B
+    scalar = capo.pspec.X2Y(z) * bm * B / s_factor
 else: scalar = 1
 if not DELAY:
     # XXX this is a hack
@@ -159,7 +167,7 @@ def tup2usc(tup):
     return str(tup[0])+'_'+str(tup[1])
 def prostr(sepstr):
     return sepstr[3:]
-        
+
 sepls = sep2ij[prostr(SEP)]; sepdls = sep2ij[prostr(SEPD)]
 sep_avail, sepd_avail = [],[]
 
@@ -167,11 +175,11 @@ for k in days:
     lsts[k],data[k],flgs[k] = capo.miriad.read_files(dsets[k], antstr=antstr, polstr=POL, verbose=True)
     lsts[k] = n.array(lsts[k]['lsts'])
     for bl in data[k]:
-        if tup2usc(bl) in sepls and k == days[0]: 
+        if tup2usc(bl) in sepls:# and k == days[0]:
             #sep = SEP
             sep_avail.append(bl)
             if EQUIV: sepd_avail.append(bl)
-        elif tup2usc(bl) in sepdls and k == days[0]: 
+        elif tup2usc(bl) in sepdls:# and k == days[0]:
             #sep = SEPD
             sepd_avail.append(bl)
         else:
@@ -209,7 +217,7 @@ if opts.noise_only:
     #Prep FRF Stuff
     ij = bls_master[0] #ij = (1,4)
     if blconj[a.miriad.ij2bl(ij[0],ij[1])]: #makes sure FRP will be the same whether bl is a conjugated one or not
-        if ij[0] < ij[1]: temp = (ij[1],ij[0]); ij=temp  
+        if ij[0] < ij[1]: temp = (ij[1],ij[0]); ij=temp
     timelen = data_dict[keys[0]].shape[0] 
     bins = fringe.gen_frbins(inttime)
     frp, bins = fringe.aa_to_fr_profile(aa, ij, len(afreqs)/2, bins=bins)
@@ -267,19 +275,20 @@ if PLOT and True:
 for boot in xrange(opts.nboot):
     print 'Bootstrap %d / %d' % (boot+1,opts.nboot)
  
-    if False: #shuffle and group baselines for bootstrapping
-        gps = ds.gen_gps(bls_master, ngps=NGPS)
-        newkeys,dsC = ds.group_data(keys,gps)
-        newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
-    elif False: #no groups (slower)
-        newkeys = [random.choice(keys) for key in keys] #sample w/replacement for bootstrapping
-        dsI,dsC = ds,ds #identity and covariance case dataset is the same
-    else:
+    if NOGROUP:
         #gp1 = np.random.choice(sep)
         gps = [sep_avail, sepd_avail]
         print len(gps), len(gps[0]), len(gps[1]), len(bls_master)
         newkeys,dsC = ds.group_data(keys,gps)
         newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
+    elif True: #shuffle and group baselines for bootstrapping
+        gps = ds.gen_gps(bls_master, ngps=NGPS)
+        newkeys,dsC = ds.group_data(keys,gps)
+        newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
+    else: #no groups (slower)
+        newkeys = [random.choice(keys) for key in keys] #sample w/replacement for bootstrapping
+        dsI,dsC = ds,ds #identity and covariance case dataset is the same
+    
 
     if PLOT and True:
         for newkey in newkeys:
@@ -307,14 +316,14 @@ for boot in xrange(opts.nboot):
     for k,key1 in enumerate(newkeys):
         #print '   ',k+1,'/',len(keys)
         for key2 in newkeys[k:]:
-            if key1[0] == key2[0] or key1[1] == key2[1]: 
+            if key1[0] == key2[0] or key1[1] == key2[1]:
                 continue #don't do even w/even or bl w/same bl
             else:
                 #print key1,key2 
                 qC += dsC.q_hat(key1,key2,cov_flagging=False)
-                qI += dsI.q_hat(key1,key2,use_cov=False,cov_flagging=False) 
+                qI += dsI.q_hat(key1,key2,use_cov=False,cov_flagging=False)
                 FC += dsC.get_F(key1,key2,cov_flagging=False)
-                FI += dsI.get_F(key1,key2,use_cov=False,cov_flagging=False)   
+                FI += dsI.get_F(key1,key2,use_cov=False,cov_flagging=False)
                 """
                 qC += dsC.q_hat(key1,key2,cov_flagging=True)
                 qI += dsI.q_hat(key1,key2,use_cov=False,cov_flagging=True) 
@@ -356,7 +365,10 @@ for boot in xrange(opts.nboot):
         p.show()
 
     #Save Output
-    if len(opts.output) > 0: outpath = opts.output+SEP+SEPD+'/pspec_boot%04d.npz' % boot
+    out_dir = opts.output+SEP+SEPD
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    if len(opts.output) > 0: outpath = out_dir+'/pspec_boot%04d.npz' % boot
     else: outpath = 'pspec_boot%04d.npz' % boot
     print '   Writing '+outpath
     n.savez(outpath, kpl=kpl, scalar=scalar, times=n.array(lsts),
