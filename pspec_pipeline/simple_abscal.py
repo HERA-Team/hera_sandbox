@@ -240,7 +240,7 @@ if opts.plot == True:
 
 if opts.factor != None and opts.abscal == True and opts.poly == False: #if factor is given in command-line
     #factor = opts.factor
-    factor = numpy.load('bandpass.npz')['bandpass']
+    factor = numpy.load(opts.factor)['bandpass']
 
 # Absolute calibrate
 if opts.factor == None:
@@ -251,7 +251,9 @@ if opts.abscal == True:
 
     def mfunc(uv,p,d):
         d *= factor
-        uv['var'] = uv['var']* factor**2
+        try:
+            uv['var'] = uv['var']* factor**2
+        except: pass
         return p,d
 
     for file in args:
