@@ -264,7 +264,7 @@ if opts.abscal == True:
             continue
         uvo = aipy.miriad.UV(newfile, status='new')
         uvo.init_from_uv(uvi)
-        uvo.pipe(uvi,mfunc=mfunc)
+        uvo.pipe(uvi, mfunc=mfunc, raw=True, append2hist='SIMPLE_ABSCAL:' + ' '.join(sys.argv) + '\n')
         print file, '->', newfile
     
 
