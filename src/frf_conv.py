@@ -26,10 +26,10 @@ def mk_fng(bl, eq):
     return -2*n.pi/a.const.sidereal_day * n.dot(n.cross(n.array([0,0,1.]),bl), eq)
 
 #fringe used in ali et.al to degrade optimal fringe rate filter.
-#def mk_fng(bl, eq):
-#    '''Return distorted fringe rates for given eq coordinates and a baseline vector (measured in wavelengths) in eq coords. This was the version used in ali et.al'''
-#    ey, ex, ez = eq#yes, ex and ey are flipped.
-#    return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
+def mk_fng_alietal(bl, eq):
+    '''Return distorted fringe rates for given eq coordinates and a baseline vector (measured in wavelengths) in eq coords. This was the version used in ali et.al'''
+    ey, ex, ez = eq#yes, ex and ey are flipped.
+    return 2*n.pi/a.const.sidereal_day * (bl[0]*ex + bl[1]*ey * n.sqrt(1-ez**2))
 
 def fr_profile(bm, fng, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT):
     '''Return the fringe-rate profile (binning the beam by fringe rate).'''
@@ -55,7 +55,7 @@ def fit_mdl(frp, bins, maxfr, mdl=gauss, maxfun=1000, ftol=1e-6, xtol=1e-6, star
     return bestargs
 
 # XXX wgt and iwgt seem icky
-def hmap_to_fr_profile(bm_hmap, bl, lat, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT):
+def hmap_to_fr_profile(bm_hmap, bl, lat, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT,alietal=False):
     '''For a healpix map of the beam (in topocentric coords, not squared), a bl (in wavelengths, eq coords), 
     and a latitude (in radians), return the fringe-rate profile.'''
     eq = bm_hmap.px2crd(n.arange(bm_hmap.npix()), ncrd=3) # equatorial coordinates
@@ -64,16 +64,18 @@ def hmap_to_fr_profile(bm_hmap, bl, lat, bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, i
     _bm = bm_hmap[(top[0], top[1], top[2])]
     _bm = n.where(top[2] > 0, _bm, 0)
     bm = _bm
-    fng = mk_fng(bl,eq)
+    if alietal: fng = mk_fng_alietal(bl,eq)
+    else: fng = mk_fng(bl,eq)
     return fr_profile(bm, fng, bins=bins, wgt=wgt, iwgt=iwgt)
     
-def aa_to_fr_profile(aa, (i,j), ch, pol='I', bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT, nside=64, bl_scale=1, **kwargs):
+def aa_to_fr_profile(aa, (i,j), ch, pol='I', bins=DEFAULT_FRBINS, wgt=DEFAULT_WGT, iwgt=DEFAULT_IWGT, nside=64, bl_scale=1,alietal=False, **kwargs):
     '''For an AntennaArray, for a baseline indexed by i,j, at frequency fq, return the fringe-rate profile.'''
     fq = aa.get_afreqs()[ch]
     h = a.healpix.HealpixMap(nside=nside)
     eq = h.px2crd(n.arange(h.npix()), ncrd=3)
     top = n.dot(aa._eq2zen, eq)
-    fng = mk_fng(aa.get_baseline(i,j,'r')*fq*bl_scale, eq)
+    if alietal: fng = mk_fng_alietal(aa.get_baseline(i,j,'r')*fq*bl_scale,eq)
+    else: fng = mk_fng(aa.get_baseline(i,j,'r')*fq*bl_scale, eq)
     # XXX computing bm at all freqs, but only taking one
     _bmx = aa[0].bm_response((top), pol='x')[ch]; _bmx = n.where(top[2] > 0, _bmx, 0)
     _bmy = aa[0].bm_response((top), pol='y')[ch]; _bmy = n.where(top[2] > 0, _bmy, 0)
