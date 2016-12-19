@@ -29,7 +29,7 @@ random.seed(0)
 POL = opts.pol #'I'
 LST_STATS = False
 DELAY = False
-NGPS = 5
+NGPS = 51
 INJECT_SIG = opts.inject_sig
 PLOT = opts.plot
 cov_reg_level = 0
@@ -49,7 +49,15 @@ except:
 
 
 ### FUNCTIONS ###
-
+def find_nboot(bls):
+    cnt = 0
+    for num,bl1 in enumerate(bls):
+        for bl2 in bls[num:]:
+            if bl1 == bl2: continue
+            ij1,ij2 = a.miriad.bl2ij(bl1), a.miriad.bl2ij(bl2)
+            if ij1[0] == ij2[0] or ij1[1] == ij2[1] or ij1[0] == ij2[1] or ij1[1] == ij2[0]: continue
+            cnt +=1
+    return cnt
 #function uses aa, ij, afreqs, inttime, POL
 def frf(shape,loc=0,scale=1):
     shape = shape[1]*4,shape[0] #(2*times,freqs)
@@ -195,7 +203,7 @@ antstr = 'cross'
 lsts,data,flgs = {},{},{}
 days = dsets.keys()
 for k in days:
-    lsts[k],data[k],flgs[k] = get_data(dsets[k], antstr=antstr, polstr=POL, rmbs verbose=True)
+    lsts[k],data[k],flgs[k] = get_data(dsets[k], antstr=antstr, polstr=POL, rmbls=rmbls, verbose=True)
     #data has keys 'even' and 'odd'
     #inside that are baseline keys
     #inside that has shape (#lsts, #freqs)
@@ -276,10 +284,11 @@ bls_master = xi.values()[0].keys()
 nbls = len(bls_master)
 print 'Baselines:', nbls
 #Bootstrapping
+NBOOT=find_nboot(bls_master)
+# for boot in xrange(opts.nboot):
+for boot in xrange(NBOOT):
 
-for boot in xrange(opts.nboot):
-
-    print '%d / %d' % (boot+1,opts.nboot)
+    print '%d / %d' % (boot+1,NBOOT)
 
     ### Calculate pC just based on the data/simulation noise (no eor injection) ###
     print 'Getting pCv'
@@ -305,7 +314,7 @@ for boot in xrange(opts.nboot):
             _I[k][bl] = n.identity(_C[k][bl].shape[0])
             _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl]) # XXX
             _Ix[k][bl] = x[k][bl] # XXX
-            if PLOT and True:
+            if PLOT and False:
                 print a.miriad.bl2ij(bl), k
                 p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
                 p.colorbar()
@@ -320,7 +329,15 @@ for boot in xrange(opts.nboot):
                 p.suptitle('%d_%d'%a.miriad.bl2ij(bl)+' '+k)
                 p.tight_layout()
                 p.show()
-
+    _IQ, _CQ = {}, {}
+    for k in days:
+        _IQ[k], _CQ[k] = {}, {}
+        for bl in bls_master:
+            _IQ[k][bl], _CQ[k][bl] = {}, {}
+            for ch in xrange(nchan): # XXX this loop makes computation go as nchan^3
+                _IQ[k][bl][ch] = n.dot(_I[k][bl], Q[ch])
+                _CQ[k][bl][ch] = n.dot(_C[k][bl], Q[ch])
+    '''
     #Make boots
     bls = bls_master[:]
     if True: #shuffle and group baselines for bootstrapping
@@ -360,20 +377,23 @@ for boot in xrange(opts.nboot):
             p.subplot(223); capo.arp.waterfall(_Csumk)
             p.subplot(224); capo.arp.waterfall(cov(_Czk))
             p.show()
+            '''
     print "   Getting F and q"
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex)
-    qI = n.zeros((nchan,_Iz.values()[0].values()[0].shape[1]), dtype=n.complex)
-    qC = n.zeros((nchan,_Cz.values()[0].values()[0].shape[1]), dtype=n.complex)
-    Q_Iz = {}
-    Q_Cz = {}
+    qI = n.zeros((nchan,_Ix.values()[0].values()[0].shape[1]), dtype=n.complex)
+    qC = n.zeros((nchan,_Cx.values()[0].values()[0].shape[1]), dtype=n.complex)
+    Q_Ix = {}
+    Q_Cx = {}
     for cnt1,k1 in enumerate(days):
         for k2 in days[cnt1:]: #loop over even with eve, even with odd, etc.
-            if not Q_Iz.has_key(k2): Q_Iz[k2] = {}
-            if not Q_Cz.has_key(k2): Q_Cz[k2] = {}
-            for bl1 in _Cz[k1]:
-                for bl2 in _Cz[k2]:
+            if not Q_Ix.has_key(k2): Q_Ix[k2] = {}
+            if not Q_Cx.has_key(k2): Q_Cx[k2] = {}
+            for bl1 in [random.choice(_Cx[k1].keys())]:
+                for bl2 in [random.choice(_Cx[k2].keys())]:
                     if k1 == k2 or bl1 == bl2: continue
+                    ij1,ij2 = a.miriad.bl2ij(bl1),a.miriad.bl2ij(bl2)
+                    if ij1[0] == ij2[0] or ij1[1] == ij2[0] or ij1[1] == ij2[1] or ij1[0] ==ij2[1] : continue
                     if PLOT and False:
                         p.subplot(231); capo.arp.waterfall(C[m], drng=3)
                         p.subplot(232); capo.arp.waterfall(_C[m], drng=3)
@@ -389,11 +409,11 @@ for boot in xrange(opts.nboot):
                         qI += n.conj(_Iz[k1][bl1]) * _Iz[k2][bl2]
                         qC += n.conj(_Cz[k1][bl1]) * _Cz[k2][bl2]
                     else: #brute force with Q to ensure normalization
-                        if not Q_Iz[k2].has_key(bl2): Q_Iz[k2][bl2] = [n.dot(Q[i], _Iz[k2][bl2]) for i in xrange(nchan)]
-                        if not Q_Cz[k2].has_key(bl2): Q_Cz[k2][bl2] = [n.dot(Q[i], _Cz[k2][bl2]) for i in xrange(nchan)]
-                        _qI = n.array([_Iz[k1][bl1].conj() * Q_Iz[k2][bl2][i] for i in xrange(nchan)])
+                        if not Q_Ix[k2].has_key(bl2): Q_Ix[k2][bl2] = [n.dot(Q[i], _Ix[k2][bl2]) for i in xrange(nchan)]
+                        if not Q_Cx[k2].has_key(bl2): Q_Cx[k2][bl2] = [n.dot(Q[i], _Cx[k2][bl2]) for i in xrange(nchan)]
+                        _qI = n.array([_Ix[k1][bl1].conj() * Q_Ix[k2][bl2][i] for i in xrange(nchan)])
                         qI += n.sum(_qI, axis=1)
-                        _qC = n.array([_Cz[k1][bl1].conj() * Q_Cz[k2][bl2][i] for i in xrange(nchan)]) #C^-1 Q C^-1
+                        _qC = n.array([_Cx[k1][bl1].conj() * Q_Cx[k2][bl2][i] for i in xrange(nchan)]) #C^-1 Q C^-1
                         qC += n.sum(_qC, axis=1)
                     if DELAY: #by taking FFT of CsumQ above, each channel is already i,j separated
                         FI += n.conj(_IsumQ[k1][bl1]) * _IsumQ[k2][bl2]
@@ -401,8 +421,8 @@ for boot in xrange(opts.nboot):
                     else:
                         for i in xrange(nchan):
                             for j in xrange(nchan):
-                                FI[i,j] += n.einsum('ij,ji', _IsumQ[k1][bl1][i], _IsumQ[k2][bl2][j])
-                                FC[i,j] += n.einsum('ij,ji', _CsumQ[k1][bl1][i], _CsumQ[k2][bl2][j]) #C^-1 Q C^-1 Q
+                                FI[i,j] += n.einsum('ij,ji', _IQ[k1][bl1][i], _IQ[k2][bl2][j])
+                                FC[i,j] += n.einsum('ij,ji', _CQ[k1][bl1][i], _CQ[k2][bl2][j]) #C^-1 Q C^-1 Q
 
     if PLOT:
         p.subplot(121); capo.arp.waterfall(FC, drng=4)
@@ -412,11 +432,14 @@ for boot in xrange(opts.nboot):
     print "   Getting M"
     order = n.array([10,11,9,12,8,20,0,13,7,14,6,15,5,16,4,17,3,18,2,19,1])
     iorder = n.argsort(order)
+    '''
     FC_o = n.take(n.take(FC,order, axis=0), order, axis=1)
     L_o = n.linalg.cholesky(FC_o)
     U,S,V = n.linalg.svd(L_o.conj())
     MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
     # MC = n.take(n.take(MC_o,iorder, axis=0), iorder, axis=1)
+    '''
+
     MC  = n.identity(nchan, dtype=n.complex128)
     MI  = n.identity(nchan, dtype=n.complex128)
 
@@ -468,8 +491,9 @@ for boot in xrange(opts.nboot):
             _I[k][bl] = n.identity(_C[k][bl].shape[0])
             #_C[k][bl] = n.identity(_C[k][bl].shape[0]) #XXX overwriting C with I
             _Cx[k][bl] = n.dot(_C[k][bl], x[k][bl]) # XXX x = v+e
+            # _Cx[k][bl] = n.dot(_C[k][bl], eor.copy() ) # XXX x = e
             _Ix[k][bl] = eor.copy() # XXX only e!
-            if PLOT and True:
+            if PLOT and False:
                 print a.miriad.bl2ij(bl), k
                 p.subplot(311); capo.arp.waterfall(x[k][bl], mode='real')
                 p.colorbar()
@@ -485,14 +509,22 @@ for boot in xrange(opts.nboot):
                 p.tight_layout()
                 p.show()
 
+    _IQ, _CQ = {}, {}
+    for k in days:
+        _IQ[k], _CQ[k] = {}, {}
+        for bl in bls_master:
+            _IQ[k][bl], _CQ[k][bl] = {}, {}
+            for ch in xrange(nchan): # XXX this loop makes computation go as nchan^3
+                _IQ[k][bl][ch] = n.dot(_I[k][bl], Q[ch])
+                _CQ[k][bl][ch] = n.dot(_C[k][bl], Q[ch])
+    '''
     #Make boots
     bls = bls_master[:]
-    #if True: #XXX GPS already defined the first time
-    #shuffle and group baselines for bootstrapping
-    #    random.shuffle(bls)
-    #    gps = [bls[i::NGPS] for i in range(NGPS)]
-    #    gps = [[random.choice(gp) for bl in gp] for gp in gps]
-    #else: gps = [bls[i::NGPS] for i in range(NGPS)]
+    if True: #shuffle and group baselines for bootstrapping
+        random.shuffle(bls)
+        gps = [bls[i::NGPS] for i in range(NGPS)]
+        gps = [[random.choice(gp) for bl in gp] for gp in gps]
+    else: gps = [bls[i::NGPS] for i in range(NGPS)]
     bls = [bl for gp in gps for bl in gp]
     _Iz,_Isum,_IsumQ = {},{},{}
     _Cz,_Csum,_CsumQ = {},{},{}
@@ -525,20 +557,23 @@ for boot in xrange(opts.nboot):
             p.subplot(223); capo.arp.waterfall(_Csumk)
             p.subplot(224); capo.arp.waterfall(cov(_Czk))
             p.show()
+            '''
     print "   Getting F and q"
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex)
-    qI = n.zeros((nchan,_Iz.values()[0].values()[0].shape[1]), dtype=n.complex)
-    qC = n.zeros((nchan,_Cz.values()[0].values()[0].shape[1]), dtype=n.complex)
-    Q_Iz = {}
-    Q_Cz = {}
+    qI = n.zeros((nchan,_Ix.values()[0].values()[0].shape[1]), dtype=n.complex)
+    qC = n.zeros((nchan,_Cx.values()[0].values()[0].shape[1]), dtype=n.complex)
+    Q_Ix = {}
+    Q_Cx = {}
     for cnt1,k1 in enumerate(days):
         for k2 in days[cnt1:]: #loop over even with eve, even with odd, etc.
-            if not Q_Iz.has_key(k2): Q_Iz[k2] = {}
-            if not Q_Cz.has_key(k2): Q_Cz[k2] = {}
-            for bl1 in _Cz[k1]:
-                for bl2 in _Cz[k2]:
+            if not Q_Ix.has_key(k2): Q_Ix[k2] = {}
+            if not Q_Cx.has_key(k2): Q_Cx[k2] = {}
+            for bl1 in [random.choice(_Cx[k1].keys())]:
+                for bl2 in [random.choice(_Cx[k2].keys())]:
                     if k1 == k2 or bl1 == bl2: continue
+                    ij1,ij2 = a.miriad.bl2ij(bl1),a.miriad.bl2ij(bl2)
+                    if ij1[0] == ij2[0] or ij1[1] == ij2[0] or ij1[1] == ij2[1] or ij1[0] ==ij2[1] : continue
                     if PLOT and False:
                         p.subplot(231); capo.arp.waterfall(C[m], drng=3)
                         p.subplot(232); capo.arp.waterfall(_C[m], drng=3)
@@ -554,11 +589,11 @@ for boot in xrange(opts.nboot):
                         qI += n.conj(_Iz[k1][bl1]) * _Iz[k2][bl2]
                         qC += n.conj(_Cz[k1][bl1]) * _Cz[k2][bl2]
                     else: #brute force with Q to ensure normalization
-                        if not Q_Iz[k2].has_key(bl2): Q_Iz[k2][bl2] = [n.dot(Q[i], _Iz[k2][bl2]) for i in xrange(nchan)]
-                        if not Q_Cz[k2].has_key(bl2): Q_Cz[k2][bl2] = [n.dot(Q[i], _Cz[k2][bl2]) for i in xrange(nchan)]
-                        _qI = n.array([_Iz[k1][bl1].conj() * Q_Iz[k2][bl2][i] for i in xrange(nchan)])
+                        if not Q_Ix[k2].has_key(bl2): Q_Ix[k2][bl2] = [n.dot(Q[i], _Ix[k2][bl2]) for i in xrange(nchan)]
+                        if not Q_Cx[k2].has_key(bl2): Q_Cx[k2][bl2] = [n.dot(Q[i], _Cx[k2][bl2]) for i in xrange(nchan)]
+                        _qI = n.array([_Ix[k1][bl1].conj() * Q_Ix[k2][bl2][i] for i in xrange(nchan)])
                         qI += n.sum(_qI, axis=1)
-                        _qC = n.array([_Cz[k1][bl1].conj() * Q_Cz[k2][bl2][i] for i in xrange(nchan)]) #C^-1 Q C^-1
+                        _qC = n.array([_Cx[k1][bl1].conj() * Q_Cx[k2][bl2][i] for i in xrange(nchan)]) #C^-1 Q C^-1
                         qC += n.sum(_qC, axis=1)
                     if DELAY: #by taking FFT of CsumQ above, each channel is already i,j separated
                         FI += n.conj(_IsumQ[k1][bl1]) * _IsumQ[k2][bl2]
@@ -566,9 +601,8 @@ for boot in xrange(opts.nboot):
                     else:
                         for i in xrange(nchan):
                             for j in xrange(nchan):
-                                FI[i,j] += n.einsum('ij,ji', _IsumQ[k1][bl1][i], _IsumQ[k2][bl2][j])
-                                FC[i,j] += n.einsum('ij,ji', _CsumQ[k1][bl1][i], _CsumQ[k2][bl2][j]) #C^-1 Q C^-1 Q
-
+                                FI[i,j] += n.einsum('ij,ji', _IQ[k1][bl1][i], _IQ[k2][bl2][j])
+                                FC[i,j] += n.einsum('ij,ji', _CQ[k1][bl1][i], _CQ[k2][bl2][j]) #C^-1 Q C^-1 Q
     if PLOT:
         p.subplot(121); capo.arp.waterfall(FC, drng=4)
         p.subplot(122); capo.arp.waterfall(FI, drng=4)
@@ -578,11 +612,13 @@ for boot in xrange(opts.nboot):
     #Cholesky decomposition
     order = n.array([10,11,9,12,8,20,0,13,7,14,6,15,5,16,4,17,3,18,2,19,1])
     iorder = n.argsort(order)
+    '''
     FC_o = n.take(n.take(FC,order, axis=0), order, axis=1)
     L_o = n.linalg.cholesky(FC_o)
     U,S,V = n.linalg.svd(L_o.conj())
     MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
     # MC = n.take(n.take(MC_o,iorder, axis=0), iorder, axis=1)
+    '''
     MC  = n.identity(nchan, dtype=n.complex128)
     MI  = n.identity(nchan, dtype=n.complex128)
 
@@ -602,7 +638,7 @@ for boot in xrange(opts.nboot):
     pC = n.dot(MC, qC) * scalar
     pI = n.dot(MI, qI) * scalar
 
-    if PLOT:
+    if False and n.mean(pC.real)<0:
         p.subplot(411); capo.arp.waterfall(qC, mode='real'); p.colorbar(shrink=.5)
         p.subplot(412); capo.arp.waterfall(pC, mode='real'); p.colorbar(shrink=.5)
         p.subplot(413); capo.arp.waterfall(qI, mode='real'); p.colorbar(shrink=.5)
@@ -619,9 +655,15 @@ for boot in xrange(opts.nboot):
     print 'pI=', n.average(pI.real), 'pC=', n.average(pC.real), 'pI/pC=', n.average(pI.real)/n.average(pC.real)
     # embed()
     if PLOT:
-        p.plot(kpl, n.average(pC.real, axis=1), 'b.-')
-        p.plot(kpl, n.average(pI.real, axis=1), 'k.-')
+        from IPython import embed;
+        p.plot(kpl, n.average(pC.real, axis=1), 'b.-',label='pC')
+        p.plot(kpl, n.average(pIv.real, axis=1), 'k.-',label='pI')
+        p.plot(kpl, n.average(pI.real,axis=1),    'g--',label='p_inj')
+        p.grid()
+        p.legend(loc='lower left')
+        embed()
         p.show()
+
 
     print '   Writing pspec_bootsigloss%04d.npz' % boot
 

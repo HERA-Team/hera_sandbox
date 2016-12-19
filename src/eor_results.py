@@ -519,7 +519,7 @@ def scramble_avg_bootstrap_array(X,Nt_eff=10,Nboots=100,func=np.median):
         times_i = np.random.choice(X.shape[-1],Nt_eff,replace=True)
         bls_i = np.random.choice(X.shape[0],Nt_eff,replace=True)
         bboots.append(X[bls_i,:,times_i].squeeze().T)
-    bboots = np.array(bboots)
+    bboots = n.ma.masked_invalid(np.array(bboots))
     return func(bboots,axis=-1)
 
 def split_stack_kpl(X,kpl):
