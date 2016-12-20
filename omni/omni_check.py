@@ -13,7 +13,7 @@ import os, sys
 ### Options ###
 o = optparse.OptionParser()
 o.set_usage('omni_check.py [options] *.npz')
-aipy.scripting.add_standard_options(o,pol=True)
+aipy.scripting.add_standard_options(o,pol=True,max=True,drng=True)
 o.add_option('--chisq',dest='chisq',default=False,action="store_true",
             help='Plot chisq.')
 o.add_option('--gains',dest='gains',default=False,action="store_true",
@@ -101,8 +101,12 @@ if opts.gains == True or opts.chisqant == True:
         f,axarr = plt.subplots(1, 4,sharex=True,sharey=True)
         labels = ['x','y','z','overall']
         Dpars = [Dx,Dy,Dz,Do]
+        if not opts.max is None: mx = opts.max
+        else: mx = np.log10(np.abs(Dx)).max()
+        if not opts.drng is None: mn = mx - opts.drng
+        else: mn = np.log10(np.abs(Do)).min()
         for i in range(4):
-            im = axarr[i].imshow(np.log10(np.abs(Dpars[i])),aspect='auto',interpolation='None')
+            im = axarr[i].imshow(np.log10(np.abs(Dpars[i])),vmax=mx,vmin=mn,aspect='auto',interpolation='None')
             axarr[i].set_xlabel('Frequency bin')
             divider=make_axes_locatable(axarr[i])
             cax = divider.append_axes("right",size="20%",pad=0.05)
