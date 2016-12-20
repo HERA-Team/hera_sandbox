@@ -20,6 +20,7 @@ o.add_option('--gains',dest='gains',default=False,action="store_true",
             help='Plot gains of each antenna solved for.')
 o.add_option('--chisqant',dest='chisqant',default=False,action="store_true",
             help='Plot chisqs per antenna.')
+o.add_option('-i','--interactive',default=False,action="store_true",help='Launch IPython session before plotting stage')
 o.set_description(__doc__)
 #o.add_option('-C',dest='cal',default='psa6622_v003',type='string',
 #            help='Path and name of calfile.')
@@ -72,10 +73,12 @@ if opts.gains == True or opts.chisqant == True:
                 except: gains[antnum] = [gain]
                 vmax=2
     for key in gains.keys():
-        gains[key] = numpy.vstack(numpy.abs(gains[key])) #cool thing to stack 2D arrays that only match in 1 dimension
-        mk = numpy.ma.masked_where(gains[key] == 1,gains[key]).mask #flags
+        #gains[key] = numpy.vstack(numpy.abs(gains[key]))
+	gains[key] = numpy.vstack(gains[key])
+        mk = numpy.ma.masked_where(numpy.abs(gains[key]) == 1,numpy.abs(gains[key])).mask #flags
         gains[key] = numpy.ma.masked_array(gains[key],mask=mk) #masked array
-    #import IPython;IPython.embed()
+    if opts.interactive: import IPython;IPython.embed()
+    
     subplotnum = 1
     plotnum = 1
     plt.figure(plotnum,figsize=(10,10))
@@ -86,7 +89,7 @@ if opts.gains == True or opts.chisqant == True:
             plt.figure(plotnum,figsize=(10,10))
             subplotnum = 1
         plt.subplot(5,5,subplotnum)
-        plt.imshow(gains[ant],vmax=vmax,aspect='auto',interpolation='nearest')
+        plt.imshow(numpy.abs(gains[ant]),vmax=vmax,aspect='auto',interpolation='nearest')
         plt.title(ant,fontsize=10)
         plt.tick_params(axis='both',which='major',labelsize=6)
         plt.tight_layout()
