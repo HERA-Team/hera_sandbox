@@ -39,12 +39,17 @@ pixarea = hp.nside2pixarea(opts.nside) #pixel area in radians
 
 #nomenclature after Parsons 2016 (1503.05564v2)
 print "integrating over bandwidth"
+
+V = aa[0].bm_response((x,y,z),pol=opts.pol)  #V is defined as the voltage beam, there are two terms of it in the visibility equation
+Omega_V = np.sum(V) * pixarea * df/B
+print "Omega voltage = ",np.round(Omega_V,2)
 A = aa[0].bm_response((x,y,z),pol=opts.pol)**2  #A is defined as the power beam, there is one term of it in the visibility equation
-Omega_pp = np.sum(A**2) * pixarea * df / B
-print "Omega_pp = ",np.round(Omega_pp,2)
 Omega_p = np.sum(A)*pixarea * df / B
 print "Omega_p = ",Omega_p
-print "Omega_p^2/Omega_pp = ",Omega_p**2/Omega_pp 
+
+Omega_pp = np.sum(A**2) * pixarea * df / B
+print "Omega_pp = ",np.round(Omega_pp,2)
+print "Omega_p^2/Omega_pp = ",Omega_p**2/Omega_pp
 
 
 print("computing the beam at %s GHz"%freq)
