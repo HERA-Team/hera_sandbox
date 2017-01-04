@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 """
 
-Creates waterfall plot of T_RMS from Miriad UV files. 
+Creates waterfall plot of T_RMS from Miriad UV files.
 
     Here is some info the help with the legend:  \n
     avg: Data is averaged AFTER  multiplying x.conj * x \n
@@ -13,6 +13,7 @@ Creates waterfall plot of T_RMS from Miriad UV files.
 
 
 import aipy as a, numpy as n, pylab as p, sys, optparse, glob, ipdb, ephem, capo
+from IPython import embed
 o=optparse.OptionParser()
 o.set_usage("plot_trms.py [options]")
 o.set_description(__doc__)
@@ -53,7 +54,7 @@ def get_data(filenames, antstr, polstr, rmbls, verbose=False):
             bl = a.miriad.ij2bl(i,j)
             if bl in rmbls: continue
             lst = uv['lst']
-            if len(lsts) == 0 or lst != lsts[-1]: 
+            if len(lsts) == 0 or lst != lsts[-1]:
                 lsts.append(lst)
                 #var.append(uv['var'])
             if not dat.has_key(bl):
@@ -161,9 +162,9 @@ cnt_e, var_e = {},{},
 if set(['even','odd']) == set(days):
     for bl in data['even']:
         d = n.copy(data['even'][bl][:,band_chans]-data['odd'][bl][:,band_chans])* jy2T
-        c_e = n.copy(n.array(cnt1['even'][bl])[:,band_chans]) 
+        c_e = n.copy(n.array(cnt1['even'][bl])[:,band_chans])
         v_e = n.copy(n.array(var1['even'][bl])[:,band_chans])
-        c_o = n.copy(n.array(cnt1['odd'][bl])[:,band_chans]) 
+        c_o = n.copy(n.array(cnt1['odd'][bl])[:,band_chans])
         v_o = n.copy(n.array(var1['odd'][bl])[:,band_chans])
         if conj[bl]: d=n.conj(d)
         x[bl] = n.transpose(d,[1,0])[band_chans,::dlst]
@@ -203,7 +204,7 @@ trms_o_the_blavg=n.sqrt( n.mean(var_o_blavg/(cnt_o_blavg*nbls),axis=1)) * jy2T[b
 
 diff_blavg = n.mean( [x[bl] for bl in bls_master],axis=0)
 trms_blavg= n.sqrt( n.mean(diff_blavg.conj()*diff_blavg ,axis=1)/2.)
- 
+
 avg_trms= n.mean([ trms_data[bl] for bl in bls_master], axis=0)
 gsm_data={}
 
@@ -225,6 +226,7 @@ p.imshow(n.log(T_vs_bl),aspect='auto',interpolation='nearest')
 T_vs_bl_mean = n.mean(T_vs_bl[:,chans],axis=1)
 print "hottest baseline = ",bls_master[n.argwhere(T_vs_bl_mean==T_vs_bl_mean.max()).squeeze()]
 p.show()
+# embed()
 for i,bl in enumerate(bls_master):
     print 'Ploting Trms for %d_%d'%a.miriad.bl2ij(bl)
     p.plot(band_chans, trms_data[bl], label='$T_{e-o}$')
