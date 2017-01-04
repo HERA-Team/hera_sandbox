@@ -13,7 +13,7 @@ Creates waterfall plot of T_RMS from Miriad UV files.
 
 
 import aipy as a, numpy as n, pylab as p, sys, optparse, glob, ipdb, ephem, capo
-from IPython import embed
+import numpy as np
 o=optparse.OptionParser()
 o.set_usage("plot_trms.py [options]")
 o.set_description(__doc__)
@@ -91,13 +91,14 @@ print 'Number of odd data sets: {0:d}'.format(len(dsets['odd']))
 uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
+print "sdf = ",sdf
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 band_chans = a.scripting.parse_chans(opts.band, uv['nchan'])
 
 if not opts.inttime is None:
     inttime = opts.inttime
 else:
-    inttime = uv['inttime'] * 4  # XXX hack for *E files that have inttime set incorrectly
+    inttime = uv['inttime'] #* 4  # XXX hack for *E files that have inttime set incorrectly
 print 'inttime', inttime
 del(uv)
 
@@ -157,12 +158,13 @@ dlst=1
 x ={}
 cnt_o, var_o = {},{},
 cnt_e, var_e = {},{},
+trms_df = {}
 
 #collect count and vars from UV files to create TRMS model
 if set(['even','odd']) == set(days):
     for bl in data['even']:
-        d = n.copy(data['even'][bl][:,band_chans]-data['odd'][bl][:,band_chans])* jy2T
-        c_e = n.copy(n.array(cnt1['even'][bl])[:,band_chans])
+        d = n.copy(data['even'][bl][:,band_chans]-data['odd'][bl][:,band_chans])
+        c_e = n.copy(n.array(cnt1['even'][bl])[:,band_chans]) 
         v_e = n.copy(n.array(var1['even'][bl])[:,band_chans])
         c_o = n.copy(n.array(cnt1['odd'][bl])[:,band_chans])
         v_o = n.copy(n.array(var1['odd'][bl])[:,band_chans])
@@ -176,35 +178,36 @@ if set(['even','odd']) == set(days):
         var_e[bl] = n.transpose(v_e, [1,0])[:,::dlst]# * (inttime*sdf*1e9)
         cnt_o[bl] = n.transpose(c_o,[1,0])[:,::dlst]
         var_o[bl] = n.transpose(v_o, [1,0])[:,::dlst] #* (inttime*sdf*1e9)
+        D = np.ma.diff(data['even'][bl],axis=1)
+        trms_df[bl] = np.sqrt(np.ma.mean(D.conj() * D/2,axis=0)) * jy2T[:-1]
 bls_master=x.keys()
 nbls = len(bls_master)
 bls_master.sort()
 
 trms_data, trms_o_the,trms_e_the = {}, {}, {}
 theo_temp= {}
-
-
-print inttime/opts.varinttime
+#compute the Trms three ways.  differenced data, variance data, model
 for bl in bls_master:
-    trms_data[bl] = n.sqrt( n.mean(x[bl].conj() * x[bl],axis=1)/2. ).real
-    trms_e_the[bl] = n.sqrt( n.ma.mean(var_e[bl]/cnt_e[bl]/(inttime/opts.varinttime),axis=1) ) * jy2T[band_chans]
-    trms_o_the[bl] = n.sqrt( n.ma.mean(var_o[bl]/cnt_o[bl]/(inttime/opts.varinttime),axis=1) ) * jy2T[band_chans]
+    trms_data[bl] = n.sqrt( n.mean(x[bl].conj() * x[bl],axis=1)/2. ).real * jy2T
+    trms_e_the[bl] = n.sqrt( n.ma.mean(var_e[bl]/cnt_e[bl]/(inttime/opts.varinttime),axis=1) ) * jy2T
+    trms_o_the[bl] = n.sqrt( n.ma.mean(var_o[bl]/cnt_o[bl]/(inttime/opts.varinttime),axis=1) ) * jy2T
 ##GSM emission + antenna temp / sqrt(df*dt*cnt)
     theo_temp[bl]= (opts.Tsky*1e3*(allfreqs/.18)**(-2.8)+opts.Trcvr*1e3)/(n.sqrt( inttime *sdf*1e9))* n.mean(1./n.sqrt(cnt_e[bl]),axis=1)
 #bl_avgeraged counts and vars
 var_o_blavg = n.mean( [var_o[bl] for bl in bls_master],axis=0)
 cnt_o_blavg = n.mean( [cnt_o[bl] for bl in bls_master],axis=0)
 
-var_e_blavg = n.mean( [var_e[bl] for bl in bls_master],axis=0)
+var_e_blavg = n.mean( [var_e[bl] for bl in bls_master],axis=0) 
 cnt_e_blavg = n.mean( [cnt_e[bl] for bl in bls_master],axis=0)
 print "nbls = ",nbls
 #Creating models from bl averaged data
-trms_e_the_blavg=n.sqrt( n.mean(var_e_blavg/(cnt_e_blavg*nbls),axis=1)) * jy2T[band_chans]
-trms_o_the_blavg=n.sqrt( n.mean(var_o_blavg/(cnt_o_blavg*nbls),axis=1)) * jy2T[band_chans]
+trms_e_the_blavg=n.sqrt( n.mean(var_e_blavg/(cnt_e_blavg*nbls),axis=1)) * jy2T
+trms_o_the_blavg=n.sqrt( n.mean(var_o_blavg/(cnt_o_blavg*nbls),axis=1)) * jy2T
 
+#the temperature of the bls averaged together
 diff_blavg = n.mean( [x[bl] for bl in bls_master],axis=0)
-trms_blavg= n.sqrt( n.mean(diff_blavg.conj()*diff_blavg ,axis=1)/2.)
-
+trms_blavg= n.sqrt( n.mean(diff_blavg.conj()*diff_blavg ,axis=1)/2.) * jy2T
+ 
 avg_trms= n.mean([ trms_data[bl] for bl in bls_master], axis=0)
 gsm_data={}
 
@@ -229,6 +232,10 @@ p.show()
 # embed()
 for i,bl in enumerate(bls_master):
     print 'Ploting Trms for %d_%d'%a.miriad.bl2ij(bl)
+    p.subplot(121)
+    p.imshow(np.ma.abs(x[bl]).T,aspect='auto',vmax=2*np.ma.median(trms_data[bl]))
+    p.colorbar()
+    p.subplot(122)
     p.plot(band_chans, trms_data[bl], label='$T_{e-o}$')
     p.plot(band_chans, avg_trms, 'm--', label='$T_{e-o,avg}$')
     p.plot(band_chans, trms_o_the[bl], label='$T_{odd,var}$')
@@ -238,6 +245,7 @@ for i,bl in enumerate(bls_master):
     #p.plot(band_chans, trms_e_the_blavg, label='$T_{blavg,even,var}$')
     p.plot(band_chans, theo_temp[bl],'k--',label='GSM')
     p.plot(band_chans, theo_temp[bl]/n.sqrt(nbls),'k--')
+    p.plot(trms_df[bl],label='Trms_df')
     p.yscale('log')
     p.xlim([band_chans[0]-1,band_chans[-1]+1])
     p.xlabel('chan')
@@ -251,5 +259,5 @@ for i,bl in enumerate(bls_master):
     outfile = 'Trms_%d_%d.png'%a.miriad.bl2ij(bl)
     if not opts.output == '':
         outfile =opts.output+'/'+outfile
-    p.savefig(outfile,format='png', bbox_inches='tight')
+        p.savefig(outfile,format='png', bbox_inches='tight')
     p.clf()

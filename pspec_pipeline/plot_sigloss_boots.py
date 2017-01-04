@@ -7,10 +7,10 @@ from matplotlib import gridspec
 from scipy.interpolate import interp1d
 from capo.pspec import f2z, dk_du
 import py21cmsense as py21cm
-import sigloss_functions as sf
+#import sigloss_functions as sf
 import glob
 import ipdb
-import sys
+import sys,numpy as np
 from astropy.io import ascii
 
 
@@ -206,6 +206,7 @@ p.legend(loc='lower right')
 p.grid(which='major')
 p.show()
 '''
+
 pIvs_boot = n.ma.masked_invalid(pIvs_boot)
 pCvs_boot = n.ma.masked_invalid(pCvs_boot)
 pCs_boot = n.ma.masked_invalid(pCs_boot)
