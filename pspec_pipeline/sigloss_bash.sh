@@ -1,38 +1,95 @@
-PREFIX='../../lstbin_psa64_data_frf0'
-EVEN_FILES=${PREFIX}'/even/sep0,1/lst*242.[3456]*.uvGAL'
-ODD_FILES=${PREFIX}'/odd/sep0,1/lst*243.[3456]*.uvGAL'
-WD=$PWD #get the working directory
+#!/bin/bash
+
+#Use this script to run a psa64 or 128 power spectrum 
+#with signal loss corrections
+#usage:
+#siglos_bash.sh <input lstbinned data> <output power spectrum folder>
+
+indir=$1
+outdir=$2
+POL='I'
+SEP='sep0,1'
+chans='95_115'
+even_lsts='lst*242.[3456]*'
+odd_lsts='lst*243.[3456]*'
+appelation='.uvGAL'
+inject_range='numpy.logspace(-2,3,30)'
+
 noise=''
 boot=60
-chans='30_50 95_115'
-# 95_115'
-#export chans='30_50  51_71 78_98 95_115 103_123 127_147'
-#chans='30_50 51_71 78_98 95_115 103_123 127_147'
-#EVEN_FILES=`lst_select.py -C psa6622_v003 --ra=4_10 ${EVEN_FILES[@]}`
-#ODD_FILES=`lst_select.py -C psa6622_v003 --ra=4_10 ${ODD_FILES[@]}`
-SEP='0,1'
+t_eff=69
+bl_length=30
+window='none'
+rmbls='15_16,0_26,0_44,16_62,3_10,3_25'
+
+cal=psa6240_v003
+scriptsdir=/home/mkolopanis/src/capo
+
+
 for chan in $chans; do
-    continue
-    test -e $WD/${chan} || mkdir $WD/${chan}
-    cd $WD/${chan}
-    for inject in `python -c "import numpy; print ' '.join(map(str, numpy.logspace(-1,2,50)))"` ; do
-        mkdir inject_sep${SEP}_${inject}
-        echo SIGNAL_LEVEL=${inject}
 
-        #~/capo/pspec_pipeline/pspec_cov_v003_sigloss.py --window=none -a cross -p I -c 110_130 -C psa6622_v003 -b 20 -i ${inject} ${EVEN_FILES} ${ODD_FILES}
-        #echo "~/capo/pspec_pipeline/pspec_cov_v003_sigloss.py --window=none -a cross -p I -c 110_130 -C psa6622_v003 -b 20 -i ${inject}" ${EVEN_FILES} ${ODD_FILES} > inject_sep${SEP}_${inject}/notes.txt
+    chandir=$outdir/$chan
+    test -e $chandir || mkdir -p $chandir
 
-        #noise only
-        /home/mkolopanis/src/capo/pspec_pipeline/sigloss_sim.py --window=none -a cross -p I -c ${chan} -C psa6240_v003 -b ${boot} -i ${inject} ${noise}  ${EVEN_FILES} ${ODD_FILES}
-        echo "~/capo/pspec_pipeline/sigloss_sim.py --window=none -a cross -p I -c ${chan} -C psa6240_v003 -b ${boot} -i ${inject} ${noise} " ${EVEN_FILES} ${ODD_FILES} > inject_sep${SEP}_${inject}/notes.txt
+    for pol in $POL; do
 
-        mv *bootsigloss*.npz inject_sep${SEP}_${inject}/.
+        poldir=$chandir/$pol
+        test -e $poldir || mkdir -p $poldir
+
+        for sep in $SEP; do
+
+            sepdir=$poldir/$sep
+            test -e $sepdir || mkdir -p $sepdir
+
+            EVEN_FILES=${indir}'/even/'${sep}/${even_lsts}.$appelation
+            ODD_FILES=${indir}'/odd/'${sep}/${odd_lsts}.$appelation
+
+
+            for inject in `python -c "import numpy; print ' '.join(map(str, ${inject_range}))"` ; do
+                injdir=$sepdir/"inject_${inject}"
+                test -e ${injdir} || mkdir -p ${injdir}
+                echo SIGNAL_LEVEL=${inject}
+
+                ${scriptsdir}/pspec_pipeline/sigloss_sim.py --window=${window} -a cross -p $pol -c ${chan} -C ${cal} -b ${boot} -i ${inject} ${noise} --rmbls=${rmbls} --output=${injdir} ${EVEN_FILES} ${ODD_FILES}
+
+                echo "${scriptsdir}/pspec_pipeline/sigloss_sim.py --window=${window} -a cross -p ${pol} -c ${chan} -C ${cal} -b ${boot} -i ${inject} ${noise} --rmbls=${rmbls} --output=${injdir} ${EVEN_FILES} ${ODD_FILES} " > inject_${inject}/notes.txt
+            done
+        done
     done
-    cd $WD
 done
+
 for chan in $chans; do
-    cd $WD/${chan}
-    /home/mkolopanis/src/capo/pspec_pipeline/plot_sigloss_boots.py
-    cp sigloss.png ../sigloss_${chan}.png
-    cd $WD #return to the sigloss dir to do the next channel
+
+    chandir=$outdir/$chan
+
+    for pol in $POL; do
+
+        poldir=$chandir/$pol
+
+        for sep in $SEP;do
+
+            sepdir=$poldir/$sep
+            cd $sepdir
+
+            python ${scriptsdir}/pspec_pipeline/boots_to_pspec.py --t_eff=${t_eff} --bl_length=${bl_length}
+            python /${scriptsdir}/pspec_pipeline/sigloss_limits.py inject_*/pspec_pk_k3pk*.npz
+
+        done
+    done
+done
+
+for chan in $chans; do
+
+    chandir=$outdir/$chan
+
+    for pol in $POL; do
+
+        poldir=$chandir/$pol
+
+        for sep in $SEP; do
+        sepdir=$poldir/$sep
+
+        ${scriptsdir}/mjk/scripts/plot_upper_lims_simple.py    $sepdir/pspec_limits_k3pk_p[CI]_85.npz --noisefiles='/home/mkolopanis/psa64/21cmsense_noise/dish_size_1/*drift_mod*1[25]0.npz'   --outfile="pspec_${outdir}_${chan}_${pol}_${sep}" #--psa32 --psa32_noise='/home/mkolopanis/psa64/21cmsense_noise/psa32_noise/*drift_mod*1[5]0.npz'
+        done
+    done
 done
