@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#Use this script to run a psa64 or 128 power spectrum 
+#Use this script to run a psa64 or 128 power spectrum
 #with signal loss corrections
 #usage:
 #siglos_bash.sh <input lstbinned data> <output power spectrum folder>
@@ -20,7 +20,9 @@ boot=60
 t_eff=69
 bl_length=30
 window='none'
-rmbls='15_16,0_26,0_44,16_62,3_10,3_25'
+
+declare -A rmbls
+rmbls['sep0,1']='15_16,0_26,0_44,16_62,3_10,3_25'
 
 cal=psa6240_v003
 scriptsdir=/home/mkolopanis/src/capo
@@ -50,7 +52,7 @@ for chan in $chans; do
                 test -e ${injdir} || mkdir -p ${injdir}
                 echo SIGNAL_LEVEL=${inject}
 
-                ${scriptsdir}/pspec_pipeline/sigloss_sim.py --window=${window} -a cross -p $pol -c ${chan} -C ${cal} -b ${boot} -i ${inject} ${noise} --rmbls=${rmbls} --output=${injdir} ${EVEN_FILES} ${ODD_FILES}
+                ${scriptsdir}/pspec_pipeline/sigloss_sim.py --window=${window} -a cross -p $pol -c ${chan} -C ${cal} -b ${boot} -i ${inject} ${noise} --rmbls=${rmbls[$sep]} --output=${injdir} ${EVEN_FILES} ${ODD_FILES}
 
                 echo "${scriptsdir}/pspec_pipeline/sigloss_sim.py --window=${window} -a cross -p ${pol} -c ${chan} -C ${cal} -b ${boot} -i ${inject} ${noise} --rmbls=${rmbls} --output=${injdir} ${EVEN_FILES} ${ODD_FILES} " > inject_${inject}/notes.txt
             done
@@ -87,9 +89,10 @@ for chan in $chans; do
         poldir=$chandir/$pol
 
         for sep in $SEP; do
-        sepdir=$poldir/$sep
 
-        ${scriptsdir}/mjk/scripts/plot_upper_lims_simple.py    $sepdir/pspec_limits_k3pk_p[CI]_85.npz --noisefiles='/home/mkolopanis/psa64/21cmsense_noise/dish_size_1/*drift_mod*1[25]0.npz'   --outfile="pspec_${outdir}_${chan}_${pol}_${sep}" #--psa32 --psa32_noise='/home/mkolopanis/psa64/21cmsense_noise/psa32_noise/*drift_mod*1[5]0.npz'
+            sepdir=$poldir/$sep
+
+            ${scriptsdir}/mjk/scripts/plot_upper_lims_simple.py    $sepdir/pspec_limits_k3pk_p[CI]_85.npz --noisefiles='/home/mkolopanis/psa64/21cmsense_noise/dish_size_1/*drift_mod*1[25]0.npz'   --outfile="pspec_${outdir}_${chan}_${pol}_${sep}" #--psa32 --psa32_noise='/home/mkolopanis/psa64/21cmsense_noise/psa32_noise/*drift_mod*1[5]0.npz'
         done
     done
 done
