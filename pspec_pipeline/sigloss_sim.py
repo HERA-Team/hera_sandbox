@@ -6,8 +6,8 @@ import pylab as p
 import capo
 import capo.frf_conv as fringe
 import glob
-import otparse
 import sys
+import optparse
 import random
 import capo.zsa as zsa
 from IPython import embed
@@ -546,15 +546,15 @@ for boot in xrange(opts.nboot):
         p.show()
 
     print "   Getting M"
-    order = n.array([10, 11, 9, 12, 8, 20, 0, 13, 7,
-                     14, 6, 15, 5, 16, 4, 17, 3, 18, 2, 19, 1])
-    iorder = n.argsort(order)
-    FC_o = n.take(n.take(FC, order, axis=0), order, axis=1)
-    L_o = n.linalg.cholesky(FC_o)
-    U, S, V = n.linalg.svd(L_o.conj())
-    MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
-    MC = n.take(n.take(MC_o, iorder, axis=0), iorder, axis=1)
-    # MC  = n.identity(nchan, dtype=n.complex128)
+    # order = n.array([10, 11, 9, 12, 8, 20, 0, 13, 7,
+    #                  14, 6, 15, 5, 16, 4, 17, 3, 18, 2, 19, 1])
+    # iorder = n.argsort(order)
+    # FC_o = n.take(n.take(FC, order, axis=0), order, axis=1)
+    # L_o = n.linalg.cholesky(FC_o)
+    # U, S, V = n.linalg.svd(L_o.conj())
+    # MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
+    # MC = n.take(n.take(MC_o, iorder, axis=0), iorder, axis=1)
+    MC = n.identity(nchan, dtype=n.complex128)
     MI = n.identity(nchan, dtype=n.complex128)
 
     print "   Getting W"
@@ -775,15 +775,15 @@ for boot in xrange(opts.nboot):
 
     print "   Getting M"
     # Cholesky decomposition
-    order = n.array([10, 11, 9, 12, 8, 20, 0, 13, 7, 14, 6,
-                     15, 5, 16, 4, 17, 3, 18, 2, 19, 1])
-    iorder = n.argsort(order)
-    FC_o = n.take(n.take(FC, order, axis=0), order, axis=1)
-    L_o = n.linalg.cholesky(FC_o)
-    U, S, V = n.linalg.svd(L_o.conj())
-    MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
-    MC = n.take(n.take(MC_o, iorder, axis=0), iorder, axis=1)
-    # MC  = n.identity(nchan, dtype=n.complex128)
+    # order = n.array([10, 11, 9, 12, 8, 20, 0, 13, 7, 14, 6,
+    #                  15, 5, 16, 4, 17, 3, 18, 2, 19, 1])
+    # iorder = n.argsort(order)
+    # FC_o = n.take(n.take(FC, order, axis=0), order, axis=1)
+    # L_o = n.linalg.cholesky(FC_o)
+    # U, S, V = n.linalg.svd(L_o.conj())
+    # MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
+    # MC = n.take(n.take(MC_o, iorder, axis=0), iorder, axis=1)
+    MC = n.identity(nchan, dtype=n.complex128)
     MI = n.identity(nchan, dtype=n.complex128)
 
     print "   Getting W"
