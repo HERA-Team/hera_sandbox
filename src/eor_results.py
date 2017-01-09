@@ -13,6 +13,26 @@ def errorbars(data,axis=1,per=95):
     upper = n.percentile(data,50+per/2.,axis=axis) - mean
     return lower, upper
 
+def MWA_128_beardsley_2016_all(pol='EW'):
+    '''
+    Results from MWA Beardsley 2016. ~60hours
+
+    outputs results[z] = n.array([k,Delta^2,2-sigma upper, 2-sigma lower])
+    '''
+    from astropy.table import Table
+    DATA = Table.read(os.path.dirname(__file__)+'/data/MWA_128T_Beardlsey_2016.txt',format='ascii')
+    results = {}
+    for rec in DATA:
+        if rec['pol']!=pol:continue
+        try:
+            results[rec['redshift']].append([rec['k'],rec['Delta2'],rec['Delta2_err'],0])
+        except(KeyError):
+            results[rec['redshift']] = [[rec['k'],rec['Delta2'],rec['Delta2_err'],0]]
+    for z in results:
+        print z,results[z]
+        results[z] = n.array(results[z])
+    return results
+
 
 
 def PAPER_32_all():
@@ -40,7 +60,6 @@ def PAPER_32_all():
     for files,z in zip(PAPER_RESULTS_FILES,zs):
         f=n.load(files)
         results[z] = n.array([f['k'],f['k3pk'],f['k3pk']+f['k3err'],f['k3pk']-f['k3err']]).T
-
     return results
 
 def PAPER_64_all():
