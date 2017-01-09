@@ -31,7 +31,7 @@ scriptsdir=/home/mkolopanis/src/capo
 # name_of_run/polarization/channel_range/separation/injection_level
 
 for chan in $chans; do
-
+    continue
     chandir=$outdir/$chan
     test -e $chandir || mkdir -p $chandir
 
@@ -67,8 +67,7 @@ done
 #Run through each combination of power spectra and compute
 #signal loss corrected spectrum
 for chan in $chans; do
-
-    cd $outdir
+    continue
     chandir=$outdir/$chan
 
     for pol in $POL; do
@@ -78,16 +77,14 @@ for chan in $chans; do
         for sep in $SEP;do
 
             sepdir=$poldir/$sep
-            cd $sepdir
 
-            python ${scriptsdir}/pspec_pipeline/boots_to_pspec.py --t_eff=${t_eff} --bl_length=${bl_length}
-            python /${scriptsdir}/pspec_pipeline/sigloss_limits.py inject_*/pspec_pk_k3pk*.npz
+            python ${scriptsdir}/pspec_pipeline/boots_to_pspec.py --t_eff=${t_eff} --bl_length=${bl_length} --outfile=$sepdir $sepdir
+            python /${scriptsdir}/pspec_pipeline/sigloss_limits.py --outfile=$sepdir $sepdir/inject_*/pspec_pk_k3pk*.npz
 
         done
     done
 done
 
-cd $outdir
 
 for chan in $chans; do
 
@@ -101,7 +98,7 @@ for chan in $chans; do
 
             sepdir=$poldir/$sep
 
-            ${scriptsdir}/mjk/scripts/plot_upper_lims_simple.py    $sepdir/pspec_limits_k3pk_p[CI]_85.npz --noisefiles='/home/mkolopanis/psa64/21cmsense_noise/dish_size_1/*drift_mod*1[25]0.npz'   --outfile="pspec_${outdir}_${chan}_${pol}_${sep}" #--psa32 --psa32_noise='/home/mkolopanis/psa64/21cmsense_noise/psa32_noise/*drift_mod*1[5]0.npz'
+            ${scriptsdir}/mjk/scripts/plot_upper_lims_simple.py    $sepdir/pspec_limits_k3pk_p[CI]_85.npz --noisefiles='/home/mkolopanis/psa64/21cmsense_noise/dish_size_1/*drift_mod*1[25]0.npz'   --outfile="${outdir}/pspec_${outdir}_${chan}_${pol}_${sep}" #--psa32 --psa32_noise='/home/mkolopanis/psa64/21cmsense_noise/psa32_noise/*drift_mod*1[5]0.npz'
         done
     done
 done
