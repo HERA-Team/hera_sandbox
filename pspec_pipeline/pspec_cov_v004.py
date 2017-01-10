@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+"""Compute the bootstrapped Power Spectrum with OQE Module."""
 
 import aipy as a
 import numpy as n
