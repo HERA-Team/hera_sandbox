@@ -28,6 +28,10 @@ parser.add_argument('--outfile', type=str, default='',
 args = parser.parse_args()
 
 
+if args.outfile and not args.outfile.endswith('/'):
+    args.outfile += '/'
+
+
 def G(x, mx, dx):
     """Compute Gaussian at x with mean mx and std dx."""
     return 1/(dx*np.sqrt(2*np.pi)) * np.exp(-1/2.*((x-mx)/dx)**2)
@@ -200,18 +204,20 @@ ylabel('Probability to find $P_{inj}$')
 savefig('p_inj_prob.png', format='png')
 # title(ptype)
 # show()
-prob_limits = [.2, .225, .25, .3, .4, .5, .68, .85, .9, .95, .97, .99]
+prob_limits = [.2, .225, .25, .3, .35, .4, .5, .68, .85, .9, .95, .97, .99]
 
 for per in prob_limits:
     pk, pkerr, k3pk, k3err = get_pk_k3pk(per, k, tanh_parms)
 
-    np.savez(args.outfile+'/pspec_limits_k3pk_pC_{0:02d}'.format(int(per*100))+'.npz',
+    np.savez((args.outfile +
+             'pspec_limits_k3pk_pC_{0:02d}'.format(int(per*100))+'.npz'),
              freq=freq, k=k, k3pk=k3pk, k3err=k3err,
              pk=pk, err=pkerr, kpl=kpls)
 
     pk, pkerr = pspecs['pIv_fold'][0, :], pspecs['pIv_fold_err'][0, :]
     k3pk, k3err = k**3/(2*np.pi**2)*pk, k**3/(2*np.pi**2)*pkerr
 
-    np.savez(args.outfile+'/pspec_limits_k3pk_pI_{0:02d}'.format(int(per*100))+'.npz',
+    np.savez((args.outfile +
+             'pspec_limits_k3pk_pI_{0:02d}'.format(int(per*100))+'.npz'),
              freq=freq, k=k, k3pk=k3pk, k3err=k3err,
              pk=pk, err=pkerr, kpl=kpls)
