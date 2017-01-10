@@ -13,7 +13,7 @@ chans='95_115'
 even_lsts='lst*242.[3456]*'
 odd_lsts='lst*243.[3456]*'
 appelation='.uvGAL'
-inject_range='numpy.logspace(-2,3,7)'
+inject_range='numpy.logspace(-2,3,10)'
 
 noise=''
 boot=60
@@ -31,7 +31,7 @@ scriptsdir=/home/mkolopanis/src/capo
 # name_of_run/polarization/channel_range/separation/injection_level
 
 for chan in $chans; do
-    continue
+
     chandir=$outdir/$chan
     test -e $chandir || mkdir -p $chandir
 
@@ -67,7 +67,7 @@ done
 #Run through each combination of power spectra and compute
 #signal loss corrected spectrum
 for chan in $chans; do
-    continue
+
     chandir=$outdir/$chan
 
     for pol in $POL; do
@@ -98,7 +98,7 @@ for chan in $chans; do
 
             sepdir=$poldir/$sep
 
-            ${scriptsdir}/mjk/scripts/plot_upper_lims_simple.py    $sepdir/pspec_limits_k3pk_p[CI]_85.npz --noisefiles='/home/mkolopanis/psa64/21cmsense_noise/dish_size_1/*drift_mod*1[25]0.npz'   --outfile="${outdir}/pspec_${outdir}_${chan}_${pol}_${sep}" #--psa32 --psa32_noise='/home/mkolopanis/psa64/21cmsense_noise/psa32_noise/*drift_mod*1[5]0.npz'
+            ${scriptsdir}/mjk/scripts/plot_upper_lims_simple.py    $sepdir/pspec_limits_k3pk_p[CI]_85.npz --noisefiles='/home/mkolopanis/psa64/21cmsense_noise/dish_size_1/*drift_mod*150.npz'   --outfile="${outdir}/pspec_${outdir}_${chan}_${pol}_${sep}" #--psa32 --psa32_noise='/home/mkolopanis/psa64/21cmsense_noise/psa32_noise/*drift_mod*1[5]0.npz'
         done
     done
 done
