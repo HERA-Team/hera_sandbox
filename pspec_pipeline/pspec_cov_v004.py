@@ -31,7 +31,9 @@ o.add_option('--diff', action='store_true',
              help='Noise is different for all baseline.')
 o.add_option('--output', type='string', default='',
              help='Output directory for pspec_boot files (default "")')
-
+o.add_option('--rmbls', dest='rmbls', type='string',
+             help=('List of baselines (ex:1_4,2_33) to remove '
+                   'from the power spectrum analysis.'))
 opts, args = o.parse_args(sys.argv[1:])
 
 # Basic parameters
@@ -43,7 +45,16 @@ NGPS = 5  # number of groups to break the random sampled bls into
 PLOT = opts.plot
 
 # FUNCTIONS #
-
+try:
+    rmbls = []
+    rmbls_list = opts.rmbls.split(',')
+    for bl in rmbls_list:
+        i, j = bl.split('_')
+        rmbls.append(a.miriad.ij2bl(int(i), int(j))) 
+    print 'Removing baselines:', rmbls
+    # rmbls = map(int, opts.rmbls.split(','))
+except:
+    rmbls = []
 
 def frf(shape, loc=0, scale=1):  # FRF NOISE
     """Create Fringe Rate Filtered Noise Sim."""
@@ -158,6 +169,8 @@ for k in days:
                                                        verbose=True)
     lsts[k] = n.array(lsts[k]['lsts'])
     for bl in data[k]:
+        if bl in rmbls:
+            continue
         d = n.array(data[k][bl][POL])[:, chans] * jy2T
         # extract frequency range
         flg = n.array(flgs[k][bl][POL])[:, chans]
