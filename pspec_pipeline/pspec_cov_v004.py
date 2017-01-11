@@ -50,11 +50,12 @@ try:
     rmbls_list = opts.rmbls.split(',')
     for bl in rmbls_list:
         i, j = bl.split('_')
-        rmbls.append(a.miriad.ij2bl(int(i), int(j))) 
+        rmbls.append(a.miriad.ij2bl(int(i), int(j)))
     print 'Removing baselines:', rmbls
     # rmbls = map(int, opts.rmbls.split(','))
 except:
     rmbls = []
+
 
 def frf(shape, loc=0, scale=1):  # FRF NOISE
     """Create Fringe Rate Filtered Noise Sim."""
