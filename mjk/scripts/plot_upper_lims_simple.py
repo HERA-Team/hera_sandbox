@@ -122,7 +122,7 @@ for key in data:
         if opts.ratio:
             plt.setp(ax1[i].get_xticklabels(), visible=False)
         ax1[i].grid(True)
-        ax1[i].set_xlim(0, k_max)
+        ax1[i].set_xlim(0, k_max * 1.01)
 
         if len(np.unique(z)) == 1:
             if i == 0:
@@ -187,7 +187,7 @@ for key in data:
         if opts.ratio:
             plt.setp(ax3[i].get_xticklabels(), visible=False)
         ax3[i].grid(True)
-        ax3[i].set_xlim(0, k_max)
+        ax3[i].set_xlim(0, k_max * 1.01)
 
 
 if opts.ratio:
@@ -215,7 +215,7 @@ if opts.ratio:
             nbins = len(ax2[0].get_xticklabels())  # added
             ax2[0].xaxis.set_major_locator(MaxNLocator(nbins=nbins-3))
         ax2[i].grid(True)
-        ax2[i].set_xlim(0, k_max)
+        ax2[i].set_xlim(0, k_max * 1.01)
 
         _, kpls_pI, pk_pI, pkerr_pI = capo.eor_results.get_pk_from_npz(
                                     data['pI'])
@@ -238,7 +238,7 @@ if opts.ratio:
             nbins = len(ax4[0].get_xticklabels())  # added
             ax4[0].xaxis.set_major_locator(MaxNLocator(nbins=nbins-3))
         ax4[i].grid(True)
-        ax4[i].set_xlim(0, k_max)
+        ax4[i].set_xlim(0, k_max * 1.01)
 
 handles, labels = ax1[-1].get_legend_handles_labels()
 ax1[-1].legend(reversed(handles), reversed(labels),
