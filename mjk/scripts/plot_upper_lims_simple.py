@@ -47,16 +47,16 @@ opts, args = o.parse_args(sys.argv[1:])
 
 
 data = {
-    'pI': [x for x in args if 'pI' in x],
-    'pC': [x for x in args if 'pI' not in x]
+    'unweighted': [x for x in args if 'pI' in x],
+    'weighted': [x for x in args if 'pI' not in x]
         }
 
 colors = {
-        "pI": "blue",
-        "pC": "green"
+        "unweighted": "blue",
+        "weighted": "green"
         }
 
-z, _, _, _ = capo.eor_results.get_k3pk_from_npz(data['pI'])
+z, _, _, _ = capo.eor_results.get_k3pk_from_npz(data['unweighted'])
 try:
     Nzs = len(z)
 except:
@@ -99,9 +99,12 @@ if opts.psa32_noise:
 
 
 for key in data:
+    if not data[key]:
+        continue
     z, ks, k3pk, k3err = capo.eor_results.get_k3pk_from_npz(data[key])
     _, kpls, pk, pkerr = capo.eor_results.get_pk_from_npz(data[key])
     fqs = capo.pspec.z2f(z)*1e3  # put freqs in Mhz
+    k_max = np.max(ks)
     for i, redshift in enumerate(z):
 
         ax1[i].plot(ks[i], k3pk[i] + k3err[i],
@@ -119,6 +122,7 @@ for key in data:
         if opts.ratio:
             plt.setp(ax1[i].get_xticklabels(), visible=False)
         ax1[i].grid(True)
+        ax1[i].set_xlim(0, k_max)
 
         if len(np.unique(z)) == 1:
             if i == 0:
@@ -183,6 +187,7 @@ for key in data:
         if opts.ratio:
             plt.setp(ax3[i].get_xticklabels(), visible=False)
         ax3[i].grid(True)
+        ax3[i].set_xlim(0, k_max)
 
 
 if opts.ratio:
@@ -210,6 +215,7 @@ if opts.ratio:
             nbins = len(ax2[0].get_xticklabels())  # added
             ax2[0].xaxis.set_major_locator(MaxNLocator(nbins=nbins-3))
         ax2[i].grid(True)
+        ax2[i].set_xlim(0, k_max)
 
         _, kpls_pI, pk_pI, pkerr_pI = capo.eor_results.get_pk_from_npz(
                                     data['pI'])
@@ -232,6 +238,7 @@ if opts.ratio:
             nbins = len(ax4[0].get_xticklabels())  # added
             ax4[0].xaxis.set_major_locator(MaxNLocator(nbins=nbins-3))
         ax4[i].grid(True)
+        ax4[i].set_xlim(0, k_max)
 
 handles, labels = ax1[-1].get_legend_handles_labels()
 ax1[-1].legend(reversed(handles), reversed(labels),
@@ -251,6 +258,6 @@ else:
     fig.savefig('noise_curve_plot.png', format='png')
     fig2.savefig('noise_curve_plot_pk.png', format='png')
 if opts.plot:
-    plt.show(block=1)
+    plt.show(block=0)
 # embed()
 # plt.close()
