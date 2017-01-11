@@ -558,39 +558,37 @@ def split_stack_kpl(X,kpl):
 
 #Matt's power spectrum bits
 def read_bootstraps(files=None, verbose=False):
-    '''
-    read_bootstraps(files, verbose):
+    """
+    Read bootstrap files and accumulate into dict.
 
     arguments:
         files: glob of files, or list of file names to be read
 
     keywords:
         verbose: Print optional output to stdout. Defalt False
-    '''
-
+    """
     if files is None or not files:
         raise TypeError('Files given are {0}; Must supply input '
-        'files'.format(files))
+                        'files'.format(files))
         return files
 
-    one_file_flag=False
-    if len(n.shape(files)) ==0: files = [files];
-    if len(files) == 1: one_file_flag=True
-    # if files
+    if len(n.shape(files)) == 0:
+        files = [files]
 
-    #load the first file to make dummy lists into which boots will aggregate
+    # load the first file to make dummy lists into which boots will aggregate
     npz0 = n.load(files[0])
     num_boots = len(files)
     keys = npz0.keys()
     npz0.close()
 
-    out_dict = {key:[] for key in keys}
+    out_dict = {key: [] for key in keys}
 
     for filename in files:
-        if verbose: print 'Reading Boots'
+        if verbose:
+            print 'Reading Boots'
         npz = n.load(filename)
         for key in keys:
-            out_dict[key].append( n.real( npz[key] ))
+            out_dict[key].append(n.real(npz[key]))
         npz.close()
 
     return out_dict
