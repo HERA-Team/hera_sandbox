@@ -32,7 +32,7 @@ if opts.factor == None:
 
     ### FILES ###
     aa = aipy.cal.get_aa('psa898_v003',0.001,0.1,203) #parameters don't matter... only used to find LSTs
-    data128 = numpy.sort(glob.glob('/data4/paper/2013EoR/Analysis/ProcessedData/epoch1/omni_v3_xtalk/lstbin_fg/even/lst*I.uv')) #S1 PSA-128, FG-containing, xx
+    data128 = numpy.sort(glob.glob('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v3_xtalk/lstbin_fg/even/lst*I.uv')) #S1 PSA-128, FG-containing
     #data128 = numpy.sort(glob.glob('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_fg/even/lst*I.uv')) #LST-binned, FG-containing
     #data64 = numpy.sort(glob.glob('/home/jacobsda/storage/psa128/2014_epoch3/v5_xtalksub_omni/lstbin_June2_v1/even/sep0,2/*uvAS')) #LST-binned, abscal 128 !! 
     #data64 = numpy.sort(glob.glob('/data4/paper/2012EoR/psa_live/forlstbinning_omnical_2/lstbin_even_noxtalk/*uvG')) #LST-binned
