@@ -342,7 +342,7 @@ for boot in xrange(opts.nboot):
     print '   Writing '+outpath
     n.savez(outpath, kpl=kpl, scalar=scalar, lsts=n.array(lsts),
             pC=pC, pI=pI, pCv=pCv, pIv=pIv, err=1./cnt, var=var,
-            sep=sep_type, uvw=uvw,
+            sep=sep_type, uvw=uvw, inject_level=INJECT_SIG,
             freq=fq, afreqs=afreqs, cmd=' '.join(sys.argv))
 
 
