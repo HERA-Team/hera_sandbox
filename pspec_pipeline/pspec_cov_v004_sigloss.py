@@ -322,10 +322,11 @@ for boot in xrange(opts.nboot):
     dse.set_data(dsets=data_dict_eor,conj=conj_dict,wgts=flg_dict)
    
     #Old Sigloss: Change C in dse to be from ds2
-    newiC = {}
-    for key in keys:
-        newiC[key] = ds2.iC(key).copy()
-    dse.set_iC(newiC)
+    if opts.oldsigloss: 
+        newiC = {}
+        for key in keys:
+            newiC[key] = ds2.iC(key).copy()
+        dse.set_iC(newiC)
 
     if True:
         newkeys,ds2C = ds2.group_data(keys,gps) #group data (gps already determined before)
