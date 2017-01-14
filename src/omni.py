@@ -77,6 +77,27 @@ def compute_reds(nant, pols, *args, **kwargs):
         for pj in pols:
             reds += [[(Antpol(i,pi,nant),Antpol(j,pj,nant)) for i,j in gp] for gp in _reds]
     return reds
+ 
+#def aa_to_info(aa, pols=['x'], **kwargs):
+#    '''Use aa.ant_layout to generate redundances based on ideal placement.
+#    The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
+#    layout = aa.ant_layout
+#    nant = len(aa)
+#    antpos = -np.ones((nant*len(pols),3)) # -1 to flag unused antennas
+#    xs,ys = np.indices(layout.shape)
+#    for ant,x,y in zip(layout.flatten(), xs.flatten(), ys.flatten()):
+#        for z,pol in enumerate(pols):
+#            z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
+#            i = Antpol(ant,pol,len(aa)) # creates index in POLNUM/NUMPOL for pol
+#            antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
+#    reds = compute_reds(nant, pols, antpos[:nant],tol=.1) # only first nant b/c compute_reds treats pol redundancy separately
+#    # XXX haven't enforced xy = yx yet.  need to conjoin red groups for that
+#    ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] < 0]
+#    kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
+#    reds = filter_reds(reds, **kwargs)
+#    info = RedundantInfo(nant)
+#    info.init_from_reds(reds,antpos)
+#    return info
 
 def aa_to_info(aa, pols=['x'], fcal=False, **kwargs):
     '''Use aa.ant_layout to generate redundances based on ideal placement.
@@ -213,10 +234,19 @@ def to_npz(filename, meta, gains, vismdl, xtalk):
             d['(%d,%d) %s' % (bl[0],bl[1],pol)] = xtalk[pol][bl]
     np.savez(filename,**d)
 
-def from_npz(filename, verbose=False):
+def from_npz(filename, pols=None, bls=None, ants=None, verbose=False):
     '''Reconstitute results from to_npz, returns meta, gains, vismdl, xtalk, each
-    keyed first by polarization, and then by bl/ant/keyword.'''
+    keyed first by polarization, and then by bl/ant/keyword.
+    Optional variables:
+    pols: list of polarizations. default: None, return all
+    bls: list of baselines. default: None, return all
+    ants: list of antennas for gain. default: None, return all
+    '''
     if type(filename) is str: filename = [filename]
+    if type(pols) is str: pols = [pols]
+    if type(bls) is tuple and type(bls[0]) is int: bls = [bls]
+    if type(ants) is int: ants = [ants]
+    #filename = np.array(filename)
     meta, gains, vismdl, xtalk = {}, {}, {}, {}
     def parse_key(k):
         bl,pol = k.split()
@@ -225,22 +255,47 @@ def from_npz(filename, verbose=False):
     for f in filename:
         if verbose: print 'Reading', f
         npz = np.load(f)
-        for k in [f for f in npz.files if f.startswith('<')]:
-            pol,bl = parse_key(k)
-            if not vismdl.has_key(pol): vismdl[pol] = {}
-            vismdl[pol][bl] = vismdl[pol].get(bl,[]) + [np.copy(npz[k])]
-        for k in [f for f in npz.files if f.startswith('(')]:
-            pol,bl = parse_key(k)
-            if not xtalk.has_key(pol): xtalk[pol] = {}
-            dat = np.resize(np.copy(npz[k]),vismdl[pol][vismdl[pol].keys()[0]][0].shape) #resize xtalk to be like vismdl (with a time dimension too)
-            if xtalk[pol].get(bl) == None: #no bl key yet
-                xtalk[pol][bl] = dat
-            else: #append to array
-                xtalk[pol][bl] = np.vstack((xtalk[pol].get(bl),dat))
-        for k in [f for f in npz.files if f[0].isdigit()]:
-            pol,ant = k[-1:],int(k[:-1])
-            if not gains.has_key(pol): gains[pol] = {}
-            gains[pol][ant] = gains[pol].get(ant,[]) + [np.copy(npz[k])]
+        for k in npz.files:
+            if k[0].isdigit():
+                pol,ant = k[-1:],int(k[:-1])
+                if (pols==None or pol in pols) and (ants==None or ant in ants): 
+                    if not gains.has_key(pol): gains[pol] = {}
+                    gains[pol][ant] = gains[pol].get(ant,[]) + [np.copy(npz[k])]
+            try: pol,bl = parse_key(k)
+            except(ValueError): continue
+            if (pols is not None) and (pol not in pols): continue
+            if (bls is not None) and (bl not in bls): continue
+            if k.startswith('<'):
+                if not vismdl.has_key(pol): vismdl[pol] = {}
+                vismdl[pol][bl] = vismdl[pol].get(bl,[]) + [np.copy(npz[k])]
+            elif k.startswith('('):
+                if not xtalk.has_key(pol): xtalk[pol] = {}
+                try:
+                    dat = np.resize(np.copy(npz[k]),vismdl[pol][vismdl[pol].keys()[0]][0].shape) #resize xtalk to be like vismdl (with a time dimension too)
+                except(KeyError):
+                    for tempkey in npz.files: 
+                        if tempkey.startswith('<'): break
+                    dat = np.resize(np.copy(npz[k]),npz[tempkey].shape) #resize xtalk to be like vismdl (with a time dimension too)
+                if xtalk[pol].get(bl) is None: #no bl key yet
+                    xtalk[pol][bl] = dat
+                else: #append to array
+                    xtalk[pol][bl] = np.vstack((xtalk[pol].get(bl),dat))
+        # for k in [f for f in npz.files if f.startswith('<')]:
+        #     pol,bl = parse_key(k)
+        #     if not vismdl.has_key(pol): vismdl[pol] = {}
+        #     vismdl[pol][bl] = vismdl[pol].get(bl,[]) + [np.copy(npz[k])]
+        # for k in [f for f in npz.files if f.startswith('(')]:
+        #     pol,bl = parse_key(k)
+        #     if not xtalk.has_key(pol): xtalk[pol] = {}
+        #     dat = np.resize(np.copy(npz[k]),vismdl[pol][vismdl[pol].keys()[0]][0].shape) #resize xtalk to be like vismdl (with a time dimension too)
+        #     if xtalk[pol].get(bl) is None: #no bl key yet
+        #         xtalk[pol][bl] = dat
+        #     else: #append to array
+        #         xtalk[pol][bl] = np.vstack((xtalk[pol].get(bl),dat))
+        # for k in [f for f in npz.files if f[0].isdigit()]:
+        #     pol,ant = k[-1:],int(k[:-1])
+        #     if not gains.has_key(pol): gains[pol] = {}
+        #     gains[pol][ant] = gains[pol].get(ant,[]) + [np.copy(npz[k])]
         kws = ['chi','hist','j','l','f']
         for kw in kws:
             for k in [f for f in npz.files if f.startswith(kw)]:
@@ -264,30 +319,21 @@ class FirstCal(object):
         self.wgts = wgts
         #if wgts != None: self.wgts = wgts
         #else: self.wgts = np.ones_like(self.data)
-    def data_to_delays(self, verbose=False, **kwargs):
-        """
-        data = dictionary of visibilities. 
-        info = FirstCalRedundantInfo class
-        can give it kwargs:
-            'window': window function for fourier transform. default is none
-            'tune'  : to fit and remove a linear slope to phase.
-            'plot'  : Low level plotting in the red.redundant_bl_cal_simple script.
-            'clean' : Clean level when deconvolving sampling function out.
-        
-        Returns 3 dictionaries:
-            1. baseline pair : delays
-            2. baseline pair : offset 
-            3. baseline pair : mean(variance(angle))/mean(absolute) [proxy for noise in solution]
-        """
-        window=kwargs.get('window','none')
-        tune=kwargs.get('tune',True)
-        plot=kwargs.get('plot',False)
-        clean=kwargs.get('clean',1e-4)
+    def data_to_delays(self, **kwargs):
+        '''data = dictionary of visibilities. 
+           info = FirstCalRedundantInfo class
+           can give it kwargs:
+                supports 'window': window function for fourier transform. default is none
+                         'tune'  : to fit and remove a linear slope to phase.
+                         'plot'  : Low level plotting in the red.redundant_bl_cal_simple script.
+                         'clean' : Clean level when deconvolving sampling function out.
+           Returns 2 dictionaries:
+                1. baseline pair : delays
+                2. baseline pari : offset 
+        '''
+        verbose = kwargs.get('verbose', False)
         blpair2delay = {}
         blpair2offset = {}
-        
-        blpair2noise = {}
-        
         dd = self.info.order_data(self.data)
         ww = self.info.order_data(self.wgts)
         for (bl1,bl2) in self.info.bl_pairs:
@@ -297,73 +343,43 @@ class FirstCal(object):
             w1 = ww[:,:,self.info.bl_index(bl1)]
             d2 = dd[:,:,self.info.bl_index(bl2)]
             w2 = ww[:,:,self.info.bl_index(bl2)]
-            if True:
-                delay,offset = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs,window=window, tune=tune, plot=plot, verbose=verbose, clean=clean)
-                noiseproxy = self.varstat(d1,w1,d2,w2)
-            #    _,(delay,offset),_ = red.redundant_bl_cal(d1,w1,d2,w2,self.fqs,window=window,verbose=verbose,use_offset=use_offset)
+            delay,offset = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs,**kwargs)
             blpair2delay[(bl1,bl2)] = delay
             blpair2offset[(bl1,bl2)] = offset
-            blpair2noise[(bl1,bl2)] = noiseproxy
-        return blpair2delay, blpair2offset, blpair2noise
-    
-    #XXX this probably belongs in red.py or something similar
-    def varstat(self, d1, w1, d2, w2):
-        #NOTE: this assumes a "logical_not" has been applied to MIRIAD flags
-        d12 = d2*np.conj(d1)
-        w12 = w1*w2 #still not comfortable with multiplying bools
-        d12_var = np.var(np.angle(d12),axis=0) #variance in phase over time
-        d12_mean = np.mean(np.abs(d12),axis=0) #mean in absolute value over time
-        d12_wgt = np.sum(w12,axis=0) #count of flags over time
-        #Apply weighting
-        d12_var *= d12_wgt/d12_wgt.max()
-        d12_mean *= d12_wgt/d12_wgt.max()
-        
-        v,m = np.nanmean(d12_var),np.nanmean(d12_mean)#average over frequency
-        
-        return v/m #big variance or small amplitude boosts noise.
-    
+        return blpair2delay, blpair2offset
     def get_N(self,nblpairs):
-        return sps.eye(nblpairs)
-     
-    def get_MNO(self, verbose=False, **kwargs):
-        M, N, O = np.zeros((len(self.info.bl_pairs),1)), np.zeros((len(self.info.bl_pairs),1)), np.zeros((len(self.info.bl_pairs),1))
-        blpair2delay,blpair2offset,blpair2noise = self.data_to_delays(verbose=verbose, **kwargs)
+        return sps.eye(nblpairs) 
+    def get_M(self, **kwargs):
+        blpair2delay,blpair2offset = self.data_to_delays(**kwargs)
+        sz = len(blpair2delay[blpair2delay.keys()[0]])
+        M = np.zeros((len(self.info.bl_pairs),sz))
+        O = np.zeros((len(self.info.bl_pairs),sz))
         for pair in blpair2delay:
-            M[self.info.blpair_index(pair)] = blpair2delay[pair]
-            N[self.info.blpair_index(pair)] = blpair2noise[pair]
-            O[self.info.blpair_index(pair)] = blpair2offset[pair]   
-        return M,N,O
-    
-    def run(self, verbose=False, offset=False, **kwargs):
+            M[self.info.blpair_index(pair),:] = blpair2delay[pair]
+            O[self.info.blpair_index(pair),:] = blpair2offset[pair]
+            
+        return M,O
+    def run(self, **kwargs):
+        verbose = kwargs.get('verbose', False)
+        offset = kwargs.get('offset', False)
         #make measurement matrix 
-        print "Geting M,N,O matrix"
-        #CORRECT WAY AROUND:
-        self.M,self.N,self.O = self.get_MNO(verbose=verbose, **kwargs)
-        #INCORRECT WAY AROUND:
-        #_,self.M,self.O = self.get_MNO(verbose=verbose, **kwargs)
-        #make noise matrix
-        print "inverting N matrix"
-        #REAL N:
+        print "Geting M,O matrix"
+        self.M,self.O = self.get_M(**kwargs)
+        print "Geting N matrix"
+        N = self.get_N(len(self.info.bl_pairs)) 
         #self._N = np.linalg.inv(N)
-        #IDENTITY N:
-        del(self.N) #XXX
-        N = self.get_N(len(self.info.bl_pairs))
         self._N = N #since just using identity now
-        
-        #Absolute value A for sum in quadrature
-        #self.info.A = np.abs(self.info.A) 
-        
+
         #get coefficients matrix,A
         self.A = sps.csr_matrix(self.info.A)
         print 'Shape of coefficient matrix: ', self.A.shape
-        
-        #solve for delays
+
+#        solve for delays
         print "Inverting A.T*N^{-1}*A matrix"
         invert = self.A.T.dot(self._N.dot(self.A)).todense() #make it dense for pinv
         dontinvert = self.A.T.dot(self._N.dot(self.M)) #converts it all to a dense matrix
-        #definitely want to use pinv here and not solve since invert is probably singular. 
+#        definitely want to use pinv here and not solve since invert is probably singular. 
         self.xhat = np.dot(np.linalg.pinv(invert),dontinvert)
-        
         #solve for offset
         if offset:
             print "Inverting A.T*N^{-1}*A matrix"
@@ -371,7 +387,6 @@ class FirstCal(object):
             dontinvert =self.A.T.dot(self._N.dot(self.O))
             self.ohat = np.dot(np.linalg.pinv(invert),dontinvert)
             #turn solutions into dictionary
-#            import IPython; IPython.embed()
             return dict(zip(self.info.subsetant,zip(self.xhat,self.ohat)))
         else:
             #turn solutions into dictionary
@@ -393,29 +408,32 @@ def get_phase(fqs,tau, offset=False):
     else:
         return np.exp(-2j*np.pi*fqs*tau)
 
-def save_gains_fc(s,f,pol,filename,ubls=None,ex_ants=None,verbose=False):
+def save_gains_fc(s,fqs,pol,filename,ubls=None,ex_ants=None,verbose=False):
     """
     s: solutions
-    f: frequencies
+    fqs: frequencies
     pol: polarization of single antenna i.e. 'x', or 'y'.
     filename: if a specific file was used (instead of many), change output name
     ubls: unique baselines used to solve for s'
     ex_ants: antennae excluded to solve for s'
     """
 #    if isinstance(filename, list): filename=filename[0] #XXX this is evil. why?
+    NBINS = len(fqs)
     s2 = {}
     for k,i in s.iteritems():
+        #len > 1 means that one is using the "tune" parameter in omni.firstcal
         if len(i)>1:
-            #len > 1 means that one is using the "tune" parameter in omni.firstcal
-            s2[str(k)+pol] = get_phase(f,i,offset=True).reshape(1,-1) #reshape plays well with omni apply
+            s2[str(k)+pol] = get_phase(fqs,i,offset=True).T
             s2['d'+str(k)] = i[0]
+            s2['o'+str(k)] = i[1]
             if verbose: print 'dly=%f , off=%f'%i
         else:
-            s2[str(k)+pol] = get_phase(f,i).reshape(1,-1) #reshape plays well with omni apply
+            s2[str(k)+pol] = get_phase(fqs,i).T #reshape plays well with omni apply
             s2['d'+str(k)] = i
             if verbose: print 'dly=%f'%i
     if not ubls is None: s2['ubls']=ubls
     if not ex_ants is None: s2['ex_ants']=ex_ants
+    s2['freqs']=fqs#in GHz
     outname='%s.fc.npz'%filename
     import sys
     s2['cmd'] = ' '.join(sys.argv)

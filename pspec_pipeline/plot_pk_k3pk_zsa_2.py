@@ -31,9 +31,9 @@ print args
 
 def noise_level(freq=None):
     tsys = 500e3 #mK
-    inttime = 2477. #seconds.#SK # XXX fix with new integration. get it from frfilter_numbers.py
+    inttime = 1957. #seconds.#SK # XXX fix with new integration. get it from frfilter_numbers.py
     nbls=59 #number of baselines used (if using multiple seps, average the numbers?)
-    ndays = 31 #effectively this many days
+    ndays = 20 #31 #effectively this many days
     nseps = 1 #number of seps used
     folding = 2
     nlsts = 6 #number of LST hours in time-range
@@ -48,15 +48,15 @@ def noise_level(freq=None):
     freqs = n.linspace(.1,.2,203)[110:130] #put in channel range
     B = sdf*freqs.size
     bm = n.polyval(C.pspec.DEFAULT_BEAM_POLY, freq) * 2.35 #correction for beam^2
-    scalar = X2Y * bm 
+    scalar = X2Y * bm #* B
+    #scalar = 1
 
-    fr_correct = 1.66 #get it from frfilter_numbers.py
+    fr_correct = 1.77 #get it from frfilter_numbers.py
 
 
     print 'scalar:', scalar
     print 'BM:', bm
     print 'Tsys:', tsys
-    print 
 
     #error bars minimum width. Consider them flat for P(k). Factor of 2 at the end is due to folding of kpl (root(2)) and root(2) in radiometer equation.
     pk = scalar*fr_correct*( (tsys)**2 / (2*inttime*pol*real*nbls*ndays*nmodes) )
@@ -341,7 +341,7 @@ for sep in RS_VS_KPL:
         nos *= f
         d_fold *= f
         nos_fold *= f
-    if True: # For aggressive fringe-rate filtering, change beam area
+    if False: # For aggressive fringe-rate filtering, change beam area
         f = opts.afrf_factor
 #        f = 1.90 # ratio of power**2 beams for filtered * unfiltered beams: 0.306 / 0.162
         f = 1.39 # ratio of power**2 beams for filtered * unfiltered beams: 0.306 / 0.162
@@ -430,7 +430,7 @@ p.vlines(-k_h, -1e7, 1e8, linestyles='--', linewidth=1.5)
 #p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k_\parallel\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$P(k)[\ {\rm mK}^2\ (h^{-1}\ {\rm Mpc})^3]$',fontsize='large')
-p.ylim(-.6e7,1.75e7)
+p.ylim(-.6e7,1.75e7) #original
 #p.ylim(1e5,5e16)
 p.grid()
 
@@ -456,6 +456,7 @@ theo_noise = noise_level(freq=freq)
 #print kpl_pos[0], theo_noise[0]
 #2 for the 2 sigma
 p.plot(n.array(kpl_pos), 2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2), 'c--')
+n.savez('noise_curve.npz',kpls=kpl_pos,noise=2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2))
 p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')

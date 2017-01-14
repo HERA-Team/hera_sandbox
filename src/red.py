@@ -6,6 +6,8 @@ import numpy as n
 from aipy.miriad import ij2bl, bl2ij
 import aipy as a
 import pylab as p
+import time 
+import multiprocessing as mpr
 
 def group_redundant_bls(antpos):
     '''Return 2 dicts: bls contains baselines grouped by separation ('drow,dcol'), conj indicates for each
@@ -20,7 +22,8 @@ def group_redundant_bls(antpos):
                     i,j = antpos[ri,ci], antpos[rj,cj]
                     if i > j: i,j,c = j,i,True
                     else: c = False
-                    bl = ij2bl(i,j)
+                    #bl = ij2bl(i,j)
+                    bl = (i,j)
                     bls[sep] = bls.get(sep,[]) + [bl]
                     conj[bl] = c
     return bls, conj
@@ -89,95 +92,149 @@ def redundant_bl_cal(d1, w1, d2, w2, fqs, use_offset=False, maxiter=10, window='
     if use_offset: return gain, (tau,off), info
     else: return gain, tau, info
 
-def fit_line(phs, fqs, valid):
+def fit_line(phs, fqs, valid, offset=False):
     fqs = fqs.compress(valid)
     dly = phs.compress(valid)
     B = n.zeros((fqs.size,1)); B[:,0] = dly
-    A = n.zeros((fqs.size,2)); A[:,0] = fqs*2*n.pi; A[:,1] = 1
-    dt,off = n.linalg.lstsq(A,B)[0].flatten()
-    return dt,off
+    if offset:
+        A = n.zeros((fqs.size,2)); A[:,0] = fqs*2*n.pi; A[:,1] = 1
+    else:
+        A = n.zeros((fqs.size,1)); A[:,0] = fqs*2*n.pi#; A[:,1] = 1
+    try:
+        if offset:
+            dt,off = n.linalg.lstsq(A,B)[0].flatten()
+        else:
+            dt = n.linalg.lstsq(A,B)[0][0][0]
+            off = 0.0
+        return dt,off
+    except ValueError:
+        import IPython 
+        IPython.embed()
 
-def redundant_bl_cal_simple(d1,w1,d2,w2,fqs,window='blackman-harris', tune=True, verbose=False, plot=False, clean=1e-4):
-    '''Given redundant measurements, get the phase difference between them.
-       For use on raw data'''
+def mpr_clean(args):
+    return a.deconv.clean(*args,tol=1e-4)[0]
+
+def redundant_bl_cal_simple(d1,w1,d2,w2,fqs, cleantol=1e-4, window='none', finetune=True, verbose=False, plot=False, noclean=True, average=False, offset=False):
+    '''Gets the phase differnce between two baselines by using the fourier transform and a linear fit to that residual slop. 
+        Parameters
+        ----------
+        d1,d2 : NXM numpy arrays.
+            Data arrays to find phase difference between. First axis is time, second axis is frequency. 
+        w1,w2 : NXM numpy arrays. 
+            corrsponding data weight arrays.
+        fqs   : 1XM numpy array
+            Array of frequencies in GHz.
+        window: str
+            Name of window function to use in fourier transform. Default is 'none'.
+        finetune  : boolean 
+            Flag if you want to fine tune the phase fit with a linear fit. Default is true.
+        verbose: boolean
+            Be verobse. Default is False.
+        plot: boolean
+            Turn on low level plotting of phase ratios. Default is False.
+        cleantol: float
+            Clean tolerance level. Default is 1e-4.
+        noclean: boolean
+            Don't apply clean deconvolution to remove the sampling function (weights).
+        average: boolean
+            Average the data in time before applying analysis. collapses NXM -> 1XM.
+        offset: boolean
+            Solve for a offset component in addition to a delay component.
+
+        Returns
+        -------
+        delays : ndarrays
+            Array of delays (if average == False), or single delay.    
+        offsets: ndarrays
+            Array of offsets (if average == False), or single delay.
+    
+'''
     d12 = d2 * n.conj(d1)
-    # For 2D arrays, assume first axis is time and integrate over it
-    if d12.ndim > 1: 
-        d12_sum= n.sum(d12,axis=0)
-        d12_wgt= n.sum(w1*w2,axis=0) 
-    else: 
+    # For 2D arrays, assume first axis is time. 
+    if average:
+        if d12.ndim > 1:
+            d12_sum = n.sum(d12,axis=0).reshape(1,-1)
+            d12_wgt = n.sum(w1*w1,axis=0).reshape(1,-1)
+        else:
+            d12_sum = d12.reshape(1,-1)
+            d12_wgt = w1.reshape(1,-1)*w2.reshape(1,-1)
+    else:
         d12_sum = d12
         d12_wgt = w1*w2
     #normalize data to maximum so that we minimize fft articats from RFI
     d12_sum *= d12_wgt
     d12_sum = d12_sum/n.where(n.abs(d12_sum)==0., 1., n.abs(d12_sum)) 
-    window = a.dsp.gen_window(d12_sum.size, window=window)
+    #import IPython; IPython.embed()
+    #exit()
+    window = a.dsp.gen_window(d12_sum[0,:].size, window=window)
     dlys = n.fft.fftfreq(fqs.size, fqs[1]-fqs[0])
     # FFT and deconvolve the weights to get the phs
-    _phs = n.fft.fft(window*d12_sum)
-    _wgt = n.fft.fft(window*d12_wgt)
-    _phs,info = a.deconv.clean(_phs, _wgt, tol=clean)
-    _phs = n.abs(_phs)
+    _phs = n.fft.fft(window*d12_sum,axis=-1)
+    _wgt = n.fft.fft(window*d12_wgt,axis=-1)
+    _phss = n.zeros_like(_phs)
+    if not noclean and average:
+        _phss = a.deconv.clean(_phs, _wgt, tol=cleantol)[0]
+    elif not noclean:
+        pool=mpr.Pool(processes=4)
+        _phss = pool.map(mpr_clean, zip(_phs,_wgt))
+    else:
+        _phss = _phs
+    #print('Cleaning is taking %f seconds'%(t2-t1))
+    _phss = n.abs(_phss)
     #get bin of phase
-    mx = n.argmax(_phs)
+    mxs = n.argmax(_phss, axis=-1)
     #Fine tune with linear fit.
-    if mx > _phs.size/2: mx -= _phs.size
-    dtau = mx / (fqs[-1] - fqs[0])
-    mxs = mx + n.array([-1,0,1])
-    tau = n.sum(_phs[mxs] * dlys[mxs]) / n.sum(_phs[mxs])
-    dt,off = 0,0
-    if tune:
-#        import IPython; IPython.embed()
-        valid = n.where(n.abs(d12_sum) > 0, 1, 0) # Throw out zeros, which NaN in the log below
-        valid = n.logical_and(valid, n.logical_and(fqs>.11,fqs<.19))
-        dly = n.angle(d12_sum*n.exp(-2j*n.pi*tau*fqs))
-#        fqs_val = fqs.compress(valid)
-#        #dly = n.real(n.log(d12_sum.compress(valid) * n.exp(2j*n.pi*tau*fqs_val))/(2j*n.pi))
-#        import IPython; IPython.embed() 
-#        #Fit is better with lst squares approach
-#        B = n.zeros((fqs_val.size,1)); B[:,0] = dly
-#        A = n.zeros((fqs_val.size,2)); A[:,0] = fqs_val; A[:,1] = 1
-#        dt,off = n.linalg.lstsq(A,B)[0].flatten()
-#        off,dt = n.polyfit(dly,fqs_val,1)
-        dt,off = fit_line(dly,fqs,valid)
-        if plot:
-            #p.plot(fqs,n.unwrap(dly), linewidth=2)
-            p.subplot(411)
-            p.plot(fqs,n.angle(d12_sum), linewidth=2)
-            p.plot(fqs,d12_sum, linewidth=2)
-            p.plot(fqs, n.exp((2j*n.pi*fqs*(tau+dt))+off))
-            p.hlines(n.pi, .1,.2,linestyles='--',colors='k')
-            p.hlines(-n.pi, .1,.2,linestyles='--',colors='k')
-            p.subplot(412)
-            p.plot(fqs,n.unwrap(dly)+2*n.pi*tau*fqs, linewidth=2)
-            p.plot(fqs,dly+2*n.pi*tau*fqs, linewidth=2,ls='--')
-            p.plot(fqs,2*n.pi*tau*fqs, linewidth=2,ls='.-')
-            p.plot(fqs,2*n.pi*(tau+dt)*fqs + off, linewidth=2,ls=':')
-            #ax = p.gca()
-            p.subplot(413)
-            p.plot(dlys, _phs,'.-')
-            p.xlim(-400,400)
-            p.subplot(414)
-            p.plot(fqs,dly, linewidth=2)
-            #p.plot(fqs,n.unwrap(dly), linewidth=2)
-            p.plot(fqs,off+dt*fqs*2*n.pi, '--')
-            p.hlines(n.pi, .1,.2,linestyles='--',colors='k')
-            p.hlines(-n.pi, .1,.2,linestyles='--',colors='k')
-            print 'tau=', tau
-            print 'tau + dt=', tau+dt
-            p.show()
-            #p.plot(fqs,n.angle(d12_sum), linewidth=2)
-            p.xlabel('Frequency (GHz)', fontsize='large')
-            p.ylabel('Phase (radians)', fontsize='large')
-            #p.plot(fqs,n.unwrap(dly))
-#        print off
-#    #    p.plot(fqs_val,pp[0] + pp[1]*fqs_val)
-            #p.show()
-    # Pull out an integral number of phase wraps
+    mxs[mxs>_phss.shape[-1]/2] -= _phss.shape[-1]
+    dtau = mxs / (fqs[-1] - fqs[0])
+    mxs = n.dot(mxs.reshape(len(mxs),1),n.ones((1,3),dtype=int)) + n.array([-1,0,1])
+    #import IPython; IPython.embed()
+    taus = n.sum(_phss[n.arange(mxs.shape[0],dtype=int).reshape(-1,1),mxs] * dlys[mxs],axis=-1) / n.sum(_phss[n.arange(mxs.shape[0]).reshape(-1,1),mxs],axis=-1)
+    dts,offs = [],[]
+    if finetune:
+    #loop over the linear fits
+        t1 = time.time()
+        for ii,(tau,d) in enumerate(zip(taus,d12_sum)):
+            valid = n.where(d != 0, 1, 0) # Throw out zeros, which NaN in the log below
+            #print valid.any()
+            valid = n.logical_and(valid, n.logical_and(fqs>.11,fqs<.19))
+            dly = n.angle(d*n.exp(-2j*n.pi*tau*fqs))
+            dt,off = fit_line(dly,fqs,valid,offset=offset)
+            dts.append(dt), offs.append(off)
+            if plot:
+                p.subplot(411)
+                p.plot(fqs,n.angle(d12_sum[ii]), linewidth=2)
+                p.plot(fqs,d12_sum[ii], linewidth=2)
+                p.plot(fqs, n.exp((2j*n.pi*fqs*(tau+dt))+off))
+                p.hlines(n.pi, .1,.2,linestyles='--',colors='k')
+                p.hlines(-n.pi, .1,.2,linestyles='--',colors='k')
+                p.subplot(412)
+                p.plot(fqs,n.unwrap(dly)+2*n.pi*tau*fqs, linewidth=2)
+                p.plot(fqs,dly+2*n.pi*tau*fqs, linewidth=2,ls='--')
+                p.plot(fqs,2*n.pi*tau*fqs, linewidth=2,ls='-.')
+                p.plot(fqs,2*n.pi*(tau+dt)*fqs + off, linewidth=2,ls=':')
+                p.subplot(413)
+                p.plot(dlys, n.abs(_phs[ii]),'-.')
+                p.xlim(-400,400)
+                p.subplot(414)
+                p.plot(fqs,dly, linewidth=2)
+                p.plot(fqs,off+dt*fqs*2*n.pi, '--')
+                p.hlines(n.pi, .1,.2,linestyles='--',colors='k')
+                p.hlines(-n.pi, .1,.2,linestyles='--',colors='k')
+                print 'tau=', tau
+                print 'tau + dt=', tau+dt
+                p.xlabel('Frequency (GHz)', fontsize='large')
+                p.ylabel('Phase (radians)', fontsize='large')
+        p.show()
+
+        #print('Linear Fitting is taking %f seconds'%(time.time()-t1))
+        dts = n.array(dts)
+        offs = n.array(offs)
+
+           # Pull out an integral number of phase wraps
     #if verbose: print tau, dtau, mxs, dt, off
-    info = {'dtau':dt, 'off':off, 'mx':mx} # Some information about last step, useful for detecting screwups
-    if verbose: print info, tau, tau+dt+off
-    return tau+dt,off
+    info = {'dtau':dts, 'off':offs, 'mx':mxs} # Some information about last step, useful for detecting screwups
+    if verbose: print info, taus, taus+dts, offs
+    return taus+dts,offs
 
 
 

@@ -3,7 +3,7 @@ import aipy as a, numpy as n
 from scipy import interpolate
 
 #computes the beam squared
-def beam_real(ant, ntop, shape0, pol, sq=True):
+def beam_real(ant, ntop, shape0=None, pol='x', sq=True):
         Nfreq = len(ant.bm_response(ntop,pol=pol))
         bmp_list = []
         for nf in range(Nfreq):
@@ -13,7 +13,7 @@ def beam_real(ant, ntop, shape0, pol, sq=True):
             bmsq = bm*bm
             bmp = bm
             if sq: bmp = bmsq
-            bmp.shape = shape0
+            if shape0!=None: bmp.shape = shape0
             bmp_list.append(bmp)
         return bmp_list
 
@@ -31,7 +31,8 @@ def beam_fourier(bmp, dreal, nreal, dl=0.005):
         fbm = n.fft.fft2(bmp)
         frequv = n.fft.fftfreq(nreal,d=dreal)
         freqk = frequv*2*n.pi
-        fbmamp = fbm.real*dl*dl
+        #fbmamp = fbm.real*dl*dl
+        fbmamp = n.abs(fbm)*dl*dl
         #fbmamp = n.abs(fbm)
         freq = frequv
         fbmamp = n.array(n.fft.fftshift(fbmamp))

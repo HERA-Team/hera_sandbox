@@ -27,9 +27,9 @@ opts,args = o.parse_args(sys.argv[1:])
 
 
 ### Plot ChiSq ####
+#if opts.pol == -1: pol = args[0].split('.')[3] #XXX hard-coded for *pol.npz files
+pol = opts.pol
 if opts.chisq == True:
-    if opts.pol == -1:
-        pol = args[0].split('.')[3] #XXX hard-coded for *pol.npz files
     chisqs = []
     for i,file in enumerate(args):
         print 'Reading',file
@@ -52,44 +52,57 @@ if opts.chisq == True:
     plt.show()
 
 
-### Plot Gains ###
+### Plot Gains or Chisqants ###
 if opts.gains == True or opts.chisqant == True:
     gains = {} #or chisqant values, depending on option
-    for i, file in enumerate(args): #loop over files
-        print 'Reading',file
-        file = numpy.load(file)
-        for key in file.keys(): #loop over antennas
-            if key[0] != '<' and key[0] != '(' and key[0].isalpha() != True and opts.gains == True:
-                gain = file[key]
-                antnum = key[:-1]
-                try: gains[antnum].append(gain)
-                except: gains[antnum] = [gain]
+    for i, f in enumerate(args): #loop over files
+        print 'Reading',f
+        file = numpy.load(f)
+        for a in range(128):
+            if opts.chisqant == True: #chisqant / gain
+                try: value = file['chisq'+str(a)+pol[0]]/file[str(a)+pol[0]] #XXX only 0th element of pol
+                except: continue
+                try: gains[a].append(value)
+                except: gains[a] = [value]
+                vmax=0.05
+                vmin=0.0
+            if opts.gains == True:
+                print "option doesn't exist yet"
+                sys.exit()
+                try: value = file[str(a)+pol[0]] #XXX only the 0th element of pol
+                except: continue
+                try: gains[a].append(value)
+                except: gains[a] = [value]
                 vmax=1.5
-            if key[0] == 'c' and opts.chisqant == True and len(key) > 5: #if plotting chisq per ant
-                gain = file[key]
-                antnum = key.split('chisq')[1][:-1]
-                try: gains[antnum].append(gain)
-                except: gains[antnum] = [gain]
-                vmax=2
+        file.close()
     for key in gains.keys():
         gains[key] = numpy.vstack(numpy.abs(gains[key])) #cool thing to stack 2D arrays that only match in 1 dimension
         mk = numpy.ma.masked_where(gains[key] == 1,gains[key]).mask #flags
         gains[key] = numpy.ma.masked_array(gains[key],mask=mk) #masked array
-    #import IPython;IPython.embed()
-    subplotnum = 1
-    plotnum = 1
-    plt.figure(plotnum,figsize=(10,10))
-    for ant in gains.keys(): #loop over antennas
-        if subplotnum == 26:
-            #break #only generate one page of plots (faster for testing) 
-            plotnum += 1
-            plt.figure(plotnum,figsize=(10,10))
-            subplotnum = 1
-        plt.subplot(5,5,subplotnum)
-        plt.imshow(gains[ant],vmax=vmax,aspect='auto',interpolation='nearest')
-        plt.title(ant,fontsize=10)
-        plt.tick_params(axis='both',which='major',labelsize=6)
-        plt.tight_layout()
-        subplotnum += 1
+    #Plotting
+    means = []
+    ants = []
+    f,axarr = plt.subplots(8,14,figsize=(14,8),sharex=True,sharey=True)
+    for ant in range(max(map(int,gains.keys()))+1):
+        i1 = ant/14 #row number
+        i2 = ant%14 #col number
+        axarr[i1,i2].set_title(ant,fontsize=10)
+        axarr[i1,i2].tick_params(axis='both',which='both',labelsize=8)
+        try:
+            means.append(numpy.median(gains[ant][:,:])) #median, not mean #XXX freq range restriction
+            ants.append(ant)
+            axarr[i1,i2].imshow(gains[ant],vmax=vmax,aspect='auto',interpolation='nearest')
+        except: continue
+    f.subplots_adjust(hspace=0.7)
+    print 'Bad Antennas (starting with highest chisq):',[ants[i] for i in numpy.argsort(means)[::-1]]
+    plt.show()  
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    A = numpy.linspace(0,len(means)-1,len(means))
+    B = numpy.sort(means)[::-1]
+    plt.plot(A,B,'ko')
+    for index,(i,j) in enumerate(zip(A,B)):
+        ax.annotate([ants[k] for k in numpy.argsort(means)[::-1]][index], xy=(i,j),size=10)
+    plt.title('Median Chisq (high to low)')
     plt.show()
-
+    print '1 sigma cut on median chisq: ',[ants[i] for i in numpy.where(means > numpy.mean(means) + 1.0*numpy.std(means))[0]]

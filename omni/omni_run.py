@@ -47,22 +47,17 @@ for pp,p in enumerate(pols):
     if opts.fc2 != None: #if fc2 file is given
         if p in opts.fc2:
             print 'Reading', opts.fc2
-            cp = numpy.load(opts.fc2)
-            for i in cp.keys():
-                if i.isdigit():
-                    g0[p[0]][int(i)] = cp[i] / numpy.abs(cp[i])
+            _,_g0,_,_ = capo.omni.from_npz(opts.fc2)
+            for i in _g0[p[0]].keys():
+                #print i
+                g0[p[0]][i] = _g0[p[0]][i][:,:] / numpy.abs(_g0[p[0]][i][:,:])
         else:
-            new_cp = opts.fc2.split('.npz')[0][:-2]+p+'.npz'
-            print 'Reading', new_cp
-            cp = numpy.load(new_cp)
-            for i in cp.keys():
-                g0[p[0]][int(i)] = cp[i] / numpy.abs(cp[i])
-        
+            raise IOError("Please provide a first cal file") 
 for filename in args:
     files[filename] = {}
     for p in pols:
         fn = filename.split('.')
-        fn[-2] = p
+        fn[3] = p
         files[filename][p] = '.'.join(fn)
 
 #Create info
@@ -82,7 +77,6 @@ else: #generate reds from calfile
     else: ex_ants = []
     info = capo.omni.aa_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, crosspols=pols)
 reds = info.get_reds()
-#import IPython;IPython.embed()
 
 ### Omnical-ing! Loop Through Compressed Files ###
 for f,filename in enumerate(args):
@@ -109,7 +103,10 @@ for f,filename in enumerate(args):
     data,wgts,xtalk = {}, {}, {}
     m2,g2,v2 = {}, {}, {}
     for p in g0.keys():
-        for i in g0[p]: g0[p][i] = numpy.resize(g0[p][i],SH) #resize gains like data
+        for i in g0[p]: 
+            if g0[p][i].shape != (len(t_jd),len(freqs)):
+                g0[p][i] = numpy.resize(g0[p][i],SH) #resize gains like data
+            else: continue
     data = d #indexed by bl and then pol (backwards from everything else)
     for p in pols:
         wgts[p] = {} #weights dictionary by pol
@@ -117,9 +114,9 @@ for f,filename in enumerate(args):
             i,j = bl
             wgts[p][(j,i)] = wgts[p][(i,j)] = numpy.logical_not(f[bl][p]).astype(numpy.int)
     print '   Logcal-ing' 
-    m1,g1,v1 = capo.omni.redcal(data,info,gains=g0, removedegen=True) #SAK CHANGE REMOVEDEGEN
+    m1,g1,v1 = capo.omni.redcal(data,info,gains=g0, removedegen=False) #SAK CHANGE REMOVEDEGEN
     print '   Lincal-ing'
-    m2,g2,v2 = capo.omni.redcal(data, info, gains=g1, vis=v1, uselogcal=False, removedegen=True)
+    m2,g2,v2 = capo.omni.redcal(data, info, gains=g1, vis=v1, uselogcal=False, removedegen=False)
     xtalk = capo.omni.compute_xtalk(m2['res'], wgts) #xtalk is time-average of residual
     m2['history'] = 'OMNI_RUN: '+''.join(sys.argv) + '\n'
     m2['jds'] = t_jd

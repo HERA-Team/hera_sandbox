@@ -11,7 +11,7 @@ def beam_area(hmap):
     return 4*n.pi*n.sum(hmap)/h.npix()
 
 #get antenna array
-aa = a.cal.get_aa('psa6240_v003', n.array([.159])) #XXX hard-coded
+aa = a.cal.get_aa('psa6622_v003', n.array([.159])) #XXX hard-coded
 
 h = a.healpix.HealpixMap(nside=64) #healpix map for the beam
 xyz = h.px2crd(n.arange( h.npix() ), ncrd=3)
@@ -21,14 +21,16 @@ _bmy = aa[0].bm_response((tx,ty,tz),pol='y')[0]
 bmI = 0.5 * (_bmx**2 + _bmy**2)
 bmI = n.where(tz > 0, bmI, 0) # only use beam values above the horizon.
 
-bl = aa.get_baseline(0,26,'r') * .151 #baseline length in frequency.
+bl = aa.get_baseline(0,26,'r') * .151 #XXX hard-coded baseline length in frequency.
 print aa.get_baseline(0,26,'r')
-fng = C.frf_conv.mk_fng(bl, xyz)
+fng = fringe.mk_fng(bl,xyz)
 
 #get the fringe rate filter in frf_conv. aa only has one channel in it.
 frp, bins = fringe.aa_to_fr_profile(aa, (1,4), 0) #XXX hard-coded
-tbins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[0],alietal=True)
-frp = fringe.fir_to_frp(firs)
+tbins, firs = fringe.frp_to_firs(frp, bins, aa.get_freqs(), fq0=aa.get_freqs()[0],alietal=False)
+#frp = fringe.fir_to_frp(firs)
+
+## Old way of calculating FRP,FIRS,etc. ##
 #frf,bins,wgt,(cen,wid) = C.frf_conv.get_optimal_kernel_at_ref(aa, 0, (0,26)) 
 #bwfrs = C.frf_conv.get_beam_w_fr(aa, (0,26), ref_chan=0) 
 #tbins,firs,frbins,frfs = C.frf_conv.get_fringe_rate_kernels(bwfrs,42.9,403)
@@ -48,7 +50,8 @@ crit_noise_lev = n.sum(skypass**2) / bins.size
 #ditto for the optimal weights.
 fng_noise_lev = n.sum(n.abs(frp)**2)/ bins.size
 
-print 'integration times', 31.6*(1/crit_noise_lev), 31.6*(1/fng_noise_lev)
+print 'integration times PSA128', 31.6*(1/crit_noise_lev), 31.6*(1/fng_noise_lev)
+print 'integration times PSA64', 43*(1/crit_noise_lev), 43*(1/fng_noise_lev)
 print 'beams (flat) (optimal) [power]', beam_area(bmI), beam_area(fng_bm)
 print 'beams (flat) (optimal) [power^2]', beam_area(bmI**2), beam_area(fng_bm**2)
 #signal loss is the ratio of the beams.
