@@ -66,12 +66,14 @@ for anchor_ant in range(int(opts.startant),nants):
         #avg_xy = np.nanmean(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpxy[tup]['xy'],fpxy[tup]['xy']),axes=1))[:,hor_index1:hor_index2]) #/ np.nanmean(np.delete(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpxy[tup]['xy'],fpxy[tup]['xy']),axes=1)),np.s_[hor_index1:hor_index2],axis=1)) #dynamic range
         #avg_yx = np.nanmean(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpyx[tup]['yx'],fpyx[tup]['yx']),axes=1))[:,hor_index1:hor_index2]) #/ np.nanmean(np.delete(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpyx[tup]['yx'],fpyx[tup]['yx']),axes=1)),np.s_[hor_index1:hor_index2],axis=1)) #dynamic range
         #avg_yy = np.nanmean(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpyy[tup]['yy'],fpyy[tup]['yy']),axes=1))[:,hor_index1:hor_index2]) / np.nanmean(np.delete(np.absolute(np.fft.fftshift(C.arp.clean_transform(dpyy[tup]['yy'],fpyy[tup]['yy']),axes=1)),np.s_[hor_index1:hor_index2],axis=1)) #dynamic range
-        avg_xx = np.nanmean(np.absolute(dpxx[tup]['xx']))
-        avg_yy = np.nanmean(np.absolute(dpyy[tup]['yy']))
-        ratio_xx = avg_xx #identify bad antennas
-        ratio_yy = avg_yy
-        avg_ratios_xx.append(ratio_xx)    
-        avg_ratios_yy.append(ratio_yy)
+        try: #sometimes an antenna isn't in the file
+            avg_xx = np.nanmean(np.absolute(dpxx[tup]['xx']))
+            avg_yy = np.nanmean(np.absolute(dpyy[tup]['yy']))
+            ratio_xx = avg_xx #identify bad antennas
+            ratio_yy = avg_yy
+            avg_ratios_xx.append(ratio_xx)    
+            avg_ratios_yy.append(ratio_yy)
+        except: continue
     baddies_xx = np.where(avg_ratios_xx < np.nanmean(avg_ratios_xx) / 4 )[0]
     baddies_yy = np.where(avg_ratios_yy < np.nanmean(avg_ratios_yy) / 4 )[0]
     if opts.verb: 
@@ -80,6 +82,6 @@ for anchor_ant in range(int(opts.startant),nants):
     antpowers_xx.append(np.nanmean(avg_ratios_xx))
     antpowers_yy.append(np.nanmean(avg_ratios_yy))
 print "   FINAL BAD ANTENNAS:" 
-print "   xx: ",np.where(antpowers_xx < np.mean(antpowers_xx)-2*np.std(antpowers_xx))[0]
-print "   yy: ",np.where(antpowers_yy < np.mean(antpowers_yy)-2*np.std(antpowers_yy))[0]
+print "   xx: ",np.where(antpowers_xx < np.nanmean(antpowers_xx)-2*np.nanstd(antpowers_xx))[0]
+print "   yy: ",np.where(antpowers_yy < np.nanmean(antpowers_yy)-2*np.nanstd(antpowers_yy))[0]
 import IPython;IPython.embed()

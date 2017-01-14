@@ -55,8 +55,11 @@ for jd in jds:
         uvi1 = a.miriad.UV(file1)
         t2,d2,f2 = C.arp.get_dict_of_uv_data([file2],antstr='cross',polstr=POL_WGTS[s].keys()[1])
         
+        uvi2 = a.miriad.UV(file2)
         uvo = a.miriad.UV(outfile, status='new')
         uvo.init_from_uv(uvi1, override={'pol':a.miriad.str2pol[s]})
         uvo.pipe(uvi1, mfunc=mfunc, raw=True, append2hist='COMBINE_POL:' + ' '.join(sys.argv) + '\n')
-        del(uvi1); del(uvo)
+        try: uvo['var'] = uvi1['var']**2 + uvi2['var']**2 #if LST-binned already
+        except: pass
+        del(uvi1); del(uvo); del(uvi2)
         

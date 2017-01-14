@@ -95,13 +95,17 @@ uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
-inttime = uv['inttime']
+#inttime = uv['inttime']
+#manually find inttime by differencing file times
+(uvw,t1,(i,j)),d = uv.read()
+(uvw,t2,(i,j)),d = uv.read()
+while t1 == t2: (uvw,t2,(i,j)),d = uv.read()
+inttime = (t2-t1)* (3600*24)
 
 afreqs = freqs.take(chans)
 nchan = chans.size
 fq = n.average(afreqs)
 z = capo.pspec.f2z(fq)
-
 aa = a.cal.get_aa(opts.cal, afreqs)
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
 sep2ij, blconj, bl2sep = capo.zsa.grid2ij(aa.ant_layout)
@@ -318,10 +322,11 @@ for boot in xrange(opts.nboot):
     dse.set_data(dsets=data_dict_eor,conj=conj_dict,wgts=flg_dict)
    
     #Old Sigloss: Change C in dse to be from ds2
-    newiC = {}
-    for key in keys:
-        newiC[key] = ds2.iC(key).copy()
-    dse.set_iC(newiC)
+    if opts.oldsigloss: 
+        newiC = {}
+        for key in keys:
+            newiC[key] = ds2.iC(key).copy()
+        dse.set_iC(newiC)
 
     if True:
         newkeys,ds2C = ds2.group_data(keys,gps) #group data (gps already determined before)

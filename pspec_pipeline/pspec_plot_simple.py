@@ -5,8 +5,8 @@ import capo as C
 import sys, optparse, re, os
 
 o=optparse.OptionParser()
-o.add_option('--cov', action='store', type='float', default=None,
-            help='scale factor for signal loss in covariance removal')
+o.add_option('--cov', action='store', default=None,
+            help='Scale factor for signal loss in covariance removal. Can be a number or an npz file that stores the factor under keyword "factor".')
 o.add_option('--nonoise', action='store_true',
             help="Don't plot noise curve.")
 o.add_option('--SENSE', default=None,
@@ -18,13 +18,13 @@ def noise_level(freq=None):
     #inttime = 32 #sec
     inttime = 1957 #PSA128 optimal FRF: get it from frfilter_numbers.py
     #inttime = 3365 #PSA64 optimal FRF
-    nbls=59 #number of baselines used (if using multiple seps, average the numbers?)
-    #nbls=51
+    #nbls=59 #number of baselines used (if using multiple seps, average the numbers?)
+    nbls=64 #S1E1
     ndays = 20 #31 #effectively this many days
     #ndays = 100
     nseps = 1 #number of seps used
     folding = 2
-    nlsts = 6 #number of LST hours in time-range
+    nlsts = 9 #number of LST hours in time-range
     nmodes = (nseps*folding*nlsts*60*60/inttime)**.5
     pol = 2
     real = 2 #??? what is this again?
@@ -190,7 +190,10 @@ for sep in RS_VS_KPL:
         d_fold *= f
         nos_fold *= f
     if not opts.cov is None:
-        f =  opts.cov
+        if opts.cov[-3:] == 'npz':
+            f = n.load(opts.cov)['factor']
+        else:
+            f =  opts.cov
         print 'Scaling data and noise by %f for signal loss from empirically estimating covariances.' % f
         d *= f
         nos *= f
@@ -217,14 +220,15 @@ p.grid()
 p.subplot(122)
 #noise curve
 kpl_pos = ks[k0+1:]
-theo_noise = noise_level(freq=freq)
+theo_noise = 2*n.array(kpl_pos)**3*(noise_level(freq=freq))/(2*n.pi**2)
 if opts.SENSE != None: 
     sensefile = n.load(opts.SENSE)
+    print 'Reading sensitivity curve from', opts.SENSE
     theo_noise = sensefile['T_errs']
     kpl_pos = sensefile['ks']
 if opts.nonoise: pass
-else: p.plot(n.array(kpl_pos), 2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2), 'c--')
-n.savez('noise_curve.npz',kpls=kpl_pos,noise=2*n.array(kpl_pos)**3*theo_noise/(2*n.pi**2))
+else: p.plot(n.array(kpl_pos), theo_noise, 'c--')
+n.savez('noise_curve.npz',kpls=kpl_pos,noise=theo_noise)
 #p.vlines(k_h, -1e7, 1e7, linestyles='--', linewidth=1.5)
 p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
