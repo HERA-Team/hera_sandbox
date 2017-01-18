@@ -92,7 +92,7 @@ if __name__ == '__main__':
     bfs = prepare(TT)
     print 'done'
 
-    corr = Parallel(n_jobs=12)(delayed(find_corr)(i, bfs) for i in xrange(N))
+    corr = Parallel(n_jobs=2)(delayed(find_corr)(i, bfs) for i in xrange(N))
     corr = np.array(corr)
     print 'shape of corr:',corr.shape
 

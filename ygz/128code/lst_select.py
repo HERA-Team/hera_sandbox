@@ -45,7 +45,7 @@ else: srclist =[]
 #parse the ra range
 if not opts.ra_rng is None:
     ra1,ra2 = map(ephem.hours, opts.ra_rng.split('_'))
-    if ra1>ra2: ra1,ra2 = ra2,ra2
+    if ra1>ra2: ra1,ra2 = ra2,ra1
 else:
     ra1,ra2  = (0,0)
 active=0
