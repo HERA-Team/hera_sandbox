@@ -15,12 +15,12 @@ REDNORM = 505572.5                 #peak of equivalent Opp
 #REDNORM = 1.  #to compute REDNORM
 #REDNORM = 2.51664842232e-05 #nside=128
 #BLUENORM=0.18755
-COMPARE = True
+COMPARE = False
 try: ver = cuedict[str(bl1[1])+'_'+str(bl2[1])]
 except(KeyError): ver = 0.
 print 'DelT = ', ver
 T0 = 2455700.5
-T1 = n.arange(2455700.3,2455700.7,0.001)
+T1 = n.arange(2455700.4,2455700.6,0.0001)
 #############################################################################
 if COMPARE:
     fname = 'blout_'+str(bl1[0])+'_'+str(bl1[1])+'_'+str(bl2[0])+'_'+str(bl2[1])+'.npz'
@@ -79,7 +79,7 @@ for t1 in T1:
 
     #bm = n.ones_like(tx)
     #bm = n.where(tz > 0, bm, 0)
-    bm = n.where(tz > 0.001, bm, 0)
+    bm = n.where(tz > 0.0001, bm, 0)
     #import IPython; IPython.embed()
     #print bm.sum()
     #bm /= bm.sum()

@@ -49,7 +49,7 @@ LMODE = opts.lmode
 
  #################################################
 SEP, SEPD = opts.sep, opts.sepd
-DicT = {'sep0,1_sep-1,1':0.0548, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
+DicT = {'sep0,1_sep-1,1':0.0535, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
 DicS = {'sep0,1_sep-1,1':0.46000}
 DelT = DicT[SEP+'_'+SEPD]*2*n.pi*(24*3600./a.const.sidereal_day)   #sidereal day?
 print 'DelT=', DelT, 'radians'
@@ -59,6 +59,7 @@ else:
     s_factor = DicS[SEP+'_'+SEPD]
 NOGROUP = True
 if EQUIV: NOGROUP=False
+print NOGROUP, SEP, SEPD
 ###################################################
 
 ### FUNCTIONS ###
@@ -196,7 +197,7 @@ bls_master = []
 for key in keys: #populate list of baselines
     if key[0] == keys[0][0]: bls_master.append(key[1])
 print 'Baselines:', len(bls_master)
-
+#import IPython; IPython.embed()
 #Align and create dataset
 ds = oqe.DataSet(lmode=LMODE)
 if opts.lbins:
@@ -208,7 +209,7 @@ if opts.lbins:
 else:
     inds = oqe.lst_align(lsts)
     data_dict,flg_dict,lsts = oqe.lst_align_data(inds,dsets=data_dict,wgts=flg_dict,lsts=lsts) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
-
+#import IPython; IPython.embed()
 #If data is replaced by noise
 if opts.noise_only:
     if opts.same == None and opts.diff == None: 
@@ -261,7 +262,7 @@ if PLOT and True:
         p.colorbar()
         p.title('C')
         U,S,V = n.linalg.svd(ds.C(key).conj()) 
-        S += S[LMODE-1]
+        if LMODE: S += S[LMODE-1]
         p.subplot(324); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
         p.subplot(313); capo.arp.waterfall(n.dot(ds.iC(key),ds.x[key]), mode='real')#,drng=6000,mx=3000)
         p.colorbar()
@@ -278,10 +279,12 @@ for boot in xrange(opts.nboot):
     if NOGROUP:
         #gp1 = np.random.choice(sep)
         gps = [sep_avail, sepd_avail]
+        print 'NOGROUP'
         print len(gps), len(gps[0]), len(gps[1]), len(bls_master)
         newkeys,dsC = ds.group_data(keys,gps)
         newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
-    elif True: #shuffle and group baselines for bootstrapping
+    elif True: 
+        print 'shuffle and group baselines for bootstrapping'
         gps = ds.gen_gps(bls_master, ngps=NGPS)
         newkeys,dsC = ds.group_data(keys,gps)
         newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
