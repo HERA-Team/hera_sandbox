@@ -13,12 +13,13 @@ echo ${ARGS}
 
 for f in ${ARGS}; do
     if (( ${f:33:7} > 2456678 )); then
-        echo working on ${f}...
-        ~/capo/omni/omni_run.py  -p xx  -C psa6622_v003 --omnipath /data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_test_ctc_2/ --fc2 *uvcRREc.median.fc.npz --ba 16,85,34,84,100 ${f} #S1E2xx 
+        echo working on ${f}, which is in E2...
+        #~/capo/omni/omni_run.py  -p yy -C psa6622_v003 --omnipath /data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v3_xtalk/ --fc2 /data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v3_xtalk/*yy.uvcRREc.median.fc.npz --ba 100,7,56,84 ${f} #S1E2yy 
+        ~/capo/omni/omni_run.py  -p xx -C psa6622_v003 --omnipath /data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v3_xtalk_removedegenOFF/ --fc2 /data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v3_xtalk_removedegenOFF/*xx.uvcRREc.median.fc.npz --ba 34,84,100 ${f} #S1E2xx 
     fi 
     #if (( ${f:33:7} < 2456679 )); then
-    #    echo working on ${f}...
-    #    ~/capo/omni/omni_run.py  -p xx  -C psa6622_v003 --omnipath /data4/paper/2013EoR/Analysis/ProcessedData/epoch1/omni_v3_xtalk/ --fc2 *uvcRREc.median.fc.npz --ba 2,10,15,22,31,33,42,43,47,58,64,72,91,97,105,107,34,84,100 ${f} #S1E1xx 
+    #    echo working on ${f}, which is in E1...
+    #    ~/capo/omni/omni_run.py  -p yy  -C psa6622_v003 --omnipath /data4/paper/2013EoR/Analysis/ProcessedData/epoch1/omni_v3_xtalk/ --fc2 /data4/paper/2013EoR/Analysis/ProcessedData/epoch1/omni_v3_xtalk/*yy.uvcRREc.median.fc.npz --ba 2,10,15,22,31,33,42,43,47,58,64,72,91,97,105,107,100,7,56,84 ${f} #S1E1yy
     #fi
     #~/capo/omni/omni_run.py --calpar /data4/paper/2013EoR/Analysis/ProcessedData/epoch1/calpar_first_cal_epoch1xx.p --omnipath /data4/paper/2013EoR/Analysis/ProcessedData/epoch1/omni_v2_xtalk/ --ba 2,10,14,15,16,22,26,27,28,31,33,34,38,42,43,46,47,50,53,58,64,72,74,84,91,97,105,107 -p xx -C psa6622_v003 ${f} #S1E1xx
     #~/capo/omni/omni_run.py --calpar /data4/paper/2013EoR/Analysis/ProcessedData/epoch1/calpar_first_cal_epoch1yy.p --omnipath /data4/paper/2013EoR/Analysis/ProcessedData/epoch1/omni_v2_xtalk/ --ba 2,3,7,10,15,16,22,23,26,30,31,33,34,38,42,43,46,47,50,56,58,60,64,72,91,97,100,105,107 -p yy -C psa6622_v003 ${f} #S1E1yy
