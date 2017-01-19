@@ -1,18 +1,69 @@
 import numpy as n,os
-from capo import pspec
+from capo import pspec, cosmo_units
 from capo.cosmo_units import f212z, c
 import glob
 import ipdb
 import matplotlib.pyplot as p
 import numpy as np
+# from twentyonecmfast_tools import load_andre_models, all_and
+
 #measurements
 
 def errorbars(data,axis=1,per=95):
-    mean = n.percentile(data,50,axis=axis)
-    lower = mean - n.percentile(data, 50-per/2.,axis=axis)
-    upper = n.percentile(data,50+per/2.,axis=axis) - mean
+    mean = n.percentile(data, 50, axis=axis)
+    lower = mean - n.percentile(data, 50-per/2., axis=axis)
+    upper = n.percentile(data, 50+per/2., axis=axis) - mean
     return lower, upper
 
+
+def load_andre_models():
+    """Get Arrays of parms, ks, delta^2 and err from 21cmfast output.
+
+    Input a string that globs to the list of input model files
+    return arrays of parameters,k modes, delta2,and delt2 error
+    parm_array expected to be nmodels,nparms
+    with columns (z,Nf,Nx,alphaX,Mmin,other-stuff....)
+    delta2_array expected to be nmodels,nkmodes
+    """
+    filenames = glob.glob(os.path.dirname(__file__)+'/data/21cmfast/ps*')
+    filenames.sort()
+    parm_array = []
+    k_array = []
+    delta2_array = []
+    delta2_err_array = []
+    for filename in filenames:
+        parms = os.path.basename(filename).split('_')
+        if parms[0].startswith('reion'):
+            continue
+        parm_array.append(map(float, [parms[3][1:],
+                                      parms[4][2:],  # Nf
+                                      parms[6][2:],  # Nx
+                                      parms[7][-3:],  # alphaX
+                                      parms[8][5:],  # Mmin
+                                      parms[9][5:]]))
+        D = np.loadtxt(filename)
+        k_array.append(D[:, 0])
+        delta2_array.append(D[:, 1])
+        delta2_err_array.append(D[:, 2])
+    parm_array = np.array(parm_array)
+    raw_parm_array = parm_array.copy()
+    k_array = np.ma.array(k_array)
+    raw_k_array = k_array.copy()
+    delta2_array = np.ma.masked_invalid(delta2_array)
+    raw_delta2_array = delta2_array.copy()
+    delta2_err_array = np.ma.array(delta2_err_array)
+    return parm_array, k_array, delta2_array, delta2_err_array
+
+
+def all_and(arrays):
+    """Input list or array, return arrays added together.
+    """
+    if len(arrays) == 1:
+        return arrays
+    out = arrays[0]
+    for arr in arrays[1:]:
+        out = np.logical_and(out, arr)
+    return out
 
 
 def PAPER_32_all():
@@ -121,7 +172,7 @@ def MWA_32T_all():
 
 def MWA_128_all():
     '''
-    MWSA_128 data from dillion 2015
+    MWA_128 data from dillion 2015
     return format will be dict[z] = n.array([[k,Delta^2,top,bottom]]) all in mK^2
     '''
     MWA_RESULTS_FILE=glob.glob(os.path.dirname(__file__)+'/data/mwa128/*.dat')
@@ -136,6 +187,18 @@ def MWA_128_all():
         results[z] = data[:,[0,1,5,4]]
 
     return results
+
+def MWA_128_beards():
+    """MWA_128 data from Beardsley 2016.
+
+    return formatted as dict[z] = n.array([k,delta^2, top, bottom]) in mK^2
+    """
+    MWA_beards = {}
+    MWA_beards[7.1] = n.array([[0.27, 0, 2.7e4, 0]])
+    MWA_beards[6.8] = n.array([[0.24, 0, 3.02e4, 0]])
+    MWA_beards[6.5] = n.array([[0.24, 0, 3.22e4, 0]])
+    return MWA_beards
+
 def z_slice(redshift,pspec_data):
     """
     input a power spectrum data dict output of MWA_32T_all() or GMRT_2014_all()
@@ -203,7 +266,7 @@ def get_pk_from_npz(files=None, verbose=False):
     """
     if files is None:
         print 'No Files gives for loading'
-        return 0, '', '', ''
+        return [], [], [], []
 
     if len(n.shape(files)) == 0:
         files = [files]
@@ -238,7 +301,7 @@ def get_pk_from_npz(files=None, verbose=False):
     if len(freqs) == 0:  # check if any files were loaded correctly
         print 'No parsable frequencies found'
         print 'Exiting'
-        return 0, '', '', ''
+        return [], [], [], []
 
     if verbose:
         print "sorting input files by frequency"
@@ -277,7 +340,7 @@ def get_k3pk_from_npz(files=None, verbose=False):
     """
     if files is None:  # check that files are passed
         print 'No Files given for loading'
-        return 0, '', '', ''
+        return [], [], [], []
 
     if len(n.shape(files)) == 0:
         files = [files]
@@ -312,7 +375,7 @@ def get_k3pk_from_npz(files=None, verbose=False):
     if len(freqs) == 0:  # check if any files were loaded correctly
         print 'No parsable frequencies found'
         print 'Exiting'
-        return 0, '', '', ''
+        return [], [], [], []
 
     if verbose:
         print "sorting input files by frequency"
@@ -689,3 +752,188 @@ def random_avg_bootstraps(boot_dict = None,boot_axis=None, time_axis=None,
 
     if outfile: n.savez(outfile, **out_dict)
     return out_dict
+
+
+def plot_eor_summary(files=None, title='Input Files', k_mag=.2,
+                     models=True, verbose=False, capsize=3.5):
+    """Create summary plot of known EoR results.
+
+    All inputs are optional.
+    files: capo formated pspec k3pk files
+    title: legend handle for input files
+    k_mag: the k value to take the limits near (find limits close to k_mag)
+    modles: boolean, plot fiducal 21cmfast models (included in capo)
+    capsize: defines the size of the upper limits caps.
+    verbose: print info while plotting
+    """
+    fig = p.figure(figsize=(10, 5))
+    ax = fig.add_subplot(111)
+
+    # plot the GMRT paciga 2014 data
+    GMRT = GMRT_2014_all()
+    GMRT_results = {}
+    if verbose:
+        print('GMRT')
+    for i, z in enumerate(GMRT.keys()):
+        # index = n.argwhere(GMRT[z][:,0] - .2 < 0.1).squeeze()
+        freq = pspec.z2f(z)
+        k_horizon = n.sqrt(cosmo_units.eta2kparr(30./c, z)**2 +
+                           cosmo_units.u2kperp(15*freq*1e6/cosmo_units.c, z)**2)
+        index = n.argwhere(abs(GMRT[z][:, 0] - k_mag)).squeeze()
+        GMRT_results[z] = n.min(GMRT[z][index, 2])
+        if verbose:
+            print('results: {0},\t{1}'.format(z, n.sqrt(GMRT_results[z])))
+        ax.errorbar(float(z), GMRT_results[z], GMRT_results[z]/1.5,
+                    fmt='p', ecolor='gray', color='gray', uplims=True,
+                    label='Paciga, 2013' if i == 0 else "",
+                    capsize=capsize)
+
+    # Get MWA 32 data
+    MWA_results = {}
+    MWA = MWA_32T_all()
+    if verbose:
+        print('Results: Z,\t Upper Limits')
+        print('MWA 32')
+    for i, z in enumerate(MWA.keys()):
+        # index = n.argwhere(MWA[z][:,0] - .2 < .01).squeeze()
+        freq = pspec.z2f(z)
+        k_horizon = n.sqrt(cosmo_units.eta2kparr(30./c, z)**2 +
+                           cosmo_units.u2kperp(15*freq*1e6/cosmo_units.c, z)**2)
+        index = n.argwhere(abs(MWA[z][:, 0] > k_horizon)).squeeze()
+        MWA_results[z] = n.min(MWA[z][index, 2])
+        if verbose:
+            print('results: {0},\t{1}'.format(z, n.sqrt(MWA_results[z])))
+        ax.errorbar(float(z), MWA_results[z], MWA_results[z]/1.5,
+                    fmt='r*', uplims=True,
+                    label='Dillon, 2014' if i == 0 else "",
+                    capsize=capsize)
+
+    MWA128_results = {}
+    MWA128 = MWA_128_all()
+    if verbose:
+        print('MWA 128')
+    for i, z in enumerate(MWA128.keys()):
+        index = n.argmin(abs(MWA128[z][:, 0] - k_mag)).squeeze()
+        MWA128_results[z] = n.min(MWA128[z][index, 2])
+        if verbose:
+            print('results: {0},\t{1}'.format(z, n.sqrt(MWA128_results[z])))
+        ax.errorbar(float(z), MWA128_results[z], MWA128_results[z]/1.5,
+                    fmt='y*', uplims=True, alpha=.5,
+                    label='Dillon, 2015' if i == 0 else "", capsize=capsize)
+
+    MWA_beards = MWA_128_beards()
+    MWA_beards_results = {}
+    if verbose:
+        print('MWA Beardsley')
+    for i, z in enumerate(MWA_beards.keys()):
+        index = n.argmin(abs(MWA_beards[z][:, 0] - k_mag).squeeze())
+        MWA_beards_results[z] = n.min(MWA_beards[z][index, 2])
+        if verbose:
+            print('results: {0},\t{1}'.format(z, n.sqrt(MWA_beards_results[z])))
+        ax.errorbar(float(z), MWA_beards_results[z], MWA_beards_results[z]/1.5,
+                    fmt='g*', uplims=True,
+                    label='Beardsley, 2016' if i == 0 else "",
+                    capsize=capsize)
+
+    # Get Paper-32 data
+    PSA32 = PAPER_32_all()
+    PSA32_results = {}
+    Jacobs_et_al = [0, 1, 2, 4]
+    if verbose:
+        print('PSA32')
+    for i, z in enumerate(PSA32.keys()):
+        index = n.argmin(abs(PSA32[z][:, 0] - k_mag)).squeeze()
+        PSA32_results[z] = n.min(PSA32[z][index, 2])
+        if verbose:
+            print('results: {0},\t{1}'.format(z, n.sqrt(PSA32_results[z])))
+
+        if i in Jacobs_et_al:
+            ax.errorbar(float(z), PSA32_results[z], PSA32_results[z]/1.5,
+                        fmt='md', uplims=True,
+                        label='Jacobs, 2015' if i == 0 else "",
+                        capsize=capsize)
+        else:
+            ax.errorbar(float(z), PSA32_results[z], PSA32_results[z]/1.5,
+                        fmt='cv', uplims=True, label='Parsons, 2014',
+                        capsize=capsize)
+
+    # Get PAPER-64 results
+    PSA64 = PAPER_64_all()
+    PSA64_results = {}
+    if verbose:
+        print('PSA64')
+    for z in PSA64.keys():
+        index = n.argmin(abs(PSA64[z][:, 0] - k_mag)).squeeze()
+        PSA64_results[z] = n.min(abs(PSA64[z][index, 2]))
+        if verbose:
+            print('results: {0},\t{1}'.format(z, n.sqrt(PSA64_results[z])))
+        ax.errorbar(float(z), PSA64_results[z], PSA64_results[z]/1.5,
+                    fmt='bs', uplims=True, label='Ali, 2015', capsize=capsize)
+
+    # zs = [10.87,8.37]
+    results = {}
+    if verbose:
+        print('Input files')
+    zs, ks, k3pk, k3err = get_k3pk_from_npz(files)
+    for i, z in enumerate(zs):
+        results_array = n.array([ks[i], k3pk[i], k3pk[i] + k3err[i],
+                                 k3pk[i] - k3err[i]]).T
+        negs = n.argwhere(k3pk[i] < 0).squeeze()
+        try:
+            len(negs)
+        except:
+            negs = n.array([negs.item()])
+        if len(negs) > 0:
+            results_array[negs, -2], results_array[negs, -1] = abs(results_array[negs, -1]), -1 * results_array[negs, -2]
+        index = n.argmin(abs(results_array[:, 0] - k_mag)).squeeze()
+        results[z] = n.min(abs(results_array[index, 2]))
+        if verbose:
+            print('results: {0},\t{1}'.format(z, n.sqrt(results[z])))
+        ax.errorbar(float(z), results[z], results[z]/1.5,
+                    fmt='ko', uplims=True,
+                    label=title if i == 0 else "",
+                    capsize=capsize)
+
+    ax.set_yscale('log')
+    ax.set_ylabel('$\Delta^{2} (mK)^{2}$')
+    ax.set_ylim([1e0, 1e7])
+    ax.set_xlabel('z')
+    ax.grid(axis='y')
+
+    # Add model data.
+    if models:
+        if verbose:
+            print 'Plotting 21cmFAST Model'
+        simk = 0.2
+        xlim = ax.get_xlim()  # save the data xlimits
+        parm_array, k_array, delta2_array, delta2_err_array = load_andre_models()
+        k_index = n.abs(k_array[0]-simk).argmin()
+        alphaXs = n.sort(list(set(parm_array[:, 3])))
+        Mmins = n.sort(list(set(parm_array[:, 4])))
+        Nxs = n.sort(list(set(parm_array[:, 2])))
+        for Nx in Nxs:
+            for alphaX in alphaXs:
+                for Mmin in Mmins:
+                    _slice = n.argwhere(all_and([
+                                        parm_array[:, 2] == Nx,
+                                        parm_array[:, 3] == alphaX,
+                                        parm_array[:, 4] == Mmin]
+                                        ))
+                    ax.plot(parm_array[_slice, 0],
+                            delta2_array[_slice, k_index], '-k',
+                            label='Fiducal 21cmFAST model')
+        ax.set_xlim(xlim)  # reset to the data xlimits
+
+    handles, labels = ax.get_legend_handles_labels()
+    handles = [h[0] if cnt > 0 else h for cnt, h in enumerate(handles)]
+    num_hands = len(handles)
+    handles.insert(num_hands, handles.pop(0))
+    labels.insert(num_hands, labels.pop(0))
+    box = ax.get_position()
+    ax.set_position([box.x0, box.height * .2 + box.y0,
+                     box.width, box.height*.8])
+    # fig.subplots_adjust(bottom=.275,top=.8)
+    ax.legend(handles, labels, loc='lower center',
+              bbox_to_anchor=(.5, -.425), ncol=3)
+    # ax.legend(loc='bottom',ncol=3)
+    return fig
