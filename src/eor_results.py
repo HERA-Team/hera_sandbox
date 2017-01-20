@@ -755,7 +755,7 @@ def random_avg_bootstraps(boot_dict = None,boot_axis=None, time_axis=None,
 
 
 def plot_eor_summary(files=None, title='Input Files', k_mag=.2,
-                     models=True, verbose=False, capsize=3.5):
+                     models=True, verbose=False, capsize=3.5, **kwargs):
     """Create summary plot of known EoR results.
 
     All inputs are optional.
@@ -934,6 +934,6 @@ def plot_eor_summary(files=None, title='Input Files', k_mag=.2,
                      box.width, box.height*.8])
     # fig.subplots_adjust(bottom=.275,top=.8)
     ax.legend(handles, labels, loc='lower center',
-              bbox_to_anchor=(.5, -.425), ncol=3)
+              bbox_to_anchor=(.5, -.425), ncol=3, **kwargs)
     # ax.legend(loc='bottom',ncol=3)
     return fig
