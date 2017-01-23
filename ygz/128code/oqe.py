@@ -127,6 +127,25 @@ def lst_align_data(inds, dsets, wgts=None, lsts=None):
         for k0 in lsts: lsts[k0] = lsts[k0][inds[k0]]
     return [d for d in [dsets,wgts,lsts] if not d is None]
 
+def lst_shift(sep_avail, sepd_avail, data_dict, flg_dict, lsts, dshift):
+    assert (dshift>0), 'dshift < 0 !!'
+    for k in lsts: lsts[k] = lsts[k][:-dshift]
+    for k in data_dict.keys():
+        #print k[1]
+        #print 1, data_dict[k].shape
+        #import IPython; IPython.embed()
+        if k[1] in sepd_avail:
+            data_dict[k] = data_dict[k][dshift:]
+            flg_dict[k] = flg_dict[k][dshift:]
+            #print 2, data_dict[k].shape
+        elif k[1] in sep_avail:
+            data_dict[k] = data_dict[k][:-dshift]
+            flg_dict[k] = flg_dict[k][:-dshift]
+        #import IPython; IPython.embed()
+        #print 3, data_dict[k].shape
+    return data_dict, flg_dict, lsts
+
+
 class DataSet:
     def __init__(self, dsets=None, wgts=None, lsts=None, conj=None, npzfile=None, lmin=None, lmode=None):
         self.x, self.w = {}, {}

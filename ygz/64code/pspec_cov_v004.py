@@ -122,7 +122,7 @@ dsets2 = {
     'odd' : glob.glob('/Users/yunfanzhang/local/DATA64/ali_et_al_2015_apj_data/odd/'+SEPD+'/*243.[3456]*uvGL'),
 }
 #for i in xrange(10): dsets[i] = glob.glob('lstbinX%d/%s/lst.24562[45]*.[3456]*.uvAL'%(i,SEP))
-#print dsets
+print dsets
 if opts.loss:
     dsets = {
     'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/data/even/*242.[3456]*uvALG'),

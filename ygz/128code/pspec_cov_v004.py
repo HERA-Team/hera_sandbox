@@ -26,7 +26,7 @@ o.add_option('--noise_only', action='store_true',
 o.add_option('--same', action='store_true',
     help='Noise is the same for all baselines.')
 o.add_option('--diff', action='store_true',
-    help='Noise is different for all baseline.') 
+    help='Noise is different for all baseline.')
 o.add_option('--frf', action='store_true',
     help='FRF noise.')
 o.add_option('--lmode',type='int', default=None,
@@ -160,7 +160,7 @@ sys.stdout.flush()
 data_dict = {}
 flg_dict = {}
 conj_dict = {}
-antstr = 'cross'
+antstr = 'cross' #?
 #,blconj,_ = zsa.grid2ij(aa.ant_layout)
 days = dsets.keys()
 lsts,data,flgs = {},{},{}
@@ -207,8 +207,18 @@ if opts.lbins:
         #print 'gridding lst for', k
         data_dict[k],flg_dict[k],lsts = oqe.lst_grid(lsts_dict[k[0]], data_dict[k], wgts=flg_dict[k], lstbins=opts.lbins)
 else:
+    #import IPython; IPython.embed()
+    if not EQUIV: 
+        lststemp = lsts[lsts.keys()[0]]
+        dshift = int(DelT/(lststemp[1]-lststemp[0]))
+        print 'shifting by ', dshift
+        #import IPython; IPython.embed()
+        data_dict,flg_dict, lsts = oqe.lst_shift(sep_avail, sepd_avail, data_dict, flg_dict, lsts, dshift)
+    #import IPython; IPython.embed()
     inds = oqe.lst_align(lsts)
-    data_dict,flg_dict,lsts = oqe.lst_align_data(inds,dsets=data_dict,wgts=flg_dict,lsts=lsts) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
+    data_dict,flg_dict,lsts = oqe.lst_align_data(inds,dsets=data_dict,wgts=flg_dict,lsts=lsts)
+    #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
+    
 #import IPython; IPython.embed()
 #If data is replaced by noise
 if opts.noise_only:
@@ -283,9 +293,11 @@ for boot in xrange(opts.nboot):
         print len(gps), len(gps[0]), len(gps[1]), len(bls_master)
         newkeys,dsC = ds.group_data(keys,gps)
         newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
+        #import IPython; IPython.embed()
     elif True: 
         print 'shuffle and group baselines for bootstrapping'
         gps = ds.gen_gps(bls_master, ngps=NGPS)
+        #import IPython; IPython.embed()
         newkeys,dsC = ds.group_data(keys,gps)
         newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
     else: #no groups (slower)
@@ -322,7 +334,7 @@ for boot in xrange(opts.nboot):
             if key1[0] == key2[0] or key1[1] == key2[1]:
                 continue #don't do even w/even or bl w/same bl
             else:
-                #print key1,key2 
+                print key1,key2 
                 qC += dsC.q_hat(key1,key2,cov_flagging=False)
                 qI += dsI.q_hat(key1,key2,use_cov=False,cov_flagging=False)
                 FC += dsC.get_F(key1,key2,cov_flagging=False)
@@ -375,5 +387,5 @@ for boot in xrange(opts.nboot):
     else: outpath = 'pspec_boot%04d.npz' % boot
     print '   Writing '+outpath
     n.savez(outpath, kpl=kpl, scalar=scalar, times=n.array(lsts),
-        pk_vs_t=pC, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
+        pk_vs_t=pI, err_vs_t=1./cnt, temp_noise_var=var, nocov_vs_t=pI,
         afreqs=afreqs,chans=chans,cmd=' '.join(sys.argv))
