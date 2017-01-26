@@ -66,8 +66,8 @@ if opts.pagenum == 1 and opts.season == 2:
 if opts.pagenum == 1 and opts.season == 1:
     wkst = gc.open(opts.wkst).sheet1
     if opts.pol == 'xx':
-        good_days_epoch1 = wkst.range('M2:M62')
-        good_days_epoch2 = wkst.range('M63:M115')
+        good_days_epoch1 = wkst.range('N2:N62')
+        good_days_epoch2 = wkst.range('N63:N115')
    
     file1 = open('good_days_epoch1_'+opts.pol+'.txt','w')
     file2 = open('good_days_epoch2_'+opts.pol+'.txt','w')

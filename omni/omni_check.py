@@ -28,7 +28,7 @@ opts,args = o.parse_args(sys.argv[1:])
 
 ### Plot ChiSq ####
 #if opts.pol == -1: pol = args[0].split('.')[3] #XXX hard-coded for *pol.npz files
-pol = 'xx' #XXX
+pol = opts.pol
 if opts.chisq == True:
     chisqs = []
     for i,file in enumerate(args):
@@ -89,7 +89,7 @@ if opts.gains == True or opts.chisqant == True:
         axarr[i1,i2].set_title(ant,fontsize=10)
         axarr[i1,i2].tick_params(axis='both',which='both',labelsize=8)
         try:
-            means.append(numpy.median(gains[ant])) #median, not mean
+            means.append(numpy.median(gains[ant][:,:])) #median, not mean #XXX freq range restriction
             ants.append(ant)
             axarr[i1,i2].imshow(gains[ant],vmax=vmax,aspect='auto',interpolation='nearest')
         except: continue

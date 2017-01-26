@@ -32,8 +32,8 @@ if opts.factor == None:
 
     ### FILES ###
     aa = aipy.cal.get_aa('psa898_v003',0.001,0.1,203) #parameters don't matter... only used to find LSTs
-    #data128 = numpy.sort(glob.glob('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin/even/lst*I.uv')) #LST-binned
-    data128 = numpy.sort(glob.glob('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_fg/even/lst*I.uv')) #LST-binned, FG-containing
+    data128 = numpy.sort(glob.glob('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v3_xtalk/lstbin_fg/even/lst*I.uv')) #S1 PSA-128, FG-containing
+    #data128 = numpy.sort(glob.glob('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_fg/even/lst*I.uv')) #LST-binned, FG-containing
     #data64 = numpy.sort(glob.glob('/home/jacobsda/storage/psa128/2014_epoch3/v5_xtalksub_omni/lstbin_June2_v1/even/sep0,2/*uvAS')) #LST-binned, abscal 128 !! 
     #data64 = numpy.sort(glob.glob('/data4/paper/2012EoR/psa_live/forlstbinning_omnical_2/lstbin_even_noxtalk/*uvG')) #LST-binned
     data64 = numpy.sort(glob.glob('/data4/paper/2012EoR/psa_live/forlstbinning_omnical_2/lstbin_fg_even/lst.*.uvA')) #LST-binned, FG-containing    
@@ -51,7 +51,6 @@ if opts.factor == None:
     i,j = int(opts.bls.split(',')[1].split('_')[0]),int(opts.bls.split(',')[1].split('_')[1])
     d2 = d2[(i, j)][opts.pols.split(',')[1]] 
     t2 = t2['lsts']
-
     ### Make sure LST-range for 64-data is larger than 128-data ###
     if numpy.min(t2) < numpy.min(t1):
         print 'Data range for 128 data too large: clipping LSTs below',numpy.min(t1)
@@ -65,7 +64,6 @@ if opts.factor == None:
         d2_clip = [d for i,d in enumerate(d2) if t2[i] < numpy.max(t1)]
         t2 = t2_clip
         d2 = d2_clip
-
     ### FIND MATCHING LSTs and FACTORS ###
     factors = []
     factors_complex = []
@@ -108,7 +106,9 @@ if opts.factor == None:
         if opts.plot == True:
             plt.show()
         factors = numpy.median(factors,axis=0)
+        factors[numpy.where(numpy.isfinite(factors.data) == False)] = 0.0
         factors_complex = numpy.median(factors_complex,axis=0)
+        factors_complex[numpy.where(numpy.isfinite(factors_complex.data) == False)] = 0.0
         freqs = numpy.ma.masked_where(factors.mask == True,freqs)
         factor = numpy.polyval(numpy.ma.polyfit(freqs,factors,8),freqs)
         plt.plot(factors,'r-',label='PSA64/PSA128 (Abs)')
@@ -117,7 +117,9 @@ if opts.factor == None:
         plt.legend()
         if opts.plot == True:
             plt.show()
-        phase_factor = numpy.polyval(numpy.ma.polyfit(freqs,numpy.angle(factors_complex),1),freqs) #linear fit for phase term
+        starti = 20
+        endi = 170 #to fit middle section of band only
+        phase_factor = numpy.polyval(numpy.ma.polyfit(freqs[starti:endi],numpy.angle(factors_complex)[starti:endi],1),freqs) #linear fit for phase term
         plt.plot(numpy.angle(factors_complex),'r-',label='PSA64/PSA128 (Phase)')
         plt.plot(phase_factor,'k-',label='fit')
         plt.title('polynomial fit (phase)')
@@ -238,7 +240,7 @@ if opts.plot == True:
 
 if opts.factor != None and opts.abscal == True and opts.poly == False: #if factor is given in command-line
     #factor = opts.factor
-    factor = numpy.load('bandpass.npz')['bandpass']
+    factor = numpy.load(opts.factor)['bandpass']
 
 # Absolute calibrate
 if opts.factor == None:
@@ -249,6 +251,9 @@ if opts.abscal == True:
 
     def mfunc(uv,p,d):
         d *= factor
+        try:
+            uv['var'] = uv['var']* factor**2
+        except: pass
         return p,d
 
     for file in args:
@@ -259,7 +264,7 @@ if opts.abscal == True:
             continue
         uvo = aipy.miriad.UV(newfile, status='new')
         uvo.init_from_uv(uvi)
-        uvo.pipe(uvi,mfunc=mfunc)
+        uvo.pipe(uvi, mfunc=mfunc, append2hist='SIMPLE_ABSCAL:' + ' '.join(sys.argv) + '\n')
         print file, '->', newfile
     
 

@@ -203,7 +203,6 @@ if LST_STATS:
     cnt = n.array(cnt.values()[0]) #all baselines should be the same
     var = n.array(var.values()[0]) #all baselines should be the same
 else: cnt,var = n.ones_like(lsts), n.ones_like(lsts)
-
 if PLOT and True:
     for key in keys:
         p.subplot(311); capo.arp.waterfall(ds.x[key], mode='real')
@@ -213,7 +212,7 @@ if PLOT and True:
         p.colorbar()
         p.title('C')
         U,S,V = n.linalg.svd(ds.C(key).conj()) 
-        S += S[LMODE-1]
+        if opts.lmode != None: S += S[LMODE-1]
         p.subplot(324); p.plot(n.einsum('ij,jk',n.diag(S),V).T.real)
         p.subplot(313); capo.arp.waterfall(n.dot(ds.iC(key),ds.x[key]), mode='real')#,drng=6000,mx=3000)
         p.colorbar()
