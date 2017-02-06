@@ -15,7 +15,7 @@ CAL=psa6622_v003
 PATH2CAPO=/home/saulkohn/ReposForCanopy/capo
 JD_DIRS=`${PATH2CAPO}/scripts/pull_args.py $*`
 FX2ANTS="97,10,91,58,72,107,105,64,42,31,43,33,15,22,47,2"
-OUTPATH=/home/saulkohn/flags
+OUTPATH=/home/saulkohn/flags_epoch2
 
 for DIR in $JD_DIRS
 do
@@ -29,8 +29,8 @@ do
                 echo ${PATH2CAPO}/sak/scripts/meanVij.py -C ${CAL} -p ${POL} --ba=${FX2ANTS} ${DIR}/*${POL}.uvcRREc --outpath=${OUTPATH}/${JD}.${POL}.txt --skiplast
                 ${PATH2CAPO}/sak/scripts/meanVij.py -C ${CAL} -p ${POL} --ba=${FX2ANTS} ${DIR}/*${POL}.uvcRREc --outpath=${OUTPATH}/${JD}.${POL}.txt --skiplast
             else
-                echo ${PATH2CAPO}/sak/scripts/meanVij.py -C ${CAL} -p ${POL} ${DIR}/*${POL}.uvcRREc --outpath=${OUTPATH}/${JD}.${POL}.txt --skiplast
-                ${PATH2CAPO}/sak/scripts/meanVij.py -C ${CAL} -p ${POL} ${DIR}/*${POL}.uvcRREc --outpath=${OUTPATH}/${JD}.${POL}.txt --skiplast
+                echo ${PATH2CAPO}/sak/scripts/meanVij.py -C ${CAL} -p ${POL} ${DIR}/*${POL}.uvcRRE --outpath=${OUTPATH}/${JD}.${POL}.txt --skiplast
+                ${PATH2CAPO}/sak/scripts/meanVij.py -C ${CAL} -p ${POL} ${DIR}/*${POL}.uvcRRE --outpath=${OUTPATH}/${JD}.${POL}.txt --skiplast
         fi
     done
 done

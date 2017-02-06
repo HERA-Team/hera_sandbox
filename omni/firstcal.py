@@ -10,10 +10,10 @@ o.add_option('--plot', action='store_true', help='Plot things.')
 o.add_option('--ubls', default='', help='Unique baselines to use, separated by commas (ex: 1_4,64_49).')
 o.add_option('--ex_ants', default='', help='Antennas to exclude, separated by commas (ex: 1,4,64,49).')
 o.add_option('--outpath', default=None,help='Output path of solution npz files. Default will be the same directory as the data files.')
-o.add_option('--plot', action='store_true', default=False, help='Turn on plotting in firstcal class.')
+o.add_option('--plt', action='store_true', default=False, help='Turn on plotting in firstcal class.')
 o.add_option('--verbose', action='store_true', default=False, help='Turn on verbose.')
 opts,args = o.parse_args(sys.argv[1:])
-print opts.plot
+print opts.plt
 print opts.verbose
 
 def flatten_reds(reds):
@@ -93,8 +93,8 @@ dlys = n.fft.fftshift(n.fft.fftfreq(fqs.size, fqs[1]-fqs[0]))
 #gets phase solutions per frequency.
 fc = omni.FirstCal(datapack,wgtpack,fqs,info)
 #XXX setting offset to false for TESTING -- does not make a difference
-#sols = fc.run(tune=True,verbose=opts.verbose,offset=True,plot=opts.plot)
-sols = fc.run(tune=True,verbose=opts.verbose,offset=False,plot=opts.plot)
+#sols = fc.run(tune=True,verbose=opts.verbose,offset=True,plot=opts.plt)
+sols = fc.run(tune=True,verbose=opts.verbose,offset=False,plot=opts.plt)
 
 #Save solutions
 if len(args)==1: filename=args[0]
