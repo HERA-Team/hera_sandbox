@@ -16,13 +16,18 @@ o.add_option('-i',action='store_true',help='Launch interactive session after the
 opts,chisqfiles = o.parse_args(sys.argv[1:])
 cmin,cmax = map(int,opts.chan.split('_'))
 
-Nmx = 5
-if len(chisqfiles)>=2*(Nmx**2):
-    raise Exception('Not implemented for that many JDs (without matplotlib screwing up)')
-
-f1,axarr1 = plt.subplots(Nmx,Nmx,sharex=True,sharey=True)
-if not len(chisqfiles)>(Nmx**2): f2,axarr2=None,None
-else: f2,axarr2 = plt.subplots(Nmx,Nmx,sharex=True,sharey=True)
+if opts.plot_per_JD: 
+    Nmx = 5
+    #if len(chisqfiles)>=2*(Nmx**2):
+    #    raise Exception('Not implemented for that many JDs (without matplotlib screwing up)')
+    
+    f1,axarr1 = plt.subplots(Nmx,Nmx,sharex=True,sharey=True)
+    if not len(chisqfiles)>(Nmx**2): 
+        f2,axarr2,f3,axarr3,f4,axarr4=None,None,None,None,None,None
+    else: 
+        f2,axarr2 = plt.subplots(Nmx,Nmx,sharex=True,sharey=True)
+        f3,axarr3 = plt.subplots(Nmx,Nmx,sharex=True,sharey=True)
+        f4,axarr4 = plt.subplots(Nmx,Nmx,sharex=True,sharey=True)
 
 jds,meds,stds = [],[],[]
 
@@ -36,12 +41,16 @@ for i,f in enumerate(chisqfiles):
     meds.append(np.median(dd))
     stds.append(0.67449*np.nanstd(dd)) #median absolute deviation
     #plot
-    if i<Nmx**2: ax = axarr1.ravel()[i]
-    else: ax = axarr2.ravel()[i-Nmx**2]
-    ax.imshow(data,aspect='auto',interpolation='None',vmax=opts.mx, vmin=0, extent=[0,203,1330,0])
-    ax.set_title(jd)
-if opts.plot_per_JD: plt.show()
-plt.close()
+    if opts.plot_per_JD: 
+        if i<Nmx**2: ax = axarr1.ravel()[i]
+        elif i>=Nmx**2 and i<2*(Nmx**2): ax = axarr2.ravel()[i-Nmx**2]
+        elif i>=2*(Nmx**2) and i<3*(Nmx**2): ax = axarr3.ravel()[i-2*(Nmx**2)]
+        else: ax = axarr4.ravel()[i-3*(Nmx**2)]
+        ax.imshow(data,aspect='auto',interpolation='None',vmax=opts.mx, vmin=0, extent=[0,203,1330,0])
+        ax.set_title(jd)
+if opts.plot_per_JD:
+    plt.show()
+    plt.close()
 
 #plots of medians
 plt.figure(3)

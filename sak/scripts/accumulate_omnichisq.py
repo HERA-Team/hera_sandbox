@@ -2,13 +2,14 @@
 import numpy as np, matplotlib.pyplot as plt, glob, os, sys
 import optparse
 o = optparse.OptionParser()
+o.add_option('-y', type='str', help='Year label (2013 or 2014)')
 o.add_option('-e', type='str', help='Epoch label (1 or 2)')
 o.add_option('--minJD', type='int', help='Minimum JD')
 o.add_option('--maxJD', type='int', help='Maximum JD')
 o.add_option('--dest', type='str', default=os.getcwd(), help='Destination of output file')
 opts,args = o.parse_args(sys.argv[1:])
 
-path2epoch='/data4/paper/2013EoR/Analysis/ProcessedData/epoch%s/omni_v3_xtalk/'%opts.e
+path2epoch='/data4/paper/%sEoR/Analysis/ProcessedData/epoch%s/omni_v3_xtalk/'%(opts.y,opts.e)
 
 for jd in range(opts.minJD,opts.maxJD):
     for pol in ['xx','yy']:
