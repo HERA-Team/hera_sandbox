@@ -15,6 +15,6 @@ for JD in JDs:
         stor+='%i/%i %s RREc:RRE \n'%(len(pp_uvcRREc),len(pp_uvcRRE),pp)
     if not all(equality): 
         print JD
-        print stor
+        #print stor
         
         

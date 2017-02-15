@@ -9,6 +9,7 @@ o = optparse.OptionParser()
 o.set_usage('correct_psa128_pols.py *xx.uvcRRE [xx pol only, it will find the other pols, assuming they are in the same directories]')
 o.add_option('-a','--ant',default='', help='Comma-separated antenna numbers to swap pols.')
 o.add_option('-b','--badant',default=None,help='Comma-separated antenna numbers to remove from file')
+o.add_option('-v','--verbose',action='store_true',help='Toggle verbosity')
 opts,args = o.parse_args(sys.argv[1:])
 
 ANTS = map(int,opts.ant.split(',')) #antennas that need to be swapped x->y, y->x
@@ -53,7 +54,7 @@ for filename in args:
     
     check = [numpy.all(t['xx']['times'] == t['xy']['times']),numpy.all(t['xx']['times'] == t['yx']['times']),numpy.all(t['xx']['times'] == t['yy']['times'])]
     if not numpy.all(check):
-        print 'missing integrations'
+        print 'missing integrations... skipping'
         continue #some files do not have all times - incomplete restore?
     
     for pol in files: #loop through 4 pols
@@ -68,3 +69,5 @@ for filename in args:
         uvo.pipe(uvi,raw=True,mfunc=mfunc,append2hist='CORRECT_PSA128_POLS:'+' '.join(sys.argv)+'\n')
         index = len(missing_bls) / len(t[pol]['lsts'])
         uvo['history'] += ' Missing bls: ' + str(missing_bls[:index])
+        if opts.verbose and len(missing_bls)>0:
+            print ' Missing bls: ' + str(missing_bls[:index])

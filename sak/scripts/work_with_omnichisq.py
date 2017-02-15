@@ -18,8 +18,8 @@ cmin,cmax = map(int,opts.chan.split('_'))
 
 if opts.plot_per_JD: 
     Nmx = 5
-    #if len(chisqfiles)>=2*(Nmx**2):
-    #    raise Exception('Not implemented for that many JDs (without matplotlib screwing up)')
+    if len(chisqfiles)>=4*(Nmx**2):
+        raise Exception('Not implemented for that many JDs')
     
     f1,axarr1 = plt.subplots(Nmx,Nmx,sharex=True,sharey=True)
     if not len(chisqfiles)>(Nmx**2): 
@@ -46,7 +46,7 @@ for i,f in enumerate(chisqfiles):
         elif i>=Nmx**2 and i<2*(Nmx**2): ax = axarr2.ravel()[i-Nmx**2]
         elif i>=2*(Nmx**2) and i<3*(Nmx**2): ax = axarr3.ravel()[i-2*(Nmx**2)]
         else: ax = axarr4.ravel()[i-3*(Nmx**2)]
-        ax.imshow(data,aspect='auto',interpolation='None',vmax=opts.mx, vmin=0, extent=[0,203,1330,0])
+        ax.imshow(data,aspect='auto',interpolation='None',vmax=opts.mx, vmin=0, extent=[0,data.shape[1],data.shape[0],0])
         ax.set_title(jd)
 if opts.plot_per_JD:
     plt.show()
