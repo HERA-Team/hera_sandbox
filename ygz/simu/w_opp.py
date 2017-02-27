@@ -11,7 +11,7 @@ class OppSolver:
         self.fq = fq
         self.cal = cal
         self.aa = a.cal.get_aa(self.cal, n.array([fq]))
-        self.REDNORM = 1260577.98984
+        self.REDNORM = 1.
         self.h = a.healpix.HealpixMap(nside=64)
         tx,ty,tz = self.h.px2crd(n.arange(self.h.map.size), ncrd=3)
         #Create equatorial coordinates of the first frame T0
@@ -20,7 +20,7 @@ class OppSolver:
         
     def prepare_coord(self):
         self.T0 = 2456681.5
-        self.T1 = n.arange(2456681.3,2456681.7,0.0001)
+        self.T1 = n.arange(2456681.3,2456681.7,0.0002)
         self.aa.set_jultime(self.T0)
         m = n.linalg.inv(self.aa.eq2top_m)
         ex,ey,ez = n.dot(m, self.top0)
@@ -28,7 +28,7 @@ class OppSolver:
         self.bms = []
         self.tops = []
         for t1 in self.T1:
-            #print t1
+            print t1
             self.aa.set_jultime(t1)
             m = self.aa.eq2top_m
             tx,ty,tz = n.dot(m, self.eq)
@@ -38,6 +38,8 @@ class OppSolver:
             bm = n.where(tz > 0.001, bm, 0)
             self.bms.append(bm)
             self.tops.append((tx,ty,tz))
+        self.REDNORM,self.Tac_err = self.w_opp((103,26),(103,26))
+        print 'self.REDNORM, self.Tac_err= ', self.REDNORM, self.Tac_err
 
     def w_opp(self, bl1,bl2):
         #h = a.healpix.HealpixMap(nside=64
@@ -67,7 +69,7 @@ class OppSolver:
 
         maxind = n.argmax(n.abs(res))
         maxres = res[maxind]
-        T1ac = -self.T0+self.T1[maxind]
+        T1ac = -self.T0+self.T1[maxind-1]
         # print '############## OPP RESULT for', bl1, bl2, '#####################'
         # print 'max, abs(max), dT(max)'
         # print maxres,maxres, T1ac

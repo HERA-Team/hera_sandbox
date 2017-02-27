@@ -12,7 +12,7 @@ from mpl_toolkits.axes_grid.axislines import SubplotZero
 
 
 arr = n.genfromtxt('corr_res.csv', dtype=None,delimiter=' ',names=True)
-dt = arr['dt']
+dt = arr['dT']
 corr = arr['peak']
 sep = str(arr['sep'])+':'+str(arr['sep2'])
 mult = float(arr['mult'])

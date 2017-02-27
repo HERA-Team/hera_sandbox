@@ -50,5 +50,7 @@ def run(dic):
 			finished.append((key,key2))
 	file.close()
 Parallel(n_jobs=len(dicts))(delayed(run)(dic) for dic in dicts)
+#for dic in dicts:
+#	run(dic)
 
 
