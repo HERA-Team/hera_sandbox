@@ -18,7 +18,7 @@ try: ver = cuedict[str(bl1[1])+'_'+str(bl2[1])]
 except(KeyError): ver = 0.
 print 'DelT = ', ver
 T0 = 2455700.5
-T1 = n.arange(2455700.3,2455700.7,0.001)
+T1 = n.arange(2455700.45,2455700.55, 0.0001)
 #############################################################################
 if COMPARE:
     fname = 'blout_'+str(bl1[0])+'_'+str(bl1[1])+'_'+str(bl2[0])+'_'+str(bl2[1])+'.npz'
@@ -101,8 +101,8 @@ maxres = n.abs(res[maxind])
 res = res/maxres
 T1ac = -T0+T1[maxind]
 print '############## OPP RESULT for', bl1, bl2, '#####################'
-print 'max, abs(max), dT(max)'
-print maxres,maxres, T1ac
+print 'max, max adjusted for NT, dT(max)'
+print maxres,maxres/T1.size, T1ac
 T1 = T1-T0
 p.figure()
 p.plot(T1,res.real,'b',label='real')

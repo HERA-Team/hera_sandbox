@@ -11,7 +11,7 @@ bl1, bl2 = (0,103),(0,95)
 N = 24000   #number of universes to average over
 
 VIS = False
-REDNORM = 1228687.26108#1261990. #REDNORM is the peak of baseline_ton
+MAXCORR_EQUIV = 1228687.26108#1261990. #MAXCORR_EQUIV is the peak of baseline_ton
 
 aa = a.cal.get_aa('psa6622_v001',np.array([fq])) #128
 #aa = a.cal.get_aa('psa6240_v003', np.array([fq]))
@@ -102,7 +102,7 @@ if __name__ == '__main__':
     try: ver = cuedict[str(bl1[1])+'_'+str(bl2[1])]
     except(KeyError): ver = 0.
     meancorr = np.mean(corr,axis=0)
-    meancorr = meancorr/1.e6        #REDNORM is the peak of baseline_ton
+    meancorr = meancorr/1.e6        #MAXCORR_EQUIV is the peak of baseline_ton
     maxind = np.argmax(np.abs(meancorr))
     absmax = np.abs(meancorr[maxind])
     print '############## baseline_toff RESULT for', bl1, bl2, '#####################'

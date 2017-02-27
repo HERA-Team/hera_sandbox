@@ -8,6 +8,7 @@ class OppSolver:
     '''uses convolution to compute Opp for two visibilities, thus need to obtain two
     time series'''
     def __init__(self, fq=.15, cal='psa6240_v003'):
+        print 'Initializing Oppsolver'
         self.fq = fq
         self.cal = cal
         self.aa = a.cal.get_aa(self.cal, n.array([fq]))
@@ -19,8 +20,9 @@ class OppSolver:
         self.prepare_coord()
         
     def prepare_coord(self):
+        """prepares bms in memory, need more than 5MB * T1.size memory"""
         self.T0 = 2456681.5
-        self.T1 = n.arange(2456681.3,2456681.7,0.0001)
+        self.T1 = n.arange(2456681.3,2456681.7,0.001)
         self.aa.set_jultime(self.T0)
         m = n.linalg.inv(self.aa.eq2top_m)
         ex,ey,ez = n.dot(m, self.top0)
@@ -59,7 +61,8 @@ class OppSolver:
         V1,V2 = n.array(V1), n.array(V2) 
         _V1,_V2 = n.fft.fft(V1,axis=0),n.fft.fft(V2,axis=0)
         #import IPython; IPython.embed()
-        res = n.fft.ifftshift(n.fft.ifft(n.sum(_V2*n.conj(_V1),axis=1)))
+        res = n.fft.fftshift(n.fft.ifft(n.sum(_V2*n.conj(_V1),axis=1)))
+        #res = n.fft.fftshift(n.sum(_V2*n.conj(_V1),axis=1))
         ###################
         res = res/self.REDNORM
         ###################
