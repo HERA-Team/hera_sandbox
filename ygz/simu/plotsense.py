@@ -56,5 +56,7 @@ def run(i, comb):
 	print line
 	file.write(line+'\n')
 	file.close()
+
 Parallel(n_jobs=3)(delayed(run)(i, comb) for i, comb in enumerate(combs))
+
 

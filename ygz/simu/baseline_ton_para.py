@@ -10,7 +10,7 @@ num_cores = multiprocessing.cpu_count()
 #fqs = n.linspace(.1,.2,203)
 fq = .15
 bl1, bl2 = (0,103),(0,103)
-N = 24000   #number of universes to average over
+N = 240   #number of universes to average over
 
 VIS = False
 REDNORM = 1.
@@ -33,7 +33,7 @@ eq = n.array([ex,ey,ez], dtype=ex.dtype)
 
 plt = None
 #TT = n.arange(2455700,2455701,1/a.const.sidereal_day*42.9*0.5) #*5 for speed
-TT = n.arange(2455700.499,2455700.501,0.0001)
+TT = n.arange(2455700.4,2455700.6,0.0001)
 NORM = float(TT.size)/1000.
 #for i in xrange(N):
 
@@ -42,7 +42,7 @@ print 'preparing bfs'
 bfs = prepare(TT)
 print 'done'
 
-corr = Parallel(n_jobs=2)(delayed(find_corr)(i, bfs) for i in xrange(N))
+corr = Parallel(n_jobs=12)(delayed(find_corr)(i, bfs) for i in xrange(N))
 corr = n.array(corr)
 print 'shape of corr:',corr.shape
 #import IPython; IPython.embed()
@@ -58,7 +58,7 @@ meancorr = n.mean(corr,axis=0)
 maxind = n.argmax(n.abs(meancorr))
 absmax = n.abs(meancorr[maxind])
 print '############## baseline_toff RESULT for', bl1, bl2, '#####################'
-print "Peak: ", meancorr[maxind], 'abs=',absmax, 'at dT = ', TT[n.argmax(n.abs(meancorr))]-2455700.5
+print "Peak: ", meancorr[maxind], 'abs=',absmax/TT.size, 'at dT = ', TT[n.argmax(n.abs(meancorr))]-2455700.5
 meancorr = meancorr/absmax
 #import IPython; IPython.embed()
 blstr = str(bl1[0])+'_'+str(bl1[1])+'_'+str(bl2[0])+'_'+str(bl2[1])
