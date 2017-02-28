@@ -7,20 +7,26 @@ sns.set_context("paper")
 #@p.ion()
 #fqs = n.linspace(.1,.2,203)
 fq = .15
-bl1, bl2 = (0,103),(0,95)
+a128_dict1 = {'10':(103,26),'11':(103,38),'12':(103,50),'13':(103,23),'14':(103,59),'1-1':(103,46), '-11':(103,12),'-12':(103,54)}
+a128_dict2 = {'20':(0,26),'21':(0,38),'22':(0,50),'23':(0,23)}
+a128_dict3 = {'30':(102,26),'31':(102,38),'32':(102,50)}
+a128_dict4 = {'40':(44,26),'41':(44,38)}
+bl1 = a128_dict1['11']
+bl2 = a128_dict1['1-1']
+#bl1, bl2 = (0,103),(0,95)
 #cuedict = {'26_23':0.125, '26_38': 0.042, '26_50': 0.083,'26_26':0., '50_57':0.122}
 cuedict = {'26_26':0.,'26_38': 0.032557,'26_46': -0.034, '26_50':0.073557,'13_32':0.030557,'13_14':0.066557,'50_59':0.071557}
 #MAXRES_EQUIV = 0.000150070063408  #peak of bl1=bl2
-MAXRES_EQUIV = 1260.57798981                #peak of equivalent Opp
+MAXRES_EQUIV = 1260.7792508                #peak of equivalent Opp
 #MAXRES_EQUIV = 1.  #to compute MAXRES_EQUIV
 #MAXRES_EQUIV = 2.51664842232e-05 #nside=128
 #BLUENORM=0.18755
-COMPARE = True
+COMPARE = False
 try: ver = cuedict[str(bl1[1])+'_'+str(bl2[1])]
 except(KeyError): ver = 0.
 print 'DelT = ', ver
 T0 = 2455700.5
-T1 = n.arange(2455700.3,2455700.7,0.0005)
+T1 = n.arange(2455700.3,2455700.701,0.001)
 #############################################################################
 if COMPARE:
     fname = 'blout_'+str(bl1[0])+'_'+str(bl1[1])+'_'+str(bl2[0])+'_'+str(bl2[1])+'.npz'
@@ -105,13 +111,14 @@ maxres = n.abs(res[maxind])
 T1ac = -T0+T1[maxind]
 print '############## OPP RESULT for', bl1, bl2, '#####################'
 print 'max, max adjusted for NT, dT(max)'
-print maxres,maxres/T1.size, T1ac
+print maxres,maxres, T1ac
 T1 = T1-T0
 p.figure()
 p.plot(T1,res.real,'b',label='real')
 p.plot(T1,res.imag,'g',label='imag')
 p.plot(T1,n.abs(res),'r',alpha=0.5,linewidth=1,label='Theory(Opp)')
 if COMPARE:
+    meancorr = meancorr/1.257
     p.plot(TT,meancorr.real,'b--')
     p.plot(TT,meancorr.imag,'g--')
     p.plot(TT,n.abs(meancorr),'r--',alpha=0.5,linewidth=1,label='Simulation')
@@ -119,14 +126,6 @@ if COMPARE:
 p.xlabel('dT (Julian Day)')
 p.title('Correlation Normalized to Equivalent Baseline Peak')
 p.legend()
-#p.grid()
-import IPython; IPython.embed()
-
-#recovered, remainder = signal.deconvolve(n.abs(meancorr), n.abs(res))
-#recovered = n.where(n.abs(recovered)<100, recovered, 0 )
-#p.figure()
-#p.plot(recovered)
-#p.grid()
 
 p.show()
 #import IPython; IPython.embed()

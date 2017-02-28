@@ -21,8 +21,8 @@ class OppSolver:
         
     def prepare_coord(self):
         """prepares bms in memory, need more than 5MB * T1.size memory"""
-        self.T0 = 2456681.5
-        self.T1 = n.arange(2456681.3,2456681.7,0.001)
+        self.T0 = 2456681.501
+        self.T1 = n.arange(2456681.3,2456681.701,0.001)
         self.aa.set_jultime(self.T0)
         m = n.linalg.inv(self.aa.eq2top_m)
         ex,ey,ez = n.dot(m, self.top0)
@@ -63,7 +63,7 @@ class OppSolver:
         V1,V2 = n.array(V1), n.array(V2) 
         _V1,_V2 = n.fft.fft(V1,axis=0),n.fft.fft(V2,axis=0)
         #import IPython; IPython.embed()
-        res = n.fft.fftshift(n.fft.ifft(n.sum(_V2*n.conj(_V1),axis=1)))
+        res = n.fft.ifftshift(n.fft.ifft(n.sum(_V2*n.conj(_V1),axis=1)))
         #res = n.fft.fftshift(n.sum(_V2*n.conj(_V1),axis=1))
         ###################
         res = res/self.REDNORM
@@ -72,7 +72,7 @@ class OppSolver:
 
         maxind = n.argmax(n.abs(res))
         maxres = res[maxind]
-        T1ac = -self.T0+self.T1[maxind-1]
+        T1ac = -self.T0+self.T1[maxind]
         # print '############## OPP RESULT for', bl1, bl2, '#####################'
         # print 'max, abs(max), dT(max)'
         # print maxres,maxres, T1ac
