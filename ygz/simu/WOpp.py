@@ -44,7 +44,7 @@ h = a.healpix.HealpixMap(nside=64)
 tx,ty,tz = h.px2crd(n.arange(h.map.size), ncrd=3)
 bl1x, bl1y, bl1z = aa.get_baseline(bl1[0],bl1[1],'z')
 bl2x, bl2y, bl2z = aa.get_baseline(bl2[0],bl2[1],'z')
-
+import IPython; IPython.embed()
 #fng1=1
 bm = aa[0].bm_response((tx,ty,tz),pol='I')[0]**2#/n.abs(tz)   #tz is the Jacobian
 #bm = n.ones_like(tx)

@@ -132,7 +132,7 @@ offset_dict[((0,95),(0,103))] = 0.0548
 offset_dict[((0,103), (0,103))] = 0.0
 #ind[set1], ind[set2] = lst_align(lsts[set1], lsts[set2])
 
-num = '0103095'
+num = '14148'
 from itertools import product
 d_file = np.load('griddata'+num+'.npz')
 w_file = np.load('gridwgt'+num+'.npz')
@@ -159,8 +159,6 @@ n_jobs = 4
 # for n in xrange(n_jobs):
 #     of_batches.append(oflist[n::n_jobs])
 k1,k2 = K[0], K[1]
-#print K
-import IPython; IPython.embed()
 res = Parallel(n_jobs=n_jobs)(delayed(get_p)(k1,k2,'I',ofbatch) for ofbatch in oflist)
 # def postprocess(res):
 #     pC, OFST = zip(*res)

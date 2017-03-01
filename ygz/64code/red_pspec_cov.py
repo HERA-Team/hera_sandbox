@@ -89,7 +89,7 @@ if cwd.startswith('/Users/yunfanzhang/'):
 elif cwd.startswith('/Users/yunfanz/'):
     dataDIR = '/Users/yunfanz/Data/PAPER128/DATA/'
 elif cwd.startswith('/home/yunfanz/'):
-    dataDIR = '/home/yunfanz/Projects/21cm/Data/DATA128/DATA/'
+    dataDIR = '/data2/PAPER/omni_v2_xtalk/'
 sets = {
     'day1' : glob.glob(dataDIR+'zen.2456715.*.xx.npz'),
     'day2' : glob.glob(dataDIR+'zen.2456716.*.xx.npz'),

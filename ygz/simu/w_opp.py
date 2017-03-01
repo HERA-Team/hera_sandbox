@@ -22,7 +22,7 @@ class OppSolver:
     def prepare_coord(self):
         """prepares bms in memory, need more than 5MB * T1.size memory"""
         self.T0 = 2456681.501
-        self.T1 = n.arange(2456681.3,2456681.701,0.001)
+        self.T1 = n.arange(2456681.3,2456681.71,0.01)
         self.aa.set_jultime(self.T0)
         m = n.linalg.inv(self.aa.eq2top_m)
         ex,ey,ez = n.dot(m, self.top0)
@@ -30,7 +30,7 @@ class OppSolver:
         self.bms = []
         self.tops = []
         for t1 in self.T1:
-            print t1
+            #print t1
             self.aa.set_jultime(t1)
             m = self.aa.eq2top_m
             tx,ty,tz = n.dot(m, self.eq)
@@ -43,10 +43,16 @@ class OppSolver:
         self.REDNORM,self.Tac_err = self.w_opp((103,26),(103,26))
         print 'self.REDNORM, self.Tac_err= ', self.REDNORM, self.Tac_err
 
-    def w_opp(self, bl1,bl2):
+    def w_opp(self, bl1=None,bl2=None, bl1coords=None, bl2coords=None):
         #h = a.healpix.HealpixMap(nside=64
-        bl1x, bl1y, bl1z = self.aa.get_baseline(bl1[0],bl1[1],'z')
-        bl2x, bl2y, bl2z = self.aa.get_baseline(bl2[0],bl2[1],'z')
+        if bl1coords:
+            bl1x, bl1y, bl1z = bl1coords
+            bl2x, bl2y, bl2z = bl2coords
+        elif bl1 is not None:
+            bl1x, bl1y, bl1z = self.aa.get_baseline(bl1[0],bl1[1],'z')
+            bl2x, bl2y, bl2z = self.aa.get_baseline(bl2[0],bl2[1],'z')
+        else:
+            raise "Must supply either bl1 or bl1coords"
         V1,V2 = [],[]
         #print 'Computing Opp'
         for i,t1 in enumerate(self.T1):
