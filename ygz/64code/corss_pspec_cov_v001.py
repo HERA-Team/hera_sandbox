@@ -160,8 +160,21 @@ n_jobs = 4
 #     of_batches.append(oflist[n::n_jobs])
 k1,k2 = K[0], K[1]
 #print K
+#import IPython; IPython.embed()
+
+d = data_g[k1].T
+d2 = data_g[k2].T
+d_ = np.fft.fft(d, axis=1); d2_ = np.fft.fft(d2, axis=1)
+Cd = np.fft.ifftshift(np.fft.ifft(d2_.conj()*d_, axis=1),axes=1)
+plt.figure()
+plt.imshow(np.abs(Cd.T), aspect='auto')
+plt.show()
 import IPython; IPython.embed()
-res = Parallel(n_jobs=n_jobs)(delayed(get_p)(k1,k2,'I',ofbatch) for ofbatch in oflist)
+
+
+
+
+res = Parallel(n_jobs=n_jobs)(delayed(get_p)(k1,k2,'W',ofbatch) for ofbatch in oflist)
 # def postprocess(res):
 #     pC, OFST = zip(*res)
 #     OFST = np.hstack(OFST)

@@ -132,7 +132,7 @@ elif cwd.startswith('/home/yunfanz/'):
     dataDIR = '/data2/PAPER/omni_v2_xtalk/'
 
 sets = {}
-for fn in glob.glob(dataDIR+'zen*245667*.xx.npz'):
+for fn in glob.glob(dataDIR+'zen*245668*.xx.npz'):
     k = fn.split('.')[1]
     sets[k] = sets.get(k,[]) + [fn]
 
@@ -154,7 +154,7 @@ for s in sets:
 
 ind = {}
 
-import IPython; IPython.embed()
+#import IPython; IPython.embed()
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 #inds = oqe.lst_align(lsts, lstres=lst_res)
 #data,wgts = oqe.lst_align_data(inds, dsets=data, wgts=wgts)
@@ -173,7 +173,7 @@ nlst = 2400
 for k in data:
     lst_g,data_gt[k],wgt_gt[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=nlst)
     data_gt[k], wgt_gt[k] = data_gt[k][nlst/3:nlst*4/5], wgt_gt[k][nlst/3:nlst*4/5]
-    wgt_gt[k] = np.where(wgt_gt[k]>0.5*np.max(wgt_gt[k]),1,0)
+    #wgt_gt[k] = np.where(wgt_gt[k]>0.5*np.max(wgt_gt[k]),1,0)
     lst_g = lst_g[nlst/3:nlst*4/5]
 
 set1,set2 = 'even', 'odd'
@@ -193,11 +193,16 @@ for k in data_gt.keys():
         data_g[k2] = data_g.get(k2,[])+[temp]
         wtemp = wgt_gt[k]; wtemp.shape += (1,)
         wgt_g[k2] = wgt_g.get(k2,[])+[wtemp]
-import IPython; IPython.embed()
-data_g[k1] = np.mean(np.dstack(data_g[k1]), axis=2)  #stacking over the actual days that are even or odd
-data_g[k2] = np.mean(np.dstack(data_g[k2]), axis=2)
-wgt_g[k1] = np.mean(np.dstack(wgt_g[k1]), axis=2)
-wgt_g[k2] = np.mean(np.dstack(wgt_g[k2]), axis=2)
+#import IPython; IPython.embed()
+for k in (k1, k2):
+    data_g[k] = np.dstack(data_g[k])
+    wgt_g[k] = np.dstack(wgt_g[k])
+    data_g[k] = np.ma.average(data_g[k], axis=2, weights=wgt_g[k])
+    data_g[k] = data_g[k].filled(fill_value=0)
+    wgt_g[k] = np.mean(wgt_g[k], axis=2)
+    wgt_g[k] = np.where(wgt_g[k]>0.5*np.max(wgt_g[k]),1,0)
+#import IPython; IPython.embed()
+
 print k1, k2
 print 'should be even_xx_0_95 odd_xx_0_103'
 # np.savez('griddata14148', even_xx_1_4=data_g[k1], odd_xx_1_48=data_g[k2])
