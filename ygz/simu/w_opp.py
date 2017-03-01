@@ -7,7 +7,7 @@ PLOT = True
 class OppSolver:
     '''uses convolution to compute Opp for two visibilities, thus need to obtain two
     time series'''
-    def __init__(self, fq=.15, cal='psa6240_v003'):
+    def __init__(self, fq=.15, cal='psa6240_v003', beam='PAPER'):
         print 'Initializing Oppsolver'
         self.fq = fq
         self.cal = cal
@@ -17,6 +17,7 @@ class OppSolver:
         tx,ty,tz = self.h.px2crd(n.arange(self.h.map.size), ncrd=3)
         #Create equatorial coordinates of the first frame T0
         self.top0 = n.array([tx,ty,tz], dtype=tx.dtype)
+        self.beam = beam
         self.prepare_coord()
         
     def prepare_coord(self):
@@ -34,7 +35,10 @@ class OppSolver:
             self.aa.set_jultime(t1)
             m = self.aa.eq2top_m
             tx,ty,tz = n.dot(m, self.eq)
-            bm = self.aa[0].bm_response((tx,ty,tz),pol='I')[0]**2#/n.abs(tz)#*n.abs(tzsave)
+            if self.beam == 'HERA':
+                bm = get_hera_beam((tx,ty,tz), pol='I')
+            elif self.beam == 'PAPER':
+                bm = self.aa[0].bm_response((tx,ty,tz),pol='I')[0]**2#/n.abs(tz)#*n.abs(tzsave)
             #bm = n.ones_like(tx)
             #bm = n.where(tz > 0, bm, 0)
             bm = n.where(tz > 0.001, bm, 0)
