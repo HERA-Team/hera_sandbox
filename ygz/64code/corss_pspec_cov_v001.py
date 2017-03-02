@@ -132,7 +132,7 @@ offset_dict[((0,95),(0,103))] = 0.0548
 offset_dict[((0,103), (0,103))] = 0.0
 #ind[set1], ind[set2] = lst_align(lsts[set1], lsts[set2])
 
-num = '0103095'
+num = '01030103'
 from itertools import product
 d_file = np.load('griddata'+num+'.npz')
 w_file = np.load('gridwgt'+num+'.npz')
@@ -154,7 +154,7 @@ set_C(ds,3e4)
 
 oflist = (np.arange(200)-100)#+int(0.0548/dlst)
 #oflist = oflist[oflist>=0]
-n_jobs = 4
+n_jobs = 2
 # of_batches = []
 # for n in xrange(n_jobs):
 #     of_batches.append(oflist[n::n_jobs])
@@ -162,19 +162,19 @@ k1,k2 = K[0], K[1]
 #print K
 #import IPython; IPython.embed()
 
-d = data_g[k1].T
-d2 = data_g[k2].T
-d_ = np.fft.fft(d, axis=1); d2_ = np.fft.fft(d2, axis=1)
-Cd = np.fft.ifftshift(np.fft.ifft(d2_.conj()*d_, axis=1),axes=1)
-plt.figure()
-plt.imshow(np.abs(Cd.T), aspect='auto')
-plt.show()
-import IPython; IPython.embed()
+# d = data_g[k1].T
+# d2 = data_g[k2].T
+# d_ = np.fft.fft(d, axis=0); d2_ = np.fft.fft(d2, axis=0)
+# Cd = np.fft.ifftshift(d2_.conj()*d_,axes=0)
+# plt.figure()
+# plt.imshow(np.abs(Cd.T), aspect='auto')
+# plt.show()
+# import IPython; IPython.embed()
 
 
 
 
-res = Parallel(n_jobs=n_jobs)(delayed(get_p)(k1,k2,'W',ofbatch) for ofbatch in oflist)
+res = Parallel(n_jobs=n_jobs)(delayed(get_p)(k1,k2,'C',ofbatch) for ofbatch in oflist)
 # def postprocess(res):
 #     pC, OFST = zip(*res)
 #     OFST = np.hstack(OFST)

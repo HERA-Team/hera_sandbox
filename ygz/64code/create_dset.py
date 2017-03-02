@@ -180,7 +180,7 @@ set1,set2 = 'even', 'odd'
 def is_odd(num):
     return num & 0x1
 k1 = ('odd','xx',(0,103))
-k2 = ('even','xx',(0,95))
+k2 = ('even','xx',(0,103))
 data_g, wgt_g = {},{}
 for k in data_gt.keys():
     if is_odd(int(k[0])) and k[1]==k1[1] and k[2]==k1[2]:  #i.e. k satisfies k1
@@ -208,7 +208,7 @@ print 'should be even_xx_0_95 odd_xx_0_103'
 # np.savez('griddata14148', even_xx_1_4=data_g[k1], odd_xx_1_48=data_g[k2])
 # np.savez('gridwgt14148', even_xx_1_4=wgt_g[k1], odd_xx_1_48=wgt_g[k2])
 # np.savez('gridlst14148', lst=lst_g)
-np.savez('griddata0103095', odd_xx_0_103=data_g[k1], even_xx_0_95=data_g[k2])
-np.savez('gridwgt0103095', odd_xx_0_103=wgt_g[k1], even_xx_0_95=wgt_g[k2])
-np.savez('gridlst0103095', lst=lst_g)
+np.savez('griddata01030103', odd_xx_0_103=data_g[k1], even_xx_0_103=data_g[k2])
+np.savez('gridwgt01030103', odd_xx_0_103=wgt_g[k1], even_xx_0_103=wgt_g[k2])
+np.savez('gridlst01030103', lst=lst_g)
 import IPython; IPython.embed()

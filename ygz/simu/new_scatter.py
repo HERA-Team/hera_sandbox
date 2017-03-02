@@ -6,14 +6,15 @@ import pandas as pd
 from itertools import cycle
 from matplotlib import colors as mcolors
 
-
-
+#FILE = 'corr_res.csv'
+FILE = 'HERA_37_opp_pm100.csv'
 
 #markers = matplotlib.markers.MarkerStyle.markers
 markers = cycle(['o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D', 'd', 'x'])
 print markers
-df = pd.DataFrame.from_csv('corr_res.csv')
+df = pd.DataFrame.from_csv(FILE)
 Npts = df.shape[0]
+Npts = 50
 C = np.random.random(Npts)
 f, (ax, ax2) = plt.subplots(2, 1, sharex=True)
 # f.set_figheight(10);  f.set_figwidth(12)
@@ -41,7 +42,7 @@ ax.grid()
 ax.set_ylabel('Correlation [Normalized to 1]')
 ax.set_xlim([-0.01, 0.21])
 
-mult1010 = 11025.
+mult1010 = float(np.amax(df['mult']))
 for i in xrange(Npts):
 	marker = markerszip[i]
 	label = str(df['sep'][i])+':'+str(df['sep2'][i]) if i>=Npts/2 else None
