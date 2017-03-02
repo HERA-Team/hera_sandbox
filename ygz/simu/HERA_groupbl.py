@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as np, pandas as pd
 import itertools
 import w_opp
 from joblib import Parallel, delayed
@@ -51,8 +51,9 @@ def get_bl_comb(top_dict):
 
 
 
-def run_opp(i, comb, outfile):
+def run_opp(i, comb, outfile, quiet=False):
 	#comb=(('40', (44, 26)), ('41', (44, 38)))
+	#i is the index of comb in combs
 	file = open(outfile, 'a')
 	label1, label2 = comb[0][0], comb[1][0]
 	bl1coords, bl2coords = comb[0][1][0], comb[1][1][0]
@@ -60,9 +61,22 @@ def run_opp(i, comb, outfile):
 
 	peak,dT = WS.w_opp(bl1coords=bl1coords,bl2coords=bl2coords)
 	line = ', '.join([str(i), label1,label2,str(dT),str(np.abs(peak)),str(multiplicity)])
-	print line
+	if not quiet: 
+		print line
 	file.write(line+'\n')
 	file.close()
+
+def get_sub_combs(infile, combs, mode='pm', num=100):
+	"""return top num number of combs entries as sorted by 'pm' or 'p'"""
+	df = pd.read_csv(infile)
+	df['peakmult'] = df['peak']*df['mult']
+	if mode == 'pm':
+		df_sorted = df.sort_values('peakmult', ascending=False)
+	S = df_sorted.head(n=num).index.tolist()
+
+	return [combs[s] for s in S]
+
+
 
 
 
@@ -70,12 +84,42 @@ if __name__=="__main__":
 	top_dict, blgps = get_plotsense_dict()
 	combs = get_bl_comb(top_dict)
 	CAL = 'psa6622_v003'
-	WS = w_opp.OppSolver(fq=.15, cal=CAL)
-	OUT = 'HERA_37_opp.csv'
-	NJOBS = 4
+	
 
-	print 'Starting Opp with %d instances on %d jobs' % (len(combs), NJOBS)
-	print ',sep,sep2,dT,peak,mult'
-	Parallel(n_jobs=4)(delayed(run_opp)(i, comb, OUT) for i, comb in enumerate(combs))
+	FIRST = 'HERA_37_opp_all.csv'
+	
+	if False:
+		DT = 0.01
+		print 'Starting survey of all baselines'
+		WS = w_opp.OppSolver(fq=.15, cal=CAL, dT=DT, beam='HERA')
+		file = open(FIRST, 'w')
+		file.write(',sep,sep2,dT,peak,mult\n')
+		file.close()
 
-	import IPython; IPython.embed()
+		NJOBS = 4
+		print 'Starting Opp with %d instances on %d jobs; dT= %f' % (len(combs), NJOBS, DT)
+		print ',sep,sep2,dT,peak,mult'
+		Parallel(n_jobs=4)(delayed(run_opp)(i, comb, FIRST) for i, comb in enumerate(combs))
+
+	if True:
+		DT = 0.001
+		ENTRIES = 100
+		print '##### search over selected baselines  dT= %f ###'% DT
+		
+		WS = w_opp.OppSolver(fq=.15, cal=CAL, dT=DT, beam='HERA')
+		subcombs = get_sub_combs(FIRST, combs, num=ENTRIES)
+		SECOND = 'HERA_37_opp_pm100.csv'
+		file = open(SECOND, 'w')
+		file.write(',sep,sep2,dT,peak,mult\n')
+		file.close()
+
+		NJOBS = 4
+		print 'Starting Opp with %d instances on %d jobs;' % (len(subcombs), NJOBS)
+		print ',sep,sep2,dT,peak,mult'
+		Parallel(n_jobs=4)(delayed(run_opp)(i, comb, SECOND) for i, comb in enumerate(subcombs))
+
+
+
+	
+
+	#import IPython; IPython.embed()
