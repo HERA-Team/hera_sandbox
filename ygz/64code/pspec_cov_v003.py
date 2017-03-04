@@ -108,13 +108,14 @@ def get_Q(mode, n_k):
         Q[mode,mode] = 1
         return Q
 
+PDIR = '/data2/PAPER/'
 dsets1 = {
-    'even': glob.glob('/Users/yunfanzhang/local/DATA64/ali_et_al_2015_apj_data/even/'+SEP+'/*242.[3456]*uvGL'),
-    'odd' : glob.glob('/Users/yunfanzhang/local/DATA64/ali_et_al_2015_apj_data/odd/'+SEP+'/*243.[3456]*uvGL'),
+    'even': glob.glob(PDIR+'ali_et_al_2015_apj_data/even/'+SEP+'/*242.[3456]*uvGL'),
+    'odd' : glob.glob(PDIR+'ali_et_al_2015_apj_data/odd/'+SEP+'/*243.[3456]*uvGL'),
 }
 dsets2 = {
-    'even': glob.glob('/Users/yunfanzhang/local/DATA64/ali_et_al_2015_apj_data/even/'+SEPD+'/*242.[3456]*uvGL'),
-    'odd' : glob.glob('/Users/yunfanzhang/local/DATA64/ali_et_al_2015_apj_data/odd/'+SEPD+'/*243.[3456]*uvGL'),
+    'even': glob.glob(PDIR+'ali_et_al_2015_apj_data/even/'+SEPD+'/*242.[3456]*uvGL'),
+    'odd' : glob.glob(PDIR+'ali_et_al_2015_apj_data/odd/'+SEPD+'/*243.[3456]*uvGL'),
 }
 #for i in xrange(10): dsets[i] = glob.glob('lstbinX%d/%s/lst.24562[45]*.[3456]*.uvAL'%(i,SEP))
 #print dsets

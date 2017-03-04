@@ -129,10 +129,11 @@ if cwd.startswith('/Users/yunfanzhang/'):
 elif cwd.startswith('/Users/yunfanz/'):
     dataDIR = '/Users/yunfanz/Data/PAPER128/DATA/'
 elif cwd.startswith('/home/yunfanz/'):
-    dataDIR = '/data2/PAPER/omni_v2_xtalk/'
+    #dataDIR = '/data2/PAPER/omni_v2_xtalk/'
+    dataDIR = '/data2/PAPER/2013_e1_omv3/'
 
 sets = {}
-for fn in glob.glob(dataDIR+'zen*245668*.xx.npz'):
+for fn in np.sort(glob.glob(dataDIR+'zen*.xx.npz')):
     k = fn.split('.')[1]
     sets[k] = sets.get(k,[]) + [fn]
 
@@ -179,36 +180,39 @@ for k in data:
 set1,set2 = 'even', 'odd'
 def is_odd(num):
     return num & 0x1
-k1 = ('odd','xx',(0,103))
-k2 = ('even','xx',(0,103))
-data_g, wgt_g = {},{}
-for k in data_gt.keys():
-    if is_odd(int(k[0])) and k[1]==k1[1] and k[2]==k1[2]:  #i.e. k satisfies k1
-        temp = data_gt[k]; temp.shape += (1,)
-        data_g[k1] = data_g.get(k1,[])+[temp]
-        wtemp = wgt_gt[k]; wtemp.shape += (1,)
-        wgt_g[k1] = wgt_g.get(k1,[])+[wtemp]
-    elif (not is_odd(int(k[0]))) and k[1]==k2[1] and k[2]==k2[2]:
-        temp = data_gt[k]; temp.shape += (1,)
-        data_g[k2] = data_g.get(k2,[])+[temp]
-        wtemp = wgt_gt[k]; wtemp.shape += (1,)
-        wgt_g[k2] = wgt_g.get(k2,[])+[wtemp]
-#import IPython; IPython.embed()
-for k in (k1, k2):
-    data_g[k] = np.dstack(data_g[k])
-    wgt_g[k] = np.dstack(wgt_g[k])
-    data_g[k] = np.ma.average(data_g[k], axis=2, weights=wgt_g[k])
-    data_g[k] = data_g[k].filled(fill_value=0)
-    wgt_g[k] = np.mean(wgt_g[k], axis=2)
-    wgt_g[k] = np.where(wgt_g[k]>0.5*np.max(wgt_g[k]),1,0)
-#import IPython; IPython.embed()
 
-print k1, k2
-print 'should be even_xx_0_95 odd_xx_0_103'
+data_g, wgt_g = {},{}
+for bl in SEPS:
+    k1 = ('odd','xx',bl)
+    k2 = ('even','xx',bl)
+
+    for k in data_gt.keys():
+        if is_odd(int(k[0])) and k[1]==k1[1] and k[2]==k1[2]:  #i.e. k satisfies k1
+            temp = data_gt[k]; temp.shape += (1,)
+            data_g[k1] = data_g.get(k1,[])+[temp]
+            wtemp = wgt_gt[k]; wtemp.shape += (1,)
+            wgt_g[k1] = wgt_g.get(k1,[])+[wtemp]
+        elif (not is_odd(int(k[0]))) and k[1]==k2[1] and k[2]==k2[2]:
+            temp = data_gt[k]; temp.shape += (1,)
+            data_g[k2] = data_g.get(k2,[])+[temp]
+            wtemp = wgt_gt[k]; wtemp.shape += (1,)
+            wgt_g[k2] = wgt_g.get(k2,[])+[wtemp]
+    #import IPython; IPython.embed()
+    for k in (k1, k2):
+        data_g[k] = np.dstack(data_g[k])
+        wgt_g[k] = np.dstack(wgt_g[k])
+        data_g[k] = np.ma.average(data_g[k], axis=2, weights=wgt_g[k])
+        data_g[k] = data_g[k].filled(fill_value=0)
+        wgt_g[k] = np.mean(wgt_g[k], axis=2)
+        wgt_g[k] = np.where(wgt_g[k]>0.5*np.max(wgt_g[k]),1,0)
+    #import IPython; IPython.embed()
+
+    print k1, k2
+    print 'should be even_xx_0_95 odd_xx_0_103'
 # np.savez('griddata14148', even_xx_1_4=data_g[k1], odd_xx_1_48=data_g[k2])
 # np.savez('gridwgt14148', even_xx_1_4=wgt_g[k1], odd_xx_1_48=wgt_g[k2])
 # np.savez('gridlst14148', lst=lst_g)
-np.savez('griddata01030103', odd_xx_0_103=data_g[k1], even_xx_0_103=data_g[k2])
-np.savez('gridwgt01030103', odd_xx_0_103=wgt_g[k1], even_xx_0_103=wgt_g[k2])
-np.savez('gridlst01030103', lst=lst_g)
+np.savez('griddata2013', odd_xx_0_103=data_g[('odd','xx',(0,103))], even_xx_0_103=data_g[('even','xx',(0,103))],odd_xx_0_95=data_g[('odd','xx',(0,95))], even_xx_0_95=data_g[('even','xx',(0,95))])
+np.savez('gridwgt2013', odd_xx_0_103=wgt_g[('odd','xx',(0,103))], even_xx_0_103=wgt_g[('even','xx',(0,103))],odd_xx_0_95=wgt_g[('odd','xx',(0,95))], even_xx_0_95=wgt_g[('even','xx',(0,95))])
+np.savez('gridlst2013', lst=lst_g)
 import IPython; IPython.embed()

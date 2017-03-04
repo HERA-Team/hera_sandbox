@@ -1,14 +1,23 @@
 import numpy as np, pandas as pd
-import itertools
+import itertools, pickle
 import w_opp
 from joblib import Parallel, delayed
 """
 This file groups the HERA baselines into equivalency classes
 """
-FILE = "../calfiles/HERA_antconfig/antenna_positions_128.dat"
-def get_plotsense_dict(file=FILE, NTOP=None):
+def save_obj(name, obj):
+    with open(name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+def load_obj(name ):
+    with open(name + '.pkl', 'rb') as f:
+        return pickle.load(f)
+
+FILE = "../calfiles/HERA_antconfig/antenna_positions_350.dat"
+def get_plotsense_dict(file=FILE, NTOP=None, NANTS=None):
 	antpos = np.loadtxt(file)
-	NANTS = antpos.shape[0]
+	if NANTS is None:
+		NANTS = antpos.shape[0]
 
 	bl_gps = {}
 	for i in xrange(NANTS-1):
@@ -75,28 +84,41 @@ def run_opp(i, comb, outfile, quiet=False):
 	#i is the index of comb in combs
 	file = open(outfile, 'a')
 	label1, label2 = comb[0][0], comb[1][0]
+
 	bl1coords, bl2coords = comb[0][1][0], comb[1][1][0]
 	multiplicity = comb[0][1][1]*comb[1][1][1]
+	if label1 == label2:
+		line = ', '.join([str(i), label1,label2,str(0.),str(1.0),str(multiplicity)])
+		file.write(line+'\n')
+		file.close()
+		return
+	else:
+		peak,dT = WS.w_opp(bl1coords=bl1coords,bl2coords=bl2coords)
+		line = ', '.join([str(i), label1,label2,str(dT),str(np.abs(peak)),str(multiplicity)])
+		if not quiet: 
+			print line
+		file.write(line+'\n')
+		file.close()
 
-	peak,dT = WS.w_opp(bl1coords=bl1coords,bl2coords=bl2coords)
-	line = ', '.join([str(i), label1,label2,str(dT),str(np.abs(peak)),str(multiplicity)])
-	if not quiet: 
-		print line
-	file.write(line+'\n')
-	file.close()
 
+def execute(combsname=None): #for profiling
 
-def execute(): #for profiling
-	print "Getting group bl dictionary"
-	top_dict, blgps = get_plotsense_dict()
-	print "Looking for appropriate combinations of baselines"
-	combs = get_bl_comb(top_dict, alpha=0.25)
 	CAL = 'psa6622_v003'
-	FIRST = 'HERA_128_opp_all.csv'
-	SECOND = 'HERA_128_opp_pm200.csv'
+	FIRST = 'HERA_350_core_all.csv'
+	SECOND = 'HERA_350_core_pm300.csv'
 	#FIRST = 'first.csv'
 	
-	if True:
+	if combsname:
+		print "Loading combs dictionary", combsname
+		combs = load_obj(combsname)
+	else:
+		print "Getting group bl dictionary"
+		top_dict, blgps = get_plotsense_dict(NANTS=320)
+		print "Looking for appropriate combinations of baselines"
+		combs = get_bl_comb(top_dict, alpha=0.5)
+		save_obj('HERA_320_combs', combs)
+	
+	if False:
 		DT = 0.01
 		print 'Starting survey of all baselines'
 		global WS 
@@ -112,17 +134,18 @@ def execute(): #for profiling
 
 	if True:
 		DT = 0.0005
-		ENTRIES = 200
+		ENTRIES = 600
 		print '##### search over selected baselines  dT= %f ###'% DT
 		global WS
 		WS = w_opp.OppSolver(fq=.15, cal=CAL, dT=DT, beam='HERA')
 		subcombs = get_sub_combs(FIRST, combs, num=ENTRIES)
+
 		
 		file = open(SECOND, 'w')
 		file.write(',sep,sep2,dT,peak,mult\n')
 		file.close()
 
-		NJOBS = 8
+		NJOBS = 12
 		print 'Starting Opp with %d instances on %d jobs;' % (len(subcombs), NJOBS)
 		print ',sep,sep2,dT,peak,mult'
 		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, SECOND) for i, comb in enumerate(subcombs))

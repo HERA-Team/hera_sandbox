@@ -7,7 +7,7 @@ from itertools import cycle
 from matplotlib import colors as mcolors
 
 #FILE = 'corr_res.csv'
-FILE = 'HERA_37_opp_pm100.csv'
+FILE = 'HERA_350_core_pm300.csv'
 
 #markers = matplotlib.markers.MarkerStyle.markers
 markers = cycle(['o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D', 'd', 'x'])

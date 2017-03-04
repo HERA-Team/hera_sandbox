@@ -7,11 +7,11 @@ PLOT = True
 class OppSolver:
     '''uses convolution to compute Opp for two visibilities, thus need to obtain two
     time series'''
-    def __init__(self, fq=.15, dT=0.01, cal='psa6622_v003', beam='PAPER'):
+    def __init__(self, fqs=np.array([.15]), dT=0.01, rT= 0.1, T0=None, cal='psa6622_v003', beam='PAPER'):
         print 'Initializing Oppsolver'
-        self.fq = fq
+        self.fqs = fqs
         self.cal = cal
-        self.aa = a.cal.get_aa(self.cal, np.array([fq]))
+        self.aa = a.cal.get_aa(self.cal, fqs)
         self.REDNORM = 1.
         self.h = a.healpix.HealpixMap(nside=64)
         tx,ty,tz = self.h.px2crd(np.arange(self.h.map.size), ncrd=3)
@@ -19,7 +19,8 @@ class OppSolver:
         self.top0 = np.array([tx,ty,tz], dtype=tx.dtype)
         self.beam = beam
         self.dT = dT
-        self.k = -2j*np.pi*self.fq #to multiply fringes
+        self.rT = rT
+        self.k = -2j*np.pi*self.fqs[:,np.newaxis, np.newaxis] #to multiply fringes, prepare two extra dimensions for time and space
         if self.beam == 'HERA':
             DATADIR = '../calfiles/'
             XFILE = DATADIR+'GX4Y2H_4900_150.hmap'
@@ -39,12 +40,12 @@ class OppSolver:
     def prepare_coord(self):
         """prepares bms in memory, need more than 5MB * T1.size memory"""
         self.T0 = 2456681.50+self.dT
-        self.T1 = np.arange(2456681.4,2456681.6+self.dT, self.dT)
+        self.T1 = np.arange(self.T0-self.rT,self.T0+self.rT, self.dT)
         self.aa.set_jultime(self.T0)
         m = np.linalg.inv(self.aa.eq2top_m)
         ex,ey,ez = np.dot(m, self.top0)
         self.eq = np.array([ex,ey,ez], dtype=ex.dtype)
-        self.bms = np.zeros((self.T1.size, ex.size), dtype=np.complex)
+        self.bms = np.zeros((self.T1.size, self.fqs.size, ex.size), dtype=np.complex)
         self.tops = np.zeros((self.T1.size, 3, ex.size))
         for i, t1 in enumerate(self.T1):
             #print t1
@@ -54,19 +55,21 @@ class OppSolver:
             if self.beam == 'HERA':
                 bm = self.get_hera_beam((tx,ty,tz), pol='I')**2
             elif self.beam == 'PAPER':
-                bm = self.aa[0].bm_response((tx,ty,tz),pol='I')[0]**2#/np.abs(tz)#*np.abs(tzsave)
+                bm = self.aa[0].bm_response((tx,ty,tz),pol='I')**2#/np.abs(tz)#*np.abs(tzsave)
             #bm = np.ones_like(tx)
             #bm = np.where(tz > 0, bm, 0)
             bm = np.where(tz > 0.001, bm, 0)
             self.bms[i] = bm
             self.tops[i] = np.asarray([tx,ty,tz])
-        self.tops = self.tops.transpose((1,0,2))  #put tops in (3, time, space)
+        self.tops = self.tops.transpose((1,0,2))[:,np.newaxis,...] 
+        #put tops in (3, 1, time, space)
+        #bms should be in (freq, space)
 
 
-        self.REDNORM,self.Tac_err = self.w_opp((103,26),(103,26))
-        print 'self.REDNORM, self.Tac_err= ', self.REDNORM, self.Tac_err
+        #self.REDNORM,self.Tac_err = self.w_opp((103,26),(103,26))
+        #print 'self.REDNORM, self.Tac_err= ', self.REDNORM, self.Tac_err
 
-    def w_opp(self, bl1=None,bl2=None, bl1coords=None, bl2coords=None):
+    def w_opp(self, bl1=None,bl2=None, bl1coords=None, bl2coords=None, delay_trans=False):
         #h = a.healpix.HealpixMap(nside=64
         if bl1coords:
             #convert meters to light seconds to work with fq in GHz
@@ -82,39 +85,30 @@ class OppSolver:
         tx,ty,tz = self.tops
         bl2_prj = tx*bl2x + ty*bl2y + tz*bl2z
         bl1_prj = tx*bl1x + ty*bl1y + tz*bl1z
-        fng1 = np.exp(self.k*bl1_prj)
-        fng2 = np.exp(self.k*bl2_prj)
-        V2 = self.bms * fng2
-        V1 = self.bms * fng1
 
-        # datashape = (self.T1.size, self.tops[0][0].size)
-        # V1 = np.zeros(datashape, dtype=np.complex)
-        # V2 = np.zeros(datashape, dtype=np.complex)
-        # for i,t1 in enumerate(self.T1):
-        #     tx,ty,tz = self.tops[i]
-        #     bm = self.bms[i]
-        #     bl2_prj = tx*bl2x + ty*bl2y + tz*bl2z
-        #     bl1_prj = tx*bl1x + ty*bl1y + tz*bl1z
-        #     fng1 = np.exp(-2j*np.pi*bl1_prj*self.fq)
-        #     fng2 = np.exp(-2j*np.pi*bl2_prj*self.fq)
-        #     bm_fng2 = bm * fng2
-        #     bm_fng1 = bm * fng1
-        #     V1[i] = bm_fng1
-        #     V2[i] = bm_fng2
-        #V1,V2 = np.array(V1), np.array(V2) 
+        fng1 = np.exp(self.k*bl1_prj) #(freq, time, space)
+        fng2 = np.exp(self.k*bl2_prj)
+        V2 = self.bms * fng2.transpose((1,0,2)) #(time, freq, space)
+        V1 = self.bms * fng1.transpose((1,0,2))
+        if delay_trans:
+            V1 = np.fft.fftshift(np.fft.fft(V1, axis=1), axes=1)
+            V2 = np.fft.fftshift(np.fft.fft(V2, axis=1), axes=1)
+
+        #convolve along time axis, sum over space, getting (time(offset), freq)
         _V1,_V2 = np.fft.fft(V1,axis=0),np.fft.fft(V2,axis=0)
         #import IPython; IPythonp.embed()
-        res = np.fft.ifftshift(np.fft.ifft(np.sum(_V2*np.conj(_V1),axis=1)))
+        res = np.fft.ifftshift(np.fft.ifft(np.mean(_V2*np.conj(_V1),axis=2),axis=0), axes=0)
         #res = np.fft.fftshift(np.sum(_V2*np.conj(_V1),axis=1))
         ###################
         res = res/self.REDNORM
         ###################
         #import IPython; IPythonp.embed()
+        return res
 
-        maxind = np.argmax(np.abs(res))
-        maxres = res[maxind]
-        T1ac = -self.T0+self.T1[maxind]
-        # print '############## OPP RESULT for', bl1, bl2, '#####################'
-        # print 'max, abs(max), dT(max)'
-        # print maxres,maxres, T1ac
-        return maxres,T1ac
+        # maxind = np.argmax(np.abs(res))
+        # maxres = res[maxind]
+        # T1ac = -self.T0+self.T1[maxind]
+        # # print '############## OPP RESULT for', bl1, bl2, '#####################'
+        # # print 'max, abs(max), dT(max)'
+        # # print maxres,maxres, T1ac
+        # return maxres,T1ac

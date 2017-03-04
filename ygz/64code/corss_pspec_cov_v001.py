@@ -132,7 +132,7 @@ offset_dict[((0,95),(0,103))] = 0.0548
 offset_dict[((0,103), (0,103))] = 0.0
 #ind[set1], ind[set2] = lst_align(lsts[set1], lsts[set2])
 
-num = '01030103'
+num = '2013'
 from itertools import product
 d_file = np.load('griddata'+num+'.npz')
 w_file = np.load('gridwgt'+num+'.npz')
@@ -152,13 +152,14 @@ set_C(ds,3e4)
 #pI,pW,pC = get_p(ks[0],ks[1])
 #################################
 
-oflist = (np.arange(200)-100)#+int(0.0548/dlst)
+oflist = (np.arange(400)-200)#+int(0.0548/dlst)
 #oflist = oflist[oflist>=0]
-n_jobs = 2
+n_jobs = 8
 # of_batches = []
 # for n in xrange(n_jobs):
 #     of_batches.append(oflist[n::n_jobs])
-k1,k2 = K[0], K[1]
+print K
+k1,k2 = K[0], K[2]
 #print K
 #import IPython; IPython.embed()
 
@@ -174,7 +175,7 @@ k1,k2 = K[0], K[1]
 
 
 
-res = Parallel(n_jobs=n_jobs)(delayed(get_p)(k1,k2,'C',ofbatch) for ofbatch in oflist)
+res = Parallel(n_jobs=n_jobs)(delayed(get_p)(k1,k2,'I',ofbatch) for ofbatch in oflist)
 # def postprocess(res):
 #     pC, OFST = zip(*res)
 #     OFST = np.hstack(OFST)
