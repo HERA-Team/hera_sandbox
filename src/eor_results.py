@@ -155,6 +155,40 @@ def MWA_128_all():
         results[z] = data[:,[0,1,5,4]]
 
     return results
+
+def LOFAR_Patil_2017():
+    """
+    Lofar limits from Patil et al 2017
+    """
+    LOFAR_Patil = {}
+    LOFAR_Patil[8.3] = np.array([[0.053,0,131.5**2,0],
+                                [0.067,0,242.1**2,0],
+                                [0.083,0,220.9**2,0],
+                                [0.103,0,337.4**2,0],
+                                [0.128,407.7**2,0]])
+    LOFAR_Patil[9.15] = np.array([[0.053,0,86.4**2,0],
+                                [0.067,0,144.2**2,0],
+                                [0.083,0,184.7**2,0],
+                                [0.103,0,296.1**2,0],
+                                [0.128,0,342.0**2,0]])
+    LOFAR_Patil[10.1] = np.array([[0.053,0,79.6**2,0],
+                                [0.067,0,108.8**2,0],
+                                [0.083,0,148.6**2,0],
+                                [0.103,0,224**2,0],
+                                [0.128,0,366.1**2,0]])
+    return LOFAR_Patil
+
+def MWA_128_beards():
+    """MWA_128 data from Beardsley 2016.
+
+def z_slice(redshift, pspec_data):
+    """
+    MWA_beards = {}
+    MWA_beards[7.1] = n.array([[0.27, 0, 2.7e4, 0]])
+    MWA_beards[6.8] = n.array([[0.24, 0, 3.02e4, 0]])
+    MWA_beards[6.5] = n.array([[0.24, 0, 3.22e4, 0]])
+    return MWA_beards
+
 def z_slice(redshift,pspec_data):
     """
     input a power spectrum data dict output of MWA_32T_all() or GMRT_2014_all()
@@ -174,6 +208,8 @@ def k_slice(k,pspec_data):
     """
 
     zs = n.array(pspec_data.keys())
+    print zs[2],pspec_data[zs[2]].shape
+    print zs,np.abs(pspec_data[zs[2]][:,0]-k).argmin()
     k_is = [n.abs(pspec_data[redshift][:,0]-k).argmin() for redshift in zs]
     ks = [pspec_data[redshift][k_i,0] for k_i in k_is]
     power = n.vstack([pspec_data[redshift][k_i,:] for k_i in k_is])
