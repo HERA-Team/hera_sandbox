@@ -118,7 +118,8 @@ CONJ = [
 SEPS = [(0,103), (0,95)]
 #SEPS = [(0,103)]
 
-CH0,NCHAN = 110, 51
+#CH0,NCHAN = 110, 51
+CH0,NCHAN = 125, 21
 #bandpass = np.load('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/bandpass.npz')['bandpass']
 bandpass = np.load('bandpass.npz')['bandpass']
 bandpass.shape = (1,-1)

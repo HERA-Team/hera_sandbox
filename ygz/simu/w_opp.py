@@ -1,26 +1,35 @@
 #! /usr/bin/env python
 import aipy as a, numpy as np, capo as C, pylab as plt
-from scipy import signal
+from scipy import signal 
+from scipy.interpolate import interp1d
 PLOT = True
 #@p.ion()
 #fqs = np.linspace(.1,.2,203)
 class OppSolver:
     '''uses convolution to compute Opp for two visibilities, thus need to obtain two
     time series'''
-    def __init__(self, fqs=np.array([.15]), dT=0.01, rT= 0.1, T0=None, cal='psa6622_v003', beam='PAPER'):
+    #@profile
+    def __init__(self, fqs=np.arange(.14,.16,20), T1=np.arange(2456681.4, 2456681.6, 0.001), cal='psa6622_v003', beam='PAPER', bandpass=None):
         print 'Initializing Oppsolver'
         self.fqs = fqs
         self.cal = cal
         self.aa = a.cal.get_aa(self.cal, fqs)
         self.REDNORM = 1.
+
         self.h = a.healpix.HealpixMap(nside=64)
         tx,ty,tz = self.h.px2crd(np.arange(self.h.map.size), ncrd=3)
         #Create equatorial coordinates of the first frame T0
         self.top0 = np.array([tx,ty,tz], dtype=tx.dtype)
         self.beam = beam
-        self.dT = dT
-        self.rT = rT
+        self.T1 = T1
+        self.T0 = (T1[0]+T1[-1])/2
         self.k = -2j*np.pi*self.fqs[:,np.newaxis, np.newaxis] #to multiply fringes, prepare two extra dimensions for time and space
+        if bandpass is not None:
+            tfqs = np.linspace(.1,.2,bandpass.size)
+            tf = interp1d(tfqs, bandpass)
+            self.bandpass = tf(self.fqs)[np.newaxis, :, np.newaxis]
+        else:
+            self.bandpass = np.ones_like(fqs)[np.newaxis, :, np.newaxis]
         if self.beam == 'HERA':
             DATADIR = '../calfiles/'
             XFILE = DATADIR+'GX4Y2H_4900_150.hmap'
@@ -36,11 +45,9 @@ class OppSolver:
         X,Y,Z = ntop
         bmI = np.sqrt((self.Xh[X,Y,Z].conj()*self.Xh[X,Y,Z] + self.Yh[X,Y,Z].conj()*self.Yh[X,Y,Z])*0.5)
         return bmI
-        
+    #@profile
     def prepare_coord(self):
         """prepares bms in memory, need more than 5MB * T1.size memory"""
-        self.T0 = 2456681.50+self.dT
-        self.T1 = np.arange(self.T0-self.rT,self.T0+self.rT, self.dT)
         self.aa.set_jultime(self.T0)
         m = np.linalg.inv(self.aa.eq2top_m)
         ex,ey,ez = np.dot(m, self.top0)
@@ -61,6 +68,7 @@ class OppSolver:
             bm = np.where(tz > 0.001, bm, 0)
             self.bms[i] = bm
             self.tops[i] = np.asarray([tx,ty,tz])
+        self.bms = self.bms*self.bandpass
         self.tops = self.tops.transpose((1,0,2))[:,np.newaxis,...] 
         #put tops in (3, 1, time, space)
         #bms should be in (freq, space)
@@ -68,8 +76,8 @@ class OppSolver:
 
         #self.REDNORM,self.Tac_err = self.w_opp((103,26),(103,26))
         #print 'self.REDNORM, self.Tac_err= ', self.REDNORM, self.Tac_err
-
-    def w_opp(self, bl1=None,bl2=None, bl1coords=None, bl2coords=None, delay_trans=False):
+    #@profile
+    def opp(self, bl1=None,bl2=None, bl1coords=None, bl2coords=None, return_series=True):
         #h = a.healpix.HealpixMap(nside=64
         if bl1coords:
             #convert meters to light seconds to work with fq in GHz
@@ -86,29 +94,43 @@ class OppSolver:
         bl2_prj = tx*bl2x + ty*bl2y + tz*bl2z
         bl1_prj = tx*bl1x + ty*bl1y + tz*bl1z
 
-        fng1 = np.exp(self.k*bl1_prj) #(freq, time, space)
-        fng2 = np.exp(self.k*bl2_prj)
-        V2 = self.bms * fng2.transpose((1,0,2)) #(time, freq, space)
-        V1 = self.bms * fng1.transpose((1,0,2))
-        if delay_trans:
-            V1 = np.fft.fftshift(np.fft.fft(V1, axis=1), axes=1)
-            V2 = np.fft.fftshift(np.fft.fft(V2, axis=1), axes=1)
-
-        #convolve along time axis, sum over space, getting (time(offset), freq)
-        _V1,_V2 = np.fft.fft(V1,axis=0),np.fft.fft(V2,axis=0)
-        #import IPython; IPythonp.embed()
-        res = np.fft.ifftshift(np.fft.ifft(np.mean(_V2*np.conj(_V1),axis=2),axis=0), axes=0)
+        # Original Code for pedagogy, new code for memoery efficiency
+        # fng1 = np.exp(self.k*bl1_prj) #(freq, time, space)
+        # fng2 = np.exp(self.k*bl2_prj)  #memory efficiency
+        # V2 = self.bms * np.exp(self.k*bl2_prj).transpose((1,0,2)) #(time, freq, space)
+        # V1 = self.bms * np.exp(self.k*bl1_prj).transpose((1,0,2))
+        # #convolve along time axis, sum over angles and frequencies, getting (time(offset), freq)
+        # _V1,_V2 = np.fft.fft(V1,axis=0),np.fft.fft(V2,axis=0)  
+        # #import IPython; IPythonp.embed()
+        # res = np.fft.ifftshift(np.fft.ifft(np.sum(np.mean(_V2*np.conj(_V1),axis=2), axis=1),axis=0), axes=0)
         #res = np.fft.fftshift(np.sum(_V2*np.conj(_V1),axis=1))
+
+        res = np.fft.ifftshift(np.fft.ifft(
+                    np.sum(np.mean(
+                        np.fft.fft(self.bms * np.exp(self.k*bl2_prj).transpose((1,0,2)),axis=0)*np.conj(np.fft.fft(self.bms * np.exp(self.k*bl1_prj).transpose((1,0,2)),axis=0)),axis=2), axis=1),axis=0), axes=0)
         ###################
         res = res/self.REDNORM
         ###################
         #import IPython; IPythonp.embed()
-        return res
+        if return_series:
+            return res
+        else:
+            maxind = np.argmax(np.abs(res))
+            maxres = res[maxind]
+            T1ac = -self.T0+self.T1[maxind]
+            # print '############## OPP RESULT for', bl1, bl2, '#####################'
+            # print 'max, abs(max), dT(max)'
+            # print maxres,maxres, T1ac
+            return maxres,T1ac
 
-        # maxind = np.argmax(np.abs(res))
-        # maxres = res[maxind]
-        # T1ac = -self.T0+self.T1[maxind]
-        # # print '############## OPP RESULT for', bl1, bl2, '#####################'
-        # # print 'max, abs(max), dT(max)'
-        # # print maxres,maxres, T1ac
-        # return maxres,T1ac
+if __name__=='__main__':
+    #fqs = np.linspace(.14,.16, 50)
+    Afqs = np.linspace(.1, .2, 203)
+    fqs = Afqs[110:161]
+    bp = np.load('../64code/bandpass.npz')['bandpass']
+    WS = OppSolver(fqs=fqs, bandpass=bp, T1=np.arange(2456681.4, 2456681.60, 0.002))
+    res = WS.opp(bl1=(0,103), bl2=(0,103), return_series=False)
+    res2 = WS.opp(bl1=(0,103), bl2=(0,95), return_series=False)
+    print res
+    print res2
+    #import IPython; IPython.embed()
