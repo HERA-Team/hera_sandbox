@@ -56,7 +56,8 @@ CONJ = [ # XXX why conjugating all of these?
 bandpass = np.load('bandpass.npz')['bandpass']; bandpass.shape = (1,-1)
 fqs = np.linspace(.1,.2,bandpass.size)
 aa = aipy.cal.get_aa('psa6622_v003', fqs)
-CH0,NCHAN = 110,51
+#CH0,NCHAN = 110,51
+CH0,NCHAN = 110,1
 #CH0,NCHAN = 0,203
 aa.select_chans(np.arange(CH0,CH0+NCHAN))
 afreqs = aa.get_afreqs()
@@ -74,12 +75,13 @@ B_win = sdf * afreqs.size * capo.pfb.NOISE_EQUIV_BW[WINDOW] #proper normalizatio
 scalar_win = capo.pspec.X2Y(z) * bm * B_win
 
 sets = {
-    'day0' : sys.argv[1:],
-    #'day0' : glob.glob('zen.2456714.*.xx.npz'),
-    #'day1' : glob.glob('zen.2456715.*.xx.npz'),
-    #'day2' : glob.glob('zen.2456716.*.xx.npz'),
-    #'day4' : glob.glob('zen.2456718.*.xx.npz'),
-    #'day5' : glob.glob('zen.2456719.*.xx.npz'),
+    #'day0' : sys.argv[1:],
+    'day0' : glob.glob('zen.2456680.*.xx.npz'),
+    'day1' : glob.glob('zen.2456681.*.xx.npz'),
+    'day2' : glob.glob('zen.2456682.*.xx.npz'),
+    #'day3' : glob.glob('zen.2456683.*.xx.npz'),
+    'day4' : glob.glob('zen.2456684.*.xx.npz'),
+    'day5' : glob.glob('zen.2456685.*.xx.npz'),
 }
 data,wgts = {}, {}
 lsts = {}
@@ -111,6 +113,7 @@ def k2eq(k):
 data_eqs, wgts_eqs = {}, {}
 sol0 = {}
 for k in data_g:
+    if not k[-1] == (0,103): continue
     data_eqs[k2eq(k)], wgts_eqs[k2eq(k)] = data_g[k], wgts_g[k]
     sol0['g'+k[0]] = np.ones_like(data_g[k])
     sol0['bl%d_%d' % k[-1]] = data_g[k]
