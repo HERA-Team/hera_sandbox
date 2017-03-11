@@ -77,6 +77,27 @@ def compute_reds(nant, pols, *args, **kwargs):
         for pj in pols:
             reds += [[(Antpol(i,pi,nant),Antpol(j,pj,nant)) for i,j in gp] for gp in _reds]
     return reds
+ 
+#def aa_to_info(aa, pols=['x'], **kwargs):
+#    '''Use aa.ant_layout to generate redundances based on ideal placement.
+#    The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
+#    layout = aa.ant_layout
+#    nant = len(aa)
+#    antpos = -np.ones((nant*len(pols),3)) # -1 to flag unused antennas
+#    xs,ys = np.indices(layout.shape)
+#    for ant,x,y in zip(layout.flatten(), xs.flatten(), ys.flatten()):
+#        for z,pol in enumerate(pols):
+#            z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
+#            i = Antpol(ant,pol,len(aa)) # creates index in POLNUM/NUMPOL for pol
+#            antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
+#    reds = compute_reds(nant, pols, antpos[:nant],tol=.1) # only first nant b/c compute_reds treats pol redundancy separately
+#    # XXX haven't enforced xy = yx yet.  need to conjoin red groups for that
+#    ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] < 0]
+#    kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
+#    reds = filter_reds(reds, **kwargs)
+#    info = RedundantInfo(nant)
+#    info.init_from_reds(reds,antpos)
+#    return info
 
 def aa_to_info(aa, pols=['x'], fcal=False, **kwargs):
     '''Use aa.ant_layout to generate redundances based on ideal placement.
@@ -313,15 +334,13 @@ class FirstCal(object):
             2. baseline pair : offset 
             3. baseline pair : mean(variance(angle))/mean(absolute) [proxy for noise in solution]
         """
+        verbose = kwargs.get('verbose', False)
         window=kwargs.get('window','none')
         tune=kwargs.get('tune',True)
         plot=kwargs.get('plot',False)
         clean=kwargs.get('clean',1e-4)
         blpair2delay = {}
         blpair2offset = {}
-        
-        blpair2noise = {}
-        
         dd = self.info.order_data(self.data)
         ww = self.info.order_data(self.wgts)
         for (bl1,bl2) in self.info.bl_pairs:
@@ -331,31 +350,12 @@ class FirstCal(object):
             w1 = ww[:,:,self.info.bl_index(bl1)]
             d2 = dd[:,:,self.info.bl_index(bl2)]
             w2 = ww[:,:,self.info.bl_index(bl2)]
-            if True:
-                delay,offset = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs,window=window, tune=tune, plot=plot, verbose=verbose, clean=clean)
-                noiseproxy = self.varstat(d1,w1,d2,w2)
+            delay,offset = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs,**kwargs)
+            noiseproxy = self.varstat(d1,w1,d2,w2)
             #    _,(delay,offset),_ = red.redundant_bl_cal(d1,w1,d2,w2,self.fqs,window=window,verbose=verbose,use_offset=use_offset)
             blpair2delay[(bl1,bl2)] = delay
             blpair2offset[(bl1,bl2)] = offset
-            blpair2noise[(bl1,bl2)] = noiseproxy
-        return blpair2delay, blpair2offset, blpair2noise
-    
-    #XXX this probably belongs in red.py or something similar
-    def varstat(self, d1, w1, d2, w2):
-        #NOTE: this assumes a "logical_not" has been applied to MIRIAD flags
-        d12 = d2*np.conj(d1)
-        w12 = w1*w2 #still not comfortable with multiplying bools
-        d12_var = np.var(np.angle(d12),axis=0) #variance in phase over time
-        d12_mean = np.mean(np.abs(d12),axis=0) #mean in absolute value over time
-        d12_wgt = np.sum(w12,axis=0) #count of flags over time
-        #Apply weighting
-        d12_var *= d12_wgt/d12_wgt.max()
-        d12_mean *= d12_wgt/d12_wgt.max()
-        
-        v,m = np.nanmean(d12_var),np.nanmean(d12_mean)#average over frequency
-        
-        return v/m #big variance or small amplitude boosts noise.
-    
+        return blpair2delay, blpair2offset
     def get_N(self,nblpairs):
         return sps.eye(nblpairs)
      
@@ -379,9 +379,6 @@ class FirstCal(object):
         print "inverting N matrix"
         #REAL N:
         #self._N = np.linalg.inv(N)
-        #IDENTITY N:
-        del(self.N) #XXX
-        N = self.get_N(len(self.info.bl_pairs))
         self._N = N #since just using identity now
         
         #Absolute value A for sum in quadrature
@@ -397,7 +394,6 @@ class FirstCal(object):
         dontinvert = self.A.T.dot(self._N.dot(self.M)) #converts it all to a dense matrix
 #        definitely want to use pinv here and not solve since invert is probably singular. 
         self.xhat = np.dot(np.linalg.pinv(invert),dontinvert)
-        
         #solve for offset
         if offset:
             print "Inverting A.T*N^{-1}*A matrix"
@@ -446,7 +442,8 @@ def save_gains_fc(s,fqs,pol,filename,ubls=None,ex_ants=None,verbose=False):
             s2['o'+str(k)] = i[1]
             if verbose: print 'dly=%f , off=%f'%i
         else:
-            s2[str(k)+pol] = get_phase(f,i).reshape(1,-1) #reshape plays well with omni apply
+            #s2[str(k)+pol] = get_phase(f,i).reshape(1,-1) #reshape plays well with omni apply
+            s2[str(k)+pol] = get_phase(fqs,i).T #reshape plays well with omni apply
             s2['d'+str(k)] = i
             if verbose: print 'dly=%f'%i
     if not ubls is None: s2['ubls']=ubls
