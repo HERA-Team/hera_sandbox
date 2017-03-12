@@ -105,7 +105,7 @@ class OppSolver:
         # res = np.fft.ifftshift(np.fft.ifft(np.sum(np.mean(_V2*np.conj(_V1),axis=2), axis=1),axis=0), axes=0)
         #res = np.fft.fftshift(np.sum(_V2*np.conj(_V1),axis=1))
 
-        res = np.fft.ifftshift(np.fft.ifft(
+        res = np.fft.fftshift(np.fft.ifft(
                     np.sum(np.mean(
                         np.fft.fft(self.bms * np.exp(self.k*bl2_prj).transpose((1,0,2)),axis=0)*np.conj(np.fft.fft(self.bms * np.exp(self.k*bl1_prj).transpose((1,0,2)),axis=0)),axis=2), axis=1),axis=0), axes=0)
         ###################
@@ -124,13 +124,4 @@ class OppSolver:
             return maxres,T1ac
 
 if __name__=='__main__':
-    #fqs = np.linspace(.14,.16, 50)
-    Afqs = np.linspace(.1, .2, 203)
-    fqs = Afqs[110:161]
-    bp = np.load('../64code/bandpass.npz')['bandpass']
-    WS = OppSolver(fqs=fqs, bandpass=bp, T1=np.arange(2456681.4, 2456681.60, 0.002))
-    res = WS.opp(bl1=(0,103), bl2=(0,103), return_series=False)
-    res2 = WS.opp(bl1=(0,103), bl2=(0,95), return_series=False)
-    print res
-    print res2
-    #import IPython; IPython.embed()
+    pass

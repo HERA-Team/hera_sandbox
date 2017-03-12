@@ -70,6 +70,8 @@ def get_p(k1,k2,mode,offset=0):
         return pI * scalar, offset
     elif mode == 'W':
         if offset > 0:
+            # k1:   (#####)##
+            # k2: ##(#####)
             of_data1 = data_g[k1][:-offset].T; of_data2 = data_g[k2][offset:].T
         elif offset < 0:
             of_data1 = data_g[k1][-offset:].T; of_data2 = data_g[k2][:offset].T
