@@ -16,6 +16,8 @@ aa.set_jultime(2456240.2)
 peak = []
 sample_ant = 1
 ntop = n.array([X,Y,Z])  #note all beams are the same
+print X
+print Z
 bmp_list = export_beam.beam_real(aa[sample_ant], ntop, shape0, 'x',sq=True)
 bmp = bmp_list[0]
 freq, fbmamp = export_beam.beam_fourier(bmp, d, 400)
@@ -50,20 +52,20 @@ z = export_beam.get_overlap(f, u_range,u_range)
 #z = z/n.amax(n.abs(z))
 U,V = n.meshgrid(u_range,u_range)
 #z = abs(z)
-ax3 = fig2.add_subplot(121,projection='3d')
+ax3 = fig2.add_subplot(111,projection='3d')
 ax3.set_xlabel('u')
 ax3.set_ylabel('v')
 surf = ax3.plot_surface(U,V,z,cmap=cm.coolwarm)
 #p.colorbar(surf, shrink=0.5, aspect=5)
 
 
-ax4 = fig2.add_subplot(122)
-ax4.set_xlabel('u')
-ax4.set_ylabel('FT')
-for v in [0.,1.]:
-    z = export_beam.get_overlap(f,u_range,v)
-    curv, = p.plot(u_range,z,label='v= %f' % v)
-p.legend()
+#ax4 = fig2.add_subplot(122)
+#ax4.set_xlabel('u')
+#ax4.set_ylabel('FT')
+#for v in [0.,1.]:
+#    z = export_beam.get_overlap(f,u_range,v)
+#    curv, = p.plot(u_range,z,label='v= %f' % v)
+#p.legend()
 p.show()
 
 

@@ -1,5 +1,6 @@
 import unittest
 import capo, aipy as a, numpy as np, pylab as p, os
+unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: cmp(y, x)
 
 class TestFirstCal(unittest.TestCase):
     @classmethod
@@ -27,14 +28,34 @@ class TestFirstCal(unittest.TestCase):
         self.dataxx = {}
         self.wgtsxx = {}
         for (i,j) in data.keys():
-            self.dataxx[(i,j)] = data[(i,j)]['xx']#[0:1,:]
-            self.wgtsxx[(i,j)] = np.logical_not(flags[(i,j)]['xx'])#[0:1,:])
+            self.dataxx[(i,j)] = data[(i,j)]['xx']#[0:3,:]
+            self.wgtsxx[(i,j)] = np.logical_not(flags[(i,j)]['xx'])#[0:3,:]
 
 
     def test_run_firstcal(self):
         fc = capo.omni.FirstCal(self.dataxx,self.wgtsxx,self.fqs,self.info)
-        sols = fc.run(tune=True,verbose=False,offset=True,plot=False)
-        capo.omni.save_gains_fc(sols,self.fqs,self.pol[0],filename=self.raw_data[0],ubls=' ',ex_ants=[],verbose=True)
+        sols = fc.run(finetune=True,verbose=False,plot=False,noclean=True,offset=False,average=False,window='none')
+        capo.omni.save_gains_fc(sols,self.fqs,self.pol[0],filename=self.raw_data[0],ubls=' ',ex_ants=[],verbose=False)
+        self.assertTrue(os.path.exists(self.raw_data[0]+'.fc.npz'))
+        npzfile = self.raw_data[0]+'.fc.npz'
+        npzdata = np.load(npzfile) 
+        for k in ['cmd','ubls','ex_ants']: assert(k in npzdata.keys())
+        for k in npzdata.keys():
+            if k.isdigit():
+                self.assertTrue(str(k)+'d' in npzdata.keys())
+        #test compatibility with capo.omni_from_npz.
+        _,g,_,_ = capo.omni.from_npz(npzfile)
+        self.assertEqual(g.keys(),[self.pol[0]])
+        for k in g[g.keys()[0]].keys(): 
+            self.assertIsInstance(k,int)
+        for k in g[g.keys()[0]].keys():
+            self.assertTupleEqual(g[self.pol[0]][k].shape,(len(self.dataxx[self.dataxx.keys()[0]][:,0]),len(self.fqs)))
+
+
+    def test_run_firstcal_average(self):
+        fc = capo.omni.FirstCal(self.dataxx,self.wgtsxx,self.fqs,self.info)
+        sols = fc.run(finetune=True,verbose=True,plot=False,noclean=True,offset=False,average=True,window='none')
+        capo.omni.save_gains_fc(sols,self.fqs,self.pol[0],filename=self.raw_data[0],ubls=' ',ex_ants=[],verbose=False)
         self.assertTrue(os.path.exists(self.raw_data[0]+'.fc.npz'))
         npzfile = self.raw_data[0]+'.fc.npz'
         npzdata = np.load(npzfile) 
@@ -49,17 +70,37 @@ class TestFirstCal(unittest.TestCase):
             self.assertIsInstance(k,int)
         for k in g[g.keys()[0]].keys():
             self.assertTupleEqual(g[self.pol[0]][k].shape,(1,len(self.fqs)))
+
+    def test_run_firstcal_average_clean(self):
+        fc = capo.omni.FirstCal(self.dataxx,self.wgtsxx,self.fqs,self.info)
+        sols = fc.run(finetune=True,verbose=True,plot=False,noclean=False,offset=False,average=True,window='none')
+        capo.omni.save_gains_fc(sols,self.fqs,self.pol[0],filename=self.raw_data[0],ubls=' ',ex_ants=[],verbose=False)
+        self.assertTrue(os.path.exists(self.raw_data[0]+'.fc.npz'))
+        npzfile = self.raw_data[0]+'.fc.npz'
+        npzdata = np.load(npzfile) 
+        for k in ['cmd','ubls','ex_ants']: assert(k in npzdata.keys())
+        for k in npzdata.keys():
+            if k.isdigit():
+                self.assertTrue(str(k)+'d' in npzdata.keys())
+        #test compatibility with capo.omni_from_npz.
+        _,g,_,_ = capo.omni.from_npz(npzfile)
+        self.assertEqual(g.keys(),[self.pol[0]])
+        for k in g[g.keys()[0]].keys(): 
+            self.assertIsInstance(k,int)
+        for k in g[g.keys()[0]].keys():
+            self.assertTupleEqual(g[self.pol[0]][k].shape,(1,len(self.fqs)))
+ 
           
     def test_plot_redundant(self):
         reds2plot = self.reds[3] #random set of redundant baseliens
-        time = 13
+        time = 0
         for bl in reds2plot:
             try:
                 a1,a2 = bl
                 p.subplot(211)
                 p.plot(self.fqs, np.angle(self.dataxx[bl][time]))
                 p.subplot(212)
-                p.plot(self.fqs, np.angle( self.dataxx[bl][time]*np.conj(self.solved[str(a1)+self.pol[0]][0])*self.solved[str(a2)+self.pol[0]][0] ))
+                p.plot(self.fqs, np.angle( self.dataxx[bl][time]*np.conj(self.solved[str(a1)+self.pol[0]][time])*self.solved[str(a2)+self.pol[0]][time] ))
             except (KeyError):
                 bl = bl[::-1]
                 a1,a2 = bl
@@ -67,6 +108,7 @@ class TestFirstCal(unittest.TestCase):
                 p.plot(self.fqs, np.angle(self.dataxx[bl][time]))
                 p.subplot(212)
                 p.plot(self.fqs, np.angle( self.dataxx[bl][time]*np.conj(self.solved[str(a1)+self.pol[0]][0])*self.solved[str(a2)+self.pol[0]][0] ))
+            print a1,a2
         p.show() 
 
     def test_redundancy(self):
@@ -83,6 +125,6 @@ class TestFirstCal(unittest.TestCase):
             delays.append(np.abs( (t0 - tp0) - (t1 - tp1) - ((t2 - tp2) - (t3-tp3)) ) )
         zero = np.zeros_like(delays)
         for k in delays:
-            self.assertAlmostEquals(k, 0.0, delta=.1) 
+            self.assertAlmostEquals(np.sum(k), 0.0, delta=.1*k.size) 
 
 unittest.main()

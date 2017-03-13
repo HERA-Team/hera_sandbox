@@ -163,7 +163,7 @@ for cnt,scale in enumerate(bl_scales):
                     if not blconj[bl]: break
             print "bl_scale = ", scale,"fr_width:", frw_scale, "sep: ",sep,'bl:',bl, 'ant:', ij
             frp[scale][frw_scale][sep], bins = fringe.aa_to_fr_profile(aa, ij, mychan,bins=frbins, pol=opts.pol, bl_scale=scale)
-            timebins, firs[sep] = fringe.frp_to_firs(frp[scale][frw_scale][sep], bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan], limit_xtalk=True, bl_scale = scale, fr_width_scale = frw_scale)
+            timebins, firs[sep] = fringe.frp_to_firs(frp[scale][frw_scale][sep], bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan], limit_xtalk=True, bl_scale = scale, fr_width_scale = frw_scale, maxfr=opts.maxfr)
             timebins*= opts.data_inttime/opts.inttime
 
             if False and scale ==1:

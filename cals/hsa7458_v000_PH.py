@@ -571,9 +571,10 @@ def get_aa(freqs):
         twist = prms['twist'][i]
         antennas.append(a.pol.Antenna(0., 0., 0., beam, phsoff=phsoff,
                 amp=amp, bp_r=bp_r, bp_i=bp_i, pointing=(0.,n.pi/2,twist)))
-    aa = AntennaArray(prms['loc'], antennas, tau_ew=prms['tau_ew'], tau_ns=prms['tau_ns'],
-        gain=prms['gain'], amp_coeffs=prms['amp_coeffs'],
-        dly_coeffs=prms['dly_coeffs'], dly_xx_to_yy=prms['dly_xx_to_yy'], ant_layout=prms['ant_layout'])
+#    aa = AntennaArray(prms['loc'], antennas, tau_ew=prms['tau_ew'], tau_ns=prms['tau_ns'],
+#        gain=prms['gain'], amp_coeffs=prms['amp_coeffs'],
+#        dly_coeffs=prms['dly_coeffs'], dly_xx_to_yy=prms['dly_xx_to_yy'], ant_layout=prms['ant_layout'])
+    aa = AntennaArray(prms['loc'], antennas, antpos_ideal=antpos_ideal)
     pos_prms = {}
     for i in range(nants):
         pos_prms[str(i)] = prms['antpos'][i]

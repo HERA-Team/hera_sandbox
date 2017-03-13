@@ -28,9 +28,9 @@ opts,args = o.parse_args(sys.argv[1:])
 
 
 ### Plot ChiSq ####
+#if opts.pol == -1: pol = args[0].split('.')[3] #XXX hard-coded for *pol.npz files
+pol = opts.pol
 if opts.chisq == True:
-    if opts.pol == -1:
-        pol = args[0].split('.')[3] #XXX hard-coded for *pol.npz files
     chisqs = []
     for i,file in enumerate(args):
         print 'Reading',file
@@ -53,25 +53,29 @@ if opts.chisq == True:
     plt.show()
 
 
-### Plot Gains ###
+### Plot Gains or Chisqants ###
 if opts.gains == True or opts.chisqant == True:
     gains = {} #or chisqant values, depending on option
-    for i, file in enumerate(args): #loop over files
-        print 'Reading',file
-        file = np.load(file)
-        for key in file.keys(): #loop over antennas
-            if key[0] != '<' and key[0] != '(' and key[0].isalpha() != True and opts.gains == True:
-                gain = file[key]
-                antnum = key[:-1]
-                try: gains[antnum].append(gain)
-                except: gains[antnum] = [gain]
+    for i, f in enumerate(args): #loop over files
+        print 'Reading',f
+        file = numpy.load(f)
+        for a in range(128):
+            if opts.chisqant == True: #chisqant / gain
+                try: value = file['chisq'+str(a)+pol[0]]/file[str(a)+pol[0]] #XXX only 0th element of pol
+                except: continue
+                try: gains[a].append(value)
+                except: gains[a] = [value]
+                vmax=0.05
+                vmin=0.0
+            if opts.gains == True:
+                print "option doesn't exist yet"
+                sys.exit()
+                try: value = file[str(a)+pol[0]] #XXX only the 0th element of pol
+                except: continue
+                try: gains[a].append(value)
+                except: gains[a] = [value]
                 vmax=1.5
-            if key[0] == 'c' and opts.chisqant == True and len(key) > 5: #if plotting chisq per ant
-                gain = file[key]
-                antnum = key.split('chisq')[1][:-1]
-                try: gains[antnum].append(gain)
-                except: gains[antnum] = [gain]
-                vmax=2
+        file.close()
     for key in gains.keys():
         #gains[key] = np.vstack(numpy.abs(gains[key]))
         gains[key] = np.vstack(gains[key])
@@ -135,4 +139,4 @@ if opts.gains == True or opts.chisqant == True:
         plt.tight_layout()
         subplotnum += 1
     plt.show()
-
+    print '1 sigma cut on median chisq: ',baddies

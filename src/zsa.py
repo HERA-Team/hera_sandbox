@@ -150,24 +150,28 @@ def list2str(li):
 def flag_by_chisq(filenames, nsig=12, deg=8, outfile=False):
     '''Use the omnical global chisq to flag the model visibilities.'''
     m,g,v,x = omni.from_npz(filenames)
-    chisq = m['chisq']
-    #iterate twice on flattening bandpass to find rfi
-    mask = n.zeros_like(chisq, dtype=n.bool)
-    #Run loop twice to get better fit after removing large rfi
-    for i in range(2):
-        wgts = n.logical_not(mask)
-        chisq *= wgts
-        med_chisq = n.median(chisq, axis=0) 
-        w = n.median(chisq,axis=0)!=0. 
-        fit = n.polyfit(n.arange(len(med_chisq))[w], n.log10(med_chisq[w]), deg=8)
-        flat_chisq = chisq/10**n.polyval(fit, n.arange(len(med_chisq)))
-        med = n.median(flat_chisq)
-        sig = n.sqrt(n.median(n.abs(flat_chisq-med)**2))
-        mask |= n.where(flat_chisq > (med + nsig*sig), True, False)
-        #import IPython; IPython.embed()
-    f = n.logical_not(mask)#weights for the data
+    f = {}
+    for pol in g.keys():
+        if not pol in f: f[pol] = {}
+        for k in g[pol].keys():        
+            chisq = m['chisq'+str(k)+pol[0]]
+            #iterate twice on flattening bandpass to find rfi
+            mask = n.zeros_like(chisq, dtype=n.bool)
+            #Run loop twice to get better fit after removing large rfi
+            for i in range(2):
+                wgts = n.logical_not(mask)
+                chisq *= wgts
+                med_chisq = n.median(chisq, axis=0) 
+                w = n.median(chisq,axis=0)!=0. 
+                fit = n.polyfit(n.arange(len(med_chisq))[w], n.log10(med_chisq[w]), deg=deg)
+                flat_chisq = chisq/10**n.polyval(fit, n.arange(len(med_chisq)))
+                med = n.median(flat_chisq)
+                sig = n.sqrt(n.median(n.abs(flat_chisq-med)**2))
+                mask |= n.where(flat_chisq > (med + nsig*sig), True, False)
+                #import IPython; IPython.embed()
+            f[pol][k] = n.logical_not(mask)#weights for the data
     if outfile:
-       pass 
+        pass 
     return m,g,v,x,f
 
 def flatten_reds(reds):
@@ -176,3 +180,37 @@ def flatten_reds(reds):
     for r in reds:
         freds += r
     return freds
+
+def order_data(dd, info):
+    '''Order data in dict, where pol is first key and bl tuple is second key, the same way an info object is oriented'''
+    d = {}
+    for bl in dd.keys():
+        for pol in dd[bl].keys():
+            if bl in info.bl_order(): 
+                if not d.has_key(bl): d[bl] = {}
+                d[bl][pol] = dd[bl][pol]
+            else:
+                if not d.has_key(bl[::-1]): d[bl[::-1]] = {}
+                d[bl[::-1]][pol] = n.conj(dd[bl][pol])
+    return d
+
+def run_nb(workdir, fileroot, basenotebook, agdir=''):
+
+    from shutil import copy
+    from subprocess import call
+    import os
+
+    if agdir: #git directory
+        os.environ['AGDIR'] = agdir
+
+    nb = basenotebook
+    os.chdir(workdir)
+    copy(nb, '{0}/{1}.ipynb'.format(workdir, fileroot))
+
+    cmd = 'jupyter nbconvert {0}.ipynb --inplace --execute --to notebook --allow-errors --ExecutePreprocessor.timeout=15000'.format(fileroot).split(' ')
+    status = call(cmd)
+
+    cmd = 'jupyter trust {0}.ipynb'.format(fileroot).split(' ')
+    status = call(cmd)
+
+    return True
