@@ -9,7 +9,7 @@ class OppSolver:
     '''uses convolution to compute Opp for two visibilities, thus need to obtain two
     time series'''
     #@profile
-    def __init__(self, fqs=np.arange(.14,.16,20), T1=np.arange(2456681.4, 2456681.6, 0.001), cal='psa6622_v003', beam='PAPER', bandpass=None):
+    def __init__(self, fqs=np.linspace(.14,.16,20), T1=np.arange(2456681.4, 2456681.6, 0.001), cal='psa6622_v003', beam='PAPER', bandpass=None):
         print 'Initializing Oppsolver'
         self.fqs = fqs
         self.cal = cal
@@ -51,14 +51,17 @@ class OppSolver:
         self.aa.set_jultime(self.T0)
         m = np.linalg.inv(self.aa.eq2top_m)
         ex,ey,ez = np.dot(m, self.top0)
+        zex,zey,zez = np.dot(m, np.array([0,0,1]))
         self.eq = np.array([ex,ey,ez], dtype=ex.dtype)
         self.bms = np.zeros((self.T1.size, self.fqs.size, ex.size), dtype=np.complex)
         self.tops = np.zeros((self.T1.size, 3, ex.size))
+        self.zens = np.zeros((self.T1.size, 3))
         for i, t1 in enumerate(self.T1):
             #print t1
             self.aa.set_jultime(t1)
             m = self.aa.eq2top_m
             tx,ty,tz = np.dot(m, self.eq)
+            zx,zy,zz = np.dot(m, np.array([zex,zey,zez])) #location of zenith
             if self.beam == 'HERA':
                 bm = self.get_hera_beam((tx,ty,tz), pol='I')**2
             elif self.beam == 'PAPER':
@@ -68,8 +71,10 @@ class OppSolver:
             bm = np.where(tz > 0.001, bm, 0)
             self.bms[i] = bm
             self.tops[i] = np.asarray([tx,ty,tz])
+            self.zens[i] = np.asarray([zx,zy,zz])
         self.bms = self.bms*self.bandpass
         self.tops = self.tops.transpose((1,0,2))[:,np.newaxis,...] 
+        self.zens = self.zens.transpose((1,0))[:,np.newaxis,:,np.newaxis] 
         #put tops in (3, 1, time, space)
         #bms should be in (freq, space)
 
@@ -77,7 +82,7 @@ class OppSolver:
         #self.REDNORM,self.Tac_err = self.w_opp((103,26),(103,26))
         #print 'self.REDNORM, self.Tac_err= ', self.REDNORM, self.Tac_err
     #@profile
-    def opp(self, bl1=None,bl2=None, bl1coords=None, bl2coords=None, return_series=True):
+    def opp(self, bl1=None,bl2=None, bl1coords=None, bl2coords=None, rephase=True, delay=True, return_series=True, debug=False):
         #h = a.healpix.HealpixMap(nside=64
         if bl1coords:
             #convert meters to light seconds to work with fq in GHz
@@ -94,20 +99,37 @@ class OppSolver:
         bl2_prj = tx*bl2x + ty*bl2y + tz*bl2z
         bl1_prj = tx*bl1x + ty*bl1y + tz*bl1z
 
-        # Original Code for pedagogy, new code for memoery efficiency
-        # fng1 = np.exp(self.k*bl1_prj) #(freq, time, space)
-        # fng2 = np.exp(self.k*bl2_prj)  #memory efficiency
-        # V2 = self.bms * np.exp(self.k*bl2_prj).transpose((1,0,2)) #(time, freq, space)
-        # V1 = self.bms * np.exp(self.k*bl1_prj).transpose((1,0,2))
-        # #convolve along time axis, sum over angles and frequencies, getting (time(offset), freq)
-        # _V1,_V2 = np.fft.fft(V1,axis=0),np.fft.fft(V2,axis=0)  
-        # #import IPython; IPythonp.embed()
-        # res = np.fft.ifftshift(np.fft.ifft(np.sum(np.mean(_V2*np.conj(_V1),axis=2), axis=1),axis=0), axes=0)
-        #res = np.fft.fftshift(np.sum(_V2*np.conj(_V1),axis=1))
+        zx,zy,zz = self.zens
+        bl2_zen = zx*bl2x + zy*bl2y + zz*bl2z
+        bl1_zen = zx*bl1x + zy*bl1y + zz*bl1z
 
-        res = np.fft.fftshift(np.fft.ifft(
+        if rephase:
+            #bl2_prj -= bl2_zen#[:,91,:]
+            #bl1_prj -= bl1_zen#[:,91,:]
+            bl1_prj -= 17.54733
+            #import IPython; IPython.embed()
+
+        # Original Code for pedagogy, new code for memoery efficiency
+        if debug:
+            fng1 = np.exp(self.k*bl1_prj) #(freq, time, space)
+            fng2 = np.exp(self.k*bl2_prj)  #memory efficiency
+            V2 = self.bms * np.exp(self.k*bl2_prj).transpose((1,0,2)) #(time, freq, space)
+            V1 = self.bms * np.exp(self.k*bl1_prj).transpose((1,0,2))
+            #convolve along time axis, sum over angles and frequencies, getting (time(offset), freq)
+            _V1,_V2 = np.fft.fft(V1,axis=0),np.fft.fft(V2,axis=0)  
+            #import IPython; IPythonp.embed()
+            res = np.fft.ifftshift(np.fft.ifft(np.sum(np.mean(_V2*np.conj(_V1),axis=2), axis=1),axis=0), axes=0)
+            #res = np.fft.fftshift(np.sum(_V2*np.conj(_V1),axis=1))
+        else:
+            if delay:
+                res = np.fft.fftshift(np.fft.ifft(
                     np.sum(np.mean(
-                        np.fft.fft(self.bms * np.exp(self.k*bl2_prj).transpose((1,0,2)),axis=0)*np.conj(np.fft.fft(self.bms * np.exp(self.k*bl1_prj).transpose((1,0,2)),axis=0)),axis=2), axis=1),axis=0), axes=0)
+                        np.fft.fft(self.bms * np.exp(self.k*bl2_prj).transpose((1,0,2)),axis=0)*np.conj(np.fft.fft(self.bms * np.exp(self.k*bl1_prj).transpose((1,0,2)),axis=0)),axis=2), axis=1, keepdims=True),axis=0), axes=0)
+        
+            else: #return results as function of frequency
+                res = np.fft.fftshift(np.fft.ifft(
+                    np.mean(
+                        np.fft.fft(self.bms * np.exp(self.k*bl2_prj).transpose((1,0,2)),axis=0)*np.conj(np.fft.fft(self.bms * np.exp(self.k*bl1_prj).transpose((1,0,2)),axis=0)),axis=2),axis=0), axes=0)
         ###################
         res = res/self.REDNORM
         ###################
@@ -115,8 +137,8 @@ class OppSolver:
         if return_series:
             return res
         else:
-            maxind = np.argmax(np.abs(res))
-            maxres = res[maxind]
+            maxind = np.argmax(np.abs(res), axis=0)
+            maxres = res[maxind, np.arange(res.shape[1])]
             T1ac = -self.T0+self.T1[maxind]
             # print '############## OPP RESULT for', bl1, bl2, '#####################'
             # print 'max, abs(max), dT(max)'
