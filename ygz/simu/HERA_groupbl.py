@@ -71,7 +71,8 @@ def get_sub_combs(infile, combs, mode='pm', num=100):
 	"""return top num number of combs entries as sorted by 'pm' or 'p'"""
 	df = pd.read_csv(infile)
 	df['peakmult'] = df['peak']*df['mult']
-	if mode == 'pm':
+	df_sorted = pd.DataFrame()
+        if mode == 'pm':
 		df_sorted = df.sort_values('peakmult', ascending=False)
 	elif mode == 'p':
 		df_sorted = df.sort_values('peak', ascending=False)
@@ -96,7 +97,7 @@ def run_opp(i, comb, outfile, quiet=False):
 		return
 	else:
 		peak,dT = WS.opp(bl1coords=bl1coords,bl2coords=bl2coords)
-		line = ', '.join([str(i), label1,label2,str(dT),str(np.abs(peak)),str(multiplicity)])
+		line = ', '.join([str(i), label1,label2,str(dT[0]),str(np.abs(peak[0])),str(multiplicity)])
 		if not quiet:
 			print line
 		file.write(line+'\n')
@@ -138,7 +139,7 @@ def execute(combsname=None): #for profiling
 		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, FIRST, quiet=True) for i, comb in enumerate(combs))
 
 	if True:
-		DT = 0.0005
+		DT = 0.001
 		T1=np.arange(2456681.4, 2456681.6, DT)
 		fqs = np.array([.15])
 		ENTRIES = 300
@@ -158,11 +159,11 @@ def execute(combsname=None): #for profiling
 		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, SECOND) for i, comb in enumerate(subcombs))
 
 	if True:
-		#DT = 0.0005
-		#ENTRIES = 300
-		#print '##### search over selected baselines  dT= %f ###'% DT
-		#global WS
-		#WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam='HERA')
+		DT = 0.001
+		ENTRIES = 300
+		print '##### search over selected baselines  dT= %f ###'% DT
+		global WS
+		WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam='HERA')
 		subcombs = get_sub_combs(FIRST, combs, mode='m', num=ENTRIES)
 
 		
@@ -173,7 +174,7 @@ def execute(combsname=None): #for profiling
 		NJOBS = 12
 		print 'Starting Opp with %d instances on %d jobs;' % (len(subcombs), NJOBS)
 		print ',sep,sep2,dT,peak,mult'
-		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, SECOND) for i, comb in enumerate(subcombs))
+		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, SECONDm) for i, comb in enumerate(subcombs))
 
 
 
