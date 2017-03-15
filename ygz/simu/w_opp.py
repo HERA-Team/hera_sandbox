@@ -2,6 +2,7 @@
 import aipy as a, numpy as np, capo as C, pylab as plt
 from scipy import signal 
 from scipy.interpolate import interp1d
+from skimage.restoration import unwrap_phase
 PLOT = True
 #@p.ion()
 #fqs = np.linspace(.1,.2,203)
@@ -14,8 +15,6 @@ class OppSolver:
         self.fqs = fqs
         self.cal = cal
         self.aa = a.cal.get_aa(self.cal, fqs)
-        self.REDNORM = 1.
-
         self.h = a.healpix.HealpixMap(nside=64)
         tx,ty,tz = self.h.px2crd(np.arange(self.h.map.size), ncrd=3)
         #Create equatorial coordinates of the first frame T0
@@ -51,30 +50,28 @@ class OppSolver:
         self.aa.set_jultime(self.T0)
         m = np.linalg.inv(self.aa.eq2top_m)
         ex,ey,ez = np.dot(m, self.top0)
-        zex,zey,zez = np.dot(m, np.array([0,0,1]))
+        #zex,zey,zez = np.dot(m, np.array([0,0,1]))
         self.eq = np.array([ex,ey,ez], dtype=ex.dtype)
         self.bms = np.zeros((self.T1.size, self.fqs.size, ex.size), dtype=np.complex)
         self.tops = np.zeros((self.T1.size, 3, ex.size))
-        self.zens = np.zeros((self.T1.size, 3))
+        #self.zens = np.zeros((self.T1.size, 3))
         for i, t1 in enumerate(self.T1):
             #print t1
             self.aa.set_jultime(t1)
             m = self.aa.eq2top_m
             tx,ty,tz = np.dot(m, self.eq)
-            zx,zy,zz = np.dot(m, np.array([zex,zey,zez])) #location of zenith
+            #zx,zy,zz = np.dot(m, np.array([zex,zey,zez])) #location of zenith
             if self.beam == 'HERA':
                 bm = self.get_hera_beam((tx,ty,tz), pol='I')**2
             elif self.beam == 'PAPER':
                 bm = self.aa[0].bm_response((tx,ty,tz),pol='I')**2#/np.abs(tz)#*np.abs(tzsave)
-            #bm = np.ones_like(tx)
-            #bm = np.where(tz > 0, bm, 0)
             bm = np.where(tz > 0.001, bm, 0)
             self.bms[i] = bm
             self.tops[i] = np.asarray([tx,ty,tz])
-            self.zens[i] = np.asarray([zx,zy,zz])
+            #self.zens[i] = np.asarray([zx,zy,zz])
         self.bms = self.bms*self.bandpass
         self.tops = self.tops.transpose((1,0,2))[:,np.newaxis,...] 
-        self.zens = self.zens.transpose((1,0))[:,np.newaxis,:,np.newaxis] 
+        #self.zens = self.zens.transpose((1,0))[:,np.newaxis,:,np.newaxis] 
         #put tops in (3, 1, time, space)
         #bms should be in (freq, space)
 
@@ -82,7 +79,7 @@ class OppSolver:
         #self.REDNORM,self.Tac_err = self.w_opp((103,26),(103,26))
         #print 'self.REDNORM, self.Tac_err= ', self.REDNORM, self.Tac_err
     #@profile
-    def opp(self, bl1=None,bl2=None, bl1coords=None, bl2coords=None, rephase=True, delay=True, return_series=True, debug=False):
+    def opp(self, bl1=None,bl2=None, bl1coords=None, bl2coords=None, rephase=0, delay=True, return_series=True, debug=False):
         #h = a.healpix.HealpixMap(nside=64
         if bl1coords:
             #convert meters to light seconds to work with fq in GHz
@@ -99,15 +96,12 @@ class OppSolver:
         bl2_prj = tx*bl2x + ty*bl2y + tz*bl2z
         bl1_prj = tx*bl1x + ty*bl1y + tz*bl1z
 
-        zx,zy,zz = self.zens
-        bl2_zen = zx*bl2x + zy*bl2y + zz*bl2z
-        bl1_zen = zx*bl1x + zy*bl1y + zz*bl1z
+        # zx,zy,zz = self.zens
+        # bl2_zen = zx*bl2x + zy*bl2y + zz*bl2z
+        # bl1_zen = zx*bl1x + zy*bl1y + zz*bl1z
 
-        if rephase:
-            #bl2_prj -= bl2_zen#[:,91,:]
-            #bl1_prj -= bl1_zen#[:,91,:]
-            bl1_prj -= 17.54733
-            #import IPython; IPython.embed()
+        bl1_prj -= rephase/2/np.pi
+        #import IPython; IPython.embed()
 
         # Original Code for pedagogy, new code for memoery efficiency
         if debug:
@@ -130,20 +124,25 @@ class OppSolver:
                 res = np.fft.fftshift(np.fft.ifft(
                     np.mean(
                         np.fft.fft(self.bms * np.exp(self.k*bl2_prj).transpose((1,0,2)),axis=0)*np.conj(np.fft.fft(self.bms * np.exp(self.k*bl1_prj).transpose((1,0,2)),axis=0)),axis=2),axis=0), axes=0)
-        ###################
-        res = res/self.REDNORM
-        ###################
-        #import IPython; IPythonp.embed()
+
         if return_series:
             return res
         else:
             maxind = np.argmax(np.abs(res), axis=0)
             maxres = res[maxind, np.arange(res.shape[1])]
             T1ac = -self.T0+self.T1[maxind]
-            # print '############## OPP RESULT for', bl1, bl2, '#####################'
-            # print 'max, abs(max), dT(max)'
-            # print maxres,maxres, T1ac
-            return maxres,T1ac
+            slope = 0
+            if not delay: 
+                bl1off = unwrap_phase(np.angle(maxres))
+                slope, intercept = np.polyfit(self.fqs, bl1off, 1)
+
+            return maxres,T1ac, slope
+
+    def opp_rephase(self, bl1=None,bl2=None, bl1coords=None, bl2coords=None, return_series=False):
+        _, _, slope = self.opp(bl1=bl1,bl2=bl2, bl1coords=bl1coords, bl2coords=bl2coords, 
+            rephase=0, delay=False, return_series=False)
+        return self.opp(bl1=bl1,bl2=bl2, bl1coords=bl1coords, bl2coords=bl2coords, 
+            rephase=slope, delay=True, return_series=return_series)
 
 if __name__=='__main__':
     pass
