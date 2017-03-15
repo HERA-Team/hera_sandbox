@@ -48,12 +48,13 @@ def set_C(dst,norm=3e-6):
         dst.set_C({k:Cs[k]})
         iCs[k] = dst.iC(k)
 
-def get_p(k1,k2,mode,offset=0):
+def get_p(k1,k2,mode,offset=0, rephs=0):
 
     assert(mode in 'IWC')
     if True:
             #save_data,save_wgt = {},{}
         ds_new = None
+        import IPython; IPython.embed()
         if offset >1e-8:
             ds_new = oqe.DataSet({k1:data_g[k1][:-offset], k2:data_g[k2][offset:]}, {k1:wgt_g[k1][:-offset], k2:wgt_g[k2][offset:]})
         elif offset < -1e-8:
@@ -70,6 +71,8 @@ def get_p(k1,k2,mode,offset=0):
         return pI * scalar, offset
     elif mode == 'W':
         if offset > 0:
+            # k1:   (#####)##
+            # k2: ##(#####)
             of_data1 = data_g[k1][:-offset].T; of_data2 = data_g[k2][offset:].T
         elif offset < 0:
             of_data1 = data_g[k1][-offset:].T; of_data2 = data_g[k2][:offset].T
@@ -130,6 +133,7 @@ offset_dict = {((1,48), (1,4)):0.031,((1,4), (1,48)):0.031}
 offset_dict[((0,103),(0,95))] = 0.0548
 offset_dict[((0,95),(0,103))] = 0.0548
 offset_dict[((0,103), (0,103))] = 0.0
+rephs_dict = {((0,103), (0,103)): 0.0, ((0,103),(0,95)): 104.936, ((0,95),(0,103)): -104.936}
 #ind[set1], ind[set2] = lst_align(lsts[set1], lsts[set2])
 
 num = '2013'

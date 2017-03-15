@@ -62,18 +62,19 @@ bm2 = aa[0].bm_response((t2x,t2y,t2z),pol='I')[0]**2#/n.abs(tz)#*n.abs(tzsave)
 # bm2 /= bm2.sum()
 bm_fng2 = bm2 * fng2
 bm_fng1 = bm * fng1
-h.map = bm_fng1
+#h.map = bm_fng1
+h.map = bm_fng2*bm_fng1.conj()
 p.figure()
 p.subplot(131)
 C.plot.plot_hmap_ortho(h,mode="real")
 p.colorbar()
-h.map = bm_fng2
+#h.map = bm_fng2
 p.subplot(132)
-C.plot.plot_hmap_ortho(h,mode="real")
+C.plot.plot_hmap_ortho(h,mode="imag")
 p.colorbar()
-h.map = bm_fng2*bm_fng1.conj()
+#h.map = bm_fng2*bm_fng1.conj()
 p.subplot(133)
-C.plot.plot_hmap_ortho(h,mode="real")
+C.plot.plot_hmap_ortho(h,mode="phs")
 p.colorbar()
 p.show()
 

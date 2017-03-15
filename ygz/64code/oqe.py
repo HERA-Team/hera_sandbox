@@ -1,6 +1,6 @@
 import numpy as np, aipy, random, md5
 
-DELAY = False
+DELAY = False  #whether data is already in delay mode
 
 def hash(w):
     return md5.md5(w.copy(order='C')).digest()
