@@ -15,6 +15,26 @@ def errorbars(data,axis=1,per=95):
     upper = n.percentile(data, 50+per/2., axis=axis) - mean
     return lower, upper
 
+def MWA_128_beardsley_2016_all(pol='EW'):
+    '''
+    Results from MWA Beardsley 2016. ~60hours
+
+    outputs results[z] = n.array([k,Delta^2,2-sigma upper, 2-sigma lower])
+    '''
+    from astropy.table import Table
+    DATA = Table.read(os.path.dirname(__file__)+'/data/MWA_128T_Beardlsey_2016.txt',format='ascii')
+    results = {}
+    for rec in DATA:
+        if rec['pol']!=pol:continue
+        try:
+            results[rec['redshift']].append([rec['k'],rec['Delta2'],rec['Delta2_err'],0])
+        except(KeyError):
+            results[rec['redshift']] = [[rec['k'],rec['Delta2'],rec['Delta2_err'],0]]
+    for z in results:
+        print z,results[z]
+        results[z] = n.array(results[z])
+    return results
+
 
 def load_andre_models():
     """Get Arrays of parms, ks, delta^2 and err from 21cmfast output.
@@ -91,7 +111,6 @@ def PAPER_32_all():
     for files,z in zip(PAPER_RESULTS_FILES,zs):
         f=n.load(files)
         results[z] = n.array([f['k'],f['k3pk'],f['k3pk']+f['k3err'],f['k3pk']-f['k3err']]).T
-
     return results
 
 def PAPER_64_all():
@@ -188,10 +207,31 @@ def MWA_128_all():
 
     return results
 
+def LOFAR_Patil_2017():
+    """
+    Lofar limits from Patil et al 2017
+    """
+    LOFAR_Patil = {}
+    LOFAR_Patil[8.3] = np.array([[0.053,0,131.5**2,0],
+                                [0.067,0,242.1**2,0],
+                                [0.083,0,220.9**2,0],
+                                [0.103,0,337.4**2,0],
+                                [0.128,407.7**2,0]])
+    LOFAR_Patil[9.15] = np.array([[0.053,0,86.4**2,0],
+                                [0.067,0,144.2**2,0],
+                                [0.083,0,184.7**2,0],
+                                [0.103,0,296.1**2,0],
+                                [0.128,0,342.0**2,0]])
+    LOFAR_Patil[10.1] = np.array([[0.053,0,79.6**2,0],
+                                [0.067,0,108.8**2,0],
+                                [0.083,0,148.6**2,0],
+                                [0.103,0,224**2,0],
+                                [0.128,0,366.1**2,0]])
+    return LOFAR_Patil
+
 def MWA_128_beards():
     """MWA_128 data from Beardsley 2016.
 
-    return formatted as dict[z] = n.array([k,delta^2, top, bottom]) in mK^2
     """
     MWA_beards = {}
     MWA_beards[7.1] = n.array([[0.27, 0, 2.7e4, 0]])
@@ -218,6 +258,8 @@ def k_slice(k,pspec_data):
     """
 
     zs = n.array(pspec_data.keys())
+    print zs[2],pspec_data[zs[2]].shape
+    print zs,np.abs(pspec_data[zs[2]][:,0]-k).argmin()
     k_is = [n.abs(pspec_data[redshift][:,0]-k).argmin() for redshift in zs]
     ks = [pspec_data[redshift][k_i,0] for k_i in k_is]
     power = n.vstack([pspec_data[redshift][k_i,:] for k_i in k_is])
