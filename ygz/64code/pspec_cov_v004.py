@@ -27,8 +27,10 @@ opts,args = o.parse_args(sys.argv[1:])
  #################################################
 SEP, SEPD = opts.sep, opts.sepd
 simT = {'sep0,1_sep1,1':0.032500, 'sep0,1_sep-1,1':-0.0320, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
+phs_dict = {'sep0,1_sep1,1':117, 'sep0,1_sep-1,1':-117, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
 #simT = {'sep0,1_sep1,1':-0.030, 'sep0,1_sep-1,1':0.030, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
 DelT = simT[SEP+'_'+SEPD]*2*n.pi*(24*3600./a.const.sidereal_day)   #sidereal day?
+rephs = phs_dict[SEP+'_'+SEPD]
 print 'DelT=', DelT, 'radians'
 EQUIV = (SEP == SEPD)
 NOGROUP = True
@@ -243,6 +245,8 @@ for k in days:
         d = data1[k][bl][:,chans] * jy2T
         if conj[a.miriad.bl2ij(bl)]: d = n.conj(d)
         x1[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
+        x1[k][bl] *= n.exp(-1j*rephs*afreqs)[:,n.newaxis]  #rephasing!!!!!!!!!!
+        #import IPython; IPython.embed()
         if VERBOSE: print x1[k][bl].shape
     for bl in data2[k]:
         if VERBOSE: print k, bl

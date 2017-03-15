@@ -73,6 +73,8 @@ def get_sub_combs(infile, combs, mode='pm', num=100):
 	df['peakmult'] = df['peak']*df['mult']
 	if mode == 'pm':
 		df_sorted = df.sort_values('peakmult', ascending=False)
+	elif mode == 'p':
+		df_sorted = df.sort_values('peak', ascending=False)
 	S = df_sorted.head(n=num).index.tolist()
 
 	return [combs[s] for s in S]
@@ -93,9 +95,9 @@ def run_opp(i, comb, outfile, quiet=False):
 		file.close()
 		return
 	else:
-		peak,dT = WS.w_opp(bl1coords=bl1coords,bl2coords=bl2coords)
+		peak,dT = WS.opp(bl1coords=bl1coords,bl2coords=bl2coords)
 		line = ', '.join([str(i), label1,label2,str(dT),str(np.abs(peak)),str(multiplicity)])
-		if not quiet: 
+		if not quiet:
 			print line
 		file.write(line+'\n')
 		file.close()
@@ -106,6 +108,7 @@ def execute(combsname=None): #for profiling
 	CAL = 'psa6622_v003'
 	FIRST = 'HERA_350_core_all.csv'
 	SECOND = 'HERA_350_core_pm300.csv'
+	SECONDm = 'HERA_350_core_m300.csv'
 	#FIRST = 'first.csv'
 	
 	if combsname:
@@ -120,9 +123,11 @@ def execute(combsname=None): #for profiling
 	
 	if False:
 		DT = 0.01
+		T1=np.arange(2456681.4, 2456681.6, DT)
+		fqs = np.array([.15])
 		print 'Starting survey of all baselines'
 		global WS 
-		WS = w_opp.OppSolver(fq=.15, cal=CAL, dT=DT, beam='HERA')
+		WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam='HERA')
 		file = open(FIRST, 'w')
 		file.write(',sep,sep2,dT,peak,mult\n')
 		file.close()
@@ -134,14 +139,34 @@ def execute(combsname=None): #for profiling
 
 	if True:
 		DT = 0.0005
-		ENTRIES = 600
+		T1=np.arange(2456681.4, 2456681.6, DT)
+		fqs = np.array([.15])
+		ENTRIES = 300
 		print '##### search over selected baselines  dT= %f ###'% DT
 		global WS
-		WS = w_opp.OppSolver(fq=.15, cal=CAL, dT=DT, beam='HERA')
-		subcombs = get_sub_combs(FIRST, combs, num=ENTRIES)
+		WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam='HERA')
+		subcombs = get_sub_combs(FIRST, combs, mode='pm', num=ENTRIES)
 
 		
 		file = open(SECOND, 'w')
+		file.write(',sep,sep2,dT,peak,mult\n')
+		file.close()
+
+		NJOBS = 12
+		print 'Starting Opp with %d instances on %d jobs;' % (len(subcombs), NJOBS)
+		print ',sep,sep2,dT,peak,mult'
+		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, SECOND) for i, comb in enumerate(subcombs))
+
+	if True:
+		#DT = 0.0005
+		#ENTRIES = 300
+		#print '##### search over selected baselines  dT= %f ###'% DT
+		#global WS
+		#WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam='HERA')
+		subcombs = get_sub_combs(FIRST, combs, mode='m', num=ENTRIES)
+
+		
+		file = open(SECONDm, 'w')
 		file.write(',sep,sep2,dT,peak,mult\n')
 		file.close()
 

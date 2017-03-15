@@ -79,7 +79,7 @@ class OppSolver:
         #self.REDNORM,self.Tac_err = self.w_opp((103,26),(103,26))
         #print 'self.REDNORM, self.Tac_err= ', self.REDNORM, self.Tac_err
     #@profile
-    def opp(self, bl1=None,bl2=None, bl1coords=None, bl2coords=None, rephase=0, delay=True, return_series=True, debug=False):
+    def opp(self, bl1=None,bl2=None, bl1coords=None, bl2coords=None, rephase=0, delay=True, return_series=False, debug=False):
         #h = a.healpix.HealpixMap(nside=64
         if bl1coords:
             #convert meters to light seconds to work with fq in GHz
@@ -131,16 +131,15 @@ class OppSolver:
             maxind = np.argmax(np.abs(res), axis=0)
             maxres = res[maxind, np.arange(res.shape[1])]
             T1ac = -self.T0+self.T1[maxind]
-            slope = 0
-            if not delay: 
-                bl1off = unwrap_phase(np.angle(maxres))
-                slope, intercept = np.polyfit(self.fqs, bl1off, 1)
 
-            return maxres,T1ac, slope
+            return maxres,T1ac
 
     def opp_rephase(self, bl1=None,bl2=None, bl1coords=None, bl2coords=None, return_series=False):
-        _, _, slope = self.opp(bl1=bl1,bl2=bl2, bl1coords=bl1coords, bl2coords=bl2coords, 
+        maxres, _ = self.opp(bl1=bl1,bl2=bl2, bl1coords=bl1coords, bl2coords=bl2coords, 
             rephase=0, delay=False, return_series=False)
+        slope = 0
+        bl1off = unwrap_phase(np.angle(maxres))
+        slope, intercept = np.polyfit(self.fqs, bl1off, 1)
         return self.opp(bl1=bl1,bl2=bl2, bl1coords=bl1coords, bl2coords=bl2coords, 
             rephase=slope, delay=True, return_series=return_series)
 

@@ -54,7 +54,8 @@ def get_p(k1,k2,mode,offset=0, rephs=0):
     if True:
             #save_data,save_wgt = {},{}
         ds_new = None
-        import IPython; IPython.embed()
+        data_g[k1] *= np.exp(1j*rephs*afreqs)[np.newaxis, :]
+        #import IPython; IPython.embed()
         if offset >1e-8:
             ds_new = oqe.DataSet({k1:data_g[k1][:-offset], k2:data_g[k2][offset:]}, {k1:wgt_g[k1][:-offset], k2:wgt_g[k2][offset:]})
         elif offset < -1e-8:
@@ -166,6 +167,7 @@ n_jobs = 8
 print K
 k1,k2 = K[0], K[3]
 print k1, k2
+rephs = rephs_dict[(k1[-1], k2[-1])]
 #import IPython; IPython.embed()
 
 # d = data_g[k1].T
@@ -180,7 +182,7 @@ print k1, k2
 
 
 
-res = Parallel(n_jobs=n_jobs)(delayed(get_p)(k1,k2,'I',ofbatch) for ofbatch in oflist)
+res = Parallel(n_jobs=n_jobs)(delayed(get_p)(k1,k2,'I',ofbatch, rephs=rephs) for ofbatch in oflist)
 # def postprocess(res):
 #     pC, OFST = zip(*res)
 #     OFST = np.hstack(OFST)
