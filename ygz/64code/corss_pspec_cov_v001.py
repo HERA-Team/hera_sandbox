@@ -153,14 +153,15 @@ set_C(ds,3e4)
 #################################
 
 oflist = (np.arange(400)-200)#+int(0.0548/dlst)
+oflst = oflist*dlst
 #oflist = oflist[oflist>=0]
 n_jobs = 8
 # of_batches = []
 # for n in xrange(n_jobs):
 #     of_batches.append(oflist[n::n_jobs])
 print K
-k1,k2 = K[0], K[2]
-#print K
+k1,k2 = K[0], K[3]
+print k1, k2
 #import IPython; IPython.embed()
 
 # d = data_g[k1].T
