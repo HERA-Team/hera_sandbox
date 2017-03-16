@@ -264,7 +264,7 @@ Nreal = 2
 Nlst = len(lsts) * inttime / frf_inttime
 Nbls = len(bls_master) / np.sqrt(2) * np.sqrt(1. - 1./args.NGPS)
 # calculate the effective counts in the data, this is like ndays
-cnt_eff = 1./np.sqrt(np.ma.mean(1./cnts**2))
+cnt_eff = 1./np.sqrt(np.ma.masked_invalid(1./cnts**2).mean())
 folding = 2
 pk_noise = X2Y * omega_p**2/omega_pp * Tsys**2
 pk_noise /= frf_inttime * Npol * Nbls * cnt_eff
