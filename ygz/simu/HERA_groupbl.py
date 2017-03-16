@@ -72,10 +72,12 @@ def get_sub_combs(infile, combs, mode='pm', num=100):
 	df = pd.read_csv(infile)
 	df['peakmult'] = df['peak']*df['mult']
 	df_sorted = pd.DataFrame()
-        if mode == 'pm':
+	if mode == 'pm':
 		df_sorted = df.sort_values('peakmult', ascending=False)
 	elif mode == 'p':
 		df_sorted = df.sort_values('peak', ascending=False)
+	else:
+		raise exception('mode not supported')
 	S = df_sorted.head(n=num).index.tolist()
 
 	return [combs[s] for s in S]
@@ -108,8 +110,9 @@ def execute(combsname=None): #for profiling
 
 	CAL = 'psa6622_v003'
 	FIRST = 'HERA_350_core_all.csv'
-	SECOND = 'HERA_350_core_pm300.csv'
-	SECONDm = 'HERA_350_core_m300.csv'
+	SECOND = 'HERA_350_core_pm.csv'
+	SECONDm = 'HERA_350_core_p.csv'
+	ENTRIES = 1000
 	#FIRST = 'first.csv'
 	
 	if combsname:
@@ -142,7 +145,6 @@ def execute(combsname=None): #for profiling
 		DT = 0.001
 		T1=np.arange(2456681.4, 2456681.6, DT)
 		fqs = np.array([.15])
-		ENTRIES = 300
 		print '##### search over selected baselines  dT= %f ###'% DT
 		global WS
 		WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam='HERA')
@@ -160,11 +162,12 @@ def execute(combsname=None): #for profiling
 
 	if True:
 		DT = 0.001
-		ENTRIES = 300
+		T1=np.arange(2456681.4, 2456681.6, DT)
+		fqs = np.array([.15])
 		print '##### search over selected baselines  dT= %f ###'% DT
 		global WS
 		WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam='HERA')
-		subcombs = get_sub_combs(FIRST, combs, mode='m', num=ENTRIES)
+		subcombs = get_sub_combs(FIRST, combs, mode='p', num=ENTRIES)
 
 		
 		file = open(SECONDm, 'w')
@@ -180,5 +183,5 @@ def execute(combsname=None): #for profiling
 
 	
 if __name__=="__main__":
-	execute()
+	execute('HERA_320_combs')
 	#import IPython; IPython.embed()

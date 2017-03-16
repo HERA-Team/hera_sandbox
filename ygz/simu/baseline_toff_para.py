@@ -7,8 +7,8 @@ num_cores = multiprocessing.cpu_count()
 #@p.ion()
 #fqs = np.linspace(.1,.2,203)
 fq = .15
-bl1, bl2 = (0,103),(0,95)
-N = 24000   #number of universes to average over
+bl1, bl2 = (0,103),(0,103)
+N = 240   #number of universes to average over
 
 VIS = False
 MAXCORR_EQUIV = 1228687.26108#1261990. #MAXCORR_EQUIV is the peak of baseline_ton
@@ -30,7 +30,7 @@ if VIS:
     top2 = np.array([tx2,ty2,tz2], dtype=tx2.dtype)
 eq = np.array([ex,ey,ez], dtype=ex.dtype)
 
-TT = np.arange(2455700.3,2455700.7,0.0005)
+TT = np.arange(2455700.3,2455700.7,0.001)
 NORM = float(TT.size)/1000.
 def prepare(TT):
     aa.set_jultime(2455700.5)
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     bfs = prepare(TT)
     print 'done'
 
-    corr = Parallel(n_jobs=2)(delayed(find_corr)(i, bfs) for i in xrange(N))
+    corr = Parallel(n_jobs=8)(delayed(find_corr)(i, bfs) for i in xrange(N))
     corr = np.array(corr)
     print 'shape of corr:',corr.shape
 

@@ -33,7 +33,7 @@ eq = n.array([ex,ey,ez], dtype=ex.dtype)
 
 plt = None
 #TT = n.arange(2455700,2455701,1/a.const.sidereal_day*42.9*0.5) #*5 for speed
-TT = n.arange(2455700.4,2455700.6,0.0001)
+TT = n.arange(2455700.3,2455700.7,0.001)
 NORM = float(TT.size)/1000.
 #for i in xrange(N):
 

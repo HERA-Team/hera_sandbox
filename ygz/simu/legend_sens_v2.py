@@ -7,14 +7,15 @@ from itertools import cycle
 from matplotlib import colors as mcolors
 
 #FILE = 'corr_res.csv'
-FILE = 'HERA_350_core_m300.csv'
+FILE = 'HERA_350_core_pm300.csv'
+LEGEND = False
 
 #markers = matplotlib.markers.MarkerStyle.markers
 markers = cycle(['o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D', 'd', 'x'])
 print markers
 df = pd.DataFrame.from_csv(FILE)
 Npts = df.shape[0]
-Npts = 50
+#Npts = 1000
 C = np.random.random(Npts)
 f, (ax, ax2) = plt.subplots(2, 1, sharex=True)
 # f.set_figheight(10);  f.set_figwidth(12)
@@ -34,8 +35,9 @@ for i in xrange(Npts):
 	#print C[i]
 	ax.scatter(np.abs(df['dT'][i]), df['peak'][i]/peakmax, label=label, s=65, marker=marker, c=Cz[i])
 plt.setp(ax.get_xticklabels(), visible=False)
-legend = ax.legend(ncol=4, scatterpoints=1, frameon=False)
-legend.get_frame().set_facecolor('none')
+if LEGEND:
+	legend = ax.legend(ncol=4, scatterpoints=1, frameon=False)
+	legend.get_frame().set_facecolor('none')
 
 ax.grid()
 #ax.set_xlabel('Time Delay [Sidereal Day]')
@@ -48,8 +50,9 @@ for i in xrange(Npts):
 	label = str(df['sep'][i])+':'+str(df['sep2'][i]) if i>=Npts/2 else None
 	ax2.scatter(np.abs(df['dT'][i]), (df['mult']*df['peak']/mult1010)[i]/peakmax, s=65, c=Cz[i], label=label, marker=marker)
 #plt.legend()
-legend = ax2.legend(ncol=4, scatterpoints=1, frameon=False)
-legend.get_frame().set_facecolor('none')
+if LEGEND:
+	legend = ax2.legend(ncol=4, scatterpoints=1, frameon=False)
+	legend.get_frame().set_facecolor('none')
 
 ax2.grid()
 ax2.set_xlabel('Time Delay [Sidereal Day]')
