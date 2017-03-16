@@ -278,6 +278,7 @@ if args.analytic:
     plt.plot(ks, 2*k3noise, 'g-')
 plt.suptitle('z={0:0.2f}'.format(z))
 plt.show()
-
-np.savez('simple_pspec.npz', ks=ks, kpl=kpl, pk=pk, pk_err=pk_err,
-         k3pk=k3pk, k3err=k3err, pk_noise=pk_noise, k3noise=k3noise)
+plt.savefig('simple_pspec_z_{0:.2f}.png'.format(z), format='png')
+np.savez(args.output + 'simple_pspec.npz', ks=ks, kpl=kpl, pk=pk,
+         pk_err=pk_err, k3pk=k3pk, k3err=k3err, pk_noise=pk_noise,
+         k3noise=k3noise)
