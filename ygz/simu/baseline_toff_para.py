@@ -7,8 +7,8 @@ num_cores = multiprocessing.cpu_count()
 #@p.ion()
 #fqs = np.linspace(.1,.2,203)
 fq = .15
-bl1, bl2 = (0,103),(0,103)
-N = 240   #number of universes to average over
+bl1, bl2 = (0,103),(0,95)
+N = 2400   #number of universes to average over
 
 VIS = False
 MAXCORR_EQUIV = 1228687.26108#1261990. #MAXCORR_EQUIV is the peak of baseline_ton

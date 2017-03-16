@@ -25,24 +25,28 @@ for bls in (((0,103),(0,103)),((0,103),(0,95))):
 	    print 'Reading', fname
 	    file = np.load(fname)
 	    TT, meancorr = file['arr_0'],file['arr_1']
-	res = WS.opp(bl1=bl1,bl2=bl2, return_series=True)
+	res = WS.opp(bl1=bl1,bl2=bl2, return_series=True)[:,0]
 	SERIES.append(((T1,res),(TT,meancorr)))
 
-f,axes = plt.subplots(21)
+norm=np.amax(np.abs(SERIES[0][0][1]))
+f,axes = plt.subplots(2,1)
 for i, obj in enumerate(SERIES):
 	T1,res = SERIES[i][0]
-	axes[i].plot(T1,res.real,'b',label='real')
-	axes[i].plot(T1,res.imag,'g',label='imag')
-	axes[i].plot(T1,np.abs(res),'r',alpha=0.5,linewidth=1,label='Theory(Opp)')
+	res /= norm
+	axes[i].plot(T1-T0,res.real,'b',label='real')
+	axes[i].plot(T1-T0,res.imag,'g',label='imag')
+	axes[i].plot(T1-T0,np.abs(res),'r',alpha=0.5,linewidth=1,label='Theory(Opp)')
 	if COMPARE:
 		TT, meancorr = SERIES[i][1]
-		meancorr = meancorr/1.3117
+		meancorr = meancorr/1.2875
 		axes[i].plot(TT,meancorr.real,'b--')
 		axes[i].plot(TT,meancorr.imag,'g--')
 		axes[i].plot(TT,np.abs(meancorr),'r--',alpha=0.5,linewidth=1,label='Simulation')
+	axes[i].legend()
 	#plt.axvline(T1ac,color='k',alpha=0.5,linewidth=2)
-axes[1].xlabel('dT (Julian Day)')
-plt.title('Correlation Normalized to Equivalent Baseline Peak')
-plt.legend()
+axes[1].set_xlabel('dT (Sidereal Days)')
+axes[0].set_title('Correlation Normalized to Equivalent Baseline Peak')
+plt.setp(axes[0].get_xticklabels(), visible=False)
+
 
 plt.show()
