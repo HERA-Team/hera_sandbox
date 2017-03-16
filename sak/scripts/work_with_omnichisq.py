@@ -46,7 +46,8 @@ for i,f in enumerate(chisqfiles):
         elif i>=Nmx**2 and i<2*(Nmx**2): ax = axarr2.ravel()[i-Nmx**2]
         elif i>=2*(Nmx**2) and i<3*(Nmx**2): ax = axarr3.ravel()[i-2*(Nmx**2)]
         else: ax = axarr4.ravel()[i-3*(Nmx**2)]
-        ax.imshow(data,aspect='auto',interpolation='None',vmax=opts.mx, vmin=0, extent=[0,data.shape[1],data.shape[0],0])
+        if not i==len(chisqfiles)-1: ax.imshow(data,aspect='auto',interpolation='None',vmax=opts.mx, vmin=0, extent=[0,data.shape[1],data.shape[0],0])
+        else: ax.imshow(data,aspect='auto',interpolation='None',vmax=opts.mx, vmin=0, extent=[0,data.shape[1],1330,0])
         ax.set_title(jd)
 if opts.plot_per_JD:
     plt.show()
