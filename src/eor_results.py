@@ -165,7 +165,7 @@ def LOFAR_Patil_2017():
                                 [0.067,0,242.1**2,0],
                                 [0.083,0,220.9**2,0],
                                 [0.103,0,337.4**2,0],
-                                [0.128,407.7**2,0]])
+                                [0.128,0,407.7**2,0]])
     LOFAR_Patil[9.15] = np.array([[0.053,0,86.4**2,0],
                                 [0.067,0,144.2**2,0],
                                 [0.083,0,184.7**2,0],
@@ -204,12 +204,11 @@ def k_slice(k,pspec_data):
     input a power spectrum data dict output of MWA_32T_all() or GMRT_2014_all()
     returns a slice along z for the input redshift
     example
-    zs,pspec[k,k3pK] = k_slice(MWA_32T_all())
+    zs,pspec[k,k3pK] = k_slice(k,MWA_32T_all())
     """
 
     zs = n.array(pspec_data.keys())
-    print zs[2],pspec_data[zs[2]].shape
-    print zs,np.abs(pspec_data[zs[2]][:,0]-k).argmin()
+
     k_is = [n.abs(pspec_data[redshift][:,0]-k).argmin() for redshift in zs]
     ks = [pspec_data[redshift][k_i,0] for k_i in k_is]
     power = n.vstack([pspec_data[redshift][k_i,:] for k_i in k_is])
