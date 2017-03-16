@@ -257,25 +257,26 @@ plt.grid()
 plt.yscale('log')
 plt.ylim([1e1, 1e6])
 
+Tsys = 180 * (fq/.18)**-2.55 + 200
+Tsys *= 1e3
+Npol = 2
+Nreal = 2
+Nlst = len(lsts) * inttime / frf_inttime
+Nbls = len(bls_master) / np.sqrt(2) * np.sqrt(1. - 1./args.NGPS)
+# calculate the effective counts in the data, this is like ndays
+cnt_eff = 1./np.sqrt(np.ma.mean(1./cnts**2))
+folding = 2
+pk_noise = X2Y * omega_p**2/omega_pp * Tsys**2
+pk_noise /= frf_inttime * Npol * Nbls * cnt_eff
+pk_noise /= np.sqrt(Nlst * folding * Nreal)
+k3noise = ks**3/(2*np.pi**2) * pk_noise
+
 if args.analytic:
-    Tsys = 180 * (fq/.18)**-2.55 + 200
-    Tsys *= 1e3
-    Npol = 2
-    Nreal = 2
-    Nlst = len(lsts) * inttime / frf_inttime
-    Nbls = len(bls_master) / np.sqrt(2) * np.sqrt(1. - 1./args.NGPS)
-    # calculate the effective counts in the data, this is like ndays
-    cnt_eff = 1./np.sqrt(np.ma.mean(1./cnts**2))
-    folding = 2
-    pk_noise = X2Y * omega_p**2/omega_pp * Tsys**2
-    pk_noise /= frf_inttime * Npol * Nbls * cnt_eff
-    pk_noise /= np.sqrt(Nlst * folding * Nreal)
-    k3noise = ks**3/(2*np.pi**2) * pk_noise
     plt.subplot(121)
     plt.axhline(2*pk_noise, linestyle='-', color='g')
     plt.subplot(122)
     plt.plot(ks, 2*k3noise, 'g-')
-
+plt.suptitle('z={0:0.2f}'.format(z))
 plt.show()
 
 np.savez('simple_pspec.npz', ks=ks, kpl=kpl, pk=pk, pk_err=pk_err,
