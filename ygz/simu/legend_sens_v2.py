@@ -72,16 +72,18 @@ plt.show()
 print "========= Statistics of sensitibity contribution =========="
 df['Theta'] = df['peak']*df['mult']
 df['Theta'] /= np.amax(df['Theta'])
-def get_imp(df, Theta_min=0.4):
-	dft = df.where(df['Theta']>Theta_min)
-	dfeq = dft.where(dft['sep']==dft['sep2'])
-	dfnq = dft.where(dft['sep']!=dft['sep2'])
+def get_imp(df, Theta_min=0.0):
+	dft = df.loc[df['Theta']>Theta_min]
+	dfeq = dft.loc[dft['sep']==dft['sep2']]
+	dfnq = dft.loc[dft['sep']!=dft['sep2']]
 	
-	totalsumsq = np.sum(dft['Theta']**2)
-	eqsumsq = np.sum(dfeq['Theta']**2)
-	totalsens = np.sum(dft['Theta'])/totalsumsq
-	eqsens = np.sum(dfeq['Theta'])/eqsumsq
+	totalsum = np.sum(dft['Theta'])
+	eqsum = np.sum(dfeq['Theta'])
+	totalsens = totalsum/np.sqrt(len(dft.index))
+	eqsens = eqsum/np.sqrt(len(dfeq.index))
 	improve = (totalsens-eqsens)/eqsens
 	return improve
-
+L = np.arange(0,1,0.01)
+IL = [get_imp(df, L) for L in l]
+import IPython; IPython.embed()
 
