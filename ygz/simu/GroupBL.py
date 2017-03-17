@@ -4,7 +4,7 @@ import w_opp, aipy as a
 from joblib import Parallel, delayed
 import timeit
 """
-This file groups the HERA baselines into equivalency classes
+This file groups the HERA/PAPER baselines and outputs sensitivity and other informations to csv files
 """
 def save_obj(name, obj):
     with open(name + '.pkl', 'wb') as f:
@@ -164,6 +164,8 @@ def execute(combsname=None): #for profiling
 	FILE = "../calfiles/HERA_antconfig/antenna_positions_{}.dat".format(version)
 	
 	#FIRST = 'first.csv'
+	HELLO = '======================== Starting {}_{} ========================='.format(ARRAY,version)
+	print HELLO
 	
 	if combsname:
 		print "Loading combs dictionary", combsname
