@@ -112,12 +112,13 @@ def run_opp(i, comb, outfile, equiv=None, quiet=False):
 
 def execute(combsname=None): #for profiling
 	CAL = 'psa6622_v003'
+	ARRAY = 'PAPER'
 	NANTS = 128
 	version = 128
 	ENTRIES = 1000
-	FIRST = 'PAPER_{}_all.csv'.format(NANTS)
-	SECOND = 'PAPER_{0}_pm.csv'.format(NANTS)
-	SECONDm = 'PAPER_{0}_p.csv'.format(NANTS)
+	FIRST = '{0}_{1}_all.csv'.format(ARRAY,NANTS)
+	SECOND = '{0}_{1}_pm.csv'.format(ARRAY,NANTS)
+	SECONDm = '{0}_{1}_p.csv'.format(ARRAY,NANTS)
 	
 	#FIRST = 'first.csv'
 	
@@ -129,7 +130,7 @@ def execute(combsname=None): #for profiling
 		top_dict, blgps = get_plotsense_dict(cal=CAL, NANTS=NANTS)
 		print "Looking for appropriate combinations of baselines"
 		combs = get_bl_comb(top_dict, alpha=1.)
-		save_obj('HERA_{}_combs'.format(NANTS), combs)
+		save_obj('{0}_{1}_combs'.format(ARRAY, NANTS), combs)
 	
 	if True:
 		DT = 0.01
@@ -137,12 +138,12 @@ def execute(combsname=None): #for profiling
 		fqs = np.array([.15])
 		print 'Starting survey of all baselines'
 		global WS 
-		WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam='HERA')
+		WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam=ARRAY)
 		file = open(FIRST, 'w')
 		file.write(',sep,sep2,dT,peak,mult,bl1,bl2\n')
 		file.close()
 
-		NJOBS = 4
+		NJOBS = 12
 		print 'Starting Opp with %d instances on %d jobs; dT= %f' % (len(combs), NJOBS, DT)
 		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, FIRST, quiet=True) for i, comb in enumerate(combs))
 
@@ -152,7 +153,7 @@ def execute(combsname=None): #for profiling
 		fqs = np.array([.15])
 		print '##### search over selected baselines  dT= %f ###'% DT
 		global WS
-		WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam='HERA')
+		WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam=ARRAY)
 		subcombs = get_sub_combs(FIRST, combs, mode='pm', num=ENTRIES)
 
 		
@@ -172,7 +173,7 @@ def execute(combsname=None): #for profiling
 		fqs = np.array([.15])
 		print '##### search over selected baselines  dT= %f ###'% DT
 		global WS
-		WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam='HERA')
+		WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam=ARRAY)
 		subcombs = get_sub_combs(FIRST, combs, mode='p', num=ENTRIES)
 
 		
