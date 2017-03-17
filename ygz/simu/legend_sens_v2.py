@@ -8,9 +8,9 @@ from matplotlib import colors as mcolors
 import seaborn as sns 
 sns.set_context("paper", font_scale=2)
 
-FILE = 'corr_res.csv'
-#FILE = 'HERA_350_core_pm300.csv'
-LEGEND = True
+#FILE = 'corr_res.csv'
+FILE = 'HERA_350_core_pm300.csv'
+LEGEND = False
 
 #markers = matplotlib.markers.MarkerStyle.markers
 markers = cycle(['o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D', 'd', 'x'])
@@ -44,10 +44,10 @@ if LEGEND:
 #ax.grid()
 #ax.set_xlabel('Time Delay [Sidereal Day]')
 ax.set_ylabel('Correlation [Normalized to 1]')
-ax.set_xlim([-0.01, 0.21])
+ax.set_xlim([-0.01, 0.05])
 
 mult1010 = float(np.amax(df['mult']))
-mult1010 = float(11025)
+#mult1010 = float(11025)
 for i in xrange(Npts):
 	marker = markerszip[i]
 	label = str(df['sep'][i])+':'+str(df['sep2'][i]) if i>=Npts/2 else None
