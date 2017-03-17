@@ -78,6 +78,7 @@ def get_sub_combs(infile, combs, mode='pm', num=100):
 		df_sorted = df.sort_values('peak', ascending=False)
 	else:
 		raise exception('mode not supported')
+	num = min(num, len(combs))
 	S = df_sorted.head(n=num).index.tolist()
 
 	return [combs[s] for s in S]
@@ -110,7 +111,6 @@ def run_opp(i, comb, outfile, equiv=None, quiet=False):
 
 
 def execute(combsname=None): #for profiling
-
 	CAL = 'psa6622_v003'
 	NANTS = 128
 	version = 128
@@ -129,10 +129,10 @@ def execute(combsname=None): #for profiling
 		print "Getting group bl dictionary"
 		top_dict, blgps = get_plotsense_dict(file=FILE, NANTS=NANTS)
 		print "Looking for appropriate combinations of baselines"
-		combs = get_bl_comb(top_dict, alpha=0.5)
+		combs = get_bl_comb(top_dict, alpha=1.)
 		save_obj('HERA_{}_combs'.format(NANTS), combs)
 	
-	if False:
+	if True:
 		DT = 0.01
 		T1=np.arange(2456681.3, 2456681.7, DT)
 		fqs = np.array([.15])
@@ -145,7 +145,6 @@ def execute(combsname=None): #for profiling
 
 		NJOBS = 12
 		print 'Starting Opp with %d instances on %d jobs; dT= %f' % (len(combs), NJOBS, DT)
-		print ',sep,sep2,dT,peak,mult'
 		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, FIRST, quiet=True) for i, comb in enumerate(combs))
 
 	if True:
