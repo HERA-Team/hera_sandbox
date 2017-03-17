@@ -5,10 +5,12 @@ from mpl_toolkits.axes_grid.axislines import SubplotZero
 import pandas as pd
 from itertools import cycle
 from matplotlib import colors as mcolors
+import seaborn as sns 
+sns.set_context("paper", font_scale=2)
 
-#FILE = 'corr_res.csv'
-FILE = 'HERA_350_core_pm300.csv'
-LEGEND = False
+FILE = 'corr_res.csv'
+#FILE = 'HERA_350_core_pm300.csv'
+LEGEND = True
 
 #markers = matplotlib.markers.MarkerStyle.markers
 markers = cycle(['o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D', 'd', 'x'])
@@ -39,12 +41,13 @@ if LEGEND:
 	legend = ax.legend(ncol=4, scatterpoints=1, frameon=False)
 	legend.get_frame().set_facecolor('none')
 
-ax.grid()
+#ax.grid()
 #ax.set_xlabel('Time Delay [Sidereal Day]')
 ax.set_ylabel('Correlation [Normalized to 1]')
 ax.set_xlim([-0.01, 0.21])
 
 mult1010 = float(np.amax(df['mult']))
+mult1010 = float(11025)
 for i in xrange(Npts):
 	marker = markerszip[i]
 	label = str(df['sep'][i])+':'+str(df['sep2'][i]) if i>=Npts/2 else None
@@ -54,8 +57,9 @@ if LEGEND:
 	legend = ax2.legend(ncol=4, scatterpoints=1, frameon=False)
 	legend.get_frame().set_facecolor('none')
 
-ax2.grid()
+#ax2.grid()
 ax2.set_xlabel('Time Delay [Sidereal Day]')
 ax2.set_ylabel('Weighted Correlation [Normalized to 1]')
 #plt.tight_layout()
+f.subplots_adjust(hspace=0.05)
 plt.show()

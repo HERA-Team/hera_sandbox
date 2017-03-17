@@ -24,21 +24,25 @@ file.write(',sep,sep2,dT,peak,mult\n')
 file.close()
 def mult(m,n,mm,nn, cal=128):
 	if cal==128:
-		return (16-abs(m))*(7-abs(n))*(16-abs(mm))*(7-abs(nn))
+		base = (16-abs(m))*(7-abs(n))*(16-abs(mm))*(7-abs(nn))
 	else:
-		return (8-abs(m))*(8-abs(n))*(8-abs(mm))*(8-abs(nn))
+		base = (8-abs(m))*(8-abs(n))*(8-abs(mm))*(8-abs(nn))
+	if abs(n) != abs(nn):
+		base *= 2
+	return base
 def get_bl_comb(dicts):
 	combs = []
 	for dic in dicts:
 		for sing in itertools.combinations(dic.iteritems(), 1):
 			combs.append((sing[0], sing[0]))
 		for pair in itertools.combinations(dic.iteritems(), 2):
-			combs.append(pair)
+			if not(pair[0][1]<0 and pair[1][1]<0):
+				combs.append(pair)
 	return combs
 combs = get_bl_comb(dicts)
 
 
-WS = w_opp.OppSolver(fq=.15, cal=CAL)
+WS = w_opp.OppSolver(fqs=np.array([.15]), T1=np.arange(2456681.3, 2456681.7, 0.001), cal=CAL)
 print ',sep,sep2,dT,peak,mult'
 def run(i, comb):
 	#comb=(('40', (44, 26)), ('41', (44, 38)))
@@ -51,8 +55,8 @@ def run(i, comb):
 	try: mm = int(key2[0]); nn = int(key2[1])
 	except(ValueError):
 		mm = int(key2[0]); nn = int(key2[1:])
-	peak,dT = WS.w_opp(comb[0][1],comb[1][1])
-	line = ', '.join([str(i), comb[0][0],comb[1][0],str(dT),str(np.abs(peak)),str(mult(m,n,mm,nn))])
+	peak,dT = WS.opp(bl1=comb[0][1],bl2=comb[1][1])
+	line = ', '.join([str(i), comb[0][0],comb[1][0],str(dT[0]),str(np.abs(peak[0])),str(mult(m,n,mm,nn))])
 	print line
 	file.write(line+'\n')
 	file.close()
