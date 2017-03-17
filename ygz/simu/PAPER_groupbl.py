@@ -112,12 +112,12 @@ def run_opp(i, comb, outfile, equiv=None, quiet=False):
 
 def execute(combsname=None): #for profiling
 	CAL = 'psa6622_v003'
-	NANTS = 128
+	NANTS = 112
 	version = 128
 	ENTRIES = 1000
-	FIRST = 'PAPER_{}_all.csv'.format(NANTS)
-	SECOND = 'PAPER_{0}_pm.csv'.format(NANTS)
-	SECONDm = 'PAPER_{0}_p.csv'.format(NANTS)
+	FIRST = 'PAPER_{}_all.csv'.format(version)
+	SECOND = 'PAPER_{0}_pm.csv'.format(version)
+	SECONDm = 'PAPER_{0}_p.csv'.format(version)
 	
 	#FIRST = 'first.csv'
 	
