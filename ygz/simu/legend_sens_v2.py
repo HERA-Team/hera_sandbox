@@ -8,9 +8,9 @@ from matplotlib import colors as mcolors
 import seaborn as sns 
 sns.set_context("paper", font_scale=2.5)
 
-#FILE = 'corr_res.csv'
-FILE = 'HERA_350_core_pm300.csv'
-LEGEND = False
+FILE = 'corr_res.csv'
+#FILE = 'HERA_350_core_pm300.csv'
+LEGEND = True
 
 #markers = matplotlib.markers.MarkerStyle.markers
 markers = cycle(['o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D', 'd', 'x'])
@@ -55,7 +55,7 @@ mult1010 = float(np.amax(df['mult']))
 for i in xrange(Npts):
 	marker = markerszip[i]
 	label = str(df['sep'][i])+':'+str(df['sep2'][i]) if i>=Npts/2 else None
-	ax2.scatter(np.abs(df['dT'][i]), (df['mult']*df['peak']/mult1010)[i]/peakmax, s=65, c=Cz[i], label=label, marker=marker)
+	ax2.scatter(np.abs(df['dT'][i]), (np.sqrt(df['mult']/mult1010)*df['peak'])[i]/peakmax, s=65, c=Cz[i], label=label, marker=marker)
 #plt.legend()
 if LEGEND:
 	legend = ax2.legend(ncol=4, scatterpoints=1, frameon=False, fontsize = 'x-small')
@@ -70,7 +70,7 @@ plt.show()
 
 
 print "========= Statistics of sensitibity contribution =========="
-df['Theta'] = df['peak']*df['mult']
+df['Theta'] = df['peak']*np.sqrt(df['mult'])
 df['Theta'] /= np.amax(df['Theta'])
 def get_imp(df, Theta_min=0.0):
 	dft = df.loc[df['Theta']>Theta_min]

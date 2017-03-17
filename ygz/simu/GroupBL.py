@@ -112,7 +112,7 @@ def get_bl_comb(top_dict, alpha=None):
 def get_sub_combs(infile, combs, mode='pm', num=100):
 	"""return top num number of combs entries as sorted by 'pm' or 'p'"""
 	df = pd.read_csv(infile)
-	df['peakmult'] = df['peak']*df['mult']
+	df['peakmult'] = df['peak']*np.sqrt(df['mult'])
 	df_sorted = pd.DataFrame()
 	if mode == 'pm':
 		df_sorted = df.sort_values('peakmult', ascending=False)
