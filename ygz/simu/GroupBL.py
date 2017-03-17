@@ -2,6 +2,7 @@ import numpy as np, pandas as pd
 import itertools, pickle
 import w_opp, aipy as a
 from joblib import Parallel, delayed
+import timeit
 """
 This file groups the HERA baselines into equivalency classes
 """
@@ -13,8 +14,43 @@ def load_obj(name ):
     with open(name + '.pkl', 'rb') as f:
         return pickle.load(f)
 
+def _HERA_plotsense_dict(file, NTOP=None, NANTS=None):
+	antpos = np.loadtxt(file)
+	if NANTS is None:
+		NANTS = antpos.shape[0]
 
-def get_plotsense_dict(cal, NTOP=None, NANTS=112):
+	bl_gps = {}
+	for i in xrange(NANTS-1):
+		a1pos = antpos[i]
+		for j in xrange(i+1,NANTS):
+			a2pos = antpos[j]
+			blx, bly, blz = a2pos-a1pos
+			has_entry = False
+			for key in bl_gps.keys():
+				if np.hypot(key[0]-blx, key[1]-bly) < 1:
+					has_entry = True
+					bl_gps[key] = bl_gps.get(key, []) + [(i,j)]
+					break
+			if not has_entry:
+				bl_gps[(blx, bly)] = [(i,j)]
+
+	n_unique = len(bl_gps.keys())
+	n_total = NANTS*(NANTS-1)/2
+	
+	print "Found %d classes among %d total baselines" % (n_unique, n_total)
+	print "Sorting dictionary"
+	sorted_keys = sorted(bl_gps.keys(), key=lambda x: np.hypot(*x))
+	if NTOP is None: 
+		NTOP = n_unique
+	key_pool = np.arange(NTOP)
+	top_dict = {}
+	for i, key in enumerate(sorted_keys[:NTOP]):
+		mult = len(bl_gps[key])
+		label = str(bl_gps[key][0][0])+'_'+str(bl_gps[key][0][1])
+		top_dict[label] = ((key[0], key[1], 0.), mult) #dict[example_bl] = ((blx, bly, blz), multiplicity)
+	return top_dict, bl_gps
+
+def _PAPER_plotsense_dict(cal, NTOP=None, NANTS=112):
 	aa = a.cal.get_aa(cal, np.array([.15]))
 	antpos = [aa.get_baseline(0,i,src='z') for i in xrange(NANTS)]
 	antpos = np.array(antpos) * a.const.len_ns / 100.
@@ -55,6 +91,12 @@ def get_plotsense_dict(cal, NTOP=None, NANTS=112):
 		blx, bly, blz = a2pos-a1pos
 		top_dict[label] = ((blx, bly, blz), mult) #dict[example_bl] = ((blx, bly, blz), multiplicity)
 	return top_dict, bl_gps
+
+def get_plotsense_dict(cal, file, NTOP=None, NANTS=112, ARRAY='PAPER'):
+	if ARRAY == 'PAPER':
+		return _PAPER_plotsense_dict(cal=cal,NTOP=NTOP, NANTS=NANTS)
+	elif ARRAY == 'HERA':
+		return _HERA_plotsense_dict(file=file,NTOP=NTOP, NANTS=NANTS)
 
 def get_bl_comb(top_dict, alpha=None):
 	combs = []
@@ -113,12 +155,13 @@ def run_opp(i, comb, outfile, equiv=None, quiet=False):
 def execute(combsname=None): #for profiling
 	CAL = 'psa6622_v003'
 	ARRAY = 'PAPER'
-	NANTS = 128
+	NANTS = 112
 	version = 128
 	ENTRIES = 1000
 	FIRST = '{0}_{1}_all.csv'.format(ARRAY,NANTS)
 	SECOND = '{0}_{1}_pm.csv'.format(ARRAY,NANTS)
 	SECONDm = '{0}_{1}_p.csv'.format(ARRAY,NANTS)
+	FILE = "../calfiles/HERA_antconfig/antenna_positions_{}.dat".format(version)
 	
 	#FIRST = 'first.csv'
 	
@@ -127,7 +170,7 @@ def execute(combsname=None): #for profiling
 		combs = load_obj(combsname)
 	else:
 		print "Getting group bl dictionary"
-		top_dict, blgps = get_plotsense_dict(cal=CAL, NANTS=NANTS)
+		top_dict, blgps = get_plotsense_dict(cal=CAL, file=FILE, NANTS=NANTS, ARRAY=ARRAY)
 		print "Looking for appropriate combinations of baselines"
 		combs = get_bl_comb(top_dict, alpha=1.)
 		save_obj('{0}_{1}_combs'.format(ARRAY, NANTS), combs)
@@ -143,9 +186,12 @@ def execute(combsname=None): #for profiling
 		file.write(',sep,sep2,dT,peak,mult,bl1,bl2\n')
 		file.close()
 
-		NJOBS = 12
+		NJOBS = 20
+		start_time = timeit.default_timer()
 		print 'Starting Opp with %d instances on %d jobs; dT= %f' % (len(combs), NJOBS, DT)
 		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, FIRST, quiet=True) for i, comb in enumerate(combs))
+		elapsed = timeit.default_timer() - start_time
+		print 'Elapsed time: ', elapsed
 
 	if True:
 		DT = 0.001
@@ -161,11 +207,14 @@ def execute(combsname=None): #for profiling
 		file.write(',sep,sep2,dT,peak,mult,bl1,bl2\n')
 		file.close()
 
-		NJOBS = 4
+		NJOBS = 10
+		start_time = timeit.default_timer()
 		print 'Starting Opp with %d instances on %d jobs;' % (len(subcombs), NJOBS)
 		#print ',sep,sep2,dT,peak,mult'
 		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, SECOND, equiv=12127.9726, quiet=True) 
 			for i, comb in enumerate(subcombs))
+		elapsed = timeit.default_timer() - start_time
+		print 'Elapsed time: ', elapsed
 
 	if True:
 		DT = 0.001
@@ -178,15 +227,17 @@ def execute(combsname=None): #for profiling
 
 		
 		file = open(SECONDm, 'w')
-		file.write(',sep,sep2,dT,peak,mult\n')
+		file.write(',sep,sep2,dT,peak,mult,bl1,bl2\n')
 		file.close()
 
-		NJOBS = 4
+		NJOBS = 10
+		start_time = timeit.default_timer()
 		print 'Starting Opp with %d instances on %d jobs;' % (len(subcombs), NJOBS)
 		#print ',sep,sep2,dT,peak,mult'
 		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, SECONDm, equiv=12127.9726, quiet=True) 
 			for i, comb in enumerate(subcombs))
-
+		elapsed = timeit.default_timer() - start_time
+		print 'Elapsed time: ', elapsed
 
 
 	
