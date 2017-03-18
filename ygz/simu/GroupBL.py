@@ -2,7 +2,7 @@ import numpy as np, pandas as pd
 import itertools, pickle
 import w_opp, aipy as a
 from joblib import Parallel, delayed
-import timeit
+import timeit, os
 """
 This file groups the HERA/PAPER baselines and outputs sensitivity and other informations to csv files
 """
@@ -154,30 +154,35 @@ def run_opp(i, comb, outfile, equiv=None, quiet=False):
 
 def execute(combsname=None): #for profiling
 	CAL = 'psa6622_v003'
-	ARRAY = 'PAPER'
-	NANTS = 112
-	version = 128
+	ARRAY = 'HERA'
+	NANTS = 320
+	version = 350
 	ENTRIES = 1000
-	FIRST = '{0}_{1}_all.csv'.format(ARRAY,NANTS)
-	SECOND = '{0}_{1}_pm.csv'.format(ARRAY,NANTS)
-	SECONDm = '{0}_{1}_p.csv'.format(ARRAY,NANTS)
+	if ARRAY == 'HERA':
+		EQUIV = 12127.9726
+	elif ARRAY == 'PAPER':
+		EQUIV = 10.2858996
+	FIRST = '{0}_{1}_all.csv'.format(ARRAY,version)
+	SECOND = '{0}_{1}_pm.csv'.format(ARRAY,version)
+	SECONDm = '{0}_{1}_p.csv'.format(ARRAY,version)
 	FILE = "../calfiles/HERA_antconfig/antenna_positions_{}.dat".format(version)
+	combsname = '{0}_{1}_combs'.format(ARRAY,NANTS)
 	
 	#FIRST = 'first.csv'
 	HELLO = '======================== Starting {}_{} ========================='.format(ARRAY,version)
 	print HELLO
 	
-	if combsname:
+	if os.path.exists(combsname):
 		print "Loading combs dictionary", combsname
 		combs = load_obj(combsname)
 	else:
 		print "Getting group bl dictionary"
 		top_dict, blgps = get_plotsense_dict(cal=CAL, file=FILE, NANTS=NANTS, ARRAY=ARRAY)
 		print "Looking for appropriate combinations of baselines"
-		combs = get_bl_comb(top_dict, alpha=1.)
+		combs = get_bl_comb(top_dict, alpha=0.5)
 		save_obj('{0}_{1}_combs'.format(ARRAY, NANTS), combs)
 	
-	if True:
+	if False:
 		DT = 0.01
 		T1=np.arange(2456681.3, 2456681.7, DT)
 		fqs = np.array([.15])
@@ -213,12 +218,12 @@ def execute(combsname=None): #for profiling
 		start_time = timeit.default_timer()
 		print 'Starting Opp with %d instances on %d jobs;' % (len(subcombs), NJOBS)
 		#print ',sep,sep2,dT,peak,mult'
-		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, SECOND, equiv=12127.9726, quiet=True) 
+		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, SECOND, equiv=EQUIV, quiet=True) 
 			for i, comb in enumerate(subcombs))
 		elapsed = timeit.default_timer() - start_time
 		print 'Elapsed time: ', elapsed
 
-	if True:
+	if False:
 		DT = 0.001
 		T1=np.arange(2456681.3, 2456681.7, DT)
 		fqs = np.array([.15])
@@ -236,7 +241,7 @@ def execute(combsname=None): #for profiling
 		start_time = timeit.default_timer()
 		print 'Starting Opp with %d instances on %d jobs;' % (len(subcombs), NJOBS)
 		#print ',sep,sep2,dT,peak,mult'
-		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, SECONDm, equiv=12127.9726, quiet=True) 
+		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, SECONDm, equiv=EQUIV, quiet=True) 
 			for i, comb in enumerate(subcombs))
 		elapsed = timeit.default_timer() - start_time
 		print 'Elapsed time: ', elapsed
