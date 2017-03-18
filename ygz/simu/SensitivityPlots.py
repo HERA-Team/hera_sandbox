@@ -2,7 +2,10 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np, pandas as pd
 from numpy.random import random
-sns.set_context("paper", font_scale=2)
+
+sns.set_context("paper")
+#sns.set(style="ticks", color_codes=True,font='DejaVu Serif', font_scale=2)
+plt.rc('axes', linewidth=2.5)
 
 #FILE = 'corr_res.csv'
 FILES = ['HERA_243_pm.csv', 'HERA_128_pm.csv', 'PAPER_128_pm.csv']
@@ -15,10 +18,12 @@ def gen_color(l=1):
 COLORS = gen_color(len(FILES))
 
 def pairplot(Theta_min=0):
+
+	sns.set(style='ticks', font_scale=1.5)
 	dflist = []
 	for i, file in enumerate(FILES):
 		df = pd.read_csv(file)
-		df['label'] = LABELS[i]
+		df['Array'] = LABELS[i]
 		df['peak'] /= np.amax(df['peak'])
 		df['rho0'] = 0.001*40/df['bl1']
 		df['Theta'] = np.sqrt(df['mult'])*df['peak']/np.sqrt(1+df['rho0']*2*np.sqrt(df['mult']))
@@ -28,8 +33,11 @@ def pairplot(Theta_min=0):
 
 	df = pd.concat(dflist)
 
-	g = sns.pairplot(df,hue='label',vars=['dT','peak','Theta','bl1','bl2'],
-		plot_kws={'alpha':0.2, "s":30})
+	g = sns.pairplot(df,hue='Array',vars=['dT','peak','Theta','bl1'],
+		plot_kws={'alpha':0.4, "s":30})
+	plt.locator_params(axis='x', nticks=3)
+	plt.gcf().subplots_adjust(right=0.9)
+	#g.legend.remove()
 	# g = sns.PairGrid(df)
 	# g = g.map_diag(sns.kdeplot, lw=3)
 	# g = g.map_offdiag(sns.kdeplot, lw=1)
@@ -43,13 +51,14 @@ def get_imp(df, Theta_min=0.0):
 	eqsumsq = np.sum(dfeq['Theta']**2)
 	totalsum = np.sum(dft['Theta'])
 	eqsum = np.sum(dfeq['Theta'])
-	totalsens = totalsumsq/totalsum*np.sqrt(len(dft.index))
-	eqsens = eqsumsq/eqsum*np.sqrt(len(dfeq.index))
+	totalsens = totalsumsq#/totalsum*np.sqrt(len(dft.index))
+	eqsens = eqsumsq#/eqsum*np.sqrt(len(dfeq.index))
 	improve = (totalsens-eqsens)/eqsens
 	return totalsens, eqsens
 
 def sensplot():
 	print "========= Statistics of sensitibity contribution =========="
+	sns.set(style="ticks", color_codes=True,font='DejaVu Serif', font_scale=2)
 	plt.figure()
 	for i, file in enumerate(FILES):
 		df = pd.read_csv(file)
@@ -65,11 +74,15 @@ def sensplot():
 		plt.plot(TL, totalsensL, label=LABELS[i], color=COLORS[i], linewidth=3)
 		plt.plot(TL, eqsensL,'--', color=COLORS[i], linewidth=3)
 	plt.legend()
+	plt.xlabel(r'$\widetilde{\Theta}_{min}$')
+	plt.ylabel(r'$\rho$')
+	plt.gcf().subplots_adjust(bottom=0.2)
 
 
 if __name__=="__main__":
 	sensplot()
 	pairplot(0.1)
+
 	plt.show()
 	#import IPython; IPython.embed()
 

@@ -182,7 +182,7 @@ def execute(combsname=None): #for profiling
 		combs = get_bl_comb(top_dict, alpha=0.5)
 		save_obj('{0}_{1}_combs'.format(ARRAY, NANTS), combs)
 	
-	if False:
+	if True:
 		DT = 0.01
 		T1=np.arange(2456681.3, 2456681.7, DT)
 		fqs = np.array([.15])
@@ -223,7 +223,7 @@ def execute(combsname=None): #for profiling
 		elapsed = timeit.default_timer() - start_time
 		print 'Elapsed time: ', elapsed
 
-	if False:
+	if True:
 		DT = 0.001
 		T1=np.arange(2456681.3, 2456681.7, DT)
 		fqs = np.array([.15])
