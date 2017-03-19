@@ -97,7 +97,7 @@ def plot_freq_compare(RES,RES2,RES3,RES4,FQS,DT):
     #font.set_weight('bold')
     #sns.set_context(context='paper')
     sns.set(style="ticks", color_codes=False,font='DejaVu Serif', font_scale=1.5)
-    plt.rc('axes', linewidth=2.5)
+    plt.rc('axes', linewidth=2)
     C = ['c', 'm']
 
     fig = plt.figure()

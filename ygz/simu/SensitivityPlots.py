@@ -19,24 +19,40 @@ COLORS = gen_color(len(FILES))
 
 def pairplot(Theta_min=0):
 
-	sns.set(style='ticks', font_scale=1.5)
+	sns.set(style='ticks', font_scale=1.9,font='DejaVu Serif')
 	dflist = []
 	for i, file in enumerate(FILES):
 		df = pd.read_csv(file)
 		df['Array'] = LABELS[i]
-		df['peak'] /= np.amax(df['peak'])
+		df['$\Theta$'] = df['peak']
+		df['$\Theta$'] /= np.amax(df['peak'])
+		df['$L$'] = df['bl1']
 		df['rho0'] = 0.001*40/df['bl1']
-		df['Theta'] = np.sqrt(df['mult'])*df['peak']/np.sqrt(1+df['rho0']*2*np.sqrt(df['mult']))
-		df['Theta'] /= np.amax(df['Theta'])
-		df = df.loc[df['Theta']>Theta_min]
+		df['$\widetilde{\Theta}$'] = np.sqrt(df['mult'])*df['peak']/np.sqrt(1+df['rho0']*2*np.sqrt(df['mult']))
+		df['$\widetilde{\Theta}$'] /= np.amax(df['$\widetilde{\Theta}$'])
+		df = df.loc[df['$\widetilde{\Theta}$']>Theta_min]
+		df['$dT$'] = df['dT']
 		dflist.append(df)
 
 	df = pd.concat(dflist)
-
-	g = sns.pairplot(df,hue='Array',vars=['dT','peak','Theta','bl1'],
-		plot_kws={'alpha':0.4, "s":30})
-	plt.locator_params(axis='x', nticks=3)
-	plt.gcf().subplots_adjust(right=0.9)
+	plt.locator_params(axis='x', nticks=10)
+	# g = sns.pairplot(df,hue='Array',vars=['$dT$','$\Theta$','$\widetilde{\Theta}$','$L$'],
+	# 	plot_kws={'alpha':0.4, "s":30})
+	g = sns.PairGrid(df,hue='Array',vars=['$dT$','$\Theta$','$\widetilde{\Theta}$','$L$'])
+	g = g.map_diag(plt.hist, histtype="step", linewidth=3)
+	#g = g.map_upper(sns.kdeplot)
+	g = g.map_upper(plt.scatter, alpha=0.5, s=10)
+	g = g.map_lower(plt.scatter, alpha=0.5, s=30)
+	g = g.add_legend()
+	
+	for ax in g.axes.flat:
+		#print 1
+		start, end = ax.get_xlim()
+        #start+=0.1; end-=0.1
+        print start, end
+        ax.set_xticks(np.linspace(start, end, 3))
+	#import IPython; IPython.embed()
+	plt.gcf().subplots_adjust(right=0.84)
 	#g.legend.remove()
 	# g = sns.PairGrid(df)
 	# g = g.map_diag(sns.kdeplot, lw=3)
@@ -80,7 +96,7 @@ def sensplot():
 
 
 if __name__=="__main__":
-	sensplot()
+	#sensplot()
 	pairplot(0.1)
 
 	plt.show()
