@@ -67,7 +67,7 @@ def _PAPER_plotsense_dict(cal, NTOP=None, NANTS=112):
 					i, j = aa.ant_layout[m,n], aa.ant_layout[mm,nn]
 					#a1pos = antpos[i]
 					#a2pos = antpos[j]
-					blm, bln = mm-n, nn-n
+					blm, bln = mm-m, nn-n
 					if blm <= 0: continue
 					#blx, bly, blz = a2pos-a1pos
 					has_entry = False
@@ -154,9 +154,9 @@ def run_opp(i, comb, outfile, equiv=None, quiet=False):
 
 def execute(combsname=None): #for profiling
 	CAL = 'psa6622_v003'
-	ARRAY = 'HERA'
-	NANTS = 320
-	version = 350
+	ARRAY = 'PAPER'
+	NANTS = 112
+	version = 128
 	ENTRIES = 1000
 	if ARRAY == 'HERA':
 		EQUIV = 12127.9726
