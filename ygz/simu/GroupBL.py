@@ -103,9 +103,15 @@ def get_bl_comb(top_dict, alpha=None):
 	for sing in itertools.combinations(top_dict.iteritems(), 1):
 		combs.append((sing[0], sing[0]))
 	for pair in itertools.combinations(top_dict.iteritems(), 2):
-		# !!!!!!!!!
-	
-		combs.append(pair)
+		if alpha is not None:
+			#only add a pair if their difference is shorter than half of the shorter baseline
+			bl1x, bl1y, bl1z = pair[0][1][0]
+			bl2x, bl2y, bl2z = pair[1][1][0]
+			bench = min([np.hypot(bl1x, bl1y), np.hypot(bl2x, bl2y)])*alpha
+			if np.hypot(bl1x-bl2x, bl1y-bl2y) < bench:
+				combs.append(pair)
+		else:
+			combs.append(pair)
 	return combs
 
 
@@ -179,7 +185,7 @@ def execute(combsname=None): #for profiling
 		print "Getting group bl dictionary"
 		top_dict, blgps = get_plotsense_dict(cal=CAL, file=FILE, NANTS=NANTS, ARRAY=ARRAY)
 		print "Looking for appropriate combinations of baselines"
-		combs = get_bl_comb(top_dict, alpha=0.5)
+		combs = get_bl_comb(top_dict, alpha=None)
 		save_obj('{0}_{1}_combs'.format(ARRAY, NANTS), combs)
 	
 	if True:
