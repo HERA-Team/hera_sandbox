@@ -27,7 +27,7 @@ names = ['Hera37', 'Hera128', 'Hera243', 'Hera350']
 for i, file in enumerate([FILE37, FILE128, FILE243, FILE350]):
 	ax = axes[i]
 	X, Y, I = get_XYI(file)
-	g = max(320, I.shape[0])
+	g = min(320, I.shape[0])
 	Xg, Yg, Ig = X[:g], Y[:g], I[:g]
 	ax.scatter(Xg,Yg)
 	# for x,y,i in zip(Xg, Yg,Ig):

@@ -37,7 +37,7 @@ for time in TIME:
 #    p.plot(x,y,'r-')
 import seaborn as sns
 sns.set_context("paper")
-sns.set(style="darkgrid", color_codes=True,font='DejaVu Serif', font_scale=2)
+sns.set(style="ticks", color_codes=True,font='DejaVu Serif', font_scale=2)
 p.rc('axes', linewidth=2.5)
 p.figure()
 #import IPython; IPython.embed()
@@ -47,7 +47,8 @@ for k, u in U.iteritems():
 #p.xlim(-200,200)
 #p.ylim(-200,200)
 p.gcf().subplots_adjust(bottom=0.15, left=0.15)
-#p.grid()
+
+p.grid()
 p.xlabel('u')
 p.ylabel('v')
 p.show()

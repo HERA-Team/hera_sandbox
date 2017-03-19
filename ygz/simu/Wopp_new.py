@@ -29,6 +29,8 @@ for bls in (((0,103),(0,103)),((0,103),(0,95))):
 	SERIES.append(((T1,res),(TT,meancorr)))
 
 norm=np.amax(np.abs(SERIES[0][0][1]))
+sns.set(style="ticks", color_codes=True,font='DejaVu Serif', font_scale=1.5)
+plt.rc('axes', linewidth=2.5)
 f,axes = plt.subplots(2,1)
 for i, obj in enumerate(SERIES):
 	T1,res = SERIES[i][0]
