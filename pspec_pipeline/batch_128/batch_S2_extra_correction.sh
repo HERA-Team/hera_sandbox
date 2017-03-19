@@ -3,7 +3,7 @@
 #$ -cwd
 #$ -l h_vmem=5G
 #$ -j y
-#$ -N correct128_s2_extra
+#$ -N correct128_s2_extra2
 #$ -o grid_output
 
 source activate PAPER
@@ -13,7 +13,7 @@ source activate PAPER
 
 CAL=psa6622_v003
 PATH2CAPO=/home/saulkohn/ReposForCanopy/capo
-JD_DIRS=`${PATH2CAPO}/scripts/pull_args.py 2456893 2456894 2456898 2456899 2456902 2456903 2456904 2456907 2456908 2456917 2456967 2456994 2457034 2457047`
+JD_DIRS=`${PATH2CAPO}/scripts/pull_args.py 2456898 2456902 2456967 2456994 2457034 2457047`
 XPOLS="26,34,38,46,50,72,110"
 
 for DIR in $JD_DIRS
