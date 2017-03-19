@@ -68,64 +68,64 @@ julDelta = 2415020.
 
 
 for filename in args:#sys.argv[1:]: #loop through files
-	
-	fulljd = file2jd(filename)
-	sa.date = fulljd-julDelta
-	sun.compute(sa)
-	sunpos = sun.alt, sun.az
-	if sunpos[0] > -0.1: continue #the sun is up
-	if opts.cutLST:
-		if hms(sa.sidereal_time()) > np.pi: continue #the galaxy is up
-	
-	jd = int(n.floor(file2jd(filename))) #jd of file
-	
-	#weird "start of season 2 but not really" stuff
-	if jd in range(2456725,2456735): continue
-	
-	#YY EPOCHS
-	#EPOCH 1 = 2456843 to 2456929
-	#EPOCH 2 = 2456942 to 2457009
-	#EPOCH 3 = 2457031 to 2457072
-	
-	#if jd > 2456929: continue #look at E1
-	if jd in 2456843+np.array([30,38,39,41,42,74,78,81]): continue
-	#print 'E1 YY BAD = ',2456843+np.array([30,38,39,41,42,74,78,81])
-	
-	#if jd < 2456942 or jd > 2457009: continue #look at E2
-	if jd in 2456942+np.array([15,16,22,23,28,31,42]): continue
-	#print 'E2 YY BAD = ', 2456942+np.array([15,16,22,23,28,31,42])
-	
-	#if jd < 2457031: continue #look at E3
-	if jd in 2457031+np.array([3,9,19,22,35]): continue
-	
-	t = file2jd(filename)
-	#if jd>jdjump:continue  #focus on my epoch
-	if opts.verb: print 'Reading', filename
-	try:                                    #load file
-	    npz = n.load(filename)
-	except:
-	    print "    failed to load"
-	try:                                    #load data & times
-	    ntimes = len(npz[mybl])
-	    try:
-	    	dt = n.diff(npz['t'+mybl])[0]/n.pi #convert radians to fraction of a day
-	    except(IndexError): 
-				if opts.verb: print "foobar times"
-				continue
-	    data[jd].append(npz[mybl])
-	    
-	    
-	    
-	    time[jd].append(npz['t'+mybl]) 
-	    jd_times[jd].append(n.arange(0,ntimes)*dt + file2jd(filename))
-	except(KeyError):
-	    try:
-	        data[jd] = [npz[mybl]]
-	        time[jd] = [npz['t'+mybl]]
-	        jd_times[jd] = [n.arange(0,ntimes)*dt + file2jd(filename)]
-	    except(KeyError):
-	        continue
-   	
+    
+    fulljd = file2jd(filename)
+    sa.date = fulljd-julDelta
+    sun.compute(sa)
+    sunpos = sun.alt, sun.az
+    if sunpos[0] > -0.1: continue #the sun is up
+    if opts.cutLST:
+        if hms(sa.sidereal_time()) > np.pi: continue #the galaxy is up
+    
+    jd = int(n.floor(file2jd(filename))) #jd of file
+    
+    #weird "start of season 2 but not really" stuff
+    #if jd in range(2456725,2456735): continue
+    if jd < 2456843: continue    
+    #YY EPOCHS
+    #EPOCH 1 = 2456843 to 2456929
+    #EPOCH 2 = 2456942 to 2457009
+    #EPOCH 3 = 2457031 to 2457072
+    
+    #if jd > 2456929: continue #look at E1
+    #if jd in 2456843+np.array([30,38,39,41,42,74,78,81]): continue
+    #print 'E1 YY BAD = ',2456843+np.array([30,38,39,41,42,74,78,81])
+    
+    #if jd < 2456942 or jd > 2457009: continue #look at E2
+    #if jd in 2456942+np.array([15,16,22,23,28,31,42]): continue
+    #print 'E2 YY BAD = ', 2456942+np.array([15,16,22,23,28,31,42])
+    
+    #if jd < 2457031: continue #look at E3
+    #if jd in 2457031+np.array([3,9,19,22,35]): continue
+    
+    t = file2jd(filename)
+    #if jd>jdjump:continue  #focus on my epoch
+    if opts.verb: print 'Reading', filename
+    try:                                    #load file
+        npz = n.load(filename)
+    except:
+        print "    failed to load"
+    try:                                    #load data & times
+        ntimes = len(npz[mybl])
+        try:
+            dt = n.diff(npz['t'+mybl])[0]/n.pi #convert radians to fraction of a day
+        except(IndexError): 
+                if opts.verb: print "foobar times"
+                continue
+        data[jd].append(npz[mybl])
+        
+        
+        
+        time[jd].append(npz['t'+mybl]) 
+        jd_times[jd].append(n.arange(0,ntimes)*dt + file2jd(filename))
+    except(KeyError):
+        try:
+            data[jd] = [npz[mybl]]
+            time[jd] = [npz['t'+mybl]]
+            jd_times[jd] = [n.arange(0,ntimes)*dt + file2jd(filename)]
+        except(KeyError):
+            continue
+       
 
 for jd in data:
     data[jd] = n.concatenate(data[jd]) #turn a list of arrays into a single array
