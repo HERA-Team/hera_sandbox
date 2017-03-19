@@ -5,6 +5,8 @@ from pylab import *
 import matplotlib.ticker as tic
 import seaborn as sns
 #plt.style.use('seaborn-deep')
+sns.set(style='ticks', font_scale=2.5,font='DejaVu Serif')
+plt.rc('axes', linewidth=2.5)
 aa = a.cal.get_aa('psa6622_v003',n.array([.15]))
 #aa=a.cal.get_aa('paper128',n.array([.15]))
 nants = 128
@@ -23,26 +25,28 @@ X -= n.average(X)
 Y -= n.average(Y)
 I = n.arange(nants)
 
-sns.set(style="darkgrid")
-sns.set_context("poster")
 fig = p.figure()
 #ax = fig.gca(projection='3d')
 ax = fig.add_subplot(211)
-p.scatter(X,Y)
+p.scatter(X,Y, c='black')
 ax.set_aspect(1)
 setp( ax.get_xticklabels(), visible=False)
 setp( ax.get_yticklabels(), visible=False)
-
+ax.get_yaxis().set_tick_params(direction='in')
+ax.get_xaxis().set_tick_params(direction='in')
+ax.grid()
 ax = fig.add_subplot(212)
 g = 112
 Xg, Yg, Ig = X[:g], Y[:g], I[:g]
-p.scatter(Xg,Yg)
+p.scatter(Xg,Yg, c='black')
 for x,y,i in zip(Xg, Yg,Ig):
     ax.annotate('%s' %i, xy=(x,y), textcoords='data', fontsize=12) # <--
 ax.set_xlabel('East Position [m]')
 ax.set_ylabel('North Position [m]')
+ax.get_yaxis().set_tick_params(direction='in')
+ax.get_xaxis().set_tick_params(direction='in')
 ax.set_aspect(5.1)
-#ax.grid
+#ax.grid()
 
-p.tight_layout()
+#p.tight_layout()
 p.show()

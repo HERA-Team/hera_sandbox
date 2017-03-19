@@ -19,8 +19,9 @@ def get_XYI(file):
 	I = n.arange(nants)
 	return X,Y,I
 
-sns.set(style="darkgrid")
-sns.set_context("poster")
+sns.set(style='ticks', font_scale=1.5,font='DejaVu Serif')
+plt.rc('axes', linewidth=2.5)
+#sns.set_context("poster")
 fig, axes = p.subplots(2,2)
 axes = axes.flat
 names = ['Hera37', 'Hera128', 'Hera243', 'Hera350']
@@ -29,14 +30,22 @@ for i, file in enumerate([FILE37, FILE128, FILE243, FILE350]):
 	X, Y, I = get_XYI(file)
 	g = min(320, I.shape[0])
 	Xg, Yg, Ig = X[:g], Y[:g], I[:g]
-	ax.scatter(Xg,Yg)
+	ax.scatter(Xg,Yg, c='black')
 	# for x,y,i in zip(Xg, Yg,Ig):
 	# 	ax.annotate('%s' %i, xy=(x,y), textcoords='data', fontsize=12) # <--
 	ax.set_xlabel('East Position [m]')
 	ax.set_ylabel('North Position [m]')
 	ax.set_aspect(1)
-	ax.text(0.04, 0.9, names[i], size=16, transform=ax.transAxes, style='italic', weight='bold')
-
-
+	start, end = ax.get_xlim()
+	ax.set_ylim(ax.get_xlim())
+	ax.set_xticks(np.linspace(start, end, 5))
+	ax.get_yaxis().set_tick_params(direction='in')
+	ax.get_xaxis().set_tick_params(direction='in')
+	#ax.text(0.04, 0.9, names[i], size=16, transform=ax.transAxes, style='italic', weight='bold')
+	ax.set_title(names[i])
 p.tight_layout()
+fig.subplots_adjust(hspace=0.5)
+
+
+
 p.show()

@@ -19,7 +19,7 @@ COLORS = gen_color(len(FILES))
 
 def pairplot(Theta_min=0):
 
-	sns.set(style='ticks', font_scale=1.9,font='DejaVu Serif')
+	sns.set(style='ticks', font_scale=1.5,font='DejaVu Serif')
 	dflist = []
 	for i, file in enumerate(FILES):
 		df = pd.read_csv(file)
@@ -36,23 +36,32 @@ def pairplot(Theta_min=0):
 
 	df = pd.concat(dflist)
 	plt.locator_params(axis='x', nticks=10)
-	# g = sns.pairplot(df,hue='Array',vars=['$dT$','$\Theta$','$\widetilde{\Theta}$','$L$'],
-	# 	plot_kws={'alpha':0.4, "s":30})
-	g = sns.PairGrid(df,hue='Array',vars=['$dT$','$\Theta$','$\widetilde{\Theta}$','$L$'])
-	g = g.map_diag(plt.hist, histtype="step", linewidth=3)
-	#g = g.map_upper(sns.kdeplot)
-	g = g.map_upper(plt.scatter, alpha=0.5, s=10)
-	g = g.map_lower(plt.scatter, alpha=0.5, s=30)
-	g = g.add_legend()
-	
-	for ax in g.axes.flat:
-		#print 1
-		start, end = ax.get_xlim()
-        #start+=0.1; end-=0.1
-        print start, end
-        ax.set_xticks(np.linspace(start, end, 3))
+	g = sns.pairplot(df,hue='Array',vars=['$dT$','$\Theta$','$\widetilde{\Theta}$','$L$'],
+		plot_kws={'alpha':0.4, "s":30}, diag_kws={'histtype':"step", "linewidth":3})
+
+	# g = sns.PairGrid(df,hue='Array',vars=['$dT$','$\Theta$','$\widetilde{\Theta}$','$L$'])
+	# g = g.map_diag(plt.hist, histtype="step", linewidth=3)
+	# #g = g.map_upper(sns.kdeplot)
+	# g = g.map_upper(plt.scatter, alpha=0.5, s=10)
+	# g = g.map_lower(plt.scatter, alpha=0.5, s=30)
+	# g = g.add_legend()
+
+	ax0 = g.axes[0,0]
+	start, end = ax0.get_xlim()
+	start+=0.01; end+=0.01
+	ax0.set_xticks(np.linspace(start, end, 3))
+	ax1 = g.axes[0,1]
+	start, end = ax1.get_xlim()
+	ax1.set_xticks(np.linspace(start, end, 3))
+	ax2 = g.axes[0,2]
+	start, end = ax2.get_xlim()
+	ax2.set_xticks(np.linspace(start, end, 3))
+	ax3 = g.axes[0,3]
+	start, end = ax3.get_xlim()
+	ax3.set_xticks(np.linspace(start, end, 3))
+
 	#import IPython; IPython.embed()
-	plt.gcf().subplots_adjust(right=0.84)
+	plt.gcf().subplots_adjust(right=0.9)
 	#g.legend.remove()
 	# g = sns.PairGrid(df)
 	# g = g.map_diag(sns.kdeplot, lw=3)
