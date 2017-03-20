@@ -299,7 +299,7 @@ for chan_range in args.chan:
         plt.plot(ks, 2*k3noise, 'g-')
     plt.suptitle('z={0:0.2f}'.format(z))
     plt.savefig('simple_pspec_z_{0:.2f}.png'.format(z), format='png')
-    np.savez(args.output + 'simple_pspec_z_{0:.2f}.npz'.format(z), ks=ks,
+    np.savez(args.output + 'simple_pspec_z_{0:.2f}.npz'.format(z), k=ks,
              kpl=kpl, pk=pk, pk_err=2*pk_err, k3pk=k3pk, k3err=2*k3err,
              pk_noise=pk_noise, k3noise=2*k3noise, freq=fq, redshift=z)
 plt.show()
