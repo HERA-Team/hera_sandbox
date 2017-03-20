@@ -64,7 +64,11 @@ cnt_plot=n.array(plot_n['cnt'])
 #img=ax1.contour( chans , plot_n['jd'], cnt_plot.T , levels )
 lsts = n.array(plot_n['lst'])
 img=ax1.imshow(cnt_plot,aspect='auto',interpolation='nearest',cmap=cmap,
+<<<<<<< Updated upstream
     extent=(freqs.min(),freqs.max(),lsts.max(),lsts.min()))
+=======
+    extent=(freqs.min(),freqs.max(),lsts.max()*12./np.pi,lsts.min()*12./np.pi))
+>>>>>>> Stashed changes
 #ax1.set_yticklabels(str(plot_n['lst']))
 #str_ticks=[ str(plot_n['lst'][k]) for k in xrange(len(times))]
 #ax1.set_yticklabels(str_ticks)
