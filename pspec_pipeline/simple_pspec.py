@@ -174,6 +174,9 @@ for k in data_dict.keys():
     lsts[k] = lsts[k][inds[k]]
 lsts = lsts['even']
 
+if np.size(args.chan) == 1:
+    args.chan = args.chan[0].split(',')
+
 for chan_range in args.chan:
     chans = ap.scripting.parse_chans(chan_range, len(freqs))
     print 'Computing Power Spectrum'
@@ -215,7 +218,7 @@ for chan_range in args.chan:
         data_grouped = {}
         power_grouped = {}
         for k in data_dict.keys():
-            data_grouped[k] = [[data_dict[k][bl][:,chans] for bl in gp]
+            data_grouped[k] = [[data_dict[k][bl][:, chans] for bl in gp]
                                for gp in groups]
             data_grouped[k] = [np.mean(data, axis=0)
                                for data in data_grouped[k]]
