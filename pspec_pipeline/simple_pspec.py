@@ -11,7 +11,8 @@ import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser(
     description=('Compute Power Spectrum of files using simple FFT'
-                 ' and bootstraps'))
+                 ' and bootstraps'),
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--even_files', metavar='<EVEN_FILE>', type=str, nargs='+',
                     help='List of even day files')
 parser.add_argument('--odd_files', metavar='<ODD_FILE>', type=str, nargs='+',
@@ -19,7 +20,7 @@ parser.add_argument('--odd_files', metavar='<ODD_FILE>', type=str, nargs='+',
 parser.add_argument('--output', type=str, default='./',
                     help='Specifically specify out directory.')
 parser.add_argument('-b', '--nboots', type=int, default=60,
-                    help='Number of Bootstraps (averages) default=60')
+                    help='Number of Bootstraps (averages) default=6')
 parser.add_argument('-a', '--ant', dest='ant', default='cross',
                     help=('Select ant_pol/baselines to include. '
                           'Examples: all (all baselines) '
@@ -34,13 +35,13 @@ parser.add_argument('-a', '--ant', dest='ant', default='cross',
                           'Select pol by adding appropriate x or y eg 5x_6y.'))
 parser.add_argument('-p', '--pol', dest='pol', default=-1,
                     help='Polarization to analyze (xx yy xy yx I)')
-parser.add_argument('-c', '--chan', dest='chan', default='all',
+parser.add_argument('-c', '--chan', dest='chan', default='all', nargs='+',
                     help=('Select channels (after any delay/delay-rate '
                           'transforms) to include.  '
                           'Examples: all (all channels), '
                           '0_10 (channels from 0 to 10, including 0 and 10)'
                           '0_10_2 (channels from 0 to 10, counting by 2), '
-                          '0,10,20_30 (mix of individual channels and ranges).'
+                          '0 10 20_30 (mix of individual channels and ranges).'
                           ' Default is "all".'))
 parser.add_argument('-C', '--cal', dest='cal', metavar='<CAL>.py',
                     help='Calibration file <cal>.py')
@@ -109,26 +110,16 @@ dsets = {'even': args.even_files,
          'odd': args.odd_files}
 uv = ap.miriad.UV(dsets.values()[0][0])
 freqs = ap.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
+nchan = uv['nchan']
 sdf = uv['sdf'] * 1e9  # put in Hz
-chans = ap.scripting.parse_chans(args.chan, uv['nchan'])
-afreqs = freqs.take(chans)
-nchan = chans.size
-fq = np.average(afreqs)
-z = capo.pspec.f2z(fq)
-aa = ap.cal.get_aa(args.cal, afreqs)
-bls, conj = capo.red.group_redundant_bls(aa.ant_layout)
 inttime = uv['inttime']
-etas = np.fft.fftshift(capo.pspec.f2eta(afreqs))  # Get delays (etas)
-kpl = etas * capo.pspec.dk_deta(z)
-beam_power, fringe_weights = calc_beam(args.cal, args.nside, inttime, fq)
-omega_p, omega_pp = calc_omega(beam_power*fringe_weights, args.nside)
-X2Y = capo.pspec.X2Y(z)/1e9  # convert 1/GHz to 1/Hz
 (uvw, t, ij), d = uv.read()
+# load a dummy antenna array to get the conj dict
+aa = ap.cal.get_aa(args.cal, np.array([.151]))
 uvw = aa.get_baseline(ij[0], ij[1], src='z') * capo.cosmo_units.c * 1e-9
 bl_length = np.linalg.norm(uvw)
-wavelength = capo.cosmo_units.c / (fq * 1e9)
-ubl = bl_length / wavelength
-kperp = capo.pspec.dk_du(fq) * ubl
+bls, conj = capo.red.group_redundant_bls(aa.ant_layout)
+
 try:
     frf_inttime = uv['FRF_NEBW']
 except:
@@ -137,12 +128,6 @@ del(uv)
 
 
 dlst = int(frf_inttime/inttime)
-print 'Freq:', fq
-print 'z:', z
-print 'Omega_pp:', omega_pp
-print 'Omega_p:', omega_p
-sys.stdout.flush()
-
 data_dict = {}
 conj_dict = {}
 flg_dict = {}
@@ -164,8 +149,8 @@ for k in dsets.keys():
             print bl,
         print '\n'
     for bl in data[k].keys():
-        d = np.array(data[k][bl][args.pol])[:, chans]   # extract freq range
-        flg = np.array(flgs[k][bl][args.pol])[:, chans]  # extract freq range
+        d = np.array(data[k][bl][args.pol])  # extract freq range
+        flg = np.array(flgs[k][bl][args.pol])  # extract freq range
         conj_dict[bl] = conj[bl]
         if not conj[bl]:
             data_dict[k][bl] = np.conj(d)
@@ -188,97 +173,130 @@ for k in data_dict.keys():
         flg_dict[k][bl] = flg_dict[k][bl][inds[k]]
     lsts[k] = lsts[k][inds[k]]
 lsts = lsts['even']
-cnts = stats['even']['cnt'][inds['even']][:, chans]
-kmin = np.argmin(np.abs(kpl))
-kpl_fold = np.array(kpl[kmin:])
-ks = np.sqrt(kperp**2 + kpl_fold**2)
-Nt_eff = int(np.ceil(len(lsts)/dlst))
 
-power_specs = {}
-for boot in xrange(args.nboots):
-    key_set = np.copy(bls_master)
-    np.random.shuffle(key_set)
-    groups = np.array_split(key_set, args.NGPS, axis=0)
-    groups = [[tuple(gp[np.random.choice(len(gp), replace=True)]) for bl in gp]
-              for gp in groups]
+for chan_range in args.chan:
+    chans = ap.scripting.parse_chans(chan_range, len(freqs))
+    print 'Computing Power Spectrum'
+    afreqs = freqs.take(chans)
+    nchan = chans.size
+    fq = np.average(afreqs)
+    z = capo.pspec.f2z(fq)
+    aa = ap.cal.get_aa(args.cal, afreqs)
+    etas = np.fft.fftshift(capo.pspec.f2eta(afreqs))  # Get delays (etas)
+    kpl = etas * capo.pspec.dk_deta(z)
+    beam_power, fringe_weights = calc_beam(args.cal, args.nside, inttime, fq)
+    omega_p, omega_pp = calc_omega(beam_power*fringe_weights, args.nside)
+    X2Y = capo.pspec.X2Y(z)/1e9  # convert 1/GHz to 1/Hz
+    wavelength = capo.cosmo_units.c / (fq * 1e9)
+    ubl = bl_length / wavelength
+    kperp = capo.pspec.dk_du(fq) * ubl
+    cnts = stats['even']['cnt'][inds['even']][:, chans]
+    kmin = np.argmin(np.abs(kpl))
+    kpl_fold = np.array(kpl[kmin:])
+    ks = np.sqrt(kperp**2 + kpl_fold**2)
+    Nt_eff = int(np.ceil(len(lsts)/dlst))
 
-    data_grouped = {}
-    power_grouped = {}
-    for k in data_dict.keys():
-        data_grouped[k] = [[data_dict[k][bl] for bl in gp] for gp in groups]
-        data_grouped[k] = [np.mean(data, axis=0) for data in data_grouped[k]]
-        # average over groups for easie
-        # FFT fo k-space
-        power_grouped[k] = np.fft.ifft(np.conj(data_grouped[k]), axis=-1)
-        power_grouped[k] = np.fft.ifftshift(power_grouped[k], axes=-1)
+    print '\tFreq:', fq
+    print '\tz:', z
+    print '\tOmega_pp:', omega_pp
+    print '\tOmega_p:', omega_p
+    print '\tX2Y:', X2Y
+    sys.stdout.flush()
 
-    count = 0
-    power = 0
-    for cnt, k1 in enumerate(data_dict.keys()):
-        for k2 in data_dict.keys()[cnt+1:]:
-            if k1 == k2:
-                continue
-            for i in xrange(args.NGPS-1):
-                for j in xrange(i+1, args.NGPS):
-                    p1 = (power_grouped[k1][i].conj()
-                          * power_grouped[k2][j]).conj().real
-                    # p1 = p1[::dlst]  # down select to independent modes
-                    power += p1
-                    count += 1
-    power_specs[boot] = (power_specs.get(boot, 0)
-                         + power / count * X2Y / omega_pp * sdf * afreqs.size)
+    power_specs = {}
+    for boot in xrange(args.nboots):
+        key_set = np.copy(bls_master)
+        np.random.shuffle(key_set)
+        groups = np.array_split(key_set, args.NGPS, axis=0)
+        groups = [[tuple(gp[np.random.choice(len(gp), replace=True)])
+                  for bl in gp]
+                  for gp in groups]
 
-averaged_pspecs, avg_fold = [], []
-for boot in xrange(args.nboots):
-    # bl = np.random.choice(args.nboots, replace=True)
-    # times = np.random.choice(Nt_eff, Nt_eff, replace=False)
-    pos_neg = np.random.choice(1)
-    # tmp_pspec = np.average(power_specs[boot][::dlst],
-                        #    weights=cnts[::dlst], axis=0)
-    tmp_pspec = np.median(power_specs[boot][::dlst],axis=0)
-    averaged_pspecs.append(tmp_pspec)
-    # split into pos and neg arrays, reverse the neg array so magnitude of
-    # kpl increases
-    tmp_pspec = [tmp_pspec[:kmin+1][::-1], tmp_pspec[kmin:]]
-    avg_fold.append(np.median(tmp_pspec, axis=0))
+        data_grouped = {}
+        power_grouped = {}
+        for k in data_dict.keys():
+            data_grouped[k] = [[data_dict[k][bl][:,chans] for bl in gp]
+                               for gp in groups]
+            data_grouped[k] = [np.mean(data, axis=0)
+                               for data in data_grouped[k]]
+            # average over groups for easie
+            # FFT fo k-space
+            power_grouped[k] = np.fft.ifft(np.conj(data_grouped[k]), axis=-1)
+            power_grouped[k] = np.fft.ifftshift(power_grouped[k], axes=-1)
 
-pk, pk_err = np.mean(averaged_pspecs, axis=0), np.std(averaged_pspecs, axis=0)
-pk_fold, pk_fold_err = np.mean(avg_fold, axis=0), np.std(avg_fold, axis=0)
-k3pk = ks**3/(2*np.pi**2)*pk_fold
-k3err = ks**3/(2*np.pi**2)*pk_fold_err
-plt.figure(figsize=(8, 6))
-plt.subplot(121)
-plt.errorbar(kpl, pk, 2*pk_err, fmt='k.')
-plt.grid()
-plt.ylim([-.5e7, None])
-plt.subplot(122)
-plt.errorbar(ks, k3pk, 2*k3err, fmt='k.')
-plt.grid()
-plt.yscale('log')
-plt.ylim([1e1, 1e6])
+        count = 0
+        power = 0
+        for cnt, k1 in enumerate(data_dict.keys()):
+            for k2 in data_dict.keys()[cnt+1:]:
+                if k1 == k2:
+                    continue
+                for i in xrange(args.NGPS-1):
+                    for j in xrange(i+1, args.NGPS):
+                        p1 = (power_grouped[k1][i].conj()
+                              * power_grouped[k2][j]).conj().real
+                        # p1 = p1[::dlst]  # down select to independent modes
+                        power += p1
+                        count += 1
+        power_specs[boot] = (power_specs.get(boot, 0)
+                             + power / count * X2Y / omega_pp
+                             * sdf * afreqs.size)
 
-Tsys = 180 * (fq/.18)**-2.55 + 200
-Tsys *= 1e3
-Npol = 2
-Nreal = 2
-Nlst = len(lsts) * inttime / frf_inttime
-Nbls = len(bls_master) / np.sqrt(2) * np.sqrt(1. - 1./args.NGPS)
-# calculate the effective counts in the data, this is like ndays
-cnt_eff = 1./np.sqrt(np.ma.masked_invalid(1./cnts**2).mean())
-folding = 2
-pk_noise = X2Y * omega_p**2/omega_pp * Tsys**2
-pk_noise /= frf_inttime * Npol * Nbls * cnt_eff
-pk_noise /= np.sqrt(Nlst * folding * Nreal)
-k3noise = ks**3/(2*np.pi**2) * pk_noise
+    averaged_pspecs, avg_fold = [], []
+    for boot in xrange(args.nboots):
+        # bl = np.random.choice(args.nboots, replace=True)
+        # times = np.random.choice(Nt_eff, Nt_eff, replace=False)
+        pos_neg = np.random.choice(1)
+        tmp_pspec = np.median(power_specs[boot][::dlst], axis=0)
+        averaged_pspecs.append(tmp_pspec)
+        # split into pos and neg arrays, reverse the neg array so magnitude of
+        # kpl increases
+        tmp_pspec = [tmp_pspec[:kmin+1][::-1], tmp_pspec[kmin:]]
+        avg_fold.append(np.median(tmp_pspec, axis=0))
 
-if args.analytic:
+    pk = np.mean(averaged_pspecs, axis=0)
+    pk_err = np.std(averaged_pspecs, axis=0)
+    pk_fold, pk_fold_err = np.mean(avg_fold, axis=0), np.std(avg_fold, axis=0)
+    k3pk = ks**3/(2*np.pi**2)*pk_fold
+    k3err = ks**3/(2*np.pi**2)*pk_fold_err
+
+    # Plot Pk and Delta^s side by side
+    # 2-sigma Error bars
+    plt.figure(figsize=(8, 6))
     plt.subplot(121)
-    plt.axhline(2*pk_noise, linestyle='-', color='g')
+    plt.errorbar(kpl, pk, 2*pk_err, fmt='k.')
+    plt.grid()
+    plt.ylim([-.5e7, None])
+
     plt.subplot(122)
-    plt.plot(ks, 2*k3noise, 'g-')
-plt.suptitle('z={0:0.2f}'.format(z))
-plt.savefig('simple_pspec_z_{0:.2f}.png'.format(z), format='png')
+    plt.errorbar(ks, k3pk, 2*k3err, fmt='k.')
+    plt.grid()
+    plt.yscale('log')
+    plt.ylim([1e1, None])
+
+    Tsys = 180 * (fq/.18)**-2.55 + 200
+    Tsys *= 1e3
+    Npol = 2
+    Nreal = 2
+    folding = 2
+    Nlst = len(lsts) * inttime / frf_inttime
+    Nbls = len(bls_master) / np.sqrt(2) * np.sqrt(1. - 1./args.NGPS)
+
+    # calculate the effective counts in the data, this is like ndays
+    cnt_eff = 1./np.sqrt(np.ma.masked_invalid(1./cnts**2).mean())
+
+    pk_noise = X2Y * omega_p**2/omega_pp * Tsys**2
+    pk_noise /= frf_inttime * Npol * Nbls * cnt_eff
+    pk_noise /= np.sqrt(Nlst * folding * Nreal)
+    k3noise = ks**3/(2*np.pi**2) * pk_noise
+
+    if args.analytic:
+        plt.subplot(121)
+        plt.axhline(2*pk_noise, linestyle='-', color='g')
+        plt.subplot(122)
+        plt.plot(ks, 2*k3noise, 'g-')
+    plt.suptitle('z={0:0.2f}'.format(z))
+    plt.savefig('simple_pspec_z_{0:.2f}.png'.format(z), format='png')
+    np.savez(args.output + 'simple_pspec_z_{0:.2f}.npz'.format(z), ks=ks,
+             kpl=kpl, pk=pk, pk_err=2*pk_err, k3pk=k3pk, k3err=2*k3err,
+             pk_noise=pk_noise, k3noise=2*k3noise, freq=fq, redshift=z)
 plt.show()
-np.savez(args.output + 'simple_pspec_z_{0:.2f}.npz'.format(z), ks=ks, kpl=kpl,
-         pk=pk, pk_err=pk_err, k3pk=k3pk, k3err=k3err, pk_noise=pk_noise,
-         k3noise=k3noise)
