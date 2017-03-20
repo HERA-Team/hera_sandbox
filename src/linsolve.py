@@ -20,15 +20,17 @@ def ast_getterms(n):
     else: raise ValueError('Unsupported: %s' % str(n))
 
 def get_name(s, isconj=False):
+    '''Parse variable names of form 'var_' as 'var' + conjugation.'''
     if not type(s) is str:
         if isconj: return s, False
         else: return s
     rv = s
-    if rv.endswith('_'): rv = rv[:-1]
-    if isconj: return rv, s.endswith('_')
+    if rv.endswith('_'): rv = rv[:-1] # parse 'name_' as 'name' + conj
+    if isconj: return rv, s.endswith('_') # tag names ending in '_' for conj
     else: return rv
 
 class Constant:
+    '''Container for constants (which can be arrays) in linear equations.'''
     def __init__(self, name, **kwargs):
         if type(name) is str:
             self.name = get_name(name)
@@ -38,6 +40,8 @@ class Constant:
         try: return self.val.shape
         except(AttributeError): return ()
     def get_val(self, name=None):
+        '''Return value of constant. Handles conj if name='varname_' is requested 
+        instead of name='varname'.'''
         if name is not None:
             name, conj = get_name(name, isconj=True)
             assert(self.name == name)
@@ -46,9 +50,12 @@ class Constant:
         else: return self.val
 
 class Parameter:
+    '''Container for parameters that are to be solved for.'''
     def __init__(self, name):
         self.name = get_name(name)
     def put_matrix(self, name, m, eqnum, prm_order, prefactor, complex=True):
+        '''Return line for A matrix in A*x=y.  Handles conj if name='prmname_' is 
+        requested instead of name='prmname'.'''
         if complex: # XXX for now, either everything's complex or everything's real
             name,conj = get_name(name, True)
             ordr,ordi = 2*prm_order[self.name], 2*prm_order[self.name]+1 # XXX
@@ -60,12 +67,14 @@ class Parameter:
             if conj: m[i,ordi], m[i+1,ordi] = -m[i,ordi], -m[i+1,ordi]
         else: m[eqnum,prm_order[self.name]] = prefactor
     def get_sol(self, x, prm_order):
+        '''Extract prm value from appropriate row of x solution.'''
         if x.shape[0] > len(prm_order): # detect that we are complex
             ordr,ordi = 2*prm_order[self.name], 2*prm_order[self.name]+1 # XXX
             return {self.name: x[ordr] + 1j*x[ordi]} # XXX
         else: return {self.name: x[prm_order[self.name]]}
 
 class LinearEquation:
+    '''Container for all prms and constants associated with a linear equation.'''
     def __init__(self, val, **kwargs):
         if type(val) is str:
             n = ast.parse(val, mode='eval')
@@ -73,6 +82,7 @@ class LinearEquation:
         self.wgt = kwargs.pop('wgt',1.)
         self.process_terms(val, **kwargs)
     def process_terms(self, terms, **kwargs):
+        '''Classify terms from parsed str as Constant or Parameter.'''
         self.consts, self.prms = {}, {}
         for term in terms:
             for t in term:
@@ -97,20 +107,24 @@ class LinearEquation:
                 assert(type(ti) is not str or self.consts.has_key(get_name(ti)))
         return terms
     def eval_consts(self, const_list, wgt=1.):
+        '''Multiply out constants (and wgts) for placing in matrix.'''
         const_list = [self.consts[get_name(c)].get_val(c) for c in const_list]
         return wgt * reduce(lambda x,y: x*y, const_list, 1.)
     def put_matrix(self, m, eqnum, prm_order, complex=True):
-        '''Populate a pre-made (# eqs,# prms) with this equation in line eqnum'''
+        '''Place this equation in line eqnum of pre-made (# eqs,# prms) matrix m.'''
         for term in self.terms:
             p = self.prms[get_name(term[-1])]
             f = self.eval_consts(term[:-1], self.wgt)
-            p.put_matrix(term[-1], m, eqnum, prm_order, f, complex)
+            #p.put_matrix(term[-1], m, eqnum, prm_order, f, complex)
+            try: p.put_matrix(term[-1], m, eqnum, prm_order, f.flatten(), complex) # Flatten dimensions of data
+            except(AttributeError): p.put_matrix(term[-1], m, eqnum, prm_order, f, complex)
         
 class LinearSolver:
     '''Estimate parameters using (AtA)^-1At)'''
     def __init__(self, data, wgts, **kwargs):
         self.data = data
         self.wgts = wgts
+        for k in wgts: assert(np.iscomplexobj(wgts[k]) == False) # tricky errors happen if wgts are complex
         self.keys = data.keys()
         self.eqs = [LinearEquation(k,wgts=wgts[k], **kwargs) for k in self.keys]
         # XXX add ability to have more than one measurment for a key=equation
@@ -124,7 +138,9 @@ class LinearSolver:
         self.complex = kwargs.pop('complex',False)
         for dset in [data, self.consts]:
             for k in dset: self.complex |= np.iscomplexobj(dset[k])
-    def _A_shape(self):
+        self.shape = self._shape()
+    def _shape(self):
+        '''Get shape of solutions from shape of constants, weights, and data.'''
         sh = []
         for k in self.consts:
             shk = self.consts[k].shape()
@@ -135,9 +151,20 @@ class LinearSolver:
             except(AttributeError): continue
             if len(shk) > len(sh): sh += [0] * (len(shk)-len(sh))
             for i in xrange(min(len(sh),len(shk))): sh[i] = max(sh[i],shk[i])
-        if self.complex: return [2*len(self.eqs),2*len(self.prm_order)]+sh # XXX
-        else: return [len(self.eqs),len(self.prm_order)]+sh # XXX
+        for k in self.data:
+            try: shk = self.data[k].shape
+            except(AttributeError): continue
+            if len(shk) > len(sh): sh += [0] * (len(shk)-len(sh))
+            for i in xrange(min(len(sh),len(shk))): sh[i] = max(sh[i],shk[i])
+        return tuple(sh)
+    def _A_shape(self):
+        '''Get shape of A matrix (# eqs, # prms, data.size). Now always 3D.'''
+        try: sh = (reduce(lambda x,y: x*y, self.shape),) # flatten data dimensions so A is always 3D
+        except(TypeError): sh = (1,)
+        if self.complex: return (2*len(self.eqs),2*len(self.prm_order))+sh # XXX
+        else: return (len(self.eqs),len(self.prm_order))+sh # XXX
     def get_A(self):
+        '''Return A matrix for A*x=y.'''
         #A = lil_matrix((len(self.eqs),self.nprms), dtype=dtype)
         #A = np.zeros(self._A_shape(), dtype=self.dtype)
         #XXX A could be sparse, even if AtAiAt isn't
@@ -146,36 +173,48 @@ class LinearSolver:
         #return csr_matrix(A)
         return A
     def get_AtAiAt(self, A=None, rcond=1e-10):
+        '''Return (A.T * A)^-1 * A.T.  Often most computationally expensive step.'''
         if A is None: A = self.get_A()
-        #AtAi = scipy.sparse.linalg.inv(AtA)
-        AtA = np.einsum('ji...,jk...->ik...', A, A)
-        shape = AtA.shape
-        AtA.shape = shape[:2] + (-1,)
-        AtAi = np.empty_like(AtA)
-        for i in xrange(AtA.shape[-1]): AtAi[...,i] = np.linalg.pinv(AtA[...,i], rcond=rcond)
-        AtAi.shape = shape
-        return np.einsum('ij...,kj...->ik...', AtAi,A)
+        #print 'A', A.shape
+        assert(A.ndim == 3)
+        AtAiA = np.empty((A.shape[1],A.shape[0],A.shape[2]), dtype=A.dtype)
+        for i in xrange(AtAiA.shape[-1]):
+            #AtAi = scipy.sparse.linalg.inv(AtA)
+            #AtA = np.einsum('ji...,jk...->ik...', A, A) # too expensive
+            AtA = np.dot(A[...,i].T,A[...,i])
+            AtAi = np.linalg.pinv(AtA, rcond=rcond)
+            #AtAiA[...,i] = np.einsum('ij...,kj...->ik...', AtAi,A) # too expensive
+            AtAiA[...,i] = np.dot(AtAi,A[...,i].T)
+        return AtAiA
     def get_weighted_data(self):
+        '''Return y = data * wgt as a 2D vector, regardless of original data/wgt shape.'''
         d = np.array([self.data[k] for k in self.keys])
         w = np.array([self.wgts[k] for k in self.keys])
         w.shape += (1,) * (d.ndim-w.ndim)
         d.shape += (1,) * (w.ndim-d.ndim)
         dw = d * w
+        dw.shape = (dw.shape[0],-1) # Flatten 
         if np.iscomplexobj(dw):
             rv = np.empty((2*dw.shape[0],)+dw.shape[1:], dtype=np.float)
             rv[::2],rv[1::2] = dw.real, dw.imag
             return rv
-        else: return dw.view(np.float)
+        else: return dw.astype(np.float)
     def solve(self):
+        '''Compute x' = (At A)^-1 At * y, returning x' as dict of prms:values.'''
         y = self.get_weighted_data()
         AtAiAt = self.get_AtAiAt()
-        x = np.einsum('ij...,j...->i...', AtAiAt, y)
+        #print 'AtAiAt,y', AtAiAt.shape, y.shape
+        x = np.einsum('ij...,j...->i...', AtAiAt, y) # XXX switch this out
+        #x = np.dot(AtAiAt, y)
+        #print 'x', x.shape, self.shape
+        x.shape = x.shape[:1] + self.shape # restore to shape of original data
         sol = {}
         for p in self.prms.values(): sol.update(p.get_sol(x,self.prm_order))
         return sol
 
 # XXX need to add support for conjugated constants
 def conjterm(term, mode='amp'):
+    '''Modify prefactor for conjugated terms, according to mode='amp|phs|real|imag'.'''
     f = {'amp':1,'phs':-1,'real':1,'imag':1j}[mode] # if KeyError, mode was invalid
     terms = [[f,t[:-1]] if t.endswith('_') else [t] for t in term]
     return reduce(lambda x,y: x+y, terms)
@@ -222,6 +261,7 @@ def taylor_expand(term, consts={}, prepend='d'):
         terms.append(term[:i]+[prepend+t]+term[i+1:])
     return terms
 
+# XXX make a version of linproductsolver that taylor expands in e^{a+bi} form
 class LinProductSolver(LinearSolver): # XXX probably shouldn't inherit
     '''For equations that are purely products (e.g. x*y*z = m), use 
     1st order Taylor expansion to linearize.  For complex variables, a trailing '_' in
