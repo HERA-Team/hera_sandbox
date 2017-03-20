@@ -56,21 +56,32 @@ class Parameter:
     def put_matrix(self, name, m, eqnum, prm_order, prefactor, complex=True):
         '''Return line for A matrix in A*x=y.  Handles conj if name='prmname_' is 
         requested instead of name='prmname'.'''
+        xs,ys,vals = self.sparse_form(name, eqnum, prm_order, prefactor, complex=complex)
+        m[xs,ys,0] = vals
+    def sparse_form(self, name, eqnum, prm_order, prefactor, complex=True):
+        xs,ys,vals = [], [], []
         if complex: # XXX for now, either everything's complex or everything's real
             name,conj = get_name(name, True)
-            ordr,ordi = 2*prm_order[self.name], 2*prm_order[self.name]+1 # XXX
+            ordr,ordi = 2*prm_order[self.name], 2*prm_order[self.name]+1 
             cr,ci = prefactor.real, prefactor.imag
             i = 2*eqnum
             # (cr,ci) * (pr,pi) = (cr*pr-ci*pi, ci*pr+cr*pi)
-            m[i,ordr], m[i,ordi] = cr, -ci # the real component
-            m[i+1,ordr], m[i+1,ordi] = ci, cr # the imag component
-            if conj: m[i,ordi], m[i+1,ordi] = -m[i,ordi], -m[i+1,ordi]
-        else: m[eqnum,prm_order[self.name]] = prefactor
+            xs.append(i); ys.append(ordr); vals.append(cr) # real component
+            xs.append(i+1); ys.append(ordr); vals.append(ci) # imag component
+            if not conj:
+                xs.append(i); ys.append(ordi); vals.append(-ci) # imag component
+                xs.append(i+1); ys.append(ordi); vals.append(cr) # imag component
+            else:
+                xs.append(i); ys.append(ordi); vals.append(ci) # imag component
+                xs.append(i+1); ys.append(ordi); vals.append(-cr) # imag component
+        else:
+            xs.append(eqnum); ys.append(prm_order[self.name]); vals.append(prefactor)
+        return xs, ys, vals
     def get_sol(self, x, prm_order):
         '''Extract prm value from appropriate row of x solution.'''
         if x.shape[0] > len(prm_order): # detect that we are complex
-            ordr,ordi = 2*prm_order[self.name], 2*prm_order[self.name]+1 # XXX
-            return {self.name: x[ordr] + 1j*x[ordi]} # XXX
+            ordr,ordi = 2*prm_order[self.name], 2*prm_order[self.name]+1
+            return {self.name: x[ordr] + 1j*x[ordi]}
         else: return {self.name: x[prm_order[self.name]]}
 
 class LinearEquation:
@@ -112,21 +123,29 @@ class LinearEquation:
         return wgt * reduce(lambda x,y: x*y, const_list, 1.)
     def put_matrix(self, m, eqnum, prm_order, complex=True):
         '''Place this equation in line eqnum of pre-made (# eqs,# prms) matrix m.'''
+        xs,ys,vals = self.sparse_form(eqnum, prm_order, complex=complex)
+        ones = np.ones_like(m[0,0])
+        m[xs,ys] = [v * ones for v in vals] # XXX ugly
+        return
+    def sparse_form(self, eqnum, prm_order, complex=True):
+        xs, ys, vals = [], [], []
         for term in self.terms:
             p = self.prms[get_name(term[-1])]
             f = self.eval_consts(term[:-1], self.wgt)
-            #p.put_matrix(term[-1], m, eqnum, prm_order, f, complex)
-            try: p.put_matrix(term[-1], m, eqnum, prm_order, f.flatten(), complex) # Flatten dimensions of data
-            except(AttributeError): p.put_matrix(term[-1], m, eqnum, prm_order, f, complex)
+            try: x,y,val = p.sparse_form(term[-1], eqnum, prm_order, f.flatten(), complex)
+            except(AttributeError): # happens if f is a scalar
+                x,y,val = p.sparse_form(term[-1], eqnum, prm_order, f, complex)
+            xs += x; ys += y; vals += val
+        return xs, ys, vals
         
 class LinearSolver:
     '''Estimate parameters using (AtA)^-1At)'''
-    def __init__(self, data, wgts, **kwargs):
+    def __init__(self, data, wgts={}, **kwargs):
         self.data = data
-        self.wgts = wgts
         for k in wgts: assert(np.iscomplexobj(wgts[k]) == False) # tricky errors happen if wgts are complex
+        self.wgts = wgts
         self.keys = data.keys()
-        self.eqs = [LinearEquation(k,wgts=wgts[k], **kwargs) for k in self.keys]
+        self.eqs = [LinearEquation(k,wgts=self.wgts.get(k,1.), **kwargs) for k in self.keys]
         # XXX add ability to have more than one measurment for a key=equation
         self.prms = {}
         for eq in self.eqs: self.prms.update(eq.prms)
@@ -140,7 +159,7 @@ class LinearSolver:
             for k in dset: self.complex |= np.iscomplexobj(dset[k])
         self.shape = self._shape()
     def _shape(self):
-        '''Get shape of solutions from shape of constants, weights, and data.'''
+        '''Get broadcast shape of constants, weights for last dim of A'''
         sh = []
         for k in self.consts:
             shk = self.consts[k].shape()
@@ -151,63 +170,63 @@ class LinearSolver:
             except(AttributeError): continue
             if len(shk) > len(sh): sh += [0] * (len(shk)-len(sh))
             for i in xrange(min(len(sh),len(shk))): sh[i] = max(sh[i],shk[i])
-        for k in self.data:
-            try: shk = self.data[k].shape
-            except(AttributeError): continue
-            if len(shk) > len(sh): sh += [0] * (len(shk)-len(sh))
-            for i in xrange(min(len(sh),len(shk))): sh[i] = max(sh[i],shk[i])
         return tuple(sh)
     def _A_shape(self):
         '''Get shape of A matrix (# eqs, # prms, data.size). Now always 3D.'''
         try: sh = (reduce(lambda x,y: x*y, self.shape),) # flatten data dimensions so A is always 3D
         except(TypeError): sh = (1,)
-        if self.complex: return (2*len(self.eqs),2*len(self.prm_order))+sh # XXX
-        else: return (len(self.eqs),len(self.prm_order))+sh # XXX
+        if self.complex: return (2*len(self.eqs),2*len(self.prm_order))+sh
+        else: return (len(self.eqs),len(self.prm_order))+sh
     def get_A(self):
         '''Return A matrix for A*x=y.'''
-        #A = lil_matrix((len(self.eqs),self.nprms), dtype=dtype)
-        #A = np.zeros(self._A_shape(), dtype=self.dtype)
-        #XXX A could be sparse, even if AtAiAt isn't
         A = np.zeros(self._A_shape(), dtype=np.float) # float even if complex (r/i treated separately)
-        for i,eq in enumerate(self.eqs): eq.put_matrix(A, i, self.prm_order, self.complex)
-        #return csr_matrix(A)
+        xs,ys,vals = self.sparse_form()
+        ones = np.ones_like(A[0,0])
+        A[xs,ys] = [v * ones for v in vals] # XXX ugly
         return A
-    def get_AtAiAt(self, A=None, rcond=1e-10):
-        '''Return (A.T * A)^-1 * A.T.  Often most computationally expensive step.'''
-        if A is None: A = self.get_A()
-        #print 'A', A.shape
-        assert(A.ndim == 3)
-        AtAiA = np.empty((A.shape[1],A.shape[0],A.shape[2]), dtype=A.dtype)
-        for i in xrange(AtAiA.shape[-1]):
-            #AtAi = scipy.sparse.linalg.inv(AtA)
-            #AtA = np.einsum('ji...,jk...->ik...', A, A) # too expensive
-            AtA = np.dot(A[...,i].T,A[...,i])
-            AtAi = np.linalg.pinv(AtA, rcond=rcond)
-            #AtAiA[...,i] = np.einsum('ij...,kj...->ik...', AtAi,A) # too expensive
-            AtAiA[...,i] = np.dot(AtAi,A[...,i].T)
-        return AtAiA
+    def sparse_form(self):
+        xs, ys, vals = [], [], []
+        for i,eq in enumerate(self.eqs):
+            x,y,val = eq.sparse_form(i, self.prm_order, self.complex)
+            xs += x; ys += y; vals += val
+        return xs, ys, vals
     def get_weighted_data(self):
         '''Return y = data * wgt as a 2D vector, regardless of original data/wgt shape.'''
         d = np.array([self.data[k] for k in self.keys])
-        w = np.array([self.wgts[k] for k in self.keys])
-        w.shape += (1,) * (d.ndim-w.ndim)
-        d.shape += (1,) * (w.ndim-d.ndim)
-        dw = d * w
-        dw.shape = (dw.shape[0],-1) # Flatten 
-        if np.iscomplexobj(dw):
-            rv = np.empty((2*dw.shape[0],)+dw.shape[1:], dtype=np.float)
-            rv[::2],rv[1::2] = dw.real, dw.imag
+        if len(self.wgts) > 0:
+            w = np.array([self.wgts[k] for k in self.keys])
+            w.shape += (1,) * (d.ndim-w.ndim)
+            d.shape += (1,) * (w.ndim-d.ndim)
+            d = d*w
+        self._data_shape = d.shape[1:] # store for reshaping sols to original
+        d.shape = (d.shape[0],-1) # Flatten 
+        if np.iscomplexobj(d):
+            rv = np.empty((2*d.shape[0],)+d.shape[1:], dtype=np.float)
+            rv[::2],rv[1::2] = d.real, d.imag
             return rv
-        else: return dw.astype(np.float)
-    def solve(self):
+        else: return d.astype(np.float)
+    def solve(self, rcond=1e-10): # XXX add prm for used AtAiAt for all k?
         '''Compute x' = (At A)^-1 At * y, returning x' as dict of prms:values.'''
+        A = self.get_A()
+        assert(A.ndim == 3)
+        #xs, ys, vals = self.get_A_sparse() # XXX switch to sparse?
+        Ashape = self._A_shape()
         y = self.get_weighted_data()
-        AtAiAt = self.get_AtAiAt()
-        #print 'AtAiAt,y', AtAiAt.shape, y.shape
-        x = np.einsum('ij...,j...->i...', AtAiAt, y) # XXX switch this out
-        #x = np.dot(AtAiAt, y)
-        #print 'x', x.shape, self.shape
-        x.shape = x.shape[:1] + self.shape # restore to shape of original data
+        x = np.empty((Ashape[1],y.shape[-1]), dtype=np.float)
+        AtAiAt = None
+        for k in xrange(y.shape[-1]):
+            if AtAiAt is None or Ashape[-1] != 1:
+                #Ak = csr_matrix((vals, (xs,ys))) # XXX switch to sparse?
+                Ak = A[...,k]
+                #AtA = np.einsum('ji...,jk...->ik...', A, A) # slow
+                AtA = Ak.T.dot(Ak)
+                # pinv 2/3, dot 1/3 compute time for 1200x1200 array
+                AtAi = np.linalg.pinv(AtA, rcond=rcond)
+                #AtAiA[...,i] = np.einsum('ij...,kj...->ik...', AtAi,A) # slow
+                AtAiAt = Ak.dot(AtAi).T
+            #x[...,k] = np.einsum('ij,j->i', AtAiAt, y[...,k]) # slow
+            x[...,k:k+1] = np.dot(AtAiAt,y[...,k:k+1])
+        x.shape = x.shape[:1] + self._data_shape # restore to shape of original data
         sol = {}
         for p in self.prms.values(): sol.update(p.get_sol(x,self.prm_order))
         return sol
@@ -226,7 +245,7 @@ class LogProductSolver(LinearSolver): # XXX probably shouldn't inherit
     logarithms to linearize.  For complex variables, a trailing '_' in
     the name is used to denote conjugation (e.g. x*y_ parses as x * y.conj()).
     For LogProductSolver to work'''
-    def __init__(self, data, wgts, **kwargs):
+    def __init__(self, data, wgts={}, **kwargs):
         keys = data.keys()
         eqs = [ast_getterms(ast.parse(k, mode='eval')) for k in keys]
         logamp, logphs = {}, {}
@@ -237,7 +256,8 @@ class LogProductSolver(LinearSolver): # XXX probably shouldn't inherit
             eqphs = jointerms([conjterm([t],mode='phs') for t in eq[0]])
             dk = np.log(data[k])
             logamp[eqamp],logphs[eqphs] = dk.real, dk.imag
-            logampw[eqamp],logphsw[eqphs] = wgts[k], wgts[k]
+            try: logampw[eqamp],logphsw[eqphs] = wgts[k], wgts[k]
+            except(KeyError): pass
         logamp_consts, logphs_consts = {}, {}
         for k in kwargs:
             c = np.log(kwargs[k])
@@ -267,7 +287,7 @@ class LinProductSolver(LinearSolver): # XXX probably shouldn't inherit
     1st order Taylor expansion to linearize.  For complex variables, a trailing '_' in
     the name is used to denote conjugation (e.g. x*y_ parses as x * y.conj()).
     Approximate parameter solutions needs to be passed in as sols.'''
-    def __init__(self, data, wgts, sols, **kwargs):
+    def __init__(self, data, sols, wgts={}, **kwargs):
         self.prepend = 'd' # XXX make this something hard to collide with
         keys = data.keys()
         eqs = [ast_getterms(ast.parse(k, mode='eval')) for k in keys]
@@ -282,8 +302,10 @@ class LinProductSolver(LinearSolver): # XXX probably shouldn't inherit
             eq = LinearEquation(taylor[1:], **kwargs) # exclude zero-order term
             ans0 = eq.eval_consts(taylor[0])
             nk = jointerms(eq.terms)
-            dlin[nk],wlin[nk] = data[k]-ans0, wgts[k]
-        self.ls = LinearSolver(dlin, wlin, **kwargs)
+            dlin[nk] = data[k]-ans0
+            try: wlin[nk] = wgts[k]
+            except(KeyError): pass
+        self.ls = LinearSolver(dlin, wgts=wlin, **kwargs)
     def solve(self):
         dsol = self.ls.solve()
         sol = {}
