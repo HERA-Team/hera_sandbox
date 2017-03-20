@@ -251,12 +251,13 @@ for chan_range in args.chan:
         # bl = np.random.choice(args.nboots, replace=True)
         # times = np.random.choice(Nt_eff, Nt_eff, replace=False)
         pos_neg = np.random.choice(1)
+        # median over times
         tmp_pspec = np.median(power_specs[boot][::dlst], axis=0)
         averaged_pspecs.append(tmp_pspec)
         # split into pos and neg arrays, reverse the neg array so magnitude of
         # kpl increases
         tmp_pspec = [tmp_pspec[:kmin+1][::-1], tmp_pspec[kmin:]]
-        avg_fold.append(np.median(tmp_pspec, axis=0))
+        avg_fold.append(np.mean(tmp_pspec, axis=0))  # mean over k// +/-
 
     pk = np.mean(averaged_pspecs, axis=0)
     pk_err = np.std(averaged_pspecs, axis=0)
