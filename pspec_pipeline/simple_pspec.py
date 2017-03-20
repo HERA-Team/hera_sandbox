@@ -54,6 +54,8 @@ parser.add_argument('--nside', type=int, default=512,
                     help='Nside to calculate Beam integral.')
 parser.add_argument('--analytic', action='store_true',
                     help='Plot analytic noise curve.')
+parser.add_argument('--Trcvr', type=float, default=200,
+                    help='Receiver Temperature in Kelvin')
 args = parser.parse_args()
 
 
@@ -276,7 +278,7 @@ for chan_range in args.chan:
     plt.yscale('log')
     plt.ylim([1e1, None])
 
-    Tsys = 180 * (fq/.18)**-2.55 + 200
+    Tsys = 180 * (fq/.18)**-2.55 + args.Trcvr
     Tsys *= 1e3
     Npol = 2
     Nreal = 2
@@ -286,12 +288,14 @@ for chan_range in args.chan:
 
     # calculate the effective counts in the data, this is like ndays
     cnt_eff = 1./np.sqrt(np.ma.masked_invalid(1./cnts**2).mean())
-
     pk_noise = X2Y * omega_p**2/omega_pp * Tsys**2
     pk_noise /= frf_inttime * Npol * Nbls * cnt_eff
     pk_noise /= np.sqrt(Nlst * folding * Nreal)
     k3noise = ks**3/(2*np.pi**2) * pk_noise
-
+    print '\tNbls eff:', Nbls
+    print '\tNlst bins:', Nlst
+    print '\tNdays eff:', cnt_eff
+    print '\tPk noise [mK^2]: {0:.3e}'.format(pk_noise)
     if args.analytic:
         plt.subplot(121)
         plt.axhline(2*pk_noise, linestyle='-', color='g')
