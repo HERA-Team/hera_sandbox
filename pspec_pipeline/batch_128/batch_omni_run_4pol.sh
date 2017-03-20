@@ -20,6 +20,8 @@ for FILE in ${FILES}
         then #forgive me for hardcoding for folios filepaths here... correct way would be a regex
             echo ${PATH2CAPO}/omni/omni_run.py -p ${POL} -C ${CAL} --omnipath=${OMNIPATH} --fc2=${FCALFILES} --ba=${BADANTS} ${FILE}
             ${PATH2CAPO}/omni/omni_run.py -p ${POL} -C ${CAL} --omnipath=${OMNIPATH} --fc2=${FCALFILES} --ba=${BADANTS} ${FILE}
+    else
+        echo ${FILE} in S1E1. Skipping...
     fi
 done
 
