@@ -160,10 +160,11 @@ def run_opp(i, comb, outfile, equiv=None, quiet=False):
 
 def execute(combsname=None): #for profiling
 	CAL = 'psa6622_v003'
-	ARRAY = 'PAPER'
-	NANTS = 112
-	version = 128
-	ENTRIES = 1000
+	ARRAY = 'HERA'
+	BEAM = 'PAPER'
+	NANTS = 37
+	version = 37
+	ENTRIES = 300
 	if ARRAY == 'HERA':
 		EQUIV = 12127.9726
 	elif ARRAY == 'PAPER':
@@ -194,12 +195,12 @@ def execute(combsname=None): #for profiling
 		fqs = np.array([.15])
 		print 'Starting survey of all baselines'
 		global WS 
-		WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam=ARRAY)
+		WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam=BEAM)
 		file = open(FIRST, 'w')
 		file.write(',sep,sep2,dT,peak,mult,bl1,bl2\n')
 		file.close()
 
-		NJOBS = 20
+		NJOBS = 4
 		start_time = timeit.default_timer()
 		print 'Starting Opp with %d instances on %d jobs; dT= %f' % (len(combs), NJOBS, DT)
 		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, FIRST, quiet=True) for i, comb in enumerate(combs))
@@ -212,7 +213,7 @@ def execute(combsname=None): #for profiling
 		fqs = np.array([.15])
 		print '##### search over selected baselines  dT= %f ###'% DT
 		global WS
-		WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam=ARRAY)
+		WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam=BEAM)
 		subcombs = get_sub_combs(FIRST, combs, mode='pm', num=ENTRIES)
 
 		
@@ -220,7 +221,7 @@ def execute(combsname=None): #for profiling
 		file.write(',sep,sep2,dT,peak,mult,bl1,bl2\n')
 		file.close()
 
-		NJOBS = 10
+		NJOBS = 4
 		start_time = timeit.default_timer()
 		print 'Starting Opp with %d instances on %d jobs;' % (len(subcombs), NJOBS)
 		#print ',sep,sep2,dT,peak,mult'
@@ -229,7 +230,7 @@ def execute(combsname=None): #for profiling
 		elapsed = timeit.default_timer() - start_time
 		print 'Elapsed time: ', elapsed
 
-	if True:
+	if False:
 		DT = 0.001
 		T1=np.arange(2456681.3, 2456681.7, DT)
 		fqs = np.array([.15])
