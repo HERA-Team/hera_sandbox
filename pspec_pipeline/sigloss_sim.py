@@ -6,11 +6,12 @@ import pylab as p
 import capo
 import capo.frf_conv as fringe
 import glob
-import otparse
 import sys
+import optparse
 import random
 import capo.zsa as zsa
 from IPython import embed
+import capo.oqe as oqe
 
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
@@ -279,8 +280,27 @@ else:
     cnt, var = n.ones_like(lsts.values()[0]), n.ones_like(lsts.values()[0])
 
 
-# Align data in LST (even/odd data might have a different number of LSTs)
-lstmax = max([lsts[k][0] for k in days])  # the larger of the initial lsts
+#Align data in LST (even/odd data might have a different number of LSTs)
+lstr, order = {}, {}
+lstres = 0.001
+for k in lsts: #orders LSTs to find overlap
+    order[k] = n.argsort(lsts[k])
+    lstr[k] = n.around(lsts[k][order[k]] / lstres) * lstres
+lsts_final = None
+for i,k1 in enumerate(lstr.keys()):
+    for k2 in lstr.keys()[i:]:
+        if lsts_final is None: lsts_final = n.intersect1d(lstr[k1],lstr[k2]) #XXX LSTs much match exactly
+        else: lsts_final = n.intersect1d(lsts_final,lstr[k2])
+inds = {}
+for k in lstr: #selects correct LSTs from data
+    inds[k] = order[k].take(lstr[k].searchsorted(lsts_final))
+lsts = lsts[lsts.keys()[0]][inds[lsts.keys()[0]]]
+for k in days:
+    for bl in data[k]:
+        data[k][bl],flgs[k][bl] = data[k][bl][inds[k]],flgs[k][bl][inds[k]]
+
+"""# XXX found a bug in this original code (lsts['even'] and lsts['odd'] are different!)
+lstmax = max([lsts[k][0] for k in days]) #the larger of the initial lsts
 for k in days:
     # print k
     for i in xrange(len(lsts[k])):
@@ -294,9 +314,9 @@ j = min([len(lsts[k]) for k in days])
 for k in days:
     lsts[k] = lsts[k][:j]
     for bl in data[k]:
-        data[k][bl], flgs[k][bl] = (n.array(data[k][bl][:j]),
-                                    n.array(flgs[k][bl][:j]))
-lsts = lsts.values()[0]  # same set of LST values for both even/odd data
+        data[k][bl],flgs[k][bl] = n.array(data[k][bl][:j]),n.array(flgs[k][bl][:j])
+lsts = lsts.values()[0] #same set of LST values for both even/odd data
+"""
 daykey = data.keys()[0]
 blkey = data[daykey].keys()[0]
 ij = a.miriad.bl2ij(blkey)
@@ -333,26 +353,17 @@ fir = {(ij[0], ij[1], POL): firs}
 # Extract frequency range of data
 xi = {}
 f = {}
-NOISE = frf((len(chans), len(lsts)), loc=0, scale=1)
-# same noise on each bl
-# embed()
+#NOISE = frf((len(chans),len(lsts)),loc=0,scale=1) #same noise on each bl
 for k in days:
     xi[k] = {}
     f[k] = {}
     for bl in data[k]:
-        d = data[k][bl][:, chans] * jy2T
-        flg = flgs[k][bl][:, chans]
-        if conj[bl]:
-            d = n.conj(d)  # conjugate if necessary
-        shape = d.shape  # (times,freqs)
+        d = data[k][bl][:,chans] * jy2T
+        flg = flgs[k][bl][:,chans]
+        if conj[a.miriad.bl2ij(bl)]: d = n.conj(d) #conjugate if necessary
+        shape = d.shape #(times,freqs)
         if opts.noise_only:
-            xi[k][bl] = frf((len(chans), len(lsts)), loc=0, scale=1)
-            # diff noise for each bl
-            # xi[k][bl] = NOISE# frf((len(chans),len(lsts)),loc=0,scale=1)
-            # diff noise for each bl
-            # xi[k][bl] = n.zeros((len(chans),len(lsts)))
-            # frf((len(chans),len(lsts)),loc=0,scale=1)
-            # diff noise for each bl
+            xi[k][bl] =  frf((len(chans),len(lsts)),loc=0,scale=1) #diff noise for each bl
         else:
             xi[k][bl] = n.transpose(d, [1, 0])  # swap time and freq axes
         f[k][bl] = n.transpose(flg, [1, 0])
@@ -362,7 +373,8 @@ nbls = len(bls_master)
 print 'Baselines:', nbls
 print 'N times:', n.shape(xi[k][bl])[-1]
 
-# Bootstrapping
+
+#Bootstrapping
 for boot in xrange(opts.nboot):
 
     print '%d / %d' % (boot+1, opts.nboot)
@@ -546,15 +558,15 @@ for boot in xrange(opts.nboot):
         p.show()
 
     print "   Getting M"
-    order = n.array([10, 11, 9, 12, 8, 20, 0, 13, 7,
-                     14, 6, 15, 5, 16, 4, 17, 3, 18, 2, 19, 1])
-    iorder = n.argsort(order)
-    FC_o = n.take(n.take(FC, order, axis=0), order, axis=1)
-    L_o = n.linalg.cholesky(FC_o)
-    U, S, V = n.linalg.svd(L_o.conj())
-    MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
-    MC = n.take(n.take(MC_o, iorder, axis=0), iorder, axis=1)
-    # MC  = n.identity(nchan, dtype=n.complex128)
+    # order = n.array([10, 11, 9, 12, 8, 20, 0, 13, 7,
+    #                  14, 6, 15, 5, 16, 4, 17, 3, 18, 2, 19, 1])
+    # iorder = n.argsort(order)
+    # FC_o = n.take(n.take(FC, order, axis=0), order, axis=1)
+    # L_o = n.linalg.cholesky(FC_o)
+    # U, S, V = n.linalg.svd(L_o.conj())
+    # MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
+    # MC = n.take(n.take(MC_o, iorder, axis=0), iorder, axis=1)
+    MC = n.identity(nchan, dtype=n.complex128)
     MI = n.identity(nchan, dtype=n.complex128)
 
     print "   Getting W"
@@ -775,15 +787,15 @@ for boot in xrange(opts.nboot):
 
     print "   Getting M"
     # Cholesky decomposition
-    order = n.array([10, 11, 9, 12, 8, 20, 0, 13, 7, 14, 6,
-                     15, 5, 16, 4, 17, 3, 18, 2, 19, 1])
-    iorder = n.argsort(order)
-    FC_o = n.take(n.take(FC, order, axis=0), order, axis=1)
-    L_o = n.linalg.cholesky(FC_o)
-    U, S, V = n.linalg.svd(L_o.conj())
-    MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
-    MC = n.take(n.take(MC_o, iorder, axis=0), iorder, axis=1)
-    # MC  = n.identity(nchan, dtype=n.complex128)
+    # order = n.array([10, 11, 9, 12, 8, 20, 0, 13, 7, 14, 6,
+    #                  15, 5, 16, 4, 17, 3, 18, 2, 19, 1])
+    # iorder = n.argsort(order)
+    # FC_o = n.take(n.take(FC, order, axis=0), order, axis=1)
+    # L_o = n.linalg.cholesky(FC_o)
+    # U, S, V = n.linalg.svd(L_o.conj())
+    # MC_o = n.dot(n.transpose(V), n.dot(n.diag(1./S), n.transpose(U)))
+    # MC = n.take(n.take(MC_o, iorder, axis=0), iorder, axis=1)
+    MC = n.identity(nchan, dtype=n.complex128)
     MI = n.identity(nchan, dtype=n.complex128)
 
     print "   Getting W"

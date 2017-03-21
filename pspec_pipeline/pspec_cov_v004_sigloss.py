@@ -16,37 +16,46 @@ o.add_option('--window', dest='window', default='blackman-harris',
 o.add_option('--sep', default='sep0,1', action='store',
     help='Which separation directory to use for signal loss data.')
 o.add_option('--noise_only', action='store_true',
-    help='Instead of injecting noise, Replace data with noise')
+    help='Instead of injecting noise, Replace data with noise.')
+o.add_option('--frf', action='store_true',
+    help='FRF noise.')
 o.add_option('--same', action='store_true',
     help='Noise is the same for all baselines.')
 o.add_option('--diff', action='store_true',
     help='Noise is different for all baseline.') 
+o.add_option('--frfeor', action='store_true',
+    help='FRF injected eor.')
 o.add_option('-i', '--inject', type='float', default=0.,
     help='EOR injection level.')
 o.add_option('--output', type='string', default='',
     help='Output directory for pspec_boot files (default "")')
-
+o.add_option('--lmode',type='int', default=None,
+    help='Eigenvalue mode of C (in decreasing order) to be the minimum value used in C^-1')
+o.add_option('--oldsigloss', action='store_true',
+    help='Run signal loss in old mode, where P_out is determined by C_r acting on e.')
 opts,args = o.parse_args(sys.argv[1:])
 
 #Basic parameters
-random.seed(0)
+n.random.seed(0)
 POL = opts.pol 
 LST_STATS = False
 DELAY = False
 NGPS = 5 #number of groups to break the random sampled bls into
 PLOT = opts.plot
 INJECT_SIG = opts.inject
+LMODE = opts.lmode
 
 ### FUNCTIONS ###
 
-def frf(shape,loc=0,scale=1): #FRF NOISE
+def frf(shape,doublelen=False): #FRF NOISE
     shape = shape[1]*2,shape[0] #(2*times,freqs)
     dij = oqe.noise(size=shape)
     wij = n.ones(shape,dtype=bool) #XXX flags are all true (times,freqs)
     #dij and wij are (times,freqs)
     _d,_w,_,_ = fringe.apply_frf(aa,dij,wij,ij[0],ij[1],pol=POL,bins=bins,firs=fir)
     _d = n.transpose(_d)
-    _d = _d[:,shape[0]/4:shape[0]/2+shape[0]/4]
+    if doublelen: _d = _d
+    else: _d = _d[:,shape[0]/4:shape[0]/2+shape[0]/4]
     return _d
 
 def cov(m):
@@ -86,13 +95,17 @@ uv = a.miriad.UV(dsets.values()[0][0])
 freqs = a.cal.get_freqs(uv['sdf'], uv['sfreq'], uv['nchan'])
 sdf = uv['sdf']
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
-inttime = uv['inttime']
+#inttime = uv['inttime']
+#manually find inttime by differencing file times
+(uvw,t1,(i,j)),d = uv.read()
+(uvw,t2,(i,j)),d = uv.read()
+while t1 == t2: (uvw,t2,(i,j)),d = uv.read()
+inttime = (t2-t1)* (3600*24)
 
 afreqs = freqs.take(chans)
 nchan = chans.size
 fq = n.average(afreqs)
 z = capo.pspec.f2z(fq)
-
 aa = a.cal.get_aa(opts.cal, afreqs)
 bls,conj = capo.red.group_redundant_bls(aa.ant_layout)
 sep2ij, blconj, bl2sep = capo.zsa.grid2ij(aa.ant_layout)
@@ -139,7 +152,7 @@ for k in days:
         key = (k,bl,POL)
         data_dict[key] = d
         flg_dict[key] = n.logical_not(flg)
-        conj_dict[key[1]] = conj[a.miriad.ij2bl(bl[0],bl[1])]
+        conj_dict[key[1]] = conj[bl]
 keys = data_dict.keys()
 bls_master = []
 for key in keys: #populate list of baselines
@@ -147,8 +160,9 @@ for key in keys: #populate list of baselines
 print 'Baselines:', len(bls_master)
 
 #Align and create dataset
-ds = oqe.DataSet()
-lsts,data_dict,flg_dict = ds.lst_align(lsts,dsets=data_dict,wgts=flg_dict) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
+ds = oqe.DataSet(lmode=LMODE)
+inds = oqe.lst_align(lsts)
+data_dict,flg_dict,lsts = oqe.lst_align_data(inds,dsets=data_dict,wgts=flg_dict,lsts=lsts) #the lsts given is a dictionary with 'even','odd', etc., but the lsts returned is one array
 
 #Prep FRF Stuff
 timelen = data_dict[keys[0]].shape[0]
@@ -165,10 +179,12 @@ if opts.noise_only:
     if opts.same == None and opts.diff == None: 
         print 'Need to specify if noise is the same on all baselines (--same) or different (--diff)'
         sys.exit()
-    if opts.same: NOISE = frf((len(chans),timelen),loc=0,scale=1) #same noise on all bls
+    if opts.same and opts.frf: NOISE = frf((len(chans),timelen)) #same noise on all bls
+    if opts.same and opts.frf == None: NOISE = oqe.noise(size=(len(chans),timelen))
     for key in data_dict:
         if opts.same: thing = NOISE.T
-        if opts.diff: thing = frf((len(chans),timelen),loc=0,scale=1).T
+        if opts.diff and opts.frf: thing = frf((len(chans),timelen)).T
+        if opts.diff and opts.frf == None: thing = oqe.noise(size=(len(chans),timelen)).T
         if blconj[a.miriad.ij2bl(key[1][0],key[1][1])]: data_dict[key] = n.conj(thing)
         else: data_dict[key] = thing
         flg_dict[key] = n.ones_like(data_dict[key])
@@ -214,7 +230,8 @@ for boot in xrange(opts.nboot):
  
     if True: #shuffle and group baselines for bootstrapping
         gps = ds.gen_gps(bls_master, ngps=NGPS)
-        newkeys,dsC,dsI = ds.group_data(keys,gps) 
+        newkeys,dsC = ds.group_data(keys,gps)
+        newkeys,dsI = ds.group_data(keys,gps,use_cov=False)
     else: #no groups (slower)
         newkeys = [random.choice(keys) for key in keys] #sample w/replacement for bootstrapping
         dsI,dsC = ds,ds #identity and covariance case dataset is the same
@@ -233,10 +250,10 @@ for boot in xrange(opts.nboot):
             if key1[0] == key2[0] or key1[1] == key2[1]: 
                 continue #don't do even w/even or bl w/same bl
             else:
-                FC += dsC.get_F(key1,key2)
-                FI += dsI.get_F(key1,key2,use_cov=False)    
-                qC += dsC.q_hat(key1,key2)
-                qI += dsI.q_hat(key1,key2,use_cov=False) 
+                FC += dsC.get_F(key1,key2,cov_flagging=False)
+                FI += dsI.get_F(key1,key2,use_cov=False,cov_flagging=False)    
+                qC += dsC.q_hat(key1,key2,cov_flagging=False)
+                qI += dsI.q_hat(key1,key2,use_cov=False,cov_flagging=False) 
 
     MC,WC = dsC.get_MW(FC,mode='L^-1') #Cholesky decomposition
     MI,WI = dsI.get_MW(FI,mode='I')
@@ -274,22 +291,48 @@ for boot in xrange(opts.nboot):
 
     if INJECT_SIG > 0.: #Create a fake EoR signal to inject
         print '     INJECTING SIMULATED SIGNAL'
-        eor = (frf((len(chans),timelen),loc=0,scale=1) * INJECT_SIG).T #create FRF-ered noise
+        if opts.frfeor:
+            ## FRF once ##
+            eor = (frf((len(chans),timelen)) * INJECT_SIG).T #create FRF-ered noise
+            """ 
+            ## FRF twice ## XXX
+            eor1 = (frf((len(chans),timelen),doublelen=True) * INJECT_SIG).T
+            dij = eor1
+            wij = n.ones(eor1.shape,dtype=bool) #XXX flags are all true (times,freqs)
+            #dij and wij are (times,freqs)
+            eor,_,_,_ = fringe.apply_frf(aa,dij,wij,ij[0],ij[1],pol=POL,bins=bins,firs=fir)
+            eor = eor.T
+            eor = eor[:,dij.shape[0]/4:dij.shape[0]/2+dij.shape[0]/4]
+            eor = eor.T
+            """
+        else:
+            eor = (oqe.noise((len(chans),timelen)) * INJECT_SIG).T
         data_dict_2 = {}
         data_dict_eor = {}
         for key in data_dict:
-            data_dict_2[key] = data_dict[key].copy() + eor.copy() #add injected signal to data
-            data_dict_eor[key] = eor.copy()
+            if conj_dict[key[1]] == True: eorinject = n.conj(eor.copy()) #conjugate eor for certain baselines
+            else: eorinject = eor.copy()
+            data_dict_2[key] = data_dict[key].copy() + eorinject #add injected signal to data
+            data_dict_eor[key] = eorinject
 
     #Set data
-    ds2 = oqe.DataSet() #data + eor
+    ds2 = oqe.DataSet(lmode=LMODE) #data + eor
     ds2.set_data(dsets=data_dict_2,conj=conj_dict,wgts=flg_dict)
-    dse = oqe.DataSet() #just eor   
+    dse = oqe.DataSet(lmode=LMODE) #just eor   
     dse.set_data(dsets=data_dict_eor,conj=conj_dict,wgts=flg_dict)
    
+    #Old Sigloss: Change C in dse to be from ds2
+    if opts.oldsigloss: 
+        newiC = {}
+        for key in keys:
+            newiC[key] = ds2.iC(key).copy()
+        dse.set_iC(newiC)
+
     if True:
-        newkeys,ds2C,ds2I = ds2.group_data(keys,gps) #group data (gps already determined before)
-        newkeys,dseC,dseI = dse.group_data(keys,gps)
+        newkeys,ds2C = ds2.group_data(keys,gps) #group data (gps already determined before)
+        newkeys,ds2I = ds2.group_data(keys,gps,use_cov=False)
+        newkeys,dseC = dse.group_data(keys,gps)
+        newkeys,dseI = dse.group_data(keys,gps,use_cov=False)
     else: #no groups (slower)
         ds2I,ds2C = ds2,ds2 #identity and covariance case dataset is the same
         dseI,dseC = dse,dse
@@ -297,23 +340,28 @@ for boot in xrange(opts.nboot):
     #OQE stuff
     FI = n.zeros((nchan,nchan), dtype=n.complex)
     FC = n.zeros((nchan,nchan), dtype=n.complex)
+    FCe = n.zeros((nchan,nchan), dtype=n.complex)
     qI = n.zeros((nchan,data_dict[key].shape[0]), dtype=n.complex)
     qC = n.zeros((nchan,data_dict[key].shape[0]), dtype=n.complex)
+    qCe = n.zeros((nchan,data_dict[key].shape[0]), dtype=n.complex)
     for k,key1 in enumerate(newkeys):
         #print '   ',k+1,'/',len(keys)
         for key2 in newkeys[k:]:
             if key1[0] == key2[0] or key1[1] == key2[1]:
                 continue #don't do even w/even or bl w/same bl
             else:
-                FC += ds2C.get_F(key1,key2)
-                FI += dseI.get_F(key1,key2,use_cov=False) #only eor
-                qC += ds2C.q_hat(key1,key2)
-                qI += dseI.q_hat(key1,key2,use_cov=False)
-
+                FC += ds2C.get_F(key1,key2,cov_flagging=False)
+                FI += dseI.get_F(key1,key2,use_cov=False,cov_flagging=False) #only eor
+                FCe += dseC.get_F(key1,key2,cov_flagging=False) #only eor
+                qC += ds2C.q_hat(key1,key2,cov_flagging=False)
+                qI += dseI.q_hat(key1,key2,use_cov=False,cov_flagging=False) #only eor
+                qCe += dseC.q_hat(key1,key2,cov_flagging=False) #only eor
     MC,WC = ds2C.get_MW(FC,mode='L^-1') #Cholesky decomposition
     MI,WI = dseI.get_MW(FI,mode='I')
+    MCe,WCe = dseC.get_MW(FCe,mode='L^-1')
     pC = ds2C.p_hat(MC,qC,scalar=scalar)
     pI = dseI.p_hat(MI,qI,scalar=scalar)
+    pCe = dseC.p_hat(MCe,qCe,scalar=scalar)
     #print 'pC ~ ', n.median(pC)
     #print 'pI ~ ', n.median(pI)
     
@@ -322,10 +370,12 @@ for boot in xrange(opts.nboot):
     pIe = pI
     #XXX Final variables
     pI = pIe
-    pC = pCr - pCv
-
-    print '   pI=', n.average(pI.real), 'pC=', n.average(pC.real), 'pI/pC=', n.average(pI.real)/n.average(pC.real)
-
+    if opts.oldsigloss: pC = pCe #C is determined from data+eor but only applied to eor
+    else: pC = pCr - pCv
+    
+    print '   pCv=', n.median(pCv.real), 'pIv=', n.median(pIv)
+    print '   pIe=', n.median(pI.real), 'pCr=', n.median(pC.real), 'pIe/pCr=', n.median(pI.real)/n.median(pC.real)
+    
     if PLOT:
         p.plot(kpl, n.average(pC.real, axis=1), 'b.-')
         p.plot(kpl, n.average(pI.real, axis=1), 'k.-')

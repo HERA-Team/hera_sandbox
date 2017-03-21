@@ -1,6 +1,6 @@
 __author__ = 'yunfanzhang'
 
-import numpy as n
+import numpy as n, aipy as a
 import export_beam, quick_sort
 from scipy import interpolate
 import pdb
@@ -11,6 +11,28 @@ def rnd(val, cell, decimals=0):
 
 #coarsely determine crossings by griding the uv plane
 #Format: d[ur_rounded] = [(bl,t,(u,v)),...]
+# def coarse_128plugin(nants):
+#     if nants == 128:
+#         ant_dict2 = {114:(100,100),116:(100,101),117:(100,102),118:(100,103),119:(100,104),120:(100,105)}
+#         ant_dict3 = {123:(101,100),124:(101,101),125:(101,102),126:(101,103),127:(101,104)}
+#         f2.write(str(ant_dict2)+'\n')
+#         f2.write(str(ant_dict3)+'\n')
+#     if nants == 128:
+#                     try: dkey = (1,ant_dict2[i][0]-ant_dict2[j][0],ant_dict2[i][1]-ant_dict2[j][1])
+#                     except(KeyError):
+#                         try: dkey = (2,ant_dict3[i][0]-ant_dict3[j][0],ant_dict3[i][1]-ant_dict3[j][1])
+#                         except(KeyError):
+#                             #pdb.set_trace()
+#                             uvw = aa.gen_uvw(i,j,src=src).flatten()
+#                             if uvw[0] < 0: uvw = -uvw
+#                             uvw_r = rnd(uvw, add_tol)
+#                             dkey = (3,uvw_r[0],uvw_r[1])
+#                         else:
+#                             if dkey[1]<0 or (dkey[1]==0 and dkey[2]<0): dkey = (dkey[0],-dkey[1],-dkey[2])
+#                     else:
+#                         if dkey[1]<0 or (dkey[1]==0 and dkey[2]<0): dkey = (dkey[0],-dkey[1],-dkey[2])
+#                 else:
+#     return
 def pair_coarse(aa, src, times, dist,redundant=False, add_tol=0.5, northsouth=True):
     f2 = open('./redundant_bl.out', 'w')
     f2.close()
@@ -26,40 +48,22 @@ def pair_coarse(aa, src, times, dist,redundant=False, add_tol=0.5, northsouth=Tr
         for j in range(NV):
             ant_dict[aa.ant_layout[i][j]] = (i,j)  #ant_dict[random ant#]=antlayoutindex
     f2.write(str(ant_dict)+'\n')
-    if nants == 128:
-        ant_dict2 = {114:(100,100),116:(100,101),117:(100,102),118:(100,103),119:(100,104),120:(100,105)}
-        ant_dict3 = {123:(101,100),124:(101,101),125:(101,102),126:(101,103),127:(101,104)}
-        f2.write(str(ant_dict2)+'\n')
-        f2.write(str(ant_dict3)+'\n')
     for i in range(nants):
         for j in range(i+1,nants):
-            try: dkey = (0,ant_dict[i][0]-ant_dict[j][0],ant_dict[i][1]-ant_dict[j][1])
+            try: dkey = (0,ant_dict[i][0]-ant_dict[j][0],ant_dict[i][1]-ant_dict[j][1]) #(0,ns,ew)
             except(KeyError):
-                if nants == 128:
-                    try: dkey = (1,ant_dict2[i][0]-ant_dict2[j][0],ant_dict2[i][1]-ant_dict2[j][1])
-                    except(KeyError):
-                        try: dkey = (2,ant_dict3[i][0]-ant_dict3[j][0],ant_dict3[i][1]-ant_dict3[j][1])
-                        except(KeyError):
-                            #pdb.set_trace()
-                            uvw = aa.gen_uvw(i,j,src=src).flatten()
-                            if uvw[0] < 0: uvw = -uvw
-                            uvw_r = rnd(uvw, add_tol)
-                            dkey = (3,uvw_r[0],uvw_r[1])
-                        else:
-                            if dkey[1]<0 or (dkey[1]==0 and dkey[2]<0): dkey = (dkey[0],-dkey[1],-dkey[2])
-                    else:
-                        if dkey[1]<0 or (dkey[1]==0 and dkey[2]<0): dkey = (dkey[0],-dkey[1],-dkey[2])
-                else:
-                    #pdb.set_trace()  #all 64 antennas should be in ant_layout
-                    print "Bug in rep baseline, all 64 antennas should be in ant_layout"
-                    break
-            else:
-                if dkey[1] < 0 or (dkey[1] == 0 and dkey[2] < 0): dkey = (dkey[0],-dkey[1],-dkey[2])
+                #pdb.set_trace()  #all 64 antennas should be in ant_layout
+                print "Bug in rep baseline, all 64 antennas should be in ant_layout"
+                break
+            if dkey[1] < 0 or (dkey[1] == 0 and dkey[2] < 0):
+                #dkey = (dkey[0],-dkey[1],-dkey[2])
+                continue
             if northsouth: repbl[dkey] = repbl.get(dkey,[]) + [(i,j)]
             else:
-                if dkey[1] != 0: repbl[dkey] = repbl.get(dkey,[]) + [(i,j)] # this version excludes n-s baselines
+                if dkey[2] != 0: repbl[dkey] = repbl.get(dkey,[]) + [(i,j)] # this version excludes northsouth baselines
     print "pair_coarse:", len(repbl), "representative baselines, 4432 expected"
-    #print repbl
+    #print repbl[(0,1,1)]
+    #import IPython; IPython.embed()
   #  d = {}
   #
   #
@@ -220,12 +224,10 @@ def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=True,noiseweight=True,
     final = []
     cnt, N = 0,len(clos_app)
     bm_intpl = export_beam.beam_interpol(freq,fbmamp,'cubic')
-    if ovlpweight:
+    if ovlpweight: #rbm2interp: FT of sq of beam
         fbm2 = n.multiply(fbmamp,fbmamp)   #element wise square for power beam
-        rbm2 = n.fft.fft2(fbm2)
-        freqlm = n.fft.fftfreq(len(freq),d=(freq[1]-freq[0]))
-        rbm2 = n.fft.fftshift(rbm2)
-        freqlm = n.fft.fftshift(freqlm)
+        rbm2 = n.fft.fft2(fbm2); rbm2 = n.fft.fftshift(rbm2)
+        freqlm = n.fft.fftfreq(len(freq),d=(freq[1]-freq[0])); freqlm = n.fft.fftshift(freqlm)
         print "###small imaginary components are error, nothing to worry about"
         rbm2interp = interpolate.interp2d(freqlm, freqlm, rbm2, kind='cubic')
     for key in clos_app:
@@ -252,6 +254,49 @@ def pair_fin(clos_app,dt, aa, src, freq,fbmamp,multweight=True,noiseweight=True,
 
     quick_sort.quick_sort(final,0,len(final)-1)
     return final
+
+def weight_ext(dec, aa):
+    l,m = n.sin(0-aa.long), n.sin(dec-aa.lat); nn = n.sqrt(1-l*l-m*m)
+    ntop = n.array([l,m,nn])
+    wt = export_beam.beam_real(aa[0], ntop, pol='x', sq=False)
+    #print n.array(wt).shape()
+    return wt[0]
+def corr_ext(t1,t2,bl1,bl2,bm_intpl,aa,DEC,RA):
+    CO = 0
+    for dec in DEC:
+        for ra in RA:
+            #src = a.fit.RadioFixedBody(0, dec, mfreq=.15)
+            src = a.fit.RadioFixedBody(ra, dec, mfreq=.15)
+            aa.set_jultime(t1); src.compute(aa); wt1 = weight_ext(dec,aa)
+            aa.set_jultime(t2); src.compute(aa); wt2 = weight_ext(dec,aa)
+            weight = wt1*wt2
+            c,(uvw1,uvw2) = get_corr(aa, src, bm_intpl, t1,t2, bl1, bl2)
+            CO = CO + c*weight
+    return CO
+
+#already found the top pairs, this corrects for second order effects in the time stamp
+def pair_ext(fin, aa, bm_intpl, ind=1,ddec=0.05,dra=0.05):
+    dt = 0.000497;
+    DEC = aa.lat+n.arange(-0.6,0.6,ddec)   #in radians
+    RA = n.arange(-0.5,0.5,dra)
+    result = []
+    print fin[ind][2], fin[ind][3]
+    (bl1,t1),(bl2,t2) = fin[ind][2], fin[ind][3]
+    trange = n.arange(-10,10)*dt
+    T1, T2 = trange+t1, trange+t2
+    Cmax, t1M, t2M = 0,t1,t2
+    for tt1 in T1:
+        print 'tt1=',tt1
+        for tt2 in T2:
+            C = corr_ext(tt1,tt2,bl1,bl2,bm_intpl,aa,DEC,RA)
+            if C>Cmax:
+                Cmax = C; t1M,t2M=tt1,tt2
+    result = (Cmax,(bl1,t1M),(bl2,t2M),t2M-t1M)
+    return result
+
+
+
+
 
 #create a test sample to plot the pairs of points
 def test_sample(pairs_final,cutoff=3000.):

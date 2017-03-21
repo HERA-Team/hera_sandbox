@@ -15,7 +15,7 @@ labels = []
 labels.append("")
 dirs = []
 for dir in glob.glob('C_*'):
-    if dir in ['C_nofrf','C_sep12','C_reg020','C_original']: 
+    if dir in ['C_nofrf','C_sep12','C_sep02','C_original']: 
     #if dir in ['C_original', 'C_reg020', 'C_reg050', 'C_reg100']: #just regularizations
         dirs.append(dir) 
 dirs.sort()

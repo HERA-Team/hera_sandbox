@@ -5,7 +5,46 @@ import capo as C
 import sys, optparse, re, os
 
 o=optparse.OptionParser()
+o.add_option('--cov', action='store', default=None,
+            help='Scale factor for signal loss in covariance removal. Can be a number or an npz file that stores the factor under keyword "factor".')
+o.add_option('--nonoise', action='store_true',
+            help="Don't plot noise curve.")
+o.add_option('--SENSE', default=None,
+            help='21cmSENSE .npz file used to plot noise curve.')
 opts,args = o.parse_args(sys.argv[1:])
+
+def noise_level(freq=None):
+    tsys = 500e3 #mK
+    #inttime = 32 #sec
+    inttime = 1957 #PSA128 optimal FRF: get it from frfilter_numbers.py
+    #inttime = 3365 #PSA64 optimal FRF
+    #nbls=59 #number of baselines used (if using multiple seps, average the numbers?)
+    nbls=64 #S1E1
+    ndays = 20 #31 #effectively this many days
+    #ndays = 100
+    nseps = 1 #number of seps used
+    folding = 2
+    nlsts = 9 #number of LST hours in time-range
+    nmodes = (nseps*folding*nlsts*60*60/inttime)**.5
+    pol = 2
+    real = 2 #??? what is this again?
+    if freq is None:
+            freq = .159 #GHz
+    z = C.pspec.f2z(freq)
+    X2Y = C.pspec.X2Y(z)/1e9 #h^-3 Mpc^3 / str/ Hz
+    sdf = .1/203
+    freqs = n.linspace(.1,.2,203)[110:130] #put in channel range
+    B = sdf*freqs.size
+    bm = n.polyval(C.pspec.DEFAULT_BEAM_POLY, freq) * 2.35 #correction for beam^2
+    scalar = X2Y * bm #* B
+    fr_correct = 1.77 #get it from frfilter_numbers.py
+    print 'scalar:', scalar
+    print 'BM:', bm
+    print 'Tsys:', tsys
+    #error bars minimum width. Consider them flat for P(k). Factor of 2 at the end is due to folding of kpl (root(2)) and root(2) in radiometer equation.
+    pk = scalar*fr_correct*( (tsys)**2 / (2*inttime*pol*real*nbls*ndays*nmodes) )
+    return pk
+
 ONLY_POS_K = True
 
 def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.159, color='', bins=None, upperlimit=False):
@@ -33,8 +72,12 @@ def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.159, color=
         errfold[1:] = n.sqrt(1./(1./errpos**2 + 1./errneg**2))
     else:
         pkfold = pkfold.real
-
-    if not upperlimit: p.errorbar(k[k0:], k3[k0:]*pkfold, yerr=k3[k0:]*errfold, fmt=color+'.', capsize=0,linewidth=1.2)
+    if not upperlimit:
+        k3_pts = k3[k0:]*pkfold
+        k3_negind = n.where(k3_pts < 0)
+        k3_posind = n.where(k3_pts >= 0)
+        p.errorbar(k[k0:][k3_posind],k3_pts[k3_posind],yerr=(k3[k0:]*errfold)[k3_posind],fmt='k.',capsize=0,linewidth=1.2)
+        p.errorbar(k[k0:][k3_negind],n.abs(k3_pts[k3_negind]),yerr=(k3[k0:]*errfold)[k3_negind],color='0.5',fmt='.',capsize=0,linewidth=1.2)
     else: p.plot(k[k0:], k3[k0:]*pkfold+k3[k0:]*errfold, color+'-')
     if not bins is None:
         _kpls, _k3pks, _k3errs = [], [], []
@@ -61,11 +104,11 @@ def dual_plot(kpl, pk, err, pkfold=None, errfold=None, umag=16., f0=.159, color=
             _k3pks.append(_k3pk); _k3pks.append(_k3pk); _k3pks.append(_k3pk)
             _k3errs.append(_k3err); _k3errs.append(_k3err); _k3errs.append(_k3err)
         kpl = n.array(_kpls)
-        k3pk = n.array(_k3pks)
+        k3pk = n.abs(n.array(_k3pks))
         k3err = n.array(_k3errs)
     else:
         kpl = kpl
-        k3pk = k3*pk
+        k3pk = n.abs(k3*pk) 
         k3err = k3*err
     for _k,_k3pk,_k3err in zip(kpl,pk,err):
         print '%6.3f, %9.5f (%9.5f +/- %9.5f)' % (_k, _k3pk+_k3err,_k3pk,_k3err)
@@ -146,8 +189,19 @@ for sep in RS_VS_KPL:
         nos *= f
         d_fold *= f
         nos_fold *= f
-    
+    if not opts.cov is None:
+        if opts.cov[-3:] == 'npz':
+            f = n.load(opts.cov)['factor']
+        else:
+            f =  opts.cov
+        print 'Scaling data and noise by %f for signal loss from empirically estimating covariances.' % f
+        d *= f
+        nos *= f
+        d_fold *= f
+        nos_fold *= f
+ 
     if d_fold.size == 0: d_fold,nos_fold = None, None
+    #d_fold = n.abs(d_fold) #XXX ABSOLUTE VALUE for DELTA SQ!
     dual_plot(kpl, d, 2*nos, d_fold, 2*nos_fold, color=colors[0], bins=BINS,f0=freq) # 2-sigma error bars
     colors = colors[1:] + colors[0]
 
@@ -160,14 +214,34 @@ p.subplot(121)
 #p.vlines(-k_h, -1e7, 1e8, linestyles='--', linewidth=1.5)
 p.xlabel(r'$k_\parallel\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$P(k)[\ {\rm mK}^2\ (h^{-1}\ {\rm Mpc})^3]$',fontsize='large')
+#p.ylim(-0.5e11,1.5e11)
 p.grid()
 
 p.subplot(122)
+#noise curve
+kpl_pos = ks[k0+1:]
+theo_noise = 2*n.array(kpl_pos)**3*(noise_level(freq=freq))/(2*n.pi**2)
+if opts.SENSE != None: 
+    sensefile = n.load(opts.SENSE)
+    print 'Reading sensitivity curve from', opts.SENSE
+    theo_noise = sensefile['T_errs']
+    kpl_pos = sensefile['ks']
+if opts.nonoise: pass
+else: p.plot(n.array(kpl_pos), theo_noise, 'c--')
+n.savez('noise_curve.npz',kpls=kpl_pos,noise=theo_noise)
 #p.vlines(k_h, -1e7, 1e7, linestyles='--', linewidth=1.5)
 p.gca().set_yscale('log', nonposy='clip')
 p.xlabel(r'$k\ [h\ {\rm Mpc}^{-1}]$', fontsize='large')
 p.ylabel(r'$k^3/2\pi^2\ P(k)\ [{\rm mK}^2]$', fontsize='large')
 p.xlim(0, 0.6)
+p.ylim(1e-1,1e9)
 p.grid()
+#plot noise_curve that's saved from plot_pk_k3pk_zsa_2.py
+#try:
+#    npz = n.load('noise_curve.npz')
+#    xs = npz['kpls']
+#    ys = npz['noise']
+#    p.plot(xs,ys,'c--')
+#except: pass
 p.show()
 

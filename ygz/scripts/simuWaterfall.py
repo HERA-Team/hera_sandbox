@@ -1,18 +1,19 @@
 #loads the data and match times
 import numpy as n, aipy as a, capo, os
 DIR1 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_26/'
-#DIR2 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_38/'
-DIR2 = DIR1
+DIR2 = '/Users/yunfanzhang/local/simuDATA/64_Deltac/0_38/'
+#DIR2 = DIR1
 F1 = os.listdir(DIR1)
 F2 = os.listdir(DIR2)
-for i in range(len(F1)): F1[i] = DIR1+F1[i] 
-for i in range(len(F2)): F2[i] = DIR2+F2[i] 
+for i in range(len(F1)): F1[i] = DIR1+F1[i]
+for i in range(len(F2)): F2[i] = DIR2+F2[i]
 t026 = 2456249.2666900107
-t038 = 2456249.3086900176
+#t038 = 2456249.3086900176
+t038 = 2456249.300
 #t038 = t026
 dt = t038-t026
 df = 100./203
-bl1, bl2 = (0,26),(0,26)
+bl1, bl2 = (0,26),(0,38)
 bl1c, bl2c = a.miriad.ij2bl(*bl1),a.miriad.ij2bl(*bl2)
 #freql = n.arange(100,200,df)*1.E6
 #phsfac = n.exp(-2*n.pi*3000*n.sin(dt*2*n.pi)*freql/a.phs.const.c*1.j)
@@ -54,17 +55,16 @@ freqlist = a.cal.get_freqs(uv1['sdf'],uv1['sfreq'],uv1['nchan'])  #GHz
 aa = a.cal.get_aa('psa6240_v003',freqlist)
 aa.set_active_pol(polstr)
 aa.set_jultime(t026)      #must set to exact time determined with the same src and aa
-src = a.phs.RadioFixedBody(aa.sidereal_time(), aa.lat, epoch=aa.epoch)
+src = a.phs.RadioFixedBody(0, aa.lat)
 #phs1, phs2 = n.zeros(data1.shape,dtype='complex64'), n.zeros(data2.shape,dtype='complex64')
 #ind = 0
 src.compute(aa)
-print aa.gen_uvw(0,26,src)
-print aa.gen_uvw(0,26,'z')
-import IPython; IPython.embed()
+#print aa.gen_uvw(0,26,src)
+#print aa.gen_uvw(0,26,'z')
+#import IPython; IPython.embed()
 phs1 = aa.gen_phs(src, *bl1); phs1.shape = (1,nchan)
 aa.set_jultime(t038)
 src.compute(aa)
-
 phs2 = aa.gen_phs(src, *bl2); phs2.shape = (1,nchan)
 print data2.shape
 print phs2.shape
@@ -84,7 +84,6 @@ ax.set_title("data2")
 capo.arp.waterfall(data2,mode='real')
 ax = fig.add_subplot(334)
 capo.arp.waterfall(phs1,mode='phs')
-P.colorbar()
 ax.set_title("phs1")
 #ax.set_xlabel("channel")
 ax = fig.add_subplot(335)
@@ -102,12 +101,13 @@ ax = fig.add_subplot(338)
 ax.set_title("d2phs2")
 capo.arp.waterfall(dapa2,mode='real')
 ax = fig.add_subplot(333)
-capo.arp.waterfall(data1*data2.conj(),mode='phs')
+capo.arp.waterfall(data1*data2.conj(),mode='real')
 P.colorbar()
 #ax = fig.add_subplot(255)
 #capo.arp.waterfall(data1*data2.conj())
 ax = fig.add_subplot(339)
 capo.arp.waterfall(dapa1*dapa2.conj(),mode='phs')
+P.colorbar()
 #ax = fig.add_subplot(2510)
 #capo.arp.waterfall(dapa1*dapa2.conj())
 P.show()

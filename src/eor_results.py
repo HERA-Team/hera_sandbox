@@ -1,16 +1,18 @@
 import numpy as n,os
-from capo import pspec
+from capo import pspec, cosmo_units
 from capo.cosmo_units import f212z, c
 import glob
 import ipdb
 import matplotlib.pyplot as p
 import numpy as np
+# from twentyonecmfast_tools import load_andre_models, all_and
+
 #measurements
 
 def errorbars(data,axis=1,per=95):
-    mean = n.percentile(data,50,axis=axis)
-    lower = mean - n.percentile(data, 50-per/2.,axis=axis)
-    upper = n.percentile(data,50+per/2.,axis=axis) - mean
+    mean = n.percentile(data, 50, axis=axis)
+    lower = mean - n.percentile(data, 50-per/2., axis=axis)
+    upper = n.percentile(data, 50+per/2., axis=axis) - mean
     return lower, upper
 
 def MWA_128_beardsley_2016_all(pol='EW'):
@@ -33,6 +35,55 @@ def MWA_128_beardsley_2016_all(pol='EW'):
         results[z] = n.array(results[z])
     return results
 
+
+def load_andre_models():
+    """Get Arrays of parms, ks, delta^2 and err from 21cmfast output.
+
+    Input a string that globs to the list of input model files
+    return arrays of parameters,k modes, delta2,and delt2 error
+    parm_array expected to be nmodels,nparms
+    with columns (z,Nf,Nx,alphaX,Mmin,other-stuff....)
+    delta2_array expected to be nmodels,nkmodes
+    """
+    filenames = glob.glob(os.path.dirname(__file__)+'/data/21cmfast/ps*')
+    filenames.sort()
+    parm_array = []
+    k_array = []
+    delta2_array = []
+    delta2_err_array = []
+    for filename in filenames:
+        parms = os.path.basename(filename).split('_')
+        if parms[0].startswith('reion'):
+            continue
+        parm_array.append(map(float, [parms[3][1:],
+                                      parms[4][2:],  # Nf
+                                      parms[6][2:],  # Nx
+                                      parms[7][-3:],  # alphaX
+                                      parms[8][5:],  # Mmin
+                                      parms[9][5:]]))
+        D = np.loadtxt(filename)
+        k_array.append(D[:, 0])
+        delta2_array.append(D[:, 1])
+        delta2_err_array.append(D[:, 2])
+    parm_array = np.array(parm_array)
+    raw_parm_array = parm_array.copy()
+    k_array = np.ma.array(k_array)
+    raw_k_array = k_array.copy()
+    delta2_array = np.ma.masked_invalid(delta2_array)
+    raw_delta2_array = delta2_array.copy()
+    delta2_err_array = np.ma.array(delta2_err_array)
+    return parm_array, k_array, delta2_array, delta2_err_array
+
+
+def all_and(arrays):
+    """Input list or array, return arrays added together.
+    """
+    if len(arrays) == 1:
+        return arrays
+    out = arrays[0]
+    for arr in arrays[1:]:
+        out = np.logical_and(out, arr)
+    return out
 
 
 def PAPER_32_all():
@@ -140,7 +191,7 @@ def MWA_32T_all():
 
 def MWA_128_all():
     '''
-    MWSA_128 data from dillion 2015
+    MWA_128 data from dillion 2015
     return format will be dict[z] = n.array([[k,Delta^2,top,bottom]]) all in mK^2
     '''
     MWA_RESULTS_FILE=glob.glob(os.path.dirname(__file__)+'/data/mwa128/*.dat')
@@ -181,7 +232,6 @@ def LOFAR_Patil_2017():
 def MWA_128_beards():
     """MWA_128 data from Beardsley 2016.
 
-def z_slice(redshift, pspec_data):
     """
     MWA_beards = {}
     MWA_beards[7.1] = n.array([[0.27, 0, 2.7e4, 0]])
@@ -249,134 +299,150 @@ def GMRT_2014_all():
             [0.5,  0,8e4,  -8e4]])}
 
 def get_pk_from_npz(files=None, verbose=False):
-    '''
-    Loads output from plot_pk_k3pk.npz and returns P(k)  spectrum
-    returns lists of k, Pk, Pk_err, Delta^2 ordered by decreasing redshift
-    return format: z, k_parallel, Pk, Pk_err
-    '''
+    """
+    Load output from plot_pk_k3pk.npz and returns P(k)  spectrum.
+
+    Return lists of k, Pk, Pk_err, Delta^2 ordered by decreasing redshift
+    Return format: z, k_parallel, Pk, Pk_err
+    """
     if files is None:
         print 'No Files gives for loading'
-        return 0,'','',''
+        return [], [], [], []
 
-    one_file_flag=False
-    if len(n.shape(files)) ==0: files = [files];
-    if len(files) == 1: one_file_flag=True
+    if len(n.shape(files)) == 0:
+        files = [files]
 
     freqs = []
-    if verbose: print "parsing npz file frequencies"
+    if verbose:
+        print "parsing npz file frequencies"
     for filename in files:
-        if verbose: print filename,
+        if verbose:
+            print filename,
         try:
-            if verbose: print "npz..",
-            freqs.append(n.load(filename)['freq']*1e3) #load freq in MHz
-            if verbose: print "[Success]"
+            if verbose:
+                print "npz..",
+            freqs.append(n.load(filename)['freq']*1e3)  # load freq in MHz
+            if verbose:
+                print "[Success]"
         except(KeyError):
-            if verbose: print "[FAIL]"
+            if verbose:
+                print "[FAIL]"
             try:
-                if verbose: print "looking for path like RUNNAME/chan_chan/I/pspec.npz"
-                dchan = int(filename.split('/')[1].split('_')[1])-int(filename.split('/')[1].split('_')[0])
+                if verbose:
+                    print "looking for path like RUNNAME/chan_chan/I/pspec.npz"
+                dchan = (int(filename.split('/')[1].split('_')[1]) -
+                         int(filename.split('/')[1].split('_')[0]))
                 chan = int(filename.split('/')[1].split('_')[0]) + dchan/2
-                freqs.append(chan/2. + 100) #a pretty good apprximation of chan 2 freq for 500kHz channels
+                freqs.append(chan/2. + 100)
+                # a pretty good apprximation of chan 2 freq for 500kHz channels
             except(IndexError):
-                if verbose: print "[FAIL] no freq found. Skipping..."
+                if verbose:
+                    print "[FAIL] no freq found. Skipping..."
 
-    if len(freqs) ==0: #check if any files were loaded correctly
+    if len(freqs) == 0:  # check if any files were loaded correctly
         print 'No parsable frequencies found'
         print 'Exiting'
-        return 0,'','',''
+        return [], [], [], []
 
-    if verbose: print "sorting input files"
+    if verbose:
+        print "sorting input files by frequency"
     files = n.array(files)
     files = files[n.argsort(freqs)]
     freqs = n.sort(freqs)
-    if verbose: print "found freqs"
+    if verbose:
+        print "found freqs"
     freqs = n.array(freqs)
-    if verbose: print freqs
+    if verbose:
+        print freqs
 
     z = f212z(freqs*1e6)
-    if verbose: print "processing redshifts:",z
+    if verbose:
+        print "processing redshifts:", z
 
     kpars = []
     Pks = []
-    Pkerr =[]
-    for i,FILE in enumerate(files):
+    Pkerr = []
+    for i, FILE in enumerate(files):
         F = n.load(FILE)
-        if verbose: print FILE.split('/')[-1],z[i]
+        if verbose:
+            print FILE.split('/')[-1], z[i]
         Pks.append(F['pk'])
         kpars.append(F['kpl'])
         Pkerr.append(F['err'])
-    # if one_file_flag:
-        # z = n.squeeze(z)
-        # kpars = n.squeeze(kpars)
-        # Pks = n.squeeze(Pks)
-        # Pkerr = n.squeeze(Pkerr)
     return z, kpars, Pks, Pkerr
 
+
 def get_k3pk_from_npz(files=None, verbose=False):
-    '''
-    Loads output from plot_pk_k3pk.npz and returns Delta^2 spectrum
-    returns lists of k, Delta^2, Delta^2_err ordered by  decreasing redshift
-    return format: z, k_magnitude, Delta^2, Delta^2_err
-    '''
-    if files is None: #check that files are passed
-        print 'No Files gives for loading'
-        return 0,'','',''
+    """
+    Load output from plot_pk_k3pk.npz and returns Delta^2 spectrum.
 
-    one_file_flag=False
-    if len(n.shape(files)) ==0: files = [files];
-    if len(files) == 1: one_file_flag=True
+    Return lists of k, Delta^2, Delta^2_err ordered by  decreasing redshift
+    Return format: z, k_magnitude, Delta^2, Delta^2_err
+    """
+    if files is None:  # check that files are passed
+        print 'No Files given for loading'
+        return [], [], [], []
+
+    if len(n.shape(files)) == 0:
+        files = [files]
+
     freqs = []
-    if verbose: print "parsing npz file frequencies"
+    if verbose:
+        print "parsing npz file frequencies"
     for filename in files:
-        if verbose: print filename,
+        if verbose:
+            print filename,
         try:
-            if verbose: print "npz..",
-            freqs.append(n.load(filename)['freq']*1e3) #load freq in MHz
-            if verbose: print "[Success]"
+            if verbose:
+                print "npz..",
+            freqs.append(n.load(filename)['freq']*1e3)  # load freq in MHz
+            if verbose:
+                print "[Success]"
         except(KeyError):
-            if verbose: print "[FAIL]"
+            if verbose:
+                print "[FAIL]"
             try:
-                if verbose: print "looking for path like RUNNAME/chan_chan/I/pspec.npz"
-                dchan = int(filename.split('/')[1].split('_')[1])-int(filename.split('/')[1].split('_')[0])
+                if verbose:
+                    print "looking for path like RUNNAME/chan_chan/I/pspec.npz"
+                dchan = (int(filename.split('/')[1].split('_')[1]) -
+                         int(filename.split('/')[1].split('_')[0]))
                 chan = int(filename.split('/')[1].split('_')[0]) + dchan/2
-                freqs.append(chan/2. + 100) #a pretty good apprximation of chan 2 freq for 500kHz channels
+                freqs.append(chan/2. + 100)
+                # a pretty good apprximation of chan 2 freq for 500kHz channels
             except(IndexError):
-                if verbose: print "[FAIL] no freq found. Skipping..."
+                if verbose:
+                    print "[FAIL] no freq found. Skipping..."
 
-    if len(freqs) ==0: #check if any files were loaded correctly
+    if len(freqs) == 0:  # check if any files were loaded correctly
         print 'No parsable frequencies found'
         print 'Exiting'
-        return 0,'','',''
+        return [], [], [], []
 
-    if verbose: print "sorting input files"
+    if verbose:
+        print "sorting input files by frequency"
     files = n.array(files)
     files = files[n.argsort(freqs)]
     freqs = n.sort(freqs)
-    if verbose: print "found freqs"
+
+    if verbose:
+        print "found freqs"
     freqs = n.array(freqs)
-    if verbose: print freqs
+    if verbose:
+        print freqs
 
     z = f212z(freqs*1e6)
-    if verbose: print "processing redshifts:",z
-    #redshift_files = dict(zip(z,files))
-    umags = 30/(c/(freqs*1e6))
-    # if verbose: print "umags = ",umags
-    kperps = umags*pspec.dk_du(z)
+    if verbose:
+        print "processing redshifts:", z
     k3Pk = []
     k3err = []
     kmags = []
-    for i,FILE in enumerate(files):
+    for i, FILE in enumerate(files):
         F = n.load(FILE)
-        if verbose: print FILE.split('/')[-1],z[i]
-        # k = n.sqrt(F['kpl']**2 + kperps[i]**2)
+        if verbose:
+            print FILE.split('/')[-1], z[i]
         k3Pk.append(F['k3pk'])
         k3err.append(F['k3err'])
         kmags.append(F['k'])
-    # if one_file_flag:
-        # z = n.squeeze(z)
-        # kmags = n.squeeze(kmags)
-        # k3Pk = n.squeeze(k3Pk)
-        # k3err = n.squeeze(k3err)
     return z, kmags, k3Pk, k3err
 
 def posterior(kpl, pk, err, pkfold=None, errfold=None, f0=.151, umag=16.,
@@ -596,39 +662,37 @@ def split_stack_kpl(X,kpl):
 
 #Matt's power spectrum bits
 def read_bootstraps(files=None, verbose=False):
-    '''
-    read_bootstraps(files, verbose):
+    """
+    Read bootstrap files and accumulate into dict.
 
     arguments:
         files: glob of files, or list of file names to be read
 
     keywords:
         verbose: Print optional output to stdout. Defalt False
-    '''
-
+    """
     if files is None or not files:
         raise TypeError('Files given are {0}; Must supply input '
-        'files'.format(files))
+                        'files'.format(files))
         return files
 
-    one_file_flag=False
-    if len(n.shape(files)) ==0: files = [files];
-    if len(files) == 1: one_file_flag=True
-    # if files
+    if len(n.shape(files)) == 0:
+        files = [files]
 
-    #load the first file to make dummy lists into which boots will aggregate
+    # load the first file to make dummy lists into which boots will aggregate
     npz0 = n.load(files[0])
     num_boots = len(files)
     keys = npz0.keys()
     npz0.close()
 
-    out_dict = {key:[] for key in keys}
+    out_dict = {key: [] for key in keys}
 
     for filename in files:
-        if verbose: print 'Reading Boots'
+        if verbose:
+            print 'Reading Boots'
         npz = n.load(filename)
         for key in keys:
-            out_dict[key].append( n.real( npz[key] ))
+            out_dict[key].append(n.real(npz[key]))
         npz.close()
 
     return out_dict
@@ -729,3 +793,188 @@ def random_avg_bootstraps(boot_dict = None,boot_axis=None, time_axis=None,
 
     if outfile: n.savez(outfile, **out_dict)
     return out_dict
+
+
+def plot_eor_summary(files=None, title='Input Files', k_mag=.2,
+                     models=True, verbose=False, capsize=3.5, **kwargs):
+    """Create summary plot of known EoR results.
+
+    All inputs are optional.
+    files: capo formated pspec k3pk files
+    title: legend handle for input files
+    k_mag: the k value to take the limits near (find limits close to k_mag)
+    modles: boolean, plot fiducal 21cmfast models (included in capo)
+    capsize: defines the size of the upper limits caps.
+    verbose: print info while plotting
+    """
+    fig = p.figure(figsize=(10, 5))
+    ax = fig.add_subplot(111)
+
+    # plot the GMRT paciga 2014 data
+    GMRT = GMRT_2014_all()
+    GMRT_results = {}
+    if verbose:
+        print('GMRT')
+    for i, z in enumerate(GMRT.keys()):
+        # index = n.argwhere(GMRT[z][:,0] - .2 < 0.1).squeeze()
+        freq = pspec.z2f(z)
+        k_horizon = n.sqrt(cosmo_units.eta2kparr(30./c, z)**2 +
+                           cosmo_units.u2kperp(15*freq*1e6/cosmo_units.c, z)**2)
+        index = n.argwhere(abs(GMRT[z][:, 0] - k_mag)).squeeze()
+        GMRT_results[z] = n.min(GMRT[z][index, 2])
+        if verbose:
+            print('results: {0},\t{1}'.format(z, n.sqrt(GMRT_results[z])))
+        ax.errorbar(float(z), GMRT_results[z], GMRT_results[z]/1.5,
+                    fmt='p', ecolor='gray', color='gray', uplims=True,
+                    label='Paciga, 2013' if i == 0 else "",
+                    capsize=capsize)
+
+    # Get MWA 32 data
+    MWA_results = {}
+    MWA = MWA_32T_all()
+    if verbose:
+        print('Results: Z,\t Upper Limits')
+        print('MWA 32')
+    for i, z in enumerate(MWA.keys()):
+        # index = n.argwhere(MWA[z][:,0] - .2 < .01).squeeze()
+        freq = pspec.z2f(z)
+        k_horizon = n.sqrt(cosmo_units.eta2kparr(30./c, z)**2 +
+                           cosmo_units.u2kperp(15*freq*1e6/cosmo_units.c, z)**2)
+        index = n.argwhere(abs(MWA[z][:, 0] > k_horizon)).squeeze()
+        MWA_results[z] = n.min(MWA[z][index, 2])
+        if verbose:
+            print('results: {0},\t{1}'.format(z, n.sqrt(MWA_results[z])))
+        ax.errorbar(float(z), MWA_results[z], MWA_results[z]/1.5,
+                    fmt='r*', uplims=True,
+                    label='Dillon, 2014' if i == 0 else "",
+                    capsize=capsize)
+
+    MWA128_results = {}
+    MWA128 = MWA_128_all()
+    if verbose:
+        print('MWA 128')
+    for i, z in enumerate(MWA128.keys()):
+        index = n.argmin(abs(MWA128[z][:, 0] - k_mag)).squeeze()
+        MWA128_results[z] = n.min(MWA128[z][index, 2])
+        if verbose:
+            print('results: {0},\t{1}'.format(z, n.sqrt(MWA128_results[z])))
+        ax.errorbar(float(z), MWA128_results[z], MWA128_results[z]/1.5,
+                    fmt='y*', uplims=True, alpha=.5,
+                    label='Dillon, 2015' if i == 0 else "", capsize=capsize)
+
+    MWA_beards = MWA_128_beards()
+    MWA_beards_results = {}
+    if verbose:
+        print('MWA Beardsley')
+    for i, z in enumerate(MWA_beards.keys()):
+        index = n.argmin(abs(MWA_beards[z][:, 0] - k_mag).squeeze())
+        MWA_beards_results[z] = n.min(MWA_beards[z][index, 2])
+        if verbose:
+            print('results: {0},\t{1}'.format(z, n.sqrt(MWA_beards_results[z])))
+        ax.errorbar(float(z), MWA_beards_results[z], MWA_beards_results[z]/1.5,
+                    fmt='g*', uplims=True,
+                    label='Beardsley, 2016' if i == 0 else "",
+                    capsize=capsize)
+
+    # Get Paper-32 data
+    PSA32 = PAPER_32_all()
+    PSA32_results = {}
+    Jacobs_et_al = [0, 1, 2, 4]
+    if verbose:
+        print('PSA32')
+    for i, z in enumerate(PSA32.keys()):
+        index = n.argmin(abs(PSA32[z][:, 0] - k_mag)).squeeze()
+        PSA32_results[z] = n.min(PSA32[z][index, 2])
+        if verbose:
+            print('results: {0},\t{1}'.format(z, n.sqrt(PSA32_results[z])))
+
+        if i in Jacobs_et_al:
+            ax.errorbar(float(z), PSA32_results[z], PSA32_results[z]/1.5,
+                        fmt='md', uplims=True,
+                        label='Jacobs, 2015' if i == 0 else "",
+                        capsize=capsize)
+        else:
+            ax.errorbar(float(z), PSA32_results[z], PSA32_results[z]/1.5,
+                        fmt='cv', uplims=True, label='Parsons, 2014',
+                        capsize=capsize)
+
+    # Get PAPER-64 results
+    PSA64 = PAPER_64_all()
+    PSA64_results = {}
+    if verbose:
+        print('PSA64')
+    for z in PSA64.keys():
+        index = n.argmin(abs(PSA64[z][:, 0] - k_mag)).squeeze()
+        PSA64_results[z] = n.min(abs(PSA64[z][index, 2]))
+        if verbose:
+            print('results: {0},\t{1}'.format(z, n.sqrt(PSA64_results[z])))
+        ax.errorbar(float(z), PSA64_results[z], PSA64_results[z]/1.5,
+                    fmt='bs', uplims=True, label='Ali, 2015', capsize=capsize)
+
+    # zs = [10.87,8.37]
+    results = {}
+    if verbose:
+        print('Input files')
+    zs, ks, k3pk, k3err = get_k3pk_from_npz(files)
+    for i, z in enumerate(zs):
+        results_array = n.array([ks[i], k3pk[i], k3pk[i] + k3err[i],
+                                 k3pk[i] - k3err[i]]).T
+        negs = n.argwhere(k3pk[i] < 0).squeeze()
+        try:
+            len(negs)
+        except:
+            negs = n.array([negs.item()])
+        if len(negs) > 0:
+            results_array[negs, -2], results_array[negs, -1] = abs(results_array[negs, -1]), -1 * results_array[negs, -2]
+        index = n.argmin(abs(results_array[:, 0] - k_mag)).squeeze()
+        results[z] = n.min(abs(results_array[index, 2]))
+        if verbose:
+            print('results: {0},\t{1}'.format(z, n.sqrt(results[z])))
+        ax.errorbar(float(z), results[z], results[z]/1.5,
+                    fmt='ko', uplims=True,
+                    label=title if i == 0 else "",
+                    capsize=capsize)
+
+    ax.set_yscale('log')
+    ax.set_ylabel('$\Delta^{2} (mK)^{2}$')
+    ax.set_ylim([1e0, 1e7])
+    ax.set_xlabel('z')
+    ax.grid(axis='y')
+
+    # Add model data.
+    if models:
+        if verbose:
+            print 'Plotting 21cmFAST Model'
+        simk = 0.2
+        xlim = ax.get_xlim()  # save the data xlimits
+        parm_array, k_array, delta2_array, delta2_err_array = load_andre_models()
+        k_index = n.abs(k_array[0]-simk).argmin()
+        alphaXs = n.sort(list(set(parm_array[:, 3])))
+        Mmins = n.sort(list(set(parm_array[:, 4])))
+        Nxs = n.sort(list(set(parm_array[:, 2])))
+        for Nx in Nxs:
+            for alphaX in alphaXs:
+                for Mmin in Mmins:
+                    _slice = n.argwhere(all_and([
+                                        parm_array[:, 2] == Nx,
+                                        parm_array[:, 3] == alphaX,
+                                        parm_array[:, 4] == Mmin]
+                                        ))
+                    ax.plot(parm_array[_slice, 0],
+                            delta2_array[_slice, k_index], '-k',
+                            label='Fiducal 21cmFAST model')
+        ax.set_xlim(xlim)  # reset to the data xlimits
+
+    handles, labels = ax.get_legend_handles_labels()
+    handles = [h[0] if cnt > 0 else h for cnt, h in enumerate(handles)]
+    num_hands = len(handles)
+    handles.insert(num_hands, handles.pop(0))
+    labels.insert(num_hands, labels.pop(0))
+    box = ax.get_position()
+    ax.set_position([box.x0, box.height * .2 + box.y0,
+                     box.width, box.height*.8])
+    # fig.subplots_adjust(bottom=.275,top=.8)
+    ax.legend(handles, labels, loc='lower center',
+              bbox_to_anchor=(.5, -.425), ncol=3, **kwargs)
+    # ax.legend(loc='bottom',ncol=3)
+    return fig

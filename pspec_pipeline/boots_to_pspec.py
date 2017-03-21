@@ -4,6 +4,7 @@
 Take as input a directory pointing to the output from sim_sigloss
 output a power spectrum for each injection
 """
+import sys
 from glob import glob
 import argparse
 from capo.eor_results import read_bootstraps_dcj, average_bootstraps
@@ -22,13 +23,13 @@ parser.add_argument('--bl_length', type=float,  required=True,
                     help='length of baseline in meters')
 parser.add_argument('--add_pCv', action='store_true',
                     help='add pCv back into pC before averaging')
-
+parser.add_argument('--outfile', type=str, default='',
+                    help='Specifically specify out directory.')
 
 # parser.add_argument('--mode', dest='mode', choices=['prob','excess'],
 #                     default='prob',
 #                     help='limit estimation method')
-
-args = parser.parse_args()
+args = parser.parse_args(sys.argv[1:])
 
 injection_dirs = glob(args.run_dir+'/inject*')
 print "This is sigloss_to_pspec"
