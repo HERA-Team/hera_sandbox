@@ -17,13 +17,14 @@ mpl.rcParams['lines.markeredgewidth'] = 0
 mpl.rcParams['lines.markersize'] = 9
 #mpl.rcParams['lines.markersize'] = 7
 
+myk = 0.2
 capsize = 3.5
 plot_psa32 = True
 plot_psa32_multiz = True
 plot_psa64 = True
-plot_psa64_multiz=False
+plot_psa64_multiz=True
 from capo import eor_results,cosmo_units,pspec
-import os,sys, numpy as n, matplotlib.pyplot as p
+import os,sys, numpy as n, matplotlib.pyplot as p, numpy as np
 import optparse
 import ipdb
 
@@ -72,7 +73,7 @@ for i,z in enumerate(GMRT.keys()):
     freq= pspec.z2f(z)
     k_horizon = n.sqrt(cosmo_units.eta2kparr(30./c,z)**2 + \
                     cosmo_units.u2kperp(15*freq*1e6/c,z)**2)
-    index = n.argwhere( abs(GMRT[z][:,0] -.2) ).squeeze()
+    index = n.argwhere( abs(GMRT[z][:,0] -myk) ).squeeze()
     GMRT_results[z] = n.min(GMRT[z][2:,2])
     print('results: {0},\t{1}'.format(z,n.sqrt(GMRT_results[z])))
     ax.errorbar(float(z), GMRT_results[z], GMRT_results[z]/1.5, fmt='p',ecolor='gray',color='gray', uplims=True, label='Paciga, 2013' if i ==0 else "",capsize = capsize)
@@ -97,7 +98,7 @@ MWA128 = eor_results.MWA_128_all()
 print('MWA 128 Beardsley')
 for i,z in enumerate(MWA128.keys()):
     #index = n.argwhere(MWA[z][:,0] - .2 < .01).squeeze()
-    index = n.argmin(abs(MWA128[z][:,0] - .2)).squeeze()
+    index = n.argmin(abs(MWA128[z][:,0] - myk)).squeeze()
     MWA128_results[z] = n.min(MWA128[z][index,2])
     print('results: {0},\t{1}'.format(z,n.sqrt(MWA128_results[z])))
     ax.errorbar(float(z), MWA128_results[z], MWA128_results[z]/1.5, fmt = 'g*', uplims=True, label='Dillon, 2015' if i ==0 else "",capsize = capsize)
@@ -107,14 +108,14 @@ MWA128 = eor_results.MWA_128_beardsley_2016_all(pol='NS')
 print('MWA 128')
 for i,z in enumerate(MWA128.keys()):
     #index = n.argwhere(MWA[z][:,0] - .2 < .01).squeeze()
-    index = n.argmin(abs(MWA128[z][:,0] - .2)).squeeze()
+    index = n.argmin(abs(MWA128[z][:,0] - myk)).squeeze()
     MWA128_results[z] = n.min(MWA128[z][index,2])
     print('results: {0},\t{1}'.format(z,n.sqrt(MWA128_results[z])))
     ax.errorbar(float(z), MWA128_results[z], MWA128_results[z]/1.5, fmt = 'b.', uplims=True, label='Beardsley, 2016' if i ==0 else "",capsize = capsize)
 print('LOFAR Patil')
 LOFAR_Patil = eor_results.LOFAR_Patil_2017()
 print LOFAR_Patil[8.3].shape
-Patil_z,Patil_pspec = eor_results.k_slice(0.12,LOFAR_Patil)
+Patil_z,Patil_pspec = eor_results.k_slice(myk,LOFAR_Patil)
 print('results: z=',Patil_z,'pspec = ',Patil_pspec)
 ax.errorbar(Patil_z,Patil_pspec[:,2],Patil_pspec[:,2]/1.5,fmt='bd',uplims=True,label='Patil, 2017',capsize=capsize)
 
@@ -124,7 +125,7 @@ PSA32_results = {}
 Jacobs_et_al=[0,1,2,4]
 print('PSA32')
 for i,z in enumerate( PSA32.keys()):
-    index = n.argmin( abs(PSA32[z][:,0] - .2) ).squeeze()
+    index = n.argmin( abs(PSA32[z][:,0] - myk) ).squeeze()
     PSA32_results[z] = n.min(PSA32[z][index,2])
     print('results: {0},\t{1}'.format(z,n.sqrt(PSA32_results[z])))
 
@@ -151,14 +152,14 @@ if plot_psa64_multiz:
     for i,fi in enumerate(files):
         z = zs[i]
         f= n.load(fi)
-        results_array = n.array([f['k'],f['k3pk'],f['k3pk']+f['k3err'],f['k3pk']-f['k3err']]).T
+        results_array = n.array([f['ks'],f['k3pk'],f['k3pk']+f['k3err'],f['k3pk']-f['k3err']]).T
         negs = n.argwhere(f['k3pk'] < 0).squeeze()
 
         try: len(negs)
         except: negs = n.array([negs.item()])
         if len(negs) > 0 :
-            results_array[negs] = n.array([f['k'][negs],abs(f['k3pk'][negs]),abs(f['k3pk'][negs])+abs(f['k3err'][negs]),abs(f['k3pk'][negs])-abs(f['k3err'][negs])]).T
-        index = n.argmin( abs(results_array[:,0] - .2) ).squeeze()
+            results_array[negs] = n.array([f['ks'][negs],abs(f['k3pk'][negs]),abs(f['k3pk'][negs])+abs(f['k3err'][negs]),abs(f['k3pk'][negs])-abs(f['k3err'][negs])]).T
+        index = n.argmin( abs(results_array[:,0] - myk) ).squeeze()
         results[z] = n.min(abs(results_array[index,2]))
         print('results: {0},\t{1}'.format(z,n.sqrt(results[z])))
         ax.errorbar(float(z), results[z], results[z]/1.5, fmt= 'ko', uplims=True,
@@ -219,8 +220,16 @@ F = n.load('/Users/djacobs/src/21cmSense/hera127drift_pess_0.150.npz')
 freqs = n.linspace(80,200)
 zs = 1421./freqs - 1
 ax.plot(zs,F['T_errs'][3] * (freqs/180.)**-2.55,color='orange',label='HERA127')
+if True:
+    #noise
+    Pk_noise = 1808458.61002 #from dcj 21cmsense_check notebook. parameters matched to psa64, agrees with noise realization
+    ax.plot(zs,myk**3/(2*np.pi**2) * Pk_noise * (freqs/151.)**-2.55,'-b',label='PSA64 concordance' )
+    ax.text(10.5,1e4,'PSA64 Concordance',fontsize=textsize)
+    ax.plot(zs,myk**3/(2*np.pi**2) * Pk_noise/2 * (freqs/151.)**-2.55,'-c',label='PSA64 concordance' )
+    ax.text(10.5,3e4,'PSA32 Concordance',fontsize=textsize)
+
 ax.text(10.3,2,"HERA127",color='orange',fontsize=textsize)
-fig.savefig('eor_results.png')
+fig.savefig('eor_results_k{k}.png'.format(k=str(np.round(myk,2))))
 
 if opts.plot:
     p.show()
