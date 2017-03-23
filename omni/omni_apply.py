@@ -66,7 +66,7 @@ for f,filename in enumerate(args):
             p1,p2 = pol = aipy.miriad.pol2str[uv['pol']]
             if a1==a2: return p,None,None #skip autos
             try: trysep = bl2sep[aipy.miriad.ij2bl(a1,a2)]
-            except: return p,None,None #outriggers
+            except: trysep = None #return p,None,None #outriggers
             if trysep not in keep and keep != []: return p,None,None #skip some baselines if specified
             if opts.ba != None:
                 if a1 in map(int,opts.ba.split(',')) or a2 in map(int,opts.ba.split(',')): return p,None,None #skip some antennas if specified
