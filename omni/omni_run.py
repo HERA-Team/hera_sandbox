@@ -73,7 +73,7 @@ else: #generate reds from calfile
         ex_ants = []
         for a in opts.ba.split(','):
             ex_ants.append(int(a))
-        print '   Excluding antennas:',sorted(ex_ants)
+        print 'Excluding antennas:',sorted(ex_ants)
     else: ex_ants = []
     info = capo.omni.aa_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, crosspols=pols)
 reds = info.get_reds()
@@ -113,8 +113,14 @@ for f,filename in enumerate(args):
         for bl in f: 
             i,j = bl
             wgts[p][(j,i)] = wgts[p][(i,j)] = numpy.logical_not(f[bl][p]).astype(numpy.int)
+    if len(g0[g0.keys()[0]]) == 0:
+        print "   Making initial gains of all 1's..."
+        for key in g0:
+            g0[key] = {}
+            for ant in info.subsetant:
+                g0[key][ant] = numpy.ones(SH,dtype='complex')
     print '   Logcal-ing' 
-    m1,g1,v1 = capo.omni.redcal(data,info,gains=g0, removedegen=False) #SAK CHANGE REMOVEDEGEN
+    m1,g1,v1 = capo.omni.redcal(data, info, gains=g0, removedegen=False)
     print '   Lincal-ing'
     m2,g2,v2 = capo.omni.redcal(data, info, gains=g1, vis=v1, uselogcal=False, removedegen=True)
     xtalk = capo.omni.compute_xtalk(m2['res'], wgts) #xtalk is time-average of residual
