@@ -27,6 +27,10 @@ class Sense(object):
         self.X2Y = pspec.X2Y(self.z)/1e9  #515  @ z=8.4
         if self.Nlstbins is None: self.Nlstbins = self.Nlsthours*3600/self.t_int
         Nb = (self.Nbls/self.Nblgroups)
+        if self.Nblgroups !=0
+            self.bl_eff = Nb * np.sqrt((self.Nblgroups**2 - self.Nblgroups)/2)
+        else:
+            self.bl_eff = self.Nbls        
         self.bl_eff = Nb * np.sqrt((self.Nblgroups**2 - self.Nblgroups)/2)
         self.P_N = self.X2Y * self.Omega_eff * self.Tsys**2
         self.P_N /=(self.t_int * self.Ndays * self.bl_eff * self.Npols * np.sqrt(self.Nlstbins))
