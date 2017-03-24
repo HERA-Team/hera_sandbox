@@ -205,7 +205,7 @@ class LinearSolver:
             rv[::2],rv[1::2] = d.real, d.imag
             return rv
         else: return d.astype(np.float)
-    def solve(self, rcond=1e-10): # XXX add prm for used AtAiAt for all k?
+    def solve(self, rcond=1e-10, verbose=False): # XXX add prm for used AtAiAt for all k?
         '''Compute x' = (At A)^-1 At * y, returning x' as dict of prms:values.'''
         A = self.get_A()
         assert(A.ndim == 3)
@@ -215,15 +215,16 @@ class LinearSolver:
         x = np.empty((Ashape[1],y.shape[-1]), dtype=np.float)
         AtAiAt = None
         for k in xrange(y.shape[-1]):
+            if verbose: print 'Solving %d/%d' % (k, y.shape[-1])
             if AtAiAt is None or Ashape[-1] != 1:
                 #Ak = csr_matrix((vals, (xs,ys))) # XXX switch to sparse?
                 Ak = A[...,k]
                 #AtA = np.einsum('ji...,jk...->ik...', A, A) # slow
-                AtA = Ak.T.dot(Ak)
+                AtA = Ak.T.dot(Ak) # XXX .toarray() for sparse case?
                 # pinv 2/3, dot 1/3 compute time for 1200x1200 array
                 AtAi = np.linalg.pinv(AtA, rcond=rcond)
                 #AtAiA[...,i] = np.einsum('ij...,kj...->ik...', AtAi,A) # slow
-                AtAiAt = Ak.dot(AtAi).T
+                AtAiAt = Ak.dot(AtAi).T # XXX .toarray() for sparse?
             #x[...,k] = np.einsum('ij,j->i', AtAiAt, y[...,k]) # slow
             x[...,k:k+1] = np.dot(AtAiAt,y[...,k:k+1])
         x.shape = x.shape[:1] + self._data_shape # restore to shape of original data
@@ -240,7 +241,7 @@ def conjterm(term, mode='amp'):
 
 def jointerms(terms): return '+'.join(['*'.join(map(str,t)) for t in terms])
 
-class LogProductSolver(LinearSolver): # XXX probably shouldn't inherit
+class LogProductSolver: 
     '''For equations that are purely products (e.g. x*y*z = m), use 
     logarithms to linearize.  For complex variables, a trailing '_' in
     the name is used to denote conjugation (e.g. x*y_ parses as x * y.conj()).
@@ -264,9 +265,9 @@ class LogProductSolver(LinearSolver): # XXX probably shouldn't inherit
             logamp_consts[k], logphs_consts[k] = c.real, c.imag
         self.ls_amp = LinearSolver(logamp, logampw, **logamp_consts)
         self.ls_phs = LinearSolver(logphs, logphsw, **logphs_consts)
-    def solve(self):
-        sol_amp = self.ls_amp.solve()
-        sol_phs = self.ls_phs.solve()
+    def solve(self, rcond=1e-10, verbose=False):
+        sol_amp = self.ls_amp.solve(rcond=rcond, verbose=verbose)
+        sol_phs = self.ls_phs.solve(rcond=rcond, verbose=verbose)
         sol = {}
         for k in sol_amp: sol[k] = np.exp(sol_amp[k] + 1j*sol_phs[k])   
         return sol
@@ -282,7 +283,7 @@ def taylor_expand(term, consts={}, prepend='d'):
     return terms
 
 # XXX make a version of linproductsolver that taylor expands in e^{a+bi} form
-class LinProductSolver(LinearSolver): # XXX probably shouldn't inherit
+class LinProductSolver:
     '''For equations that are purely products (e.g. x*y*z = m), use 
     1st order Taylor expansion to linearize.  For complex variables, a trailing '_' in
     the name is used to denote conjugation (e.g. x*y_ parses as x * y.conj()).
@@ -306,8 +307,8 @@ class LinProductSolver(LinearSolver): # XXX probably shouldn't inherit
             try: wlin[nk] = wgts[k]
             except(KeyError): pass
         self.ls = LinearSolver(dlin, wgts=wlin, **kwargs)
-    def solve(self):
-        dsol = self.ls.solve()
+    def solve(self, rcond=1e-10, verbose=False):
+        dsol = self.ls.solve(rcond=rcond, verbose=verbose)
         sol = {}
         for dk in dsol:
             k = dk[len(self.prepend):]
