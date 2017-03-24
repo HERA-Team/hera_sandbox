@@ -29,8 +29,8 @@ for bls in (((0,103),(0,103)),((0,103),(0,95))):
 	SERIES.append(((T1,res),(TT,meancorr)))
 
 norm=np.amax(np.abs(SERIES[0][0][1]))
-sns.set(style="ticks", color_codes=True,font='DejaVu Serif', font_scale=1.5)
-plt.rc('axes', linewidth=1.5)
+sns.set(style="ticks", color_codes=True,font='DejaVu Serif', font_scale=2)
+plt.rc('axes', linewidth=2)
 f,axes = plt.subplots(2,1)
 for i, obj in enumerate(SERIES):
 	T1,res = SERIES[i][0]
@@ -38,18 +38,21 @@ for i, obj in enumerate(SERIES):
 	axes[i].set_xlim([-0.2,0.2])
 	axes[i].plot(T1-T0,res.real,'b',label='real')
 	axes[i].plot(T1-T0,res.imag,'g',label='imag')
-	axes[i].plot(T1-T0,np.abs(res),'r',alpha=0.5,linewidth=1,label='Theory')
+	axes[i].plot(T1-T0,np.abs(res),'r',alpha=0.5,linewidth=3,label='Theory')
 	if COMPARE:
 		TT, meancorr = SERIES[i][1]
 		meancorr = meancorr/1.2875
 		axes[i].plot(TT,meancorr.real,'b--')
 		axes[i].plot(TT,meancorr.imag,'g--')
-		axes[i].plot(TT,np.abs(meancorr),'r--',alpha=0.5,linewidth=1,label='Simulation')
-	axes[i].legend(loc=2)
+		axes[i].plot(TT,np.abs(meancorr),'r--',alpha=0.5,linewidth=3,label='Simulation')
+	
+	axes[i].get_yaxis().set_tick_params(direction='in')
+	axes[i].get_xaxis().set_tick_params(direction='in')
 	#plt.axvline(T1ac,color='k',alpha=0.5,linewidth=2)
 axes[1].set_xlabel('dT (Sidereal Days)')
+axes[0].legend(loc=2)
 axes[0].set_title('Correlation Normalized to Equivalent Baseline Peak')
 plt.setp(axes[0].get_xticklabels(), visible=False)
-plt.gcf().subplots_adjust(hspace=0.0)
+#plt.gcf().subplots_adjust(hspace=0.2)
 
 plt.show()
