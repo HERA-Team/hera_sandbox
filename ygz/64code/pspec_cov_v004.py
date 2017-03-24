@@ -5,7 +5,7 @@ import glob, optparse, sys, random, itertools
 # sample run python pspec_cov_v004.py --window=none --sep=sep0,1 --sepd=sep-1,1 -b 20 -c 95_115 -p I -C psa6240_v003
 o = optparse.OptionParser()
 a.scripting.add_standard_options(o, ant=True, pol=True, chan=True, cal=True)
-o.add_option('-b', '--nboot', type='int', default=20,
+o.add_option('-b', '--nboot', type='int', default=100,
     help='Number of bootstraps.  Default is 20')
 o.add_option('--plot', action='store_true',
     help='Generate plots')
@@ -26,9 +26,11 @@ opts,args = o.parse_args(sys.argv[1:])
  #args is calfile
  #################################################
 SEP, SEPD = opts.sep, opts.sepd
-DicT = {'sep0,1_sep-1,1':0.034000, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
-simT = {'sep0,1_sep-1,1':0.033000, 'sep0,1_sep1,1':-0.03099, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
+simT = {'sep0,1_sep1,1':0.032500, 'sep0,1_sep-1,1':-0.0320, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
+phs_dict = {'sep0,1_sep1,1':117, 'sep0,1_sep-1,1':-117, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
+#simT = {'sep0,1_sep1,1':-0.030, 'sep0,1_sep-1,1':0.030, 'sep0,1_sep0,1':0.,'sep-1,1_sep-1,1':0.,'sep1,1_sep1,1':0.}
 DelT = simT[SEP+'_'+SEPD]*2*n.pi*(24*3600./a.const.sidereal_day)   #sidereal day?
+rephs = phs_dict[SEP+'_'+SEPD]
 print 'DelT=', DelT, 'radians'
 EQUIV = (SEP == SEPD)
 NOGROUP = True
@@ -113,16 +115,25 @@ def get_Q(mode, n_k):
         Q[mode,mode] = 1
         return Q
 
+PDIR = '/data2/PAPER/'
 dsets1 = {
-    'even': glob.glob('/Users/yunfanzhang/local/DATA64/ali_et_al_2015_apj_data/even/'+SEP+'/*242.[3456]*uvGL'),
-    'odd' : glob.glob('/Users/yunfanzhang/local/DATA64/ali_et_al_2015_apj_data/odd/'+SEP+'/*243.[3456]*uvGL'),
+    'even': n.sort(glob.glob(PDIR+'ali_et_al_2015_apj_data/even/'+SEP+'/*242.[3456]*uvGL')),
+    'odd' : n.sort(glob.glob(PDIR+'ali_et_al_2015_apj_data/odd/'+SEP+'/*243.[3456]*uvGL')),
 }
 dsets2 = {
-    'even': glob.glob('/Users/yunfanzhang/local/DATA64/ali_et_al_2015_apj_data/even/'+SEPD+'/*242.[3456]*uvGL'),
-    'odd' : glob.glob('/Users/yunfanzhang/local/DATA64/ali_et_al_2015_apj_data/odd/'+SEPD+'/*243.[3456]*uvGL'),
+    'even': n.sort(glob.glob(PDIR+'ali_et_al_2015_apj_data/even/'+SEPD+'/*242.[3456]*uvGL')),
+    'odd' : n.sort(glob.glob(PDIR+'ali_et_al_2015_apj_data/odd/'+SEPD+'/*243.[3456]*uvGL')),
 }
+# dsets1 = {
+#     'even': glob.glob('/Users/yunfanzhang/local/DATA64/ali_et_al_2015_apj_data/even/'+SEP+'/*242.[3456]*uvGL'),
+#     'odd' : glob.glob('/Users/yunfanzhang/local/DATA64/ali_et_al_2015_apj_data/odd/'+SEP+'/*243.[3456]*uvGL'),
+# }
+# dsets2 = {
+#     'even': glob.glob('/Users/yunfanzhang/local/DATA64/ali_et_al_2015_apj_data/even/'+SEPD+'/*242.[3456]*uvGL'),
+#     'odd' : glob.glob('/Users/yunfanzhang/local/DATA64/ali_et_al_2015_apj_data/odd/'+SEPD+'/*243.[3456]*uvGL'),
+# }
 #for i in xrange(10): dsets[i] = glob.glob('lstbinX%d/%s/lst.24562[45]*.[3456]*.uvAL'%(i,SEP))
-#print dsets
+#print dsets1
 if opts.loss:
     dsets = {
     'even': glob.glob('/Users/sherlock/projects/paper/analysis/psa64/signal_loss/data/even/*242.[3456]*uvALG'),
@@ -160,7 +171,7 @@ kpl = etas * capo.pspec.dk_deta(z) #111
 bm = n.polyval(capo.pspec.DEFAULT_BEAM_POLY, fq) * 2.35 # correction for beam^2
 scalar = capo.pspec.X2Y(z) * bm * B
 DicOpp = {'sep0,1_sep-1,1': 0.568848}
-simOpp = {'sep0,1_sep-1,1':(-0.560615683868-0.421189357838j),'sep0,1_sep1,1':(-0.411004454476-0.0481656235344j)}
+simOpp = {'sep0,1_sep-1,1':(-0.50255239164274457+0.0747573750648967j),'sep0,1_sep1,1':(-0.49620-0.086483j)}
 if not EQUIV:
     #scalar /= DicOpp[SEP+'_'+SEPD]
     scalar /= simOpp[SEP+'_'+SEPD]
@@ -232,13 +243,15 @@ for k in days:
     for bl in data1[k]:
         if VERBOSE: print k, bl
         d = data1[k][bl][:,chans] * jy2T
-        if conj[bl]: d = n.conj(d)
+        if conj[a.miriad.bl2ij(bl)]: d = n.conj(d)
         x1[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
+        x1[k][bl] *= n.exp(-1j*rephs*afreqs)[:,n.newaxis]  #rephasing!!!!!!!!!!
+        #import IPython; IPython.embed()
         if VERBOSE: print x1[k][bl].shape
     for bl in data2[k]:
         if VERBOSE: print k, bl
         d = data2[k][bl][:,chans] * jy2T
-        if conj[bl]: d = n.conj(d)
+        if conj[a.miriad.bl2ij(bl)]: d = n.conj(d)
         x2[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
         if VERBOSE: print x2[k][bl].shape
 
@@ -299,14 +312,16 @@ for boot in xrange(opts.nboot):
             bls1 = bls1[:-5] ;bls2 = bls2[:-5]
         else: # sample with replacement
             bls1 = [random.choice(bls1) for bl in bls1]; bls2 = [random.choice(bls2) for bl in bls2]
-        gps1 = [bls1[i::NGPS] for i in range(NGPS)]; gps2 = [bls2[i::NGPS] for i in range(NGPS)]
-        gps1 = [[random.choice(gp) for bl in gp] for gp in gps1]; gps2 = [[random.choice(gp) for bl in gp] for gp in gps2]
+        gps1 = [bls1[i::NGPS] for i in range(NGPS)]
+        gps2 = [bls2[i::NGPS] for i in range(NGPS)]
+        gps1 = [[random.choice(gp) for bl in gp] for gp in gps1]
+        gps2 = [[random.choice(gp) for bl in gp] for gp in gps2]
     ############################################################
-    if EQUIV: gps2 = gps1 #for test against v002
-    else:
-        if NOGROUP:
-            gps1, gps2 = [bls1], [bls2]
-            import IPython; IPython.embed()
+    # if EQUIV: gps2 = gps1 #for test against v002
+    # else:
+    #     if NOGROUP:
+    #         gps1, gps2 = [bls1], [bls2]
+            #import IPython; IPython.embed()
     #print gps1
     #print gps2
     ############################################################
