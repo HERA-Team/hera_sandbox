@@ -41,6 +41,7 @@ def rebin_lst(binsize, lsts, d, w):  #d: data in time by freq.
 
 CONJ = [
     (0,103) , #  1
+    (0,95),
     (1,4) ,   #  2
     (1,48),
     (1,18),
@@ -53,6 +54,7 @@ CONJ = [
 
 SEPS = [(1,4), (1,48),(1,18)]
 SEPS = [(1,4), (1,48)]
+SEPS = [(0,103), (0,95)]
 #SEPS += [(2,105), (1,83)]
 #SEPS += [(0,79), (0,78)]
 #SEPS += [(0,70),(0,71)]
@@ -82,13 +84,15 @@ scalar_win = capo.pspec.X2Y(z) * bm * B_win
 cwd = os.getcwd()
 if cwd.startswith('/Users/yunfanzhang/'):
     dataDIR = '/Users/yunfanzhang/local/DATA128/DATA/'
+elif cwd.startswith('/Users/yunfanz/'):
+    dataDIR = '/Users/yunfanz/Data/PAPER128/DATA/'
 elif cwd.startswith('/home/yunfanz/'):
     dataDIR = '/home/yunfanz/EoR/DATA128/DATA/'
 sets = {
     #'day0' : sys.argv[1:],
     #'day0' : glob.glob('zen.2456714.*.xx.npz'),
-    'day1' : glob.glob(dataDIR+'zen.2456715.5*.xx.npz'),
-    'day2' : glob.glob(dataDIR+'zen.2456716.5*.xx.npz'),
+    'day1' : glob.glob(dataDIR+'zen.2456715.*.xx.npz'),
+    'day2' : glob.glob(dataDIR+'zen.2456716.*.xx.npz'),
 }
 data,wgts = {}, {}
 lsts = {}
@@ -233,23 +237,11 @@ dlst = lst_res
 #ind[set1], ind[set2] = lst_align(lsts[set1], lsts[set2])
 
 from itertools import product
-# for bl1, bl2 in product(SEPS,SEPS):
-#     if bl1 == bl2: offset = 0
-#     else: offset = offset_dict[(bl1,bl2)]
-#     ind_offset = int(offset/dlst)
-#     for pol in vismdl:
-#         for s1,s2 in product(sets,sets):
-#             if s1 == s2: continue
-
-
-# for k in data.keys():
-#     (s,pol,bl) = k
-#     data[k] = data[k][ind[s]]     #aligning the lsts
-#     wgts[k] = wgts[k][ind[s]]
 
 data_g, wgt_g = {},{}
 for k in data:
-    lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k])
+    lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=6000)
+    data_g[k], wgt_g[k] = data_g[k][2200:5000], wgt_g[k][2200:5000]
 ################################
 ds = oqe.DataSet(data_g, wgt_g)
 #import IPython; IPython.embed()
@@ -268,9 +260,14 @@ for cnt,k in enumerate(ks):
 sep_pairs = product(SEPS,SEPS)
 for cnt, bls in enumerate(sep_pairs):
     k1 = (set1,pol,bls[0])
-    k2 = (set2,pol,bls[1])
-    if bls[0] == bls[1]: offset = 0
-    else: offset = offset_dict[(bls[0],bls[1])]
+    k2 = (set1,pol,bls[1])
+    if bls[0] == bls[1]: 
+        continue
+        #offset = 0
+    else: 
+        try: offset = offset_dict[(bls[0],bls[1])]
+        except:
+            continue
     ind_offset = int(offset/dlst)
     print ind_offset
     pC = get_p(k1,k2,'C',offset=ind_offset)
@@ -280,23 +277,4 @@ for cnt, bls in enumerate(sep_pairs):
     plt.colorbar()
 plt.show()
 import IPython; IPython.embed()
-#for cnt,k in enumerate(ks):
-#    print k
-    #plt.subplot(NK,1,cnt+1)
-    #pC = get_p(k,k,'C')
-    #plt.title(k[0])
-    #capo.plot.waterfall(pC, mx=16, drng=7)
-    #plt.colorbar()
-#plt.savefig('fig2.png')
-#plt.show()
 
-'''
-pC1 = get_p(k1a,k1b,'C')
-pC2 = get_p(k2a,k2b,'C')
-pC3 = get_p(k3a,k3b,'C')
-plt.plot(np.abs(np.median(pC1, axis=1).real), 'r', label='pC1',)
-plt.plot(np.abs(np.median(pC2, axis=1).real), 'b', label='pC2',)
-plt.plot(np.abs(np.median(pC3, axis=1).real), 'k', label='pC3',)
-plt.legend()
-plt.show()
-'''

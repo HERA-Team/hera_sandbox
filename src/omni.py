@@ -319,19 +319,26 @@ class FirstCal(object):
         self.wgts = wgts
         #if wgts != None: self.wgts = wgts
         #else: self.wgts = np.ones_like(self.data)
-    def data_to_delays(self, **kwargs):
-        '''data = dictionary of visibilities. 
-           info = FirstCalRedundantInfo class
-           can give it kwargs:
-                supports 'window': window function for fourier transform. default is none
-                         'tune'  : to fit and remove a linear slope to phase.
-                         'plot'  : Low level plotting in the red.redundant_bl_cal_simple script.
-                         'clean' : Clean level when deconvolving sampling function out.
-           Returns 2 dictionaries:
-                1. baseline pair : delays
-                2. baseline pari : offset 
-        '''
+    def data_to_delays(self, verbose=False, **kwargs):
+        """
+        data = dictionary of visibilities. 
+        info = FirstCalRedundantInfo class
+        can give it kwargs:
+            'window': window function for fourier transform. default is none
+            'tune'  : to fit and remove a linear slope to phase.
+            'plot'  : Low level plotting in the red.redundant_bl_cal_simple script.
+            'clean' : Clean level when deconvolving sampling function out.
+        
+        Returns 3 dictionaries:
+            1. baseline pair : delays
+            2. baseline pair : offset 
+            3. baseline pair : mean(variance(angle))/mean(absolute) [proxy for noise in solution]
+        """
         verbose = kwargs.get('verbose', False)
+        window=kwargs.get('window','none')
+        tune=kwargs.get('tune',True)
+        plot=kwargs.get('plot',False)
+        clean=kwargs.get('clean',1e-4)
         blpair2delay = {}
         blpair2offset = {}
         dd = self.info.order_data(self.data)
@@ -344,37 +351,44 @@ class FirstCal(object):
             d2 = dd[:,:,self.info.bl_index(bl2)]
             w2 = ww[:,:,self.info.bl_index(bl2)]
             delay,offset = red.redundant_bl_cal_simple(d1,w1,d2,w2,self.fqs,**kwargs)
+            noiseproxy = self.varstat(d1,w1,d2,w2)
+            #    _,(delay,offset),_ = red.redundant_bl_cal(d1,w1,d2,w2,self.fqs,window=window,verbose=verbose,use_offset=use_offset)
             blpair2delay[(bl1,bl2)] = delay
             blpair2offset[(bl1,bl2)] = offset
         return blpair2delay, blpair2offset
     def get_N(self,nblpairs):
-        return sps.eye(nblpairs) 
-    def get_M(self, **kwargs):
-        blpair2delay,blpair2offset = self.data_to_delays(**kwargs)
-        sz = len(blpair2delay[blpair2delay.keys()[0]])
-        M = np.zeros((len(self.info.bl_pairs),sz))
-        O = np.zeros((len(self.info.bl_pairs),sz))
+        return sps.eye(nblpairs)
+     
+    def get_MNO(self, verbose=False, **kwargs):
+        M, N, O = np.zeros((len(self.info.bl_pairs),1)), np.zeros((len(self.info.bl_pairs),1)), np.zeros((len(self.info.bl_pairs),1))
+        blpair2delay,blpair2offset,blpair2noise = self.data_to_delays(verbose=verbose, **kwargs)
         for pair in blpair2delay:
-            M[self.info.blpair_index(pair),:] = blpair2delay[pair]
-            O[self.info.blpair_index(pair),:] = blpair2offset[pair]
-            
-        return M,O
-    def run(self, **kwargs):
-        verbose = kwargs.get('verbose', False)
-        offset = kwargs.get('offset', False)
+            M[self.info.blpair_index(pair)] = blpair2delay[pair]
+            N[self.info.blpair_index(pair)] = blpair2noise[pair]
+            O[self.info.blpair_index(pair)] = blpair2offset[pair]   
+        return M,N,O
+    
+    def run(self, verbose=False, offset=False, **kwargs):
         #make measurement matrix 
-        print "Geting M,O matrix"
-        self.M,self.O = self.get_M(**kwargs)
-        print "Geting N matrix"
-        N = self.get_N(len(self.info.bl_pairs)) 
+        print "Geting M,N,O matrix"
+        #CORRECT WAY AROUND:
+        self.M,self.N,self.O = self.get_MNO(verbose=verbose, **kwargs)
+        #INCORRECT WAY AROUND:
+        #_,self.M,self.O = self.get_MNO(verbose=verbose, **kwargs)
+        #make noise matrix
+        print "inverting N matrix"
+        #REAL N:
         #self._N = np.linalg.inv(N)
         self._N = N #since just using identity now
-
+        
+        #Absolute value A for sum in quadrature
+        #self.info.A = np.abs(self.info.A) 
+        
         #get coefficients matrix,A
         self.A = sps.csr_matrix(self.info.A)
         print 'Shape of coefficient matrix: ', self.A.shape
-
-#        solve for delays
+        
+        #solve for delays
         print "Inverting A.T*N^{-1}*A matrix"
         invert = self.A.T.dot(self._N.dot(self.A)).todense() #make it dense for pinv
         dontinvert = self.A.T.dot(self._N.dot(self.M)) #converts it all to a dense matrix
@@ -428,6 +442,7 @@ def save_gains_fc(s,fqs,pol,filename,ubls=None,ex_ants=None,verbose=False):
             s2['o'+str(k)] = i[1]
             if verbose: print 'dly=%f , off=%f'%i
         else:
+            #s2[str(k)+pol] = get_phase(f,i).reshape(1,-1) #reshape plays well with omni apply
             s2[str(k)+pol] = get_phase(fqs,i).T #reshape plays well with omni apply
             s2['d'+str(k)] = i
             if verbose: print 'dly=%f'%i
