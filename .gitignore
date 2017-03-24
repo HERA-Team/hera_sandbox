@@ -1,3 +1,6 @@
+.DS_Store
+*.pyc
+*.png
 build
 *pyc
 .*.swp
@@ -9,5 +12,4 @@ kmk/data
 kmk/calfiles
 jsd/uCal/Data
 jsd/uCal/Old
-.DS_Store
 .ipynb_checkpoints
