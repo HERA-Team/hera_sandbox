@@ -1,4 +1,7 @@
 import numpy as np
+#from autograd import numpy as np
+#import autograd
+#from autograd.convenience_wrappers import hessian_vector_product as hvp
 from scipy.sparse import csr_matrix
 import capo.omni as omni, capo.zsa as zsa, capo.arp as arp
 import scipy
@@ -7,284 +10,532 @@ import time
 import aipy as a
 import optparse, sys, os
 import capo
+from scipy.interpolate import interp1d
+from scipy.optimize import leastsq
+from itertools import chain
+import copy
 
 #############################################
-#   uCal Core Classes
+#   uCal Core Class
 #############################################
-
-#TODO needs testing on a 2D or 3D array. In particular, there's a question of whether the code that skips entries to make the loop fasterever misses a good pair
-class uCalReds():
-    """This class takes a list frequencies (in GHz), a list of baselines, anda  way to convert them into numpy arrays in meters.
-    It saves a dictionary that maps (ch1,bl1,ch2,bl2) to u and deltau. 
-    Physical separations must all have the same orentiation, otherwise this won't work.
-    Only includes baselines-frequency pairs obeying the Deltau threshold (default 0.3)."""
-
-    #TODO: remove chan2FreqDict
-    def __init__(self, freqs, bls, chan2FreqDict, bl2SepDict, maxDeltau = .3, verbose=False):
-        self.verbose = verbose
-        if self.verbose: print 'Now finding all baseline/frequency pairs...'
-        self.maxDeltau = maxDeltau
-        chans = range(len(freqs))
-        self.blChanPairs = {}
-        freqChanPairs = sorted([[chan2FreqDict[chan], chan] for chan in chans])
-        sepBLPairs = sorted([[np.asarray(bl2SepDict[bl]), bl] for bl in bls], key=lambda pair: np.linalg.norm(pair[0])) #sorts by length
-        for i,(f1,ch1) in enumerate(freqChanPairs):
-            for f2,ch2 in freqChanPairs[i+1:]:
-                for j,(sep2,bl2) in enumerate(sepBLPairs):
-                    for sep1,bl1 in sepBLPairs[j+1:]:
-                        deltau = np.linalg.norm(f1*sep1 - f2*sep2) 
-                        if deltau < maxDeltau and not self.blChanPairs.has_key((ch1,bl1,ch2,bl2)) and not self.blChanPairs.has_key((ch2,bl2,ch1,bl1)):
-                            u = (f1*sep1 + f2*sep2)/2.0 
-                            self.blChanPairs[(ch1,bl1,ch2,bl2)] = (u, deltau)
-        if self.verbose: print "    " + str(len(self.blChanPairs)) + " baseline/frequency pairs identified with delta u < " + str(maxDeltau)
-
-    def applyuCut(self, uMin=25, uMax=150):
-        for key,value in self.blChanPairs.items():
-            if np.linalg.norm(value[0]) < uMin or np.linalg.norm(value[0]) > uMax: del self.blChanPairs[key]
-        if self.verbose: print "    " + str(len(self.blChanPairs)) + " baseline/frequency pairs remain after requiring " + str(uMin) + " < u < " + str(uMax)
-
-    def applyChannelFlagCut(self, flaggedChannels):
-        for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys():
-            if ch1 in flaggedChannels or ch2 in flaggedChannels: del self.blChanPairs[(ch1,bl1,ch2,bl2)]
-        if self.verbose: print "    " + str(len(self.blChanPairs)) + " baseline/frequency pairs remain after flagging " + str(len(set(flaggedChannels))) + " channels."
-
-    def getBlChanPairs(self): return self.blChanPairs
-
 
 class uCalibrator():
-    """This class contains the main routines for performing uCal. 
-    It is intialized with a dictionary of baseline-channels pairs (see uCalReds class for details) 
-    and optionally u and du bin sizes. The constructor figures out the relevant binning."""
+    """This is the core class for performing uCal. It stores the relevant visibilities and information about them. It also performs logcal and lincal."""
 
-    def __init__(self, blChanPairs):
+#     ###########################################################################
+#     #   Trying to use python's built in stuff
+#     ###########################################################################
+
+
+#     def objectiveFunc(self, allParams):
+#         allParams = np.array(allParams[0:len(allParams)/2]) + 1.0j*np.array(allParams[len(allParams)/2:])
+#         betas = allParams[0:self.nChans]
+#         Sigmas = allParams[self.nChans:]
+#         sumSquareErrors = 0
+#         for n,entry in enumerate(self.blChanPairs.values()):
+#             sumSquareErrors = sumSquareErrors + np.abs(entry['vis'] - self.bandpassFunc(entry, betas) * self.uIntegralFunc(entry, Sigmas))**2
+        
+#         return sumSquareErrors
+
+
+#     def renormalize2(self, allParams, absMeanGoal = 1.0):
+#         """Sets the mean phase of the betas to 0 and the mean amplitude to 1."""
+#         betas = allParams[0:self.nChans]
+#         Sigmas = allParams[self.nChans:]
+
+#         betaAbsMean = np.mean(np.abs(betas))
+#         betaAngleMean = np.mean(np.angle(betas))
+#         newBetas = np.array(betas) * absMeanGoal/betaAbsMean * np.exp(-1.0j * betaAngleMean)
+#         newSigmas = np.array(Sigmas)
+#         newSigmas[0:self.nuSamples*(self.skyFreqOrder+1)] = newSigmas[0:self.nuSamples*(self.skyFreqOrder+1)] * betaAbsMean/absMeanGoal / np.exp(-1.0j * betaAngleMean)
+#         #newSigmas[self.beamWidthIndices[0]:self.beamWidthIndices[-1]+1] = np.real(np.array(newSigmas[self.beamWidthIndices[0]:self.beamWidthIndices[-1]+1]))
+#         #TODO: figure out whether there's a better way to handle this.
+#         return np.concatenate((newBetas, newSigmas))
+
+#     def callbackFunc(self, allParams):
+#         print np.mean(np.abs(allParams[0:self.nChans]))
+#         #allParams = self.renormalize2(allParams)
+#         print self.objectiveFunc(allParams)
+
+#     def minimizeError(self, betas, Sigmas):
+#         print 'Now minimizing error...'
+#         from scipy.optimize import minimize
+
+#         g_auto = autograd.grad(self.objectiveFunc)
+#         hessvp = hvp(self.objectiveFunc)
+#         #cons = ({'type': 'eq', 'fun': lambda x: np.mean(np.abs(x[0:self.nChans]))-1.0},
+# #                        {'type': 'eq', 'fun': lambda x: np.mean(np.angle(x[0:self.nChans]))})
+#         x0 = np.concatenate((np.real(betas), np.real(Sigmas), np.imag(betas), np.imag(Sigmas)))
+#         result = minimize(self.objectiveFunc, x0, method='trust-ncg', jac=g_auto, hessp =hessvp, callback=self.callbackFunc)#, constraints=cons)
+#         #result = minimize(self.objectiveFunc, x0, method='BFGS', jac=g_auto, callback=self.callbackFunc)#, constraints=cons)
+#         print result
+#         return np.array(result[0][0:len(result[0])/2]) + 1.0j*np.array(result[0][len(result[0])/2:])
+
+
+
+    ###########################################################################
+    #   Specialized Functions that Depend on Model Paramterization
+    ###########################################################################
+
+    def bandpassFunc(self, blChanPair, betas, derivative=False):
+        """This returns elements of the bandpass function beta, or derivaties and indices."""
+        if derivative: return np.array([1.0]), [self.chanIndices[blChanPair['chan']]]
+        else: return betas[self.chanIndices[blChanPair['chan']]]
+
+    # TODO LIST:
+    # 0) Write rudimentary post-logcal script DONE
+    # 1) Write pre-computation script for each lincal step DONE
+    # 2) Write uIntegralFunction for derivative=False DONE
+    # 3) Update post-logcal script with beam fitting DONE
+    # 4) Write uIntegralFunction with derivative = True
+
+    def computeGaussianBeam(self, freq, fullRangeDeltaus):
+        return np.exp(-(np.array(fullRangeDeltaus))**2 / (2*self.beamWidthDict[freq]**2))
+
+    def FourierInterpolate(self, toInterp, pad):
+        """Takes some evenly spaced function and returns a Fourier interpolation of that function at the padding level."""
+        toPad = np.fft.fftshift(np.fft.fft(toInterp))
+        padded = np.concatenate((np.zeros(int(np.ceil(len(toInterp)*pad+.5))), toPad, np.zeros(int(np.floor(len(toInterp)*pad-.5)))))
+        interpolated = np.roll((2*pad+1)*np.fft.ifft(np.fft.fftshift(padded)),int(np.floor(pad)))
+        return interpolated
+
+    def FourierDownsample(self, toDownSample, pad):
+        """Performs the inverse operation of FourierInterpolate. Used for calculating derivaties of uIntegralFunc."""
+        finalLength = int(np.round(len(toDownSample) / (2*pad + 1)))
+        shifted = np.roll(toDownSample, -int(np.floor(pad))) / (2*pad+1)
+        FTed = np.fft.ifftshift(np.fft.fft(shifted))
+        cropped = FTed[int(np.ceil(finalLength*pad+.5)): int(np.ceil(finalLength*pad+.5))+finalLength]
+        return np.fft.ifft(np.fft.ifftshift(cropped)) 
+
+    def uIntegralFunc(self, blChanPair, uIntegralParams, derivative=False):
+        """This function returns a beam-weighted integral over a portion of the uv-plane (line, really). 
+        It can also return derivatives with respect to the paramters that describe that plane or the beam."""
+
+        #TODO: figure out delta u as the length element of the integral 
+
+        u,chan = blChanPair['u'], blChanPair['chan']
+        coarseuBin, fineuBin = blChanPair['coarseuBin'], blChanPair['fineuBin']
+        beamCoarseIndices = blChanPair['beamCoarseIndices']
+
+        freq = self.freqs[chan]
+        coarseu = self.coarseus[coarseuBin]
+        fineOffset = int(np.round((u - coarseu)/self.fineDu))
+        beamWidth = self.beamWidthDict[freq]
+        nFine = len(self.fineDeltaus)
+
+        coarseSky = np.zeros(self.beamCoarseBins,dtype=complex)
+        for order in range(self.skyFreqOrder+1): coarseSky += uIntegralParams[blChanPair['coarseSkyIndices'][order,:]] * blChanPair['coarseSkyBasisFuncs'][order,:]
+        interpolatedSky = self.FourierInterpolate(coarseSky, self.padding)
+        gaussBeam = self.gaussBeamDict[freq][self.beamFineBins/2-nFine/2 - fineOffset: self.beamFineBins/2 + nFine/2 - fineOffset]
+        normalization = np.linalg.norm(gaussBeam) * self.fineDu
+
+        #This doesn't seem like it's working. Maybe we need see if the analytic derivatives are matching numerical ones. 
+        #ALso, I should check that nothing else is in a "testing" mode that is screwing with the results. 
+
+        if derivative: 
+            downsampledBeam = self.FourierDownsample(gaussBeam, self.padding)
+            sampleDerivs = blChanPair['uParamBasisFuncs'] * downsampledBeam[blChanPair['uParamBeamIndices']] * normalization
+
+            uSecondMoment = np.dot(interpolatedSky * gaussBeam, blChanPair['fineDeltausHere']**2) 
+            beamWidthDerivs = np.array([(freq/.145)**n * normalization / beamWidth**3 * uSecondMoment for n in range(self.beamWidthOrder+1)])
+
+            indices = blChanPair['uParamIndicesHere'] + self.beamWidthIndices
+            derivs = np.concatenate((sampleDerivs, beamWidthDerivs))
+
+            return derivs, indices
+        return normalization * np.dot(gaussBeam, interpolatedSky)
+
+
+
+
+
+        # self.interpolatedSky = interpolatedSky
+        # self.coarseSky = coarseSky
+        # 
+        # print 'u:', u
+        # print 'nearest coarse u:', coarseu
+        # print 'fine center offset:', fineOffset
+        # print 'full length of gaussBeam:', len(self.gaussBeamDict[freq])
+        # print 'gauss beam extraction indices:', self.beamFineBins/2-nFine/2 - fineOffset, self.beamFineBins/2 + nFine/2 - fineOffset
+        # print 'length of extracted gaussBeam', len(gaussBeam)
+        # print 'len(gaussBeam) vs. len(interpolatedSky):', len(gaussBeam), len(interpolatedSky)
+        # print 'index of fineDeltau = 0:', np.argwhere(np.abs(fineDeltausHere) < 1e-10)
+        # print 'gaussBeam at fineDeltau = 0:', gaussBeam[np.argwhere(np.abs(fineDeltausHere) < 1e-10)[0]]
+        # print 'this should give 0:', (self.fineDeltaus + coarseu)[np.argwhere(np.abs(fineDeltausHere) < 1e-10)[0]] - u
+
+
+
+    def uIntegralPrecomputation(self, uIntegralParams):
+        """This function is meant to be run before each iteration of lincal and does useful pre-computation for uIntegralFunc()"""
+        self.beamWidthDict = {freq: np.dot(uIntegralParams[self.beamWidthIndices], np.array([(freq/.145)**n for n in range(self.beamWidthOrder+1)])) for freq in self.freqs}
+        self.gaussBeamDict = {freq: self.computeGaussianBeam(freq, self.fineDu*np.arange(-self.beamFineBins/2.0+1, self.beamFineBins/2.0+1)) for freq in self.freqs}
+
+
+    def renormalize(self, factorFunctions, factorParams, absMeanGoal = 1.0):
+        """Sets the mean phase of the betas to 0 and the mean amplitude to 1."""
+        betaAbsMean = np.mean(np.abs(factorParams[0]))
+        betaAngleMean = np.mean(np.angle(factorParams[0]))
+        newBetas = np.array(factorParams[0]) * absMeanGoal/betaAbsMean * np.exp(-1.0j * betaAngleMean)
+        newSigmas = np.array(factorParams[1])
+        newSigmas[self.uParamIndexList] *= betaAbsMean/absMeanGoal / np.exp(-1.0j * betaAngleMean)
+        return [newBetas, newSigmas]
+
+    def determineuParameterization(self):
+        """This function figures out the maximum order in basis functions that any given u mode can support.
+        It also creates a dictionary to map u,order -> index in Sigma."""
+        blRange = {} #Figure out the largest and smallest us for each baseline
+        for (bl,chan),entry in self.blChanPairs.items():
+            if bl in blRange: blRange[bl] = [min(blRange[bl][0], entry['u']), max(blRange[bl][1], entry['u'])]
+            else: blRange[bl] = [entry['u'], entry['u']]
+        
+        #Count the number of baselines that overlap a given u sample, then set self.uOrders based on that
+        allbls = list(set([bl for (bl,chan) in self.blChanPairs.keys()]))
+        self.uOrders = {}
+        for u in self.coarseus:
+            nOverlappingBaselines = np.sum([(u >= blRange[bl][0])*(u <= blRange[bl][1]) for bl in allbls])
+            self.uOrders[u] = min(max(0, nOverlappingBaselines), self.skyFreqOrder)
+
+        #Build up a dictionary that maps u and order to uParamIndex
+        currentInd = 0
+        self.uParamIndices = {}
+        for order in range(self.skyFreqOrder+1):
+            for u in self.coarseus:
+                if self.uOrders[u] >= order:
+                    self.uParamIndices[(u,order)] = currentInd
+                    currentInd += 1;
+        if self.verbose: print 'For lincal, we are trying to fit', currentInd, 'u sample parameters.'
+        self.uParamIndexList = range(currentInd)
+        self.beamWidthIndices = range(self.uParamIndexList[-1]+1, self.uParamIndexList[-1]+1 + self.beamWidthOrder + 1)
+
+        #Preform some precomputation that can be used for every iteration 
+        for entry in self.blChanPairs.values():
+            u, chan, coarseuBin, fineuBin = entry['u'], entry['chan'], entry['coarseuBin'], entry['fineuBin']
+            fineOffset = int(np.round((u - self.coarseus[coarseuBin])/self.fineDu))
+            entry['beamCoarseIndices'] = np.arange(coarseuBin - (self.beamCoarseBins-1)/2,coarseuBin + (self.beamCoarseBins+1)/2)
+            entry['uParamIndicesHere'] = [self.uParamIndices[(uHere,order)] for uHere in self.coarseus[entry['beamCoarseIndices']] for order in range(self.uOrders[uHere]+1)]
+            entry['uParamOrders'] = [order for uHere in self.coarseus[entry['beamCoarseIndices']] for order in range(self.uOrders[uHere]+1)]
+            entry['uParamBasisFuncs'] = [self.skyFreqBasis[chan,order] for uHere in self.coarseus[entry['beamCoarseIndices']] for order in range(self.uOrders[uHere]+1)]
+            entry['uParamBeamIndices'] = [index for index, uHere in enumerate(self.coarseus[entry['beamCoarseIndices']]) for order in range(self.uOrders[uHere]+1)]
+            entry['fineDeltausHere']  = self.fineDeltaus - fineOffset * self.fineDu 
+
+            entry['coarseSkyIndices'] = np.zeros((self.skyFreqOrder+1, self.beamCoarseBins),dtype=int)
+            entry['coarseSkyBasisFuncs'] = np.zeros((self.skyFreqOrder+1, self.beamCoarseBins))
+            for uBin, uHere in enumerate(self.coarseus[entry['beamCoarseIndices']]):
+                for order in range(self.skyFreqOrder+1):
+                    if order < self.uOrders[uHere]+1:
+                        entry['coarseSkyIndices'][order,uBin] = self.uParamIndices[(uHere,order)]
+                        entry['coarseSkyBasisFuncs'][order,uBin] = self.skyFreqBasis[chan,order]
+
+    def errfunc(self, beamParams, betas, uPlaneParams):
+        uIntegralParams = np.concatenate((uPlaneParams,beamParams))
+        self.uIntegralPrecomputation(uIntegralParams)
+        errors = np.zeros(self.nVis, dtype=complex)
+        for n,entry in enumerate(self.blChanPairs.values()):
+            errors[n] = entry['vis'] - self.bandpassFunc(entry, betas) * self.uIntegralFunc(entry, uIntegralParams)
+        return np.array(np.abs(errors), dtype='float')
+
+        
+    def initializeLogcalResults(self, allParams):
+        self.determineuParameterization()
+
+        betas = allParams[0:self.nChans]
+        Sigmas = np.zeros(len(self.uParamIndexList), dtype=complex)
+        Sigmas[0:self.nCoarseBins] = allParams[self.nChans:] / np.mean(self.skyFreqBasis[:,0]) / self.coarseDu
+
+        if self.verbose: print 'Now initializing the frequency-dependent primary beam kernel by fitting...'
+        intialBeamParamsGuess = [self.beamFWHMguess / (8*np.log(2))**.5] + [0.0] * self.beamWidthOrder
+        bestFitBeamParams = np.asarray(leastsq(self.errfunc, intialBeamParamsGuess, args=(betas,Sigmas), xtol=.01)[0], dtype=complex)
+        Sigmas = np.append(Sigmas, bestFitBeamParams)
+        self.beamWidths = [np.dot(bestFitBeamParams, [(self.freqs[chan]/(.145+0.0j))**n for n in range(self.beamWidthOrder+1)]) for chan in self.chans]
+
+        
+        # #If the guessed beam width doesn't work (produces negative beam sizes), try deltau. If that fails, try deltau*2, deltau*3, etc.
+        # for beamMult in range(1, int(self.beamFullRange / self.deltau)+1):
+        #     intialBeamParamsGuess = [self.beamFWHMguess / (8*np.log(2))**.5] + [0.0] * self.beamWidthOrder
+        #     bestFitBeamParams = np.asarray(leastsq(self.errfunc, intialBeamParamsGuess, args=(betas,Sigmas), xtol=.01)[0], dtype=complex)
+        #     beamWidths = [np.dot(bestFitBeamParams, [(self.freqs[chan]/(.145+0.0j))**n for n in range(self.beamWidthOrder+1)]) for chan in self.chans]
+        #     if np.min(beamWidths) > 0 or beamMult == int(self.beamFullRange / self.deltau): 
+        #         Sigmas = np.append(Sigmas, bestFitBeamParams)
+        #         break
+        #     else: 
+        #         print '    Unable to initialize beam with guessed width ' + str(self.beamFWHMguess) + ', trying ' + str(self.deltau*beamMult) + ' instead.'
+        #         self.beamFWHMguess = self.deltau*beamMult
+
+        return self.renormalize(None, [betas, Sigmas])
+
+    def generateNoiseVariance(self, betas): 
+        """Creates a model for the noise variance, which is assumed proportional to (beta^2) / (baseline redundancy)."""
+        noiseVariance = np.asarray([np.abs(betas[self.chanIndices[chan]])**2 / self.redundancyDict[bl] for (bl,chan) in self.blChanPairs.keys()]) / 5000.0
+        return noiseVariance
+
+    #############################################
+    #   Generalized Functions
+    #############################################
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
         self.lincalIterations = 0
-        #Internal format for blChanPairs that will be populated with data and binning info
-        self.blChanPairs = {key: {'u': u, 'du': du} for key,(u,du) in blChanPairs.items()}
-        self.binningIsSetup = False
-        self.visibilitiesAreCorrelated = False
+        self.evWarned = False
+        self.blChanPairs = {}
+        self.uSamples = []
+        self.previousStep = None
 
-    def getBlChanPairs(self): return self.blChanPairs
-
-    def computeVisibilityCorrelations(self, data, samples, verbose=True):
-        """This function computes visibility correlations from data dictionaries and samples dictionaries (which reflects flags and redundancies).
-        These dictionaries must be in the standard PAPER format. The results are stored inside self.blChanPairs with keys 'visCorr' and 'samples'."""
-        oldChans = sorted(np.unique(np.asarray([[ch1,ch2] for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()])))
-        oldPairs = len(self.blChanPairs)
-        for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys():
-            w = np.logical_and(samples[bl1][:,ch1] != 0, samples[bl2][:,ch2] != 0)
-            if np.all(np.logical_not(w)):
-                del self.blChanPairs[(ch1,bl1,ch2,bl2)]
-            else: 
-                self.blChanPairs[(ch1,bl1,ch2,bl2)]['visCorr'] = np.average((data[bl1][:,ch1]*np.conj(data[bl2][:,ch2]))[w])
-                self.blChanPairs[(ch1,bl1,ch2,bl2)]['samples'] = np.sum((samples[bl1][:,ch1] * samples[bl2][:,ch2])[w])
-        self.nPairs = len(self.blChanPairs)
-        self.chans = sorted(np.unique(np.asarray([[ch1,ch2] for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()])))
+    def countBins(self):
+        """Counts baselines, channels, visibilities, and uBins for each time these things change."""
+        self.bls = list(set([bl for (bl,chan) in self.blChanPairs.keys()]))
+        self.chans = sorted(np.unique(np.asarray([chan for (bl,chan) in self.blChanPairs.keys()])))
         self.nChans = len(self.chans)
-        if verbose: print '    Removed ' + str(oldPairs - self.nPairs) + ' unobserved baselines-frequency pairs. ' + str(len(oldChans) - self.nChans) + ' channels flagged completely.'
-        self.visibilitiesAreCorrelated = True
+        self.chanIndices = {chan: i for i,chan in enumerate(self.chans)}
+        self.nVis = len(self.blChanPairs)
+        try: 
+            self.meanAbsVis = np.mean([np.abs(entry['vis']) for entry in self.blChanPairs.values()])
+            self.nCoarseBins = len(self.coarseus)
+            self.nFineBins = len(self.fineus)
+        except: pass
 
-    def applyChannelFlagCut(self, flaggedChannels):
-        for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys():
-            if ch1 in flaggedChannels or ch2 in flaggedChannels: 
-                del self.blChanPairs[(ch1,bl1,ch2,bl2)]
-                self.binningIsSetup = False
+    def setupBaselineChannelPairs(self, freqs, bls, chan2FreqDict, bl2SepDict, redundancyDict):
+        """Setup function. Takes a list frequencies (in GHz) and a dictionary that converts channel number to frequecy. 
+        Also takes a list of baselines, anda  way to convert them into numpy arrays in meters. Currently u is 1D and not 3D."""
+        self.freqs = freqs
+        self.chans = sorted(np.unique(np.asarray([chan for chan in chan2FreqDict.keys()])))
+        self.chan2FreqDict, self.bl2SepDict = chan2FreqDict, bl2SepDict
+        freqChanPairs = sorted([(chan2FreqDict[chan], chan) for chan in self.chans])
+        for f,chan in freqChanPairs:
+            for bl in bls: self.blChanPairs[(bl,chan)] = {'u': freqs[chan]*bl2SepDict[bl][0], 'bl': bl, 'chan': chan, 'freq': chan2FreqDict[chan]} #TODO: generalize to 3D
+        self.countBins()
+        self.redundancyDict = redundancyDict
+        if self.verbose: print "Examining " + str(self.nVis) + " visibilities from " + str(self.nChans) + " channels..."
 
-    def applyuCut(self, uMin=25, uMax=150):
-        for key,value in self.blChanPairs.items():
-            if np.linalg.norm(value['u']) < uMin or np.linalg.norm(value['u']) > uMax: 
-                del self.blChanPairs[key]
-                self.binningIsSetup = False
+    def loadData(self, data, t):
+        """Loads data from a data object created from one or more omnical .npzs. Takes t, the integration index into the data."""
+        self.t = t
+        for (bl,chan),entry in self.blChanPairs.items(): entry['vis'] = data[bl][t][chan]
 
-    def setupBinning(self, uBinSize = .72**-.5, duBinSize = 5.0/203):
-        """Given a size of each bin in u (in wavelengths) and each bin in Delta u (in wavelengths), this function initializes the proper """
-        self.nPairs = len(self.blChanPairs)
-        self.chans = sorted(np.unique(np.asarray([[ch1,ch2] for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()])))
-        self.nChans = len(self.chans)
-        #Determine binning: first assign integers to u and du
-        for key,value in self.blChanPairs.items():
-            self.blChanPairs[key]['uBin'] = tuple(np.floor(1.0*(value['u'])/uBinSize).astype(int).tolist())
-            self.blChanPairs[key]['duBin'] = np.floor(1.0*(value['du'])/duBinSize).astype(int)
-        #Now find and sort the unique values of those integers
-        self.uBins = sorted({value['uBin']: None for key,value in self.blChanPairs.items()}.keys(), key=lambda uBin: np.linalg.norm(np.asarray(uBin)))
-        self.duBins = sorted({value['duBin']: None for key,value in self.blChanPairs.items()}.keys())
-        #Now determine bin centers
-        self.uBinCenters = {uBin: [] for uBin in self.uBins}
-        self.duBinCenters = {duBin: [] for duBin in self.duBins}
-        for key,value in self.blChanPairs.items():
-            self.uBinCenters[value['uBin']].append(value['u'])
-            self.duBinCenters[value['duBin']].append(value['du'])
-        self.uBinCenters = [np.mean(np.asarray(self.uBinCenters[uBin]), axis = 0) for uBin in self.uBins]
-        self.nuBins = len(self.uBinCenters)
-        self.duBinCenters = [np.mean(self.duBinCenters[duBin]) for duBin in self.duBins]
-        self.nduBins = len(self.duBinCenters)
-        self.binningIsSetup = True
+    def flagChans(self, flaggedChans=[]):
+        """Flags channels (and removed corresponding visibilities from blChanPairs) if the data are all 0 or if the channel is passed as flagged."""
+        for chan in self.chans:
+            if np.all([self.blChanPairs[(bl,chan)]['vis'] == 0.0 for bl in self.bls]): 
+                for bl in self.bls: del self.blChanPairs[(bl,chan)]
+        for bl,chan in self.blChanPairs.keys(): 
+            if chan in flaggedChans: del self.blChanPairs[(bl,chan)]
+        self.countBins()
+        if self.verbose: print "    After flagging, " + str(self.nVis) + " visibilities from " + str(self.nChans) + " channels remain."
 
-    def normalize(self, betas, Sigmas, Ds):
-        """This function normalizes betas, Sigmas, and Ds so that: \n
-            - Mean abs value of Sigma = 1.0
-            - Sum of phases of beta = 0.0
-            - Mean abs value of Ds = 1.0 
-            - Sum of the phases of D = 0.0"""
-        SigmasMean = np.average(np.abs(Sigmas))
-        bandpassAngleMean = np.average(np.angle(betas))
-        DsMean = np.average(np.abs(Ds))
-        DsAngleMean = np.average(np.angle(Ds))
-        return betas * SigmasMean**.5 * DsMean**.5 * np.exp(-1.0j * bandpassAngleMean), Sigmas / SigmasMean * np.exp(1.0j * DsAngleMean), Ds / DsMean * np.exp(-1.0j * DsAngleMean)
+    def setupSkyFreqBasis(self, skyFreqOrder, skyFreqBasisFile):
+        """This sets up the basis functions for the frequency-dependence of the underlying FTed sky."""
+        self.skyFreqOrder = skyFreqOrder
+        if skyFreqBasisFile is not None: self.skyFreqBasis = np.load(skyFreqBasisFile)
+        else: self.skyFreqBasis = np.array([np.log(self.freqs/.145)**order for order in range(skyFreqOrder+1)]).T
+
+    def defineuSampling(self, desiredDeltau, uMin, uMax, beamFullRange):
+        """This function cuts visibilities with too small or large u, then figures out a list of bed-of-nails u modes that need to be estimated."""
+        
+        for (bl,chan),entry in self.blChanPairs.items():
+            if entry['u'] < uMin or entry['u'] > uMax: del self.blChanPairs[(bl,chan)]
+
+        #TODO: generalize to 2D arrays
+        self.fineDu = np.min(np.diff(sorted([self.bl2SepDict[bl][0] for bl in self.bls]))) * (self.freqs[1]-self.freqs[0])
+        self.coarseDu = np.floor(desiredDeltau / self.fineDu) * self.fineDu
+        self.padding = (np.floor(desiredDeltau / self.fineDu)-1)/2.0
+
+        self.beamFullRange = beamFullRange
+        self.beamCoarseBins = int(np.ceil(self.beamFullRange / self.coarseDu))
+        self.beamCoarseBins = self.beamCoarseBins + (self.beamCoarseBins+1)%2
+        self.beamFineBins = int((self.beamCoarseBins+1) * (2*self.padding + 1))
+
+        for entry in self.blChanPairs.values(): entry['u'] = int(np.round(entry['u'] / self.fineDu)) * self.fineDu
+        allus = [entry['u'] for entry in self.blChanPairs.values()]
+
+        coarseBuffer = (self.beamCoarseBins-1)/2 * self.coarseDu
+        self.coarseus = np.arange(np.min(allus) - coarseBuffer, np.max(allus) + coarseBuffer + 1e-10, self.coarseDu)
+        self.fineus = np.arange(self.coarseus[0] - np.floor(self.padding)*self.fineDu, self.coarseus[-1] + np.ceil(self.padding)*self.fineDu + 1e-10, self.fineDu) 
+        self.coarseDeltaus = np.arange(-(self.beamCoarseBins-1)/2*self.coarseDu, (self.beamCoarseBins)/2*self.coarseDu+1e-10, self.coarseDu)
+        self.fineDeltaus = np.arange(self.coarseDeltaus[0]-int(np.floor(self.padding))*self.fineDu, self.coarseDeltaus[-1]+int(np.ceil(self.padding))*self.fineDu+1e-10, self.fineDu)
+
+        #Make a dictionary that maps coarse u values to find indices. Also, each entry knows about the index into fineus and the nearest coarseus
+        self.coarseu2fineIndex = {coarseBin: int(i * (self.padding*2 + 1) + np.floor(self.padding)) for i, coarseBin in enumerate(self.coarseus)}
+        for entry in self.blChanPairs.values(): entry['fineuBin'] = int(np.round((entry['u'] - self.fineus[0])/self.fineDu))
+        for entry in self.blChanPairs.values(): entry['coarseuBin'] = int(np.round((entry['u'] - self.coarseus[0])/self.coarseDu))
+        self.countBins()
+        if self.verbose: 
+            print "    After cuts based on u, " + str(self.nVis) + " visibilities from " + str(self.nChans) + " channels remain."
+            print "    With " + str(self.coarseDu) + " wavelength spacing, there are " + str(self.nCoarseBins) + " coarse u bins."
+
+    def computeModel(self, blChanPair, factorFunctions, factorParams):
+        """This function evaluates the model, the product of the factorFunctions using the factorParams, evaluated for this bl-chan pair."""
+        model = 1.0 + 0.0j
+        for func,params in zip(factorFunctions, factorParams): model *= func(blChanPair, params)
+        return model
+
+    def computeModelsAndErrors(self, factorFunctions, factorParams):
+        """This function returns a list of all errors by evaluating the model for all blChanPairs in the .items() order.
+        The function also saves the model in each blChanPair as a ['model'] dictionary entry. """
+        errors = np.zeros(self.nVis, dtype=complex)
+        for n,entry in enumerate(self.blChanPairs.values()):
+            entry['model'] = self.computeModel(entry, factorFunctions, factorParams)
+            errors[n] = entry['vis'] - entry['model']
+        return errors
 
     def performLogcal(self):
-        """This function returns the logcal result beta, Sigma, and D in the order specified."""
-        if not self.binningIsSetup: raise RuntimeError('Binning not set up.')
-        if not self.visibilitiesAreCorrelated: raise RuntimeError('Visibility correlations not calculated.')
-        #Construct logcal matrices
+        """Performs logcal and returns normalized first guesses at beta and Sigma (but only to 0th order)."""
         chan2Col = {chan: col for col,chan in zip(range(0,self.nChans),self.chans)}
-        uBin2Col = {uBin: col for col,uBin in zip(range(self.nChans,self.nChans+self.nuBins),self.uBins)}
-        duBin2Col = {duBin: col for col,duBin in zip(range(self.nChans+self.nuBins,self.nChans+self.nuBins+self.nduBins),self.duBins)}
-        Acoeffs, Bcoeffs, rowIndices, colIndices = np.zeros(self.nPairs*4), np.zeros(self.nPairs*4), np.zeros(self.nPairs*4), np.zeros(self.nPairs*4)
-        for n,((ch1,bl1,ch2,bl2),entry) in enumerate(self.blChanPairs.items()):
-            rowIndices[4*n:4*n+4] = n
-            colIndices[4*n:4*n+4] = [chan2Col[ch1], chan2Col[ch2], uBin2Col[entry['uBin']], duBin2Col[entry['duBin']]]
-            Acoeffs[4*n:4*n+4] = [1.0, 1.0, 1.0, 1.0]
-            Bcoeffs[4*n:4*n+4] = [1.0, -1.0, 1.0, 1.0]
+        uBin2Col = {uBin: col for col,uBin in zip(range(self.nChans,self.nChans+self.nCoarseBins),range(self.nCoarseBins))}
+        Acoeffs, rowIndices, colIndices = [np.zeros(self.nVis*2) for i in range(3)] 
+        for n,((bl,chan), entry) in enumerate(self.blChanPairs.items()):
+                rowIndices[2*n:2*n+2] = n
+                colIndices[2*n:2*n+2] = [chan2Col[chan], uBin2Col[entry['coarseuBin']]]
+                Acoeffs[2*n:2*n+2] = [1.0, 1.0]
+        
+        self.logcalA = csr_matrix((Acoeffs,(rowIndices,colIndices)), shape=(self.nVis, self.nChans + self.nCoarseBins))
+        self.logcalAtA = self.logcalA.conjugate().transpose().dot(self.logcalA).toarray()
+        logcalZeroEVs = len(self.logcalAtA) - np.linalg.matrix_rank(self.logcalAtA)
+        if logcalZeroEVs > 1: print "    WARNING: Logcal's AtA has " + str(logcalZeroEVs) + " zero eigenvalues. It should have just 1."
 
-        self.logcalA, self.logcalB = [csr_matrix((coeffs,(rowIndices,colIndices))) for coeffs in (Acoeffs,Bcoeffs)]
-        self.logcalAtA, self.logcalBtB = [M.conjugate().transpose().dot(M).toarray() for M in (self.logcalA, self.logcalB)]
+        y = np.asarray([np.log(entry['vis']) for entry in self.blChanPairs.values()])
+        xhatReal, xhatImag = [np.linalg.pinv(self.logcalAtA).dot((self.logcalA.conjugate().T).dot(thisy)) for thisy in (np.real(y), np.imag(y))]
+        return self.initializeLogcalResults(np.exp(xhatReal + 1.0j*xhatImag))
 
-        logcalZeroEVs = [len(MtM) - np.linalg.matrix_rank(MtM) for MtM in (self.logcalAtA, self.logcalBtB)]
-        if not logcalZeroEVs == [2,2]: print "    WARNING: Logcal's AtA (real part) has " + str(logcalZeroEVs[0]) + " zero eigenvalues. Logcal's BtB (imag part) has " + str(logcalZeroEVs[0]) + " zero eigenvalues. They should both have 2 each."
-
-        #Perform logcal
-        y = np.asarray([np.log(value['visCorr']) for value in self.blChanPairs.values()])
-        xhatReal = np.linalg.pinv(self.logcalAtA).dot((self.logcalA.conjugate().T).dot(np.real(y)))
-        xhatImag = np.linalg.pinv(self.logcalBtB).dot((self.logcalB.conjugate().T).dot(np.imag(y)))
-        result = np.exp(xhatReal + 1.0j*xhatImag)
-        betas, Sigmas, Ds = self.normalize(result[0:self.nChans], result[self.nChans: self.nChans+self.nuBins], result[self.nChans+self.nuBins:self.nChans+self.nuBins+self.nduBins])
-        return betas, Sigmas, Ds
-
-    def generateNoiseCovariance(self, betas):
-        """Creates a noise covariance that is proportional to beta(ch1)**2 * beta(ch2)**2 / nSamples where
-        nSamples is nBaselines_1 * nBaselines_2 * nIntegrations. Overall scaling is arbitrary."""
-        betaAbsDict = {self.chans[n]: np.abs(betas[n]) for n in range(self.nChans)}
-        noiseCovDiag = np.asarray([(betaAbsDict[ch1]**2 * betaAbsDict[ch2]**2) / (1.0 * entry['samples']) for (ch1,bl1,ch2,bl2),entry in self.blChanPairs.items()])
-        noiseCovDiag = noiseCovDiag / np.median(noiseCovDiag) * 4e-10 #approximate renormalization
-        return noiseCovDiag
-
-    def modelNoiseVariance(self, betas, Sigmas, Ds, deltaBetas, deltaSigmas, deltaDs):
-        """This creates a noise model for each visibility correlation based off the observed variation between bootstraps."""
-        chanIndex = {self.chans[n]: n for n in range(self.nChans)}
-        uIndex = {self.uBins[n]: n for n in range(self.nuBins)}
-        duIndex = {self.duBins[n]: n for n in range(self.nduBins)}
-        noiseCovDiag = np.ones(self.nPairs)
-        for i,((ch1,bl1,ch2,bl2),entry) in enumerate(self.blChanPairs.items()):
-            noiseCovDiag[i] *= (np.abs(betas[chanIndex[ch1]])**2 + np.abs(deltaBetas[chanIndex[ch1]])**2)
-            noiseCovDiag[i] *= (np.abs(betas[chanIndex[ch2]])**2 + np.abs(deltaBetas[chanIndex[ch2]])**2)
-            noiseCovDiag[i] *= (np.abs(Sigmas[uIndex[entry['uBin']]])**2 + np.abs(deltaSigmas[uIndex[entry['uBin']]])**2)
-            noiseCovDiag[i] *= (np.abs(Ds[duIndex[entry['duBin']]])**2 + np.abs(deltaDs[duIndex[entry['duBin']]])**2)
-        for i,((ch1,bl1,ch2,bl2),entry) in enumerate(self.blChanPairs.items()):
-            noiseCovDiag[i] -= ( np.abs(betas[chanIndex[ch1]]) * np.abs(betas[chanIndex[ch2]]) * np.abs(Sigmas[uIndex[entry['uBin']]]) * np.abs(Ds[duIndex[entry['duBin']]]) )**2
-        noiseCovDiag = noiseCovDiag / np.median(noiseCovDiag) * 4e-10 #approximate renormalization
-        return noiseCovDiag
-
-    def uCalDicts(self, betas, Sigmas, Ds):
-        """This function turns beta, Sigma, and D into dictionaries indexed by their bin/channel number."""
-        betaDict = {self.chans[n]: betas[n] for n in range(self.nChans)}
-        SigmaDict = {self.uBins[n]: Sigmas[n] for n in range(self.nuBins)}
-        DDict = {self.duBins[n]: Ds[n] for n in range(self.nduBins)}
-        return betaDict, SigmaDict, DDict
-
-    def computeErrors(self, betas, Sigmas, Ds):
-        """This function computes the difference between the measurements and the predicted visibility correlations (in the standard order of self.blChanPairs.items())."""
-        betaDict, SigmaDict, DDict = self.uCalDicts(betas, Sigmas, Ds)
-        return np.asarray([entry['visCorr'] - betaDict[ch1]*np.conj(betaDict[ch2])*SigmaDict[entry['uBin']]*DDict[entry['duBin']] for (ch1,bl1,ch2,bl2),entry in self.blChanPairs.items()])
-
-    def performLincalIteration(self, betas, Sigmas, Ds, noiseCovDiag, alpha = .5):
-        """This function performs lincal. It takes:\n
-            - A starting guess for beta (use logcal to initialize this the first them, then perform iteratively)
-            - A starting guess for Sigma (to be improved iteratively)
-            - A starting guess for D (to be improved iteratively)
-            - A model for the noise covariance diagonal (in the standard order of self.blChanPairs.items())
-            - Optionally, alpha, an amount by which to update guesses, between 0 and 1.
-                -Lower alpha converges slower.
-                -Larger alpha is more likely to diverge."""
-        if not self.binningIsSetup: raise RuntimeError('Binning not set up.')
-        if not self.visibilitiesAreCorrelated: raise RuntimeError('Visibility correlations not calculated.')
+    def generalizedLincalIteration(self, factorFunctions, factorParams, noiseVariance, alpha=1.0):
+        """TODO: document this"""
         self.lincalIterations += 1
-        chan2Col = {chan: col for col,chan in zip(range(0, 2*self.nChans, 2), self.chans)}
-        uBin2Col = {uBin: col for col,uBin in zip(range(2*self.nChans, 2*self.nChans+2*self.nuBins, 2), self.uBins)}
-        duBin2Col = {duBin: col for col,duBin in zip(range(2*self.nChans+2*self.nuBins, 2*self.nChans+2*self.nuBins+2*self.nduBins, 2), self.duBins)}
-        betaDict, SigmaDict, DDict = self.uCalDicts(betas, Sigmas, Ds)
+        
+        #Convert parameters to column numbers:
+        nCols, toCols = 0, []
+        for params in factorParams: 
+            toCols.append({index:col for index,col in enumerate(range(nCols, nCols+len(params)))})
+            nCols += len(params)
 
-        coeffs, rowIndices, colIndices = np.zeros(self.nPairs*16), np.zeros(self.nPairs*16), np.zeros(self.nPairs*16)
-        for n,((ch1,bl1,ch2,bl2),entry) in enumerate(self.blChanPairs.items()):
-            bbstarSD = betaDict[ch1]*np.conj(betaDict[ch2])*SigmaDict[entry['uBin']]*DDict[entry['duBin']] #(beta)(beta^*)(Sigma)(D)
-            bbstarS = betaDict[ch1]*np.conj(betaDict[ch2])*SigmaDict[entry['uBin']] #(beta)(beta^*)(Sigma)
-            bbstarD = betaDict[ch1]*np.conj(betaDict[ch2])*DDict[entry['duBin']] #(beta)(beta^*)(D)
-            ch1Col, ch2Col, uCol, duCol = chan2Col[ch1], chan2Col[ch2], uBin2Col[entry['uBin']], duBin2Col[entry['duBin']]
-            rowIndices[16*n:18*n+6] = n #the first 8 terms are on this row
-            rowIndices[16*n+8:16*n+16] = n+self.nPairs #the next 8 terms are on the corresponding imaginary part row
-            for i,colIndex in enumerate([ch1Col,ch2Col,ch1Col+1,ch2Col+1,uCol,uCol+1,duCol,duCol+1,ch1Col,ch2Col,ch1Col+1,ch2Col+1,uCol,uCol+1,duCol,duCol+1]):
-                colIndices[16*n+i] = colIndex #these are eta1, eta2, phi1, phi2, sigma, psi, etc.
-            coeffList = [np.real(bbstarSD), np.real(bbstarSD), -np.imag(bbstarSD), np.imag(bbstarSD), np.real(bbstarD), -np.imag(bbstarD), np.real(bbstarS), -np.imag(bbstarS),
-                         np.imag(bbstarSD), np.imag(bbstarSD), np.real(bbstarSD), -np.real(bbstarSD), np.imag(bbstarD), np.real(bbstarD), np.imag(bbstarS), np.real(bbstarS)]
-            for i,coeff in enumerate(coeffList): 
-                coeffs[16*n+i] = coeff #these are the coefficients of those terms
+        #Calculate A matrix entries
+        coeffs, rowIndices, colIndices = [], [], []
+        for row, entry in enumerate(self.blChanPairs.values()):
+            model = self.computeModel(entry, factorFunctions, factorParams)
+            for func,params,toCol in zip(factorFunctions, factorParams,toCols):
+                derivatives, indices = func(entry, params, derivative=True) 
+                colIndices.append([toCol[index] for index in indices])
+                rowIndices.append([row] * len(indices))
+                coeffs.append(np.asarray(derivatives) * model / (func(entry, params)+1e-15))
+        rowIndices = np.fromiter(chain.from_iterable(rowIndices), dtype='int')
+        colIndices = np.fromiter(chain.from_iterable(colIndices), dtype='int')
+        coeffs = np.fromiter(chain.from_iterable(coeffs), dtype='complex128')
 
-        absSigmaCoeffs = alpha * np.asarray([(np.real(Sigma)/np.abs(Sigma),-np.imag(Sigma)/np.abs(Sigma)) for Sigma in Sigmas]).flatten() #try to set mean(abs(Sigma))) to 1
-        absDCoeffs = alpha * np.asarray([(np.real(D)/np.abs(D),-np.imag(D)/np.abs(D)) for D in Ds]).flatten() #try to set mean(abs(D))) to 1
-        phaseBetaCoeffs = alpha * np.asarray([(-np.imag(beta)/np.abs(beta), np.real(beta)/np.abs(beta)) for beta in betas]).flatten() #try to set mean(angle(beta))) to 1
-        phaseDCoeffs = alpha * np.asarray([(-np.imag(D)/np.abs(D)**2, np.real(D)/np.abs(D)**2) for D in Ds]).flatten() #try to set mean(angle(beta))) to 1
-        coeffs = np.append(coeffs, np.concatenate((absSigmaCoeffs, absDCoeffs, phaseBetaCoeffs, phaseDCoeffs)))
-        rowIndices = np.append(rowIndices, np.concatenate([(2*self.nPairs+i)*np.ones(length) for i,length in enumerate([2*self.nuBins, 2*self.nduBins, 2*self.nChans, 2*self.nduBins])]))
-        DColIndices = range(2*self.nChans+2*self.nuBins, 2*self.nChans+2*self.nuBins+2*self.nduBins)
-        colIndices = np.append(colIndices, np.concatenate((range(2*self.nChans, 2*self.nChans+2*self.nuBins), DColIndices, range(0, 2*self.nChans), DColIndices)))
-        self.A = csr_matrix((coeffs,(rowIndices,colIndices)))
-
-        self.Ninv = csr_matrix((np.append(np.append((noiseCovDiag)**-1,(noiseCovDiag)**-1), 5e7*np.min(noiseCovDiag**-1)*np.ones(4)), (np.arange(2*self.nPairs+4), np.arange(2*self.nPairs+4))))
-        self.AtNinvA = (self.A.conjugate().transpose().dot(self.Ninv)).dot(self.A).toarray()
-        if self.lincalIterations == 1: 
-            lincalZeroEVs = len(self.AtNinvA) - np.linalg.matrix_rank(self.AtNinvA)
-            if lincalZeroEVs > 0: print "    WARNING: Lincal's AtNinvA has " + str(lincalZeroEVs) + " zero eigenvalues."
-
-        deltas = self.computeErrors(betas, Sigmas, Ds)
-        constraints = [self.nuBins - np.sum(np.abs(Sigmas)), self.nduBins - np.sum(np.abs(Ds)), -np.sum(np.angle(betas)), -np.sum(np.angle(Ds))]
-        try:
-            xHat = np.linalg.pinv(self.AtNinvA).dot(self.A.T.conjugate().dot(self.Ninv.dot(np.concatenate((np.real(deltas),np.imag(deltas),constraints)))))
-        except:
-            xHat = np.linalg.pinv(self.AtNinvA+1e-16).dot(self.A.T.conjugate().dot(self.Ninv.dot(np.concatenate((np.real(deltas),np.imag(deltas),constraints)))))
-
-        newBetas = np.asarray([betaDict[chan]*(1+alpha*(xHat[chan2Col[chan]] + 1.0j*xHat[chan2Col[chan]+1])) for chan in self.chans])
-        newSigmas = np.asarray([SigmaDict[uBin] + alpha*(xHat[uBin2Col[uBin]] + 1.0j*xHat[uBin2Col[uBin]+1]) for uBin in self.uBins])
-        newDs = np.asarray([DDict[duBin] + alpha*(xHat[duBin2Col[duBin]] + 1.0j*xHat[duBin2Col[duBin]+1]) for duBin in self.duBins])
-        betas, Sigmas, Ds = newBetas, newSigmas, newDs #self.normalize(newBetas, newSigmas, newDs)
-
-        errors = self.computeErrors(betas, Sigmas, Ds)
-        noise = csr_matrix((np.append(noiseCovDiag**-1,noiseCovDiag**-1), (np.arange(2*self.nPairs), np.arange(2*self.nPairs))))
-        chiSqPerDoF = np.average(np.append(np.real(errors)**2, np.imag(errors)**2) * noise)
-        return betas, Sigmas, Ds, chiSqPerDoF
-
-
-    def renormalizeNoise(self, betas, Sigmas, Ds, noiseCovDiag):
-        """Returns a new noise covariance diagonal that has been renormalized such that the median observed error reflects the median noise covariance. """
-        errors = self.computeErrors(betas, Sigmas, Ds)
-        return noiseCovDiag * (np.median(np.real(errors)**2)+np.median(np.imag(errors)**2)) / (2*np.median(noiseCovDiag))
-
-    def identifyBadChannels(self, betas, Sigmas, Ds, noiseCovDiag, maxAvgError = 5, cutUpToThisFracOfMaxError = .5):
-        """Sorts the errors by channel and figures out which channels exceed the average error criterion."""
-        chanCompiledList = {chan: [] for chan in self.chans}
-        ch1List = [ch1 for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]
-        ch2List = [ch2 for (ch1,bl1,ch2,bl2) in self.blChanPairs.keys()]
-        errorList = self.computeErrors(betas, Sigmas, Ds)
-        for f1,f2,error,Nii in zip(ch1List,ch2List,errorList,noiseCovDiag):
-            chanCompiledList[f1].append(np.abs(error)**2/((2*Nii)))
-            chanCompiledList[f2].append(np.abs(error)**2/((2*Nii)))
-        self.chanAvgErrors = np.asarray([np.mean(np.asarray(chanCompiledList[chan]))**.5 for chan in self.chans])
-        return np.asarray(self.chans)[(self.chanAvgErrors > maxAvgError) * (self.chanAvgErrors > cutUpToThisFracOfMaxError * np.max(self.chanAvgErrors))]
-
-def save2npz(outfilename, dataFiles, allChans, unflaggedChans, bandpass, bandpassFit):
-    """Saves a .npz with the list of input data files, the complex bandpass result, and the bandpass fit evaluated on the channels."""
-    fullBandpass = np.zeros(len(allChans), dtype=complex)
-    fullBandpass[unflaggedChans] = bandpass
-    np.savez(outfilename, dataFiles=dataFiles, bandpass=fullBandpass, bandpassFit=bandpassFit)
+        #Generate A, AtNinvA
+        self.A = csr_matrix((coeffs,(rowIndices,colIndices)), shape=(self.nVis, nCols))
+        Ninv = csr_matrix(((noiseVariance)**-1, (np.arange(self.nVis), np.arange(self.nVis))))
+        self.AtNinvA = (self.A.conjugate().transpose().dot(Ninv)).dot(self.A).toarray()
+        #TODO: put back in missing eigenvalue warnings
+        if True:#self.evWarned or self.lincalIterations == 1:
+            zeroEVs = len(self.AtNinvA) - np.linalg.matrix_rank(self.AtNinvA + self.dampingFactor*np.diag(np.diag(self.AtNinvA)))
+            if zeroEVs > 1: 
+                self.evWarned = True
+                print "        WARNING: Lincals's AtNinvA has " + str(zeroEVs) + " zero eigenvalues. It should have just 1."
+                print "        CONDITION NUMBER: " + str(np.linalg.cond(self.AtNinvA + self.dampingFactor*np.diag(np.diag(self.AtNinvA))))
+        
 
 
 
+        errors = self.computeModelsAndErrors(factorFunctions, factorParams)
+        currentChiSqPerDoF = np.average(np.abs(errors)**2 / noiseVariance)
+        while True:
+
+            M = self.AtNinvA + self.dampingFactor*np.diag(np.diag(self.AtNinvA))
+            xHat = np.linalg.pinv(M).dot(self.A.T.conjugate().dot(Ninv.dot(errors)))
+            oldParams = copy.deepcopy(factorParams)
+            proposedStep = alpha * xHat
+            if self.previousStep is not None: 
+                stepCosine = np.real(np.dot(proposedStep, self.previousStep.conjugate()))
+                stepCosine /= np.linalg.norm(proposedStep) * np.linalg.norm(self.previousStep)
+                print 'stepCosine: ', stepCosine
+            else: stepCosine = 0.0
+
+            #update params and compute Chi^2
+            for params, toCol in zip(factorParams, toCols): 
+                for i in range(len(params)): params[i] = params[i] + alpha*xHat[toCol[i]]
+            if self.dampingFactor > 1e16: factorParams = oldParams #calls it quits 
+            self.renormalize(factorFunctions, factorParams, absMeanGoal = self.meanAbsVis)
+            chiSqPerDoF = np.average(np.abs(self.computeModelsAndErrors(factorFunctions, factorParams))**2 / noiseVariance)
+            if self.dampingFactor > 1e16: break
+
+            if chiSqPerDoF < currentChiSqPerDoF or (1-stepCosine)**2 * chiSqPerDoF <= currentChiSqPerDoF: #bold acceptance criterion
+                if self.dampingFactor > 1e-20: self.dampingFactor /= 5.0#2.0
+                self.previousStep = proposedStep
+                break
+            else: 
+                self.dampingFactor *= 2.0#1.5 #as suggested by http://arxiv.org/pdf/1201.5885v1.pdf
+                factorParams = oldParams
+                print self.dampingFactor, chiSqPerDoF, (1-stepCosine)**2 * chiSqPerDoF - currentChiSqPerDoF, stepCosine
+        
+        return factorParams, chiSqPerDoF
+
+
+    def renormalizeNoise(self, factorFunctions, factorParams, noiseVariance):
+        """Returns a new noise variance that has been renormalized such that the median observed error reflects the median noise covariance. """
+        errors = self.computeModelsAndErrors(factorFunctions, factorParams)
+        return noiseVariance * np.median(np.abs(errors)**2) / np.median(noiseVariance)
+
+    def SortedEigensystem(self, matrix):
+        """Returns the eigensystem of the input matrix where eigenvalues and eigenvectors are sorted by descending absolute value."""
+        evals,evecs = np.linalg.eig(matrix)
+        indices = np.argsort(np.abs(evals))[::-1]   
+        return evals[indices], evecs[:,indices]    
+
+
+    # def performLincalIteration(self, betas, Sigmas, noiseVariance, alpha=1.0):
+    #     """Performs lincal, using betas and Sigmas fromt the previous calculation. Now Sigmas is an array of size nuBins x (2*SigmaOrder+1).
+    #     Also takes in noise variance model and alpha, which slows down convergence to potentially avoid false minima. 
+    #     Returns updated and renormalized betas, Sigmas, and a chi^2 / DoF."""
+    #     self.lincalIterations += 1
+    #     chan2Col = {chan: col for col,chan in enumerate(self.chans)}
+    #     uBin2Cols = {uBin: range(self.nChans+binNum*(2*self.SigmaOrder+1), self.nChans+(binNum+1)*(2*self.SigmaOrder+1)) for binNum,uBin in enumerate(self.uBins)}
+    #     nTerms = 1+2*self.SigmaOrder+1
+    #     coeffs, rowIndices, colIndices = np.zeros(self.nVis*nTerms,dtype=complex), np.zeros(self.nVis*nTerms), np.zeros(self.nVis*nTerms)
+    #     for n,((bl,chan), entry) in enumerate(self.blChanPairs.items()):
+    #         uBin = entry['uBin']
+    #         rowIndices[nTerms*n:nTerms*(n+1)] = [n]*nTerms
+    #         colIndices[nTerms*n:nTerms*(n+1)] = [chan2Col[chan]] + uBin2Cols[uBin]
+    #         deltau = entry['u'] - self.uBinCenters[uBin]
+    #         firstTerm =  [betas[chan] * self.complexFourier(deltau, Sigmas[uBin])]
+    #         coeffs[nTerms*n:nTerms*(n+1)] = np.asarray(firstTerm + [betas[chan] * np.exp(1.0j*np.pi * m * deltau / self.uBinSize) for m in range(-self.SigmaOrder, self.SigmaOrder+1)])
+
+    #     self.A = csr_matrix((coeffs,(rowIndices,colIndices)))
+    #     Ninv = csr_matrix(((noiseVariance)**-1, (np.arange(self.nVis), np.arange(self.nVis))))
+    #     self.AtNinvA = (self.A.conjugate().transpose().dot(Ninv)).dot(self.A).toarray()
+    #     if self.evWarned or self.lincalIterations == 1:
+    #         self.evWarned = True
+    #         zeroEVs = len(self.AtNinvA) - np.linalg.matrix_rank(self.AtNinvA)
+    #         if zeroEVs > 1: print "        WARNING: Lincals's AtNinvA has " + str(zeroEVs) + " zero eigenvalues. It should have just 1."
+        
+    #     xHat = np.linalg.pinv(self.AtNinvA).dot(self.A.T.conjugate().dot(Ninv.dot(self.computeModelErrors(betas, Sigmas))))
+    #     newBetas = {chan: betas[chan]*(1+alpha*xHat[chan2Col[chan]]) for chan in self.chans}
+    #     newSigmas = {uBin: Sigmas[uBin] + alpha*np.asarray(xHat[uBin2Cols[uBin]]) for uBin in self.uBins}
+    #     betas, Sigmas = self.renormalize(newBetas, newSigmas, absMeanGoal=self.meanAbsVis)
+    #     chiSqPerDoF = np.average(np.abs(self.computeModelErrors(betas, Sigmas))**2 / noiseVariance) 
+    #     return betas, Sigmas, chiSqPerDoF
+
+
+
+
+
+#############################################
+#   I/O Functionality
+#############################################
+
+# def to_npz(resultsFile, dataFiles, allBandpasses, meanBandpass, stdBandpass, unflaggedChans, channelRMSs, overallChannelRMS, bandpassFit=None):
+#     """This function saves all useful results for plotting and later combining results from multiple files. Including:
+#         -- dataFiles: list of data files that went into this
+#         -- allBandpasses: numpy array of bandpasses for each time and frequency. Zeros where there are flags.
+#         -- meanBandpass: averaged bandpass over all times (flagged channels not in average)
+#         -- stdBandpass: averaged bandpass over all times (flagged channels not in std)
+#         -- unflaggedChans: list of list of channels that are not flagged for each time (from uCal.chans)
+#         -- channelRMSs: numpy array of data - model RMS for each channel and each time
+#         -- overallChannelRMS: RMSs combined over all times
+#         -- bandPassfit: lower order fit to the bandpass, evaluated at the channels. Optional. """
+#     np.savez(resultsFile, dataFiles=dataFiles, allBandpasses=allBandpasses, meanBandpass=meanBandpass, stdBandpass=stdBandpass, 
+#         unflaggedChans=unflaggedChans, channelRMSs=channelRMSs, overallChannelRMS=overallChannelRMS, bandpassFit=bandpassFit)
+#     print 'Now saving results to ' + resultsFile + '\n'
+
+# def from_npz(resultsFile):
+#     """Loads summary results. See definition of to_npz"""
+#     r = np.load(resultsFile)
+#     return r['dataFiles'], r['allBandpasses'], r['meanBandpass'], r['stdBandpass'], r['unflaggedChans'], r['channelRMSs'], r['overallChannelRMS'], r['bandpassFit']
+    
 

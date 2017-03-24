@@ -1,6 +1,6 @@
 import numpy as np, aipy, random, md5
 
-DELAY = False
+DELAY = False  #whether data is already in delay mode
 
 def hash(w):
     return md5.md5(w.copy(order='C')).digest()
@@ -16,18 +16,31 @@ def cov(d1, w1, d2=None, w2=None):
     x1,x2 = d1sum / np.where(d1wgt > 0,d1wgt,1), d2sum / np.where(d2wgt > 0,d2wgt,1)
     x1.shape = (-1,1)
     x2.shape = (-1,1)
-    d1x = d1 - x1
+    d1x = d1 - x1 #subtracting off weighted average
     d2x = d2 - x2
     C = np.dot(w1*d1x,(w2*d2x).T)
     W = np.dot(w1,w2.T)
     return C / np.where(W > 1, W-1, 1)
 
 def get_Q(mode, n_k, window='none'): #encodes the fourier transform from freq to delay
+    #if np.array(mode).size>1:
+    #    Q = np.zeros((np.array(mode).size, n_k, n_k))
+    #    for m in mode:
+    #        Q[m] = get_Q(m, n_k, window=window)
+    #    return Q
+    
     if not DELAY:
-        _m = np.zeros((n_k,), dtype=np.complex)
-        _m[mode] = 1. #delta function at specific delay mode
-        m = np.fft.fft(np.fft.ifftshift(_m)) * aipy.dsp.gen_window(n_k, window) #FFT it to go to freq
-        Q = np.einsum('i,j', m, m.conj()) #dot it with its conjugate
+        if np.array(mode).size>1:
+            mode = np.array(mode)
+            _m = np.zeros((mode.size, n_k), dtype=np.complex)
+            _m[mode,mode] = 1. #delta function at specific delay mode
+            m = np.fft.fft(np.fft.ifftshift(_m)) * aipy.dsp.gen_window(n_k, window)#.reshape((1,-1)) #FFT it to go to freq
+            Q = np.einsum('ij,ik->ijk', m, m.conj()) #dot it with its conjugate
+        else:
+            _m = np.zeros((n_k,), dtype=np.complex)
+            _m[mode] = 1. #delta function at specific delay mode
+            m = np.fft.fft(np.fft.ifftshift(_m)) * aipy.dsp.gen_window(n_k, window) #FFT it to go to freq
+            Q = np.einsum('i,j', m, m.conj()) #dot it with its conjugate
         return Q
     else:
         # XXX need to have this depend on window
@@ -133,7 +146,7 @@ class DataSet:
         if t is None: return self._C[k]
         # If t is provided, Calculate C for the provided time index, including flagging
         w = self.w[k][:,t:t+1]
-        if np.all(w<1.e-20): return self._C[k]
+        if np.all(w<1.e-8): return self._C[k]
         return self._C[k] * (w * w.T)       #!!!!!!!!!!!!!!!!!!!!!!!!
     def set_C(self, d):
         self.clear_cache(d.keys())
@@ -154,6 +167,8 @@ class DataSet:
             C = self.C(k)
             U,S,V = np.linalg.svd(C.conj()) # conj in advance of next step
             S += self.lmin # ensure invertibility
+            #S[-25:] = S[-25] #!!!!
+            #import IPython; IPython.embed()
             self.set_iC({k:np.einsum('ij,j,jk', V.T, 1./S, U.T)})
         if t is None: 
             #self._iCt[k] = self._iC[k]  #!!!!!!!!!!!!!!
@@ -247,6 +262,9 @@ class DataSet:
             if not cov_flagging:
                 iC1,iC2 = self.iC(k1), self.iC(k2)
                 iC1x, iC2x = np.dot(iC1, self.x[k1]), np.dot(iC2, self.x[k2])
+                iD1, P1 = np.linalg.eigh(iC1)
+                iD2, P2 = np.linalg.eigh(iC2)
+                #import IPython; IPython.embed()
             else:
                 iCx = {}
                 for k in (k1,k2):
@@ -255,6 +273,7 @@ class DataSet:
                     w = self.w[k]
                     ms = [hash(w[:,i]) for i in xrange(w.shape[1])]
                     for i,m in enumerate(ms): inds[m] = inds.get(m,[]) + [i]
+                    #this just sets 
                     iCxs = {}
                     for m in inds:
                         x = self.x[k][:,inds[m]]
@@ -263,6 +282,7 @@ class DataSet:
                         iCx[k][:,inds[m]] = np.dot(iC,x)
                         #iCx[k].put(inds[m], np.dot(iC,x), axis=1)
                 iC1x,iC2x = iCx[k1], iCx[k2]
+                #import IPython; IPython.embed()
         else:
             #iC1x, iC2x = self.x[k1].copy(), self.x[k2].copy()
             iC1x, iC2x = np.dot(self.I(k1), self.x[k1]), np.dot(self.I(k2), self.x[k2])
@@ -295,19 +315,26 @@ class DataSet:
                 for k1,m1,k2,m2 in F.keys():
                 #for m1 in self._iCt[k1]: # XXX not all m1/m2 pairs may exist in data
                 #    for m2 in self._iCt[k2]:
-                        F[(k1,m1,k2,m2)] = np.zeros((nchan,nchan), dtype=np.complex)
-                        iCQ1,iCQ2 = {}, {}
-                        for ch in xrange(nchan): # this loop is nchan^3
-                            Q = get_Q(ch,nchan)
-                            iCQ1[ch] = np.dot(self._iCt[k1][m1],Q) #C^-1 Q
-                            iCQ2[ch] = np.dot(self._iCt[k2][m2],Q) #C^-1 Q
-                        for i in xrange(nchan): # this loop goes as nchan^4
-                            for j in xrange(nchan):
-                                F[(k1,m1,k2,m2)][i,j] += np.einsum('ij,ji', iCQ1[i], iCQ2[j]) #C^-1 Q C^-1 Q 
-                        if np.isnan(F[(k1,m1,k2,m2)]).any():
-                            print 'nan detected in F'
-                            import IPython; IPython.embed()
-                            raise(ValueError)
+                    F[(k1,m1,k2,m2)] = np.zeros((nchan,nchan), dtype=np.complex)
+                    iCQ1, iCQ2 = {},{}
+                    for n in xrange(nchan):
+                        Q = get_Q(n,nchan)
+                        iCQ1[n] = np.einsum('ij,jk->ik',self._iCt[k1][m1],Q)
+                        iCQ2[n] = np.einsum('ij,jk->ik',self._iCt[k2][m2],Q)
+                    for i in xrange(nchan):
+                        for j in xrange(nchan):
+                            F[(k1,m1,k2,m2)][i,j] += np.einsum('ij,ji', iCQ1[i], iCQ2[j]) #C^-1 Q C^-1 Q 
+                    # F[(k1,m1,k2,m2)] = np.zeros((nchan,nchan), dtype=np.complex)
+                    # Q = get_Q(np.arange(nchan),nchan)
+                    # #print Q.shape, self._iCt[k1][m1].shape, self._iCt[k2][m2].shape
+                    # iCQ1 = np.einsum('ij,ljk->lik',self._iCt[k1][m1],Q)
+                    # iCQ2 = np.einsum('ij,ljk->lik',self._iCt[k2][m2],Q)
+
+                    # F[(k1,m1,k2,m2)] += np.einsum('kij,lji->kl', iCQ1, iCQ2) #C^-1 Q C^-1 Q 
+                    if np.isnan(F[(k1,m1,k2,m2)]).any():
+                        print 'nan detected in F'
+                        import IPython; IPython.embed()
+                        raise(ValueError)
                 return F
         else:
             #iC1 = np.linalg.inv(self.C(k1) * np.identity(nchan))

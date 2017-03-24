@@ -1,4 +1,3 @@
-#! /usr/bin/env python
 '''
 Implements a Fringe Rate Filter useing and FIR filter.
 '''
