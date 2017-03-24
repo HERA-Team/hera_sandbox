@@ -49,7 +49,7 @@ for pp,p in enumerate(pols):
             print 'Reading', opts.fc2
             _,_g0,_,_ = capo.omni.from_npz(opts.fc2)
             for i in _g0[p[0]].keys():
-                print i
+                #print i
                 g0[p[0]][i] = _g0[p[0]][i][:,:] / numpy.abs(_g0[p[0]][i][:,:])
         else:
             raise IOError("Please provide a first cal file") 
@@ -77,7 +77,6 @@ else: #generate reds from calfile
     else: ex_ants = []
     info = capo.omni.aa_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, crosspols=pols)
 reds = info.get_reds()
-#import IPython;IPython.embed()
 
 ### Omnical-ing! Loop Through Compressed Files ###
 for f,filename in enumerate(args):

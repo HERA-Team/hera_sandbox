@@ -31,8 +31,12 @@ def mfunc(uv,p,d,f):
     else: newpol2 = pol[1]
     newpol = newpol1+newpol2
     index = numpy.where(t[newpol]['times'] == p[1])[0][0] #times must match exactly
-    d = data[newpol][p[2]][newpol][index] #collect information from correct pol file
-    f = flags[newpol][p[2]][newpol][index]
+    try:
+        d = data[newpol][p[2]][newpol][index] #collect information from correct pol file
+        f = flags[newpol][p[2]][newpol][index]
+    except: #if baseline doesn't exist for some reason  
+        missing_bls.append(p[2])
+        return p,None,None
     return p,d,f
 
 pols = ['xx','xy','yx','yy']
@@ -50,9 +54,10 @@ for filename in args:
     check = [numpy.all(t['xx']['times'] == t['xy']['times']),numpy.all(t['xx']['times'] == t['yx']['times']),numpy.all(t['xx']['times'] == t['yy']['times'])]
     if not numpy.all(check):
         print 'missing integrations'
-        continue #some files do not have all times - incomple restore?
+        continue #some files do not have all times - incomplete restore?
     
     for pol in files: #loop through 4 pols
+        missing_bls = []
         uvi = aipy.miriad.UV(files[pol])
         print files[pol], '->', files[pol]+'c'
         if os.path.exists(files[pol]+'c'):
@@ -61,3 +66,5 @@ for filename in args:
         uvo = aipy.miriad.UV(files[pol]+'c',status='new')
         uvo.init_from_uv(uvi)
         uvo.pipe(uvi,raw=True,mfunc=mfunc,append2hist='CORRECT_PSA128_POLS:'+' '.join(sys.argv)+'\n')
+        index = len(missing_bls) / len(t[pol]['lsts'])
+        uvo['history'] += ' Missing bls: ' + str(missing_bls[:index])

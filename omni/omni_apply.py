@@ -14,8 +14,11 @@ o.add_option('--omnipath',dest='omnipath',default='%s.npz',type='string',
             help='Format string (e.g. "path/%s.npz", where you actually type the "%s") which converts the input file name to the omnical npz path/file.')
 o.add_option('--firstcal', action='store_true', 
             help='Applying firstcal solutions.')
+o.add_option('--ubls', default=[],
+            help='List of unique baselines to include in *O file, separated by semi-colons (ex: "0,2;0,1"). The default will include all baselines.')
+o.add_option('--ba',dest='ba',default=None,
+            help='Antennas to exclude, separated by commas.')
 opts,args = o.parse_args(sys.argv[1:])
-
 
 #File Dictionary
 pols = opts.pol.split(',')
@@ -26,6 +29,13 @@ for filename in args:
         fn = filename.split('.')
         fn[3] = p
         files[filename][p] = '.'.join(fn)
+
+#List of UBLS and ANTS
+aa = aipy.cal.get_aa('psa6622_v003',numpy.array([.15])) #XXX PSA128
+_,_,bl2sep = capo.zsa.grid2ij(aa.ant_layout)
+if opts.ubls != []:
+    keep = opts.ubls.split(';')
+else: keep = []
 
 ### Read Data and Solutions ###
 for f,filename in enumerate(args):
@@ -41,7 +51,7 @@ for f,filename in enumerate(args):
         if opts.firstcal:
             newfile = files[filename][p].split('/')[-1]+'F' #saves in cwd. Firstcal ext.
         else:
-            newfile = files[filename][p].split('/')[-1]+'O' #saves in cwd
+            newfile = '/'.join(omnifile.split('/')[:-1])+'/'+files[filename][p].split('/')[-1]+'O' #saves wherever the omnifile is
         if os.path.exists(newfile):
             print '    %s exists.  Skipping...' % newfile
             continue
@@ -51,6 +61,12 @@ for f,filename in enumerate(args):
             global times #global list
             _,t,(a1,a2) = p
             p1,p2 = pol = aipy.miriad.pol2str[uv['pol']]
+            if a1==a2: return p,None,None #skip autos
+            try: trysep = bl2sep[aipy.miriad.ij2bl(a1,a2)]
+            except: return p,None,None #outriggers
+            if trysep not in keep and keep != []: return p,None,None #skip some baselines if specified
+            if opts.ba != None:
+                if a1 in map(int,opts.ba.split(',')) or a2 in map(int,opts.ba.split(',')): return p,None,None #skip some antennas if specified
             if len(times) == 0 or times[-1] != t: times.append(t) #fill times list
             if opts.xtalk: #subtract xtalk
                 try:

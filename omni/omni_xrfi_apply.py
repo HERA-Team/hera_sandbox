@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import aipy as a, capo, sys, optparse, numpy as np
+import os
 
 o = optparse.OptionParser()
 o.add_option('--to_npz', action='store_true',
@@ -19,6 +20,10 @@ opts,args = o.parse_args(sys.argv[1:])
 #File Dictionary 
 flags = {}
 for f,filename in enumerate(args):
+    newfile = filename+'R'
+    if os.path.exists(newfile): 
+        print newfile, 'exists, skipping...'
+        continue
     omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:4])
     print '    Omnical npz:', omnifile
     m,_,_,_ = capo.omni.from_npz(omnifile)
@@ -40,7 +45,6 @@ for f,filename in enumerate(args):
         return p, np.where(np.logical_or(f,flags[t]),0,d), np.logical_or(f,flags[t])
     
     uvi = a.miriad.UV(filename)
-    newfile = filename+'R'
     uvo = a.miriad.UV(newfile, status='new')
     uvo.init_from_uv(uvi)
     print '    Saving', newfile

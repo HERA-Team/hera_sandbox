@@ -144,6 +144,7 @@ class LinearSolver:
         self.data = data
         for k in wgts: assert(np.iscomplexobj(wgts[k]) == False) # tricky errors happen if wgts are complex
         self.wgts = wgts
+        for k in wgts: assert(np.iscomplexobj(wgts[k]) == False) # tricky errors happen if wgts are complex
         self.keys = data.keys()
         self.eqs = [LinearEquation(k,wgts=self.wgts.get(k,1.), **kwargs) for k in self.keys]
         # XXX add ability to have more than one measurment for a key=equation
