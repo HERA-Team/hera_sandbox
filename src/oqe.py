@@ -35,7 +35,36 @@ def get_Q(mode, n_k, window='none'): #encodes the fourier transform from freq to
         Q[mode,mode] = 1
         return Q
 
-def lst_align(lsts, lstres=.001):    
+def lst_grid(lsts, data, wgts=None, lstbins=6300, wgtfunc=lambda dt,res: np.exp(-dt**2/(2*res**2))):
+    lstgrid = np.linspace(0, 2*np.pi, lstbins)
+    lstres = lstgrid[1]-lstgrid[0]
+    if wgts is None: wgts = np.where(np.abs(data) == 0, 0, 1.)
+    sumgrid,wgtgrid = 0, 0
+    for lst,d,w in zip(lsts,data,wgts):
+        dt = lstgrid - lst
+        wf = wgtfunc(dt,lstres); wf.shape = (-1,) + (1,)*(data.ndim-1)
+        d.shape, w.shape = (1,-1), (1,-1)
+        wgtgrid += w * wf
+        sumgrid += d * w * wf 
+    datgrid = np.where(wgtgrid > 1e-10, sumgrid/wgtgrid, 0)
+    return lstgrid, datgrid, wgtgrid
+
+def lst_grid_cheap(lsts, data, wgts=None, lstbins=6300, wgtfunc=lambda dt,res: np.exp(-dt**2/(2*res**2))):
+    lstgrid = np.linspace(0, 2*np.pi, lstbins)
+    lstres = lstgrid[1]-lstgrid[0]
+    if wgts is None: wgts = np.where(np.abs(data) == 0, 0, 1.)
+    sumgrid = np.zeros((lstbins,)+data.shape[1:], dtype=data.dtype)
+    wgtgrid = np.zeros(sumgrid.shape, dtype=wgts.dtype)
+    for lst,d,w in zip(lsts,data,wgts):
+        i,j = int(np.floor(lst/lstres)), int(np.ceil(lst/lstres))
+        wi,wj = wgtfunc(lst-lstgrid[i],lstres), wgtfunc(lst-lstgrid[j],lstres)
+        sumgrid[i] += d * w * wi; wgtgrid[i] += w * wi
+        sumgrid[j] += d * w * wj; wgtgrid[j] += w * wj
+    datgrid = np.where(wgtgrid > 1e-10, sumgrid/wgtgrid, 0)
+    return lstgrid, datgrid, wgtgrid
+
+def lst_align(lsts, lstres=.001, interpolation='none'):
+    lstgrid = np.arange(0, 2*np.pi, lstres)
     lstr, order = {}, {}
     for k in lsts: #orders LSTs to find overlap
         order[k] = np.argsort(lsts[k])
@@ -58,6 +87,29 @@ def lst_align_data(inds, dsets, wgts=None, lsts=None):
     if not lsts is None:
         for k0 in lsts: lsts[k0] = lsts[k0][inds[k0]]
     return [d for d in [dsets,wgts,lsts] if not d is None]
+
+def boot_waterfall(p, axis=1, nsamples=None, nboots=1000, usemedian=True, verbose=False):
+    boots = []
+    dim = p.shape[axis]
+    if nsamples is None: nsamples = dim
+    for i in xrange(nboots):
+        if verbose and i % 10 == 0: print '    ', i, '/', nboots
+        inds = np.random.randint(0,dim,size=nsamples)
+        if usemedian: pi = np.median(p.take(inds,axis=axis), axis=1)
+        else: pi = np.average(p.take(inds,axis=axis), axis=1)
+        boots.append(pi)
+    # XXX deal with folding
+    boots = np.array(boots)
+    if verbose: print 'Sorting bootstraps...'
+    pk = np.average(boots, axis=0) #average over all boots
+    #this is excluding imag component in noise estimate `
+    boots = np.sort(boots.real, axis=0) #dropping imag component here
+    up_thresh = int(np.around(0.975 * boots.shape[0])) #2 sigma, single tail
+    dn_thresh = int(np.around(0.025 * boots.shape[0])) #2 sigma, single tail
+    #important to only include real component in estimation of error
+    err_up = (boots[up_thresh] - pk.real) / 2 #effective "1 sigma" derived from actual 2 sigma
+    err_dn = -(boots[dn_thresh] - pk.real) / 2 #effective "1 sigma" derived from actual 2 sigma
+    return pk, (err_up,err_dn), boots
 
 class DataSet:
     def __init__(self, dsets=None, wgts=None, lsts=None, conj=None, npzfile=None, lmin=None, lmode=None):
@@ -144,6 +196,7 @@ class DataSet:
             self.set_iC({k:np.einsum('ij,j,jk', V.T, 1./S, U.T)})
         if t is None: return self._iC[k]
         # If t is provided, Calculate iC for the provided time index, including flagging
+        # XXX this does not respect manual setting of iC with ds.set_iC
         w = self.w[k][:,t:t+1]
         m = hash(w)
         if not self._iCt.has_key(k): self._iCt[k] = {}
@@ -222,12 +275,22 @@ class DataSet:
         if use_cov: return newkeys, dsC
         else: return newkeys, dsI
     def q_hat(self, k1, k2, use_cov=True, use_fft=True, cov_flagging=True):
-        nchan = self.x[k1].shape[0]
+        try:
+            if self.x.has_key(k1): k1 = [k1]
+        except(TypeError): pass
+        try:
+            if self.x.has_key(k2): k2 = [k2]
+        except(TypeError): pass
+        nchan = self.x[k1[0]].shape[0]
         if use_cov:
             if not cov_flagging:
-                iC1,iC2 = self.iC(k1), self.iC(k2)
-                iC1x, iC2x = np.dot(iC1, self.x[k1]), np.dot(iC2, self.x[k2])
+                #iC1,iC2 = self.iC(k1), self.iC(k2)
+                #iC1x, iC2x = np.dot(iC1, self.x[k1]), np.dot(iC2, self.x[k2])
+                iC1x, iC2x = 0, 0
+                for k1i in k1: iC1x += np.dot(self.iC(k1i), self.x[k1i])
+                for k2i in k2: iC2x += np.dot(self.iC(k2i), self.x[k2i])
             else:
+                # XXX make this work with k1,k2 being lists
                 iCx = {}
                 for k in (k1,k2):
                     iCx[k] = np.empty_like(self.x[k])
@@ -244,13 +307,18 @@ class DataSet:
                         #iCx[k].put(inds[m], np.dot(iC,x), axis=1)
                 iC1x,iC2x = iCx[k1], iCx[k2]
         else:
+            # XXX make this work with k1,k2 being lists
             #iC1x, iC2x = self.x[k1].copy(), self.x[k2].copy()
-            iC1x, iC2x = np.dot(self.I(k1), self.x[k1]), np.dot(self.I(k2), self.x[k2])
+            iC1x, iC2x = 0, 0
+            for k1i in k1: iC1x += np.dot(self.I(k1i), self.x[k1i])
+            for k2i in k2: iC2x += np.dot(self.I(k2i), self.x[k2i])
+            #iC1x, iC2x = np.dot(self.I(k1), self.x[k1]), np.dot(self.I(k2), self.x[k2])
         if use_fft:
             #iC1x, iC2x = np.dot(iC1, self.x[k1]), np.dot(iC2, self.x[k2])
             _iC1x, _iC2x = np.fft.fft(iC1x.conj(), axis=0), np.fft.fft(iC2x.conj(), axis=0)
             return np.conj(np.fft.fftshift(_iC1x,axes=0).conj() * np.fft.fftshift(_iC2x,axes=0)) # added conj around the whole thing because it was inconsistent with pspec_cov_v003 by a conjugation
         else: # slow, used to explicitly cross-check fft code
+            # XXX make this work with k1,k2 being lists
             q = []
             for i in xrange(nchan):
                 Q = get_Q(i,nchan)
@@ -259,13 +327,23 @@ class DataSet:
                 q.append(qi)
             return np.array(q)
     def get_F(self, k1, k2, use_cov=True, cov_flagging=True):
-        nchan = self.x[k1].shape[0]
+        try:
+            if self.x.has_key(k1): k1 = [k1]
+        except(TypeError): pass
+        try:
+            if self.x.has_key(k2): k2 = [k2]
+        except(TypeError): pass
+        nchan = self.x[k1[0]].shape[0]
         if use_cov:
             if not cov_flagging:
                 F = np.zeros((nchan,nchan), dtype=np.complex)
-                iC1,iC2 = self.iC(k1), self.iC(k2)
-                Ctrue1, Ctrue2 = self.Ctrue(k1), self.Ctrue(k2)
+                #iC1,iC2 = self.iC(k1), self.iC(k2)
+                iC1, iC2 = 0, 0
+                for k1i in k1: iC1 += self.iC(k1i)
+                for k2i in k2: iC2 += self.iC(k2i)
+                if False: Ctrue1, Ctrue2 = self.Ctrue(k1), self.Ctrue(k2)
             else:
+                # XXX make this work with k1,k2 being lists
                 # This is for the "effective" matrix s.t. W=MF and p=Mq
                 F = {}
                 w1,w2 = self.w[k1], self.w[k2]
@@ -286,10 +364,13 @@ class DataSet:
                                 F[(k1,m1,k2,m2)][i,j] += np.einsum('ij,ji', iCQ1[i], iCQ2[j]) #C^-1 Q C^-1 Q 
                 return F
         else:
+            # XXX make this work with k1,k2 being lists
             #iC1 = np.linalg.inv(self.C(k1) * np.identity(nchan))
             #iC2 = np.linalg.inv(self.C(k2) * np.identity(nchan))
-            iC1, iC2 = self.I(k1), self.I(k2)
-            Ctrue1, Ctrue2 = self.I(k1), self.I(k2) # do this to get the effective F (see below)
+            iC1, iC2 = 0, 0
+            for k1i in k1: iC1 += self.I(k1i)
+            for k2i in k2: iC2 += self.I(k2i)
+            if False: Ctrue1, Ctrue2 = self.I(k1), self.I(k2) # do this to get the effective F (see below)
             F = np.zeros((nchan,nchan), dtype=np.complex)
         #Ctrue1, Ctrue2 = self.Ctrue(k1), self.Ctrue(k2)
         if False: # This is for the "true" Fisher matrix
