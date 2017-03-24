@@ -44,6 +44,7 @@ print 'Number of redundant baselines:',len(reds)
 #Read in data here.
 ant_string =','.join(map(str,info.subsetant))
 bl_string = ','.join(['_'.join(map(str,k)) for k in reds])
+
 times, data, flags = arp.get_dict_of_uv_data(args, bl_string, opts.pol, verbose=True)
 datapack,wgtpack = {},{}
 for (i,j) in data.keys():

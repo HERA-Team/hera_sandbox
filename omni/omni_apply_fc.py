@@ -39,7 +39,6 @@ for f,filename in enumerate(args):
         else: npzb=4
         omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:npzb])
         print ' firstcal npz:', omnifile
-        exit()
         _,gains,_,_ = capo.omni.from_npz(omnifile) #loads the firstcal file gains
         for p in pols:
             print 'Reading', files[filename][p]
