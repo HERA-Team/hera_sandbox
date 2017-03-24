@@ -12,4 +12,12 @@ kmk/data
 kmk/calfiles
 jsd/uCal/Data
 jsd/uCal/Old
+jsd/uCal/VisibilitySimulator/GSMComponents
+jsd/uCal/VisibilitySimulator/SimulatedVisibilities
+jsd/scripts/HexArray/Figures
+*DS_Store
+*.pdf
 .ipynb_checkpoints
+*.uvc*
+.DS_Store
+*.npz
