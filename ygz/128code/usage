@@ -1,0 +1,2 @@
+pspec_cov_v004.py -C psa6622_v003 -b 20 -a cross -c 110_130 -p I --window=none `lst_select.py -C psa6622_v003 --ra=4_10 ~/Projects/21cm/Data/128_omni_abs_lstbin/{even,odd}/{even,odd}/*I.uvGA`
+pspec_cov_boot_v002.py pspec_boot*npz

@@ -43,17 +43,23 @@ o.add_option('--sdf', dest='sdf', default=0.1/203, type='float',
              help='Channel spacing (GHz).  Default is .1/203')
 opts, args = o.parse_args(sys.argv[1:])
 
-i,j = map(int,opts.ant.split('_'))
+bls = opts.ant.split(',')
 times = map(float,args) #converts args to floats
 
-assert(not os.path.exists(opts.filename)) #checks if UV file exists already
+namexx = '.'.join(opts.filename.split('.')[:-1])+'.xx.uv'
+nameyy = '.'.join(opts.filename.split('.')[:-1])+'.yy.uv'
+
+if os.path.exists(namexx) or os.path.exists(nameyy):
+    if os.path.exists(namexx):
+        print '   %s exists. Skipping...' % namexx
+    if os.path.exists(nameyy):
+        print '   %s exists. Skipping...' % nameyy
+    exit()
 
 print 'getting antenna array...'
 
 aa = aipy.cal.get_aa(opts.cal, opts.sdf, opts.sfreq, opts.nchan)
 freqs = aa.get_afreqs()
-bl = aa.get_baseline(i,j) #[ns]
-blx,bly,blz = bl[0],bl[1],bl[2]
 
 #get topocentric coordinates and calculate beam response
 
@@ -71,116 +77,172 @@ g3 = numpy.asarray(crd) #map is in galactic coordinates
 print 'getting maps and calculating fringes...'
 
 shape = (len(times),len(freqs))
-flags = numpy.zeros(shape, dtype=numpy.int32)
-uvgridxx = numpy.zeros(shape, dtype=numpy.complex64)
-uvgridyy = numpy.zeros(shape, dtype=numpy.complex64)
+flags = {}
+uvgridxx = {}
+uvgridyy = {}
+bls_pos = []
 
-for jj, f in enumerate(freqs):
-    img = aipy.map.Map(fromfits = opts.mappath+opts.map + '1' + str(jj+1).zfill(3) + '.fits', interp=True)
-    #img = aipy.map.Map(fromfits = opts.mappath+opts.map + '1001.fits', interp=True) #reading same map over and over again
-    fng = numpy.exp(-2j*numpy.pi*(blx*tx+bly*ty+blz*tz)*f) #fringe pattern
-    aa.select_chans([jj]) #selects specific frequency
-    bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')[0]**2
-    bmyy = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='y')[0]**2
-    sum_bmxx = numpy.sum(bmxx)
-    sum_bmyy = numpy.sum(bmyy)
-    fngxx = fng*bmxx/sum_bmxx #factor used later in visibility calculation
-    fngyy = fng*bmyy/sum_bmyy
-    fluxes = img[px] #fluxes preserved in galactic grid
+for bb,baseline in enumerate(bls):
+    print 'Baseline %d/%d' % (bb+1, len(bls))
+    i,j = map(int,baseline.split('_'))
+    bl = aa.get_baseline(i,j) #[ns]
+    bls_pos.append(bl)
+    blx,bly,blz = bl[0],bl[1],bl[2]
+    flags[(i,j)] = numpy.zeros(shape, dtype=numpy.int32)
+    uvgridxx[(i,j)] = numpy.zeros(shape, dtype=numpy.complex64)
+    uvgridyy[(i,j)] = numpy.zeros(shape, dtype=numpy.complex64)
 
-    print 'Frequency %d/%d' % (jj+1, len(freqs)) 
+    for jj, f in enumerate(freqs):
+        print '   Frequency %d/%d' % (jj+1, len(freqs))
+        img = aipy.map.Map(fromfits = opts.mappath+opts.map + '1' + str(jj+1).zfill(3) + '.fits', interp=True)
+        #img = aipy.map.Map(fromfits = opts.mappath+opts.map + '1001.fits', interp=True) #reading same map over and over again
+        fng = numpy.exp(-2j*numpy.pi*(blx*tx+bly*ty+blz*tz)*f) #fringe pattern
+        aa.select_chans([jj]) #selects specific frequency
+        bmxx = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='x')[0]**2
+        bmyy = aa[0].bm_response((t3[0],t3[1],t3[2]), pol='y')[0]**2
+        sum_bmxx = numpy.sum(bmxx)
+        sum_bmyy = numpy.sum(bmyy)
+        fngxx = fng*bmxx/sum_bmxx #factor used later in visibility calculation
+        fngyy = fng*bmyy/sum_bmyy
+        fluxes = img[px] #fluxes preserved in galactic grid
 
-    for ii, t in enumerate(times):
+        for ii, t in enumerate(times):
 
-        print '   Timestep %d/%d' % (ii+1, len(times))
-        aa.set_jultime(t)
+            print '      Timestep %d/%d' % (ii+1, len(times))
+            aa.set_jultime(t)
 
-        ga2eq = aipy.coord.convert_m('eq','ga',iepoch=e.J2000,oepoch=aa.epoch) #conversion matrix
-        eq2top = aipy.coord.eq2top_m(-aa.sidereal_time(),aa.lat) #conversion matrix
-        ga2eq2top = numpy.dot(eq2top,ga2eq)
-        t3rot = numpy.dot(ga2eq2top,g3) #topocentric coordinates
-        txrot = numpy.ma.compressed(numpy.ma.masked_where(t3rot[2]<0,t3rot[0]))
-        tyrot = numpy.ma.compressed(numpy.ma.masked_where(t3rot[2]<0,t3rot[1]))
-        tzrot = numpy.ma.compressed(numpy.ma.masked_where(t3rot[2]<0,t3rot[2])) #mask coordinates below horizon
-        fluxes2 = numpy.ma.compressed(numpy.ma.masked_where(t3rot[2]<0,fluxes)) #mask data below horizon
+            ga2eq = aipy.coord.convert_m('eq','ga',iepoch=e.J2000,oepoch=aa.epoch) #conversion matrix
+            eq2top = aipy.coord.eq2top_m(-aa.sidereal_time(),aa.lat) #conversion matrix
+            ga2eq2top = numpy.dot(eq2top,ga2eq)
+            t3rot = numpy.dot(ga2eq2top,g3) #topocentric coordinates
+            txrot = numpy.ma.compressed(numpy.ma.masked_where(t3rot[2]<0,t3rot[0]))
+            tyrot = numpy.ma.compressed(numpy.ma.masked_where(t3rot[2]<0,t3rot[1]))
+            tzrot = numpy.ma.compressed(numpy.ma.masked_where(t3rot[2]<0,t3rot[2])) #mask coordinates below horizon
+            fluxes2 = numpy.ma.compressed(numpy.ma.masked_where(t3rot[2]<0,fluxes)) #mask data below horizon
 
-        pxrot, wgts = img.crd2px(txrot,tyrot,tzrot, interpolate=1) 
+            pxrot, wgts = img.crd2px(txrot,tyrot,tzrot, interpolate=1) 
 
-        efngxx = numpy.sum(fngxx[pxrot]*wgts, axis=1)
-        efngyy = numpy.sum(fngyy[pxrot]*wgts, axis=1)
-        
-        visxx = numpy.sum(fluxes2*efngxx)
-        visyy = numpy.sum(fluxes2*efngyy)
+            efngxx = numpy.sum(fngxx[pxrot]*wgts, axis=1)
+            efngyy = numpy.sum(fngyy[pxrot]*wgts, axis=1)
+            
+            visxx = numpy.sum(fluxes2*efngxx)
+            visyy = numpy.sum(fluxes2*efngyy)
 
-        uvgridxx[ii,jj] = visxx
-        uvgridyy[ii,jj] = visyy
+            uvgridxx[(i,j)][ii,jj] = visxx
+            uvgridyy[(i,j)][ii,jj] = visyy
 
-    print ("%.8f" % f) + ' GHz done'
+        print ("      %.8f" % f) + ' GHz done'
 
 #miriad uv file set-up
 
 print 'setting up miriad UV file...'
 
-uv = aipy.miriad.UV(opts.filename, status='new')
-uv._wrhd('obstype','mixed-auto-cross')
-uv._wrhd('history','MDLVIS: created file.\nMDLVIS: ' + ' '.join(sys.argv) + '\n')
+uvxx = aipy.miriad.UV(namexx, status='new')
+uvxx._wrhd('obstype','mixed-auto-cross')
+uvxx._wrhd('history','MDLVIS: created file.\nMDLVIS: ' + ' '.join(sys.argv) + '\n')
 
-uv.add_var('telescop' ,'a'); uv['telescop'] = 'AIPY'
-uv.add_var('operator' ,'a'); uv['operator'] = 'AIPY'
-uv.add_var('version' ,'a'); uv['version'] = '0.0.1'
-uv.add_var('epoch' ,'r'); uv['epoch'] = 2000.
-uv.add_var('source'  ,'a'); uv['source'] = 'zenith'
-uv.add_var('nchan' ,'i'); uv['nchan'] = opts.nchan
-uv.add_var('sdf' ,'d'); uv['sdf'] = opts.sdf
-uv.add_var('sfreq' ,'d'); uv['sfreq'] = opts.sfreq
-uv.add_var('freq' ,'d'); uv['freq'] = opts.sfreq
-uv.add_var('restfreq' ,'d'); uv['restfreq'] = opts.sfreq
-uv.add_var('nschan' ,'i'); uv['nschan'] = uv['nchan']
-uv.add_var('inttime' ,'r'); uv['inttime'] = opts.inttime
-uv.add_var('npol' ,'i'); uv['npol'] = 1
-uv.add_var('nspect' ,'i'); uv['nspect'] = 1
-uv.add_var('nants' ,'i'); uv['nants'] = 32
+uvyy = aipy.miriad.UV(nameyy, status='new')
+uvyy._wrhd('obstype','mixed-auto-cross')
+uvyy._wrhd('history','MDLVIS: created file.\nMDLVIS: ' + ' '.join(sys.argv) + '\n')
+
+uvxx.add_var('telescop' ,'a'); uvxx['telescop'] = 'AIPY'
+uvxx.add_var('operator' ,'a'); uvxx['operator'] = 'AIPY'
+uvxx.add_var('version' ,'a'); uvxx['version'] = '0.0.1'
+uvxx.add_var('epoch' ,'r'); uvxx['epoch'] = 2000.
+uvxx.add_var('source'  ,'a'); uvxx['source'] = 'zenith'
+uvxx.add_var('nchan' ,'i'); uvxx['nchan'] = opts.nchan
+uvxx.add_var('sdf' ,'d'); uvxx['sdf'] = opts.sdf
+uvxx.add_var('sfreq' ,'d'); uvxx['sfreq'] = opts.sfreq
+uvxx.add_var('freq' ,'d'); uvxx['freq'] = opts.sfreq
+uvxx.add_var('restfreq' ,'d'); uvxx['restfreq'] = opts.sfreq
+uvxx.add_var('nschan' ,'i'); uvxx['nschan'] = uvxx['nchan']
+uvxx.add_var('inttime' ,'r'); uvxx['inttime'] = opts.inttime
+uvxx.add_var('npol' ,'i'); uvxx['npol'] = 1
+uvxx.add_var('nspect' ,'i'); uvxx['nspect'] = 1
+uvxx.add_var('nants' ,'i'); uvxx['nants'] = 128
+
+uvyy.add_var('telescop' ,'a'); uvyy['telescop'] = 'AIPY'
+uvyy.add_var('operator' ,'a'); uvyy['operator'] = 'AIPY'
+uvyy.add_var('version' ,'a'); uvyy['version'] = '0.0.1'
+uvyy.add_var('epoch' ,'r'); uvyy['epoch'] = 2000.
+uvyy.add_var('source'  ,'a'); uvyy['source'] = 'zenith'
+uvyy.add_var('nchan' ,'i'); uvyy['nchan'] = opts.nchan
+uvyy.add_var('sdf' ,'d'); uvyy['sdf'] = opts.sdf
+uvyy.add_var('sfreq' ,'d'); uvyy['sfreq'] = opts.sfreq
+uvyy.add_var('freq' ,'d'); uvyy['freq'] = opts.sfreq
+uvyy.add_var('restfreq' ,'d'); uvyy['restfreq'] = opts.sfreq
+uvyy.add_var('nschan' ,'i'); uvyy['nschan'] = uvyy['nchan']
+uvyy.add_var('inttime' ,'r'); uvyy['inttime'] = opts.inttime
+uvyy.add_var('npol' ,'i'); uvyy['npol'] = 1
+uvyy.add_var('nspect' ,'i'); uvyy['nspect'] = 1
+uvyy.add_var('nants' ,'i'); uvyy['nants'] = 128
 
 #variables just set to dummy values
 
-uv.add_var('vsource' ,'r'); uv['vsource'] = 0.
-uv.add_var('ischan'  ,'i'); uv['ischan'] = 1
-uv.add_var('tscale'  ,'r'); uv['tscale'] = 0.
-uv.add_var('veldop'  ,'r'); uv['veldop'] = 0.
+uvxx.add_var('vsource' ,'r'); uvxx['vsource'] = 0.
+uvxx.add_var('ischan'  ,'i'); uvxx['ischan'] = 1
+uvxx.add_var('tscale'  ,'r'); uvxx['tscale'] = 0.
+uvxx.add_var('veldop'  ,'r'); uvxx['veldop'] = 0.
+
+uvyy.add_var('vsource' ,'r'); uvyy['vsource'] = 0.
+uvyy.add_var('ischan'  ,'i'); uvyy['ischan'] = 1
+uvyy.add_var('tscale'  ,'r'); uvyy['tscale'] = 0.
+uvyy.add_var('veldop'  ,'r'); uvyy['veldop'] = 0.
 
 #variables to be updated
 
-uv.add_var('coord' ,'d')
-uv.add_var('time' ,'d')
-uv.add_var('lst' ,'d')
-uv.add_var('ra' ,'d')
-uv.add_var('obsra' ,'d')
-uv.add_var('baseline' ,'r')
-uv.add_var('pol' ,'i')
+uvxx.add_var('coord' ,'d')
+uvxx.add_var('time' ,'d')
+uvxx.add_var('lst' ,'d')
+uvxx.add_var('ra' ,'d')
+uvxx.add_var('obsra' ,'d')
+uvxx.add_var('baseline' ,'r')
+uvxx.add_var('pol' ,'i')
+
+uvyy.add_var('coord' ,'d')
+uvyy.add_var('time' ,'d')
+uvyy.add_var('lst' ,'d')
+uvyy.add_var('ra' ,'d')
+uvyy.add_var('obsra' ,'d')
+uvyy.add_var('baseline' ,'r')
+uvyy.add_var('pol' ,'i')
 
 #get antenna array
 
 #more miriad variables
 
-uv.add_var('latitud' ,'d'); uv['latitud'] = aa.lat
-uv.add_var('dec' ,'d'); uv['dec'] = aa.lat
-uv.add_var('obsdec' ,'d'); uv['obsdec'] = aa.lat
-uv.add_var('longitu' ,'d'); uv['longitu'] = aa.long
-uv.add_var('antpos' ,'d'); uv['antpos'] = (numpy.array([ant.pos for ant in aa], dtype = numpy.double)).transpose().flatten() #transpose is miriad convention
+uvxx.add_var('latitud' ,'d'); uvxx['latitud'] = aa.lat
+uvxx.add_var('dec' ,'d'); uvxx['dec'] = aa.lat
+uvxx.add_var('obsdec' ,'d'); uvxx['obsdec'] = aa.lat
+uvxx.add_var('longitu' ,'d'); uvxx['longitu'] = aa.long
+uvxx.add_var('antpos' ,'d'); uvxx['antpos'] = (numpy.array([ant.pos for ant in aa], dtype = numpy.double)).transpose().flatten() #transpose is miriad convention
+
+uvyy.add_var('latitud' ,'d'); uvyy['latitud'] = aa.lat
+uvyy.add_var('dec' ,'d'); uvyy['dec'] = aa.lat
+uvyy.add_var('obsdec' ,'d'); uvyy['obsdec'] = aa.lat
+uvyy.add_var('longitu' ,'d'); uvyy['longitu'] = aa.long
+uvyy.add_var('antpos' ,'d'); uvyy['antpos'] = (numpy.array([ant.pos for ant in aa], dtype = numpy.double)).transpose().flatten() #transpose is miriad convention
+
+print 'Writing', namexx, ',', nameyy
 
 for ii, t in enumerate(times):
 
-    print '%d/%d' % (ii+1, len(times))+' done'
     aa.set_jultime(t)
-    uv['time'] = t
-    uv['lst'] = aa.sidereal_time()
-    uv['ra'] = aa.sidereal_time()
-    uv['obsra'] = aa.sidereal_time()    
+    uvxx['time'] = t
+    uvxx['lst'] = aa.sidereal_time()
+    uvxx['ra'] = aa.sidereal_time()
+    uvxx['obsra'] = aa.sidereal_time()    
+    uvyy['time'] = t
+    uvyy['lst'] = aa.sidereal_time()
+    uvyy['ra'] = aa.sidereal_time()
+    uvyy['obsra'] = aa.sidereal_time()    
 
-    preamble = (bl, t, (i,j))
-    uv['pol'] = aipy.miriad.str2pol['xx']
-    uv.write(preamble, uvgridxx[ii], flags[ii])
-    uv['pol'] = aipy.miriad.str2pol['yy']
-    uv.write(preamble, uvgridyy[ii], flags[ii])
+    for bb,bl in enumerate(uvgridxx.keys()):
+        preamble = (bls_pos[bb], t, bl)
+        uvxx['pol'] = aipy.miriad.str2pol['xx']
+        uvxx.write(preamble, uvgridxx[bl][ii], flags[bl][ii])
+        uvyy['pol'] = aipy.miriad.str2pol['yy']
+        uvyy.write(preamble, uvgridyy[bl][ii], flags[bl][ii])
 
-del(uv)
+del(uvxx)
+del(uvyy)

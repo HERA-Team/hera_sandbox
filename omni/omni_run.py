@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import omnical, aipy, numpy, capo
-import pickle, optparse, os, sys
+import pickle, optparse, os, sys, string
 
 o = optparse.OptionParser()
 o.set_usage('omni_run.py [options] *uvcRRE')
@@ -15,17 +15,22 @@ o.add_option('--omnipath',dest='omnipath',default='',type='string',
             help='Path to save .npz files. Include final / in path.')
 o.add_option('--ba',dest='ba',default=None,
             help='Antennas to exclude, separated by commas.')
-o.add_option('--fc2',dest='fc2',type='string',
-            help='Path and name of POL.npz file outputted by firstcal v2.')
+o.add_option('--fc2',dest='fc2', type='string',
+            help='Path and name of POL.npz file outputted by firstcal v2 (comma delimited string if more than one polarization).')
 opts,args = o.parse_args(sys.argv[1:])
 
 #Dictionary of calpar gains and files
 pols = opts.pol.split(',')
 files = {}
 g0 = {} #firstcal gains
+
+try: fc2 = opts.fc2.split(',')
+except AttributeError: print('No fc2 files supplied. Continuing.')
+
 for pp,p in enumerate(pols):
     #dictionary of calpars per pol
     g0[p[0]] = {} #indexing by one pol letter instead of two
+    
     if opts.calpar != None: #if calpar is given
         if p in opts.calpar: #your supplied calpar matches a pol
             print 'Reading', opts.calpar
@@ -44,15 +49,19 @@ for pp,p in enumerate(pols):
                 continue
             else: #if the linpol first_cal is missing, do worry
                 raise IOError('Missing first_cal file %s'%new_cp)
-    if opts.fc2 != None: #if fc2 file is given
-        if p in opts.fc2:
-            print 'Reading', opts.fc2
-            _,_g0,_,_ = capo.omni.from_npz(opts.fc2)
+                
+    if len(fc2) != 0: #if fc2 file is given
+        fc2file = next((s for s in fc2 if p in s), None)
+        if not fc2file == None:
+            print 'Reading %s, pol=%s'%(fc2file,p)
+            _,_g0,_,_ = capo.omni.from_npz(fc2file)
             for i in _g0[p[0]].keys():
-                print i
                 g0[p[0]][i] = _g0[p[0]][i][:,:] / numpy.abs(_g0[p[0]][i][:,:])
+        elif len(list(set(p))) > 1:
+            continue #don't use crosspols to firstcal
         else:
-            raise IOError("Please provide a first cal file") 
+            raise IOError("Please provide a valid first cal file for polarization %s"%p) 
+        
 for filename in args:
     files[filename] = {}
     for p in pols:
@@ -73,20 +82,16 @@ else: #generate reds from calfile
         ex_ants = []
         for a in opts.ba.split(','):
             ex_ants.append(int(a))
-        print '   Excluding antennas:',sorted(ex_ants)
+        print 'Excluding antennas:',sorted(ex_ants)
     else: ex_ants = []
     info = capo.omni.aa_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, crosspols=pols)
 reds = info.get_reds()
-#import IPython;IPython.embed()
 
 ### Omnical-ing! Loop Through Compressed Files ###
 for f,filename in enumerate(args):
     file_group = files[filename] #dictionary with pol indexed files
     print 'Reading:'
     for key in file_group.keys(): print '   '+file_group[key]
-
-    #pol = filename.split('.')[-2] #XXX assumes 1 pol per file
-    
     if len(pols)>1: #zen.jd.npz
         npzb = 3
     else: #zen.jd.pol.npz
@@ -114,12 +119,18 @@ for f,filename in enumerate(args):
         for bl in f: 
             i,j = bl
             wgts[p][(j,i)] = wgts[p][(i,j)] = numpy.logical_not(f[bl][p]).astype(numpy.int)
+    if len(g0[g0.keys()[0]]) == 0:
+        print "   Making initial gains of all 1's..."
+        for key in g0:
+            g0[key] = {}
+            for ant in info.subsetant:
+                g0[key][ant] = numpy.ones(SH,dtype='complex')
     print '   Logcal-ing' 
-    m1,g1,v1 = capo.omni.redcal(data,info,gains=g0, removedegen=False) #SAK CHANGE REMOVEDEGEN
+    m1,g1,v1 = capo.omni.redcal(data, info, gains=g0, removedegen=False)
     print '   Lincal-ing'
-    m2,g2,v2 = capo.omni.redcal(data, info, gains=g1, vis=v1, uselogcal=False, removedegen=False)
+    m2,g2,v2 = capo.omni.redcal(data, info, gains=g1, vis=v1, uselogcal=False, removedegen=True)
     xtalk = capo.omni.compute_xtalk(m2['res'], wgts) #xtalk is time-average of residual
-    m2['history'] = 'OMNI_RUN: '+''.join(sys.argv) + '\n'
+    m2['history'] = 'OMNI_RUN: '+' '.join(sys.argv) + '\n'
     m2['jds'] = t_jd
     m2['lsts'] = t_lst
     m2['freqs'] = freqs

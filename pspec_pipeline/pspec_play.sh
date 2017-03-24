@@ -11,23 +11,25 @@ CALFILE='psa6622_v003'
 CHAN='110_130'
 NBOOT=20
 
-#TRICK='C_original'
-TRICK='C_sep02'
+TRICK='C_original_longtime'
+#TRICK='C_Cnofrf'
 
 #CHANGE=''
 CHANGE='--changeC'
 
 #CHANGETYPE=''
 #CHANGETYPE='--reg=100' #requires --changeC
-CHANGETYPE='--otherbls="0,2"' #requires --changeC
+#CHANGETYPE='--otherbls="0,2"' #requires --changeC
+#CHANGETYPE='--CnoFRF #requires --changeC
+#CHANGETYPE='--Cfg' #requires --changeC
+CHANGETYPE='--Clongtime' #requires --changeC, can also be used in combination with --Cfg or --CnoFRF
 
-FRFEOR=''
-#FRFEOR='--nofrf'
+FRFEOR='--frfeor'
 
 #--------------------------------------------------------------------------------
 
 #Pspec & Signal Loss
-for inject in `python -c "import numpy; print ' '.join(map(str, numpy.logspace(0,3,7)))"` ; do
+for inject in `python -c "import numpy; print ' '.join(map(str, numpy.logspace(-1,3,10)))"` ; do
     mkdir inject_sep${SEP}_${inject}
     echo SIGNAL_LEVEL=${inject}
     ~/capo/pspec_pipeline/pspec_cov_v004_play.py --window=none -a cross -p I -c ${CHAN} -C ${CALFILE} -b ${NBOOT} ${CHANGE} ${CHANGETYPE} ${FRFEOR} -i ${inject} ${EVEN_FILES} ${ODD_FILES}

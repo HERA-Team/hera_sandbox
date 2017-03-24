@@ -87,12 +87,12 @@ cwd = os.getcwd()
 if cwd.startswith('/Users/yunfanzhang/'):
     dataDIR = '/Users/yunfanzhang/local/DATA128/DATA/'
 elif cwd.startswith('/Users/yunfanz/'):
-    dataDIR = '/Users/yunfanz/Projects/21cm/Data/PAPER128/DATA/'
+    dataDIR = '/Users/yunfanz/Data/PAPER128/DATA/'
 elif cwd.startswith('/home/yunfanz/'):
-    dataDIR = '/home/yunfanz/Projects/21cm/Data/DATA128/DATA/'
+    dataDIR = '/data2/PAPER/omni_v2_xtalk/'
 sets = {
-    'day1' : glob.glob(dataDIR+'zen.2456715.5*.xx.npz'),
-    'day2' : glob.glob(dataDIR+'zen.2456716.5*.xx.npz'),
+    'day1' : glob.glob(dataDIR+'zen.2456715.*.xx.npz'),
+    'day2' : glob.glob(dataDIR+'zen.2456716.*.xx.npz'),
 }
 data,wgts = {}, {}
 lsts = {}
@@ -118,7 +118,7 @@ ks = [(s,'xx',bl) for bl in SEPS for s in sets]
 
 NK = len(ks)
 
-def set_C(norm=3e-6):
+def set_C(norm=30.):
     ds.clear_cache()
     Cs,iCs = {},{}
     for k in ks:
@@ -161,25 +161,28 @@ def get_p(k1,k2,mode):
             # XXX deal with diff w for k1,k2
             pC = np.array([pCs[sums[k1][i]][:,i] for i in xrange(ds.w[k1].shape[1])]).T
         else:
-            pr.enable()
-            qC = ds.q_hat(k1,k2)
-            FC = ds.get_F(k1,k2)
+            #pr.enable()
+            qC = ds.q_hat(k1,k2,cov_flagging=True)
+            FC = ds.get_F(k1,k2,cov_flagging=True)
             MC,WC = ds.get_MW(FC, mode='F^-1/2')
             pC = ds.p_hat(MC,qC)
-            pr.disable()
-            pr.print_stats(sort='time')
+            #pr.disable()
+            #pr.print_stats(sort='time')
         return pC * scalar
 
 data_g, wgt_g = {},{}
 for k in data:
     lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=1500)
     data_g[k], wgt_g[k] = data_g[k][550:1200], wgt_g[k][550:1200]
+    # lst_g,data_g[k],wgt_g[k] = oqe.lst_grid(lsts[k[0]],data[k],lstbins=6000)
+    # data_g[k], wgt_g[k] = data_g[k][2200:5000], wgt_g[k][2200:5000]
+    wgt_g[k] = np.where(wgt_g[k]>0.5*np.max(wgt_g[k]),1,0)
 k1, k2 = data.keys()
 data_g[('mean','xx',(0,103))] = (data_g[k1]+data_g[k2])/2
 wgt_g[('mean','xx',(0,103))] = (wgt_g[k1]+wgt_g[k2])/2
 ################################
 #import IPython; IPython.embed()
-ds = oqe.DataSet(data_g, wgt_g)
+
 #import IPython; IPython.embed()
 # def lst_align(lsts1,lsts2,lstres,offset=0):
 #     i=0
@@ -202,15 +205,15 @@ ds = oqe.DataSet(data_g, wgt_g)
 
 
 
-
-set_C(3e-6)
+ds = oqe.DataSet(data_g, wgt_g)
+set_C(norm=30000.)
 #import IPython; IPython.embed()
-for cnt,k in enumerate(ks):
-    plt.subplot(NK,1,cnt+1)
-    capo.plot.waterfall(ds.x[k], drng=3)
-    plt.title(k)
-    plt.colorbar()
-plt.savefig('timeseries.png')
+# for cnt,k in enumerate(ks):
+#     plt.subplot(NK,1,cnt+1)
+#     capo.plot.waterfall(ds.x[k], drng=3)
+#     plt.title(k)
+#     plt.colorbar()
+# plt.savefig('timeseries.png')
 
 
 bls = (0,103)
@@ -218,22 +221,24 @@ k1 = (set1,pol,(0,103))
 k2 = (set2,pol,(0,103))
 k3 = ('mean','xx',(0,103))
 
-f, (ax1, ax2, ax3) = plt.subplots(1,3)
-# pC = get_p(k1,k1,'C')
-# plt.title(set1+set1+str(bls)+'C')
-# waterfall(pC, ax=ax1, mx=16, drng=7)
+f, (ax1, ax2, ax3) = plt.subplots(3,1)
+pC1 = get_p(k1,k1,'C')
+plt.title(set2+set2+str(bls)+'C')
+im1 = waterfall(pC1, ax=ax1, mx=16, drng=7)
 #plt.colorbar()
-
-pC = get_p(k1,k2,'C')
+#plt.figure()
+pC2 = get_p(k1,k2,'C')
 plt.title(set1+set1+str(bls)+'I')
-waterfall(pC, ax=ax2, mx=16, drng=7)
+im2 = waterfall(pC2, ax=ax2, mx=16, drng=7)
 #plt.colorbar()
 #pC = get_p(k1,k2,'C')
 #plt.subplot(3,1,3)
 #plt.title(set1+set2+str(bls)+'C')
 #capo.plot.waterfall(pC, mx=16, drng=7)
-#plt.colorbar()
+f.colorbar(im1, ax=ax1)
+f.colorbar(im2, ax=ax2)
+#f.colorbar()
 
-plt.show()
+#plt.show()
 
 import IPython; IPython.embed()

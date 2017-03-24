@@ -4,7 +4,7 @@
 import numpy as np, glob, optparse, sys
 import capo.omni as omni
 
-def load_dmv(files, offsets=False, verbose=False):
+def load_dmv(files, offsets=False, verbose=True):
     delays = {}
     means = {}
     medians = {}
@@ -48,7 +48,8 @@ do = {}
 for ant in medians.keys():
     ant = ant[1:]
     do[int(ant)] = [medians['d'+ant]]
-for f in args:
+#for f in args: #writes out a file per file given
+for f in args[:1]: #writes out one file
     fname = '.'.join(f.split('.')[:-2] + ['median'])
     pol = fname.split('.')[3]
     omni.save_gains_fc(do,fqs,pol[0],fname)
