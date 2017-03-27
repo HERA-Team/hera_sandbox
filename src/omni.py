@@ -77,27 +77,6 @@ def compute_reds(nant, pols, *args, **kwargs):
         for pj in pols:
             reds += [[(Antpol(i,pi,nant),Antpol(j,pj,nant)) for i,j in gp] for gp in _reds]
     return reds
- 
-#def aa_to_info(aa, pols=['x'], **kwargs):
-#    '''Use aa.ant_layout to generate redundances based on ideal placement.
-#    The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
-#    layout = aa.ant_layout
-#    nant = len(aa)
-#    antpos = -np.ones((nant*len(pols),3)) # -1 to flag unused antennas
-#    xs,ys = np.indices(layout.shape)
-#    for ant,x,y in zip(layout.flatten(), xs.flatten(), ys.flatten()):
-#        for z,pol in enumerate(pols):
-#            z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
-#            i = Antpol(ant,pol,len(aa)) # creates index in POLNUM/NUMPOL for pol
-#            antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
-#    reds = compute_reds(nant, pols, antpos[:nant],tol=.1) # only first nant b/c compute_reds treats pol redundancy separately
-#    # XXX haven't enforced xy = yx yet.  need to conjoin red groups for that
-#    ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] < 0]
-#    kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
-#    reds = filter_reds(reds, **kwargs)
-#    info = RedundantInfo(nant)
-#    info.init_from_reds(reds,antpos)
-#    return info
 
 def aa_to_info(aa, pols=['x'], fcal=False, **kwargs):
     '''Use aa.ant_layout to generate redundances based on ideal placement.
@@ -280,28 +259,10 @@ def from_npz(filename, pols=None, bls=None, ants=None, verbose=False):
                     xtalk[pol][bl] = dat
                 else: #append to array
                     xtalk[pol][bl] = np.vstack((xtalk[pol].get(bl),dat))
-        # for k in [f for f in npz.files if f.startswith('<')]:
-        #     pol,bl = parse_key(k)
-        #     if not vismdl.has_key(pol): vismdl[pol] = {}
-        #     vismdl[pol][bl] = vismdl[pol].get(bl,[]) + [np.copy(npz[k])]
-        # for k in [f for f in npz.files if f.startswith('(')]:
-        #     pol,bl = parse_key(k)
-        #     if not xtalk.has_key(pol): xtalk[pol] = {}
-        #     dat = np.resize(np.copy(npz[k]),vismdl[pol][vismdl[pol].keys()[0]][0].shape) #resize xtalk to be like vismdl (with a time dimension too)
-        #     if xtalk[pol].get(bl) is None: #no bl key yet
-        #         xtalk[pol][bl] = dat
-        #     else: #append to array
-        #         xtalk[pol][bl] = np.vstack((xtalk[pol].get(bl),dat))
-        # for k in [f for f in npz.files if f[0].isdigit()]:
-        #     pol,ant = k[-1:],int(k[:-1])
-        #     if not gains.has_key(pol): gains[pol] = {}
-        #     gains[pol][ant] = gains[pol].get(ant,[]) + [np.copy(npz[k])]
         kws = ['chi','hist','j','l','f']
         for kw in kws:
             for k in [f for f in npz.files if f.startswith(kw)]:
                 meta[k] = meta.get(k,[]) + [np.copy(npz[k])]
-    #for pol in xtalk: #this is already done above now
-        #for bl in xtalk[pol]: xtalk[pol][bl] = np.concatenate(xtalk[pol][bl])
     for pol in vismdl:
         for bl in vismdl[pol]: vismdl[pol][bl] = np.concatenate(vismdl[pol][bl])
     for pol in gains:
