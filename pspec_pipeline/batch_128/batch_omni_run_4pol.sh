@@ -3,7 +3,7 @@
 #$ -cwd
 #$ -o grid_output
 #$ -e grid_output
-#$ -l h_vmem=10G
+#$ -l h_vmem=32G
 #$ -N OMNI_RUN_4POL
 source activate PAPER
 FILES=`pull_args.py $*` #hand this script a single pol's-worth of files
