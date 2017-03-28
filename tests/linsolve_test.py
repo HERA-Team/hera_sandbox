@@ -269,6 +269,17 @@ class TestLinProductSolver(unittest.TestCase):
         for k in sol:
             #print sol0[k], sol[k]
             self.assertAlmostEqual(sol[k], eval(k), 4)
+    def test_single_term(self):
+        x,y,z = 1., 2., 3.
+        keys = ['x*y', 'x*z', '2*z']
+        d,w = {}, {}
+        for k in keys: d[k],w[k] = eval(k), 1.
+        sol0 = {}
+        for k in 'xyz': sol0[k] = eval(k)+.01
+        ls = linsolve.LinProductSolver(d,sol0,w)
+        sol = ls.solve()
+        for k in sol:
+            self.assertAlmostEqual(sol[k], eval(k), 4)
     def test_complex_solve(self):
         x,y,z = 1+1j, 2+2j, 3+2j
         keys = ['x*y', 'x*z', 'y*z']

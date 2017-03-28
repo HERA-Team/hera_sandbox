@@ -98,12 +98,15 @@ class LinearEquation:
         for term in terms:
             for t in term:
                 try:
-                    c = Constant(t, **kwargs) # raises KeyError if not a constant
-                    self.consts[c.name] = c
+                    self.add_const(t, **kwargs)
                 except(KeyError): # must be a parameter then
                     p = Parameter(t)
                     self.prms[p.name] = p
         self.terms = self.order_terms(terms)
+    def add_const(self, name, **kwargs):
+        '''Manually add a constant of given name to internal list of contants. Value is drawn from kwargs.'''
+        c = Constant(name, **kwargs) # raises KeyError if not a constant
+        self.consts[c.name] = c
     def order_terms(self, terms):
         '''Reorder terms to obey (const1,const2,...,prm) ordering.'''
         def cmp(x,y):
@@ -302,6 +305,7 @@ class LinProductSolver:
         kwargs.update(sols)
         for k,taylor in zip(keys,taylors):
             eq = LinearEquation(taylor[1:], **kwargs) # exclude zero-order term
+            for key in sols: eq.add_const(key, **kwargs)
             ans0 = eq.eval_consts(taylor[0])
             nk = jointerms(eq.terms)
             dlin[nk] = data[k]-ans0
