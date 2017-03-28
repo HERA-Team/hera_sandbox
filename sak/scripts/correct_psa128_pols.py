@@ -9,6 +9,7 @@ o = optparse.OptionParser()
 o.set_usage('correct_psa128_pols.py *xx.uvcRRE [xx pol only, it will find the other pols, assuming they are in the same directories]')
 o.add_option('-a','--ant',default='', help='Comma-separated antenna numbers to swap pols.')
 o.add_option('-b','--badant',default=None,help='Comma-separated antenna numbers to remove from file')
+o.add_option('-v','--verbose',action='store_true',help='Toggle verbosity')
 opts,args = o.parse_args(sys.argv[1:])
 
 ANTS = map(int,opts.ant.split(',')) #antennas that need to be swapped x->y, y->x
@@ -31,8 +32,12 @@ def mfunc(uv,p,d,f):
     else: newpol2 = pol[1]
     newpol = newpol1+newpol2
     index = numpy.where(t[newpol]['times'] == p[1])[0][0] #times must match exactly
-    d = data[newpol][p[2]][newpol][index] #collect information from correct pol file
-    f = flags[newpol][p[2]][newpol][index]
+    try:
+        d = data[newpol][p[2]][newpol][index] #collect information from correct pol file
+        f = flags[newpol][p[2]][newpol][index]
+    except: #if baseline doesn't exist for some reason  
+        missing_bls.append(p[2])
+        return p,None,None
     return p,d,f
 
 pols = ['xx','xy','yx','yy']
@@ -49,10 +54,11 @@ for filename in args:
     
     check = [numpy.all(t['xx']['times'] == t['xy']['times']),numpy.all(t['xx']['times'] == t['yx']['times']),numpy.all(t['xx']['times'] == t['yy']['times'])]
     if not numpy.all(check):
-        print 'missing integrations'
-        continue #some files do not have all times - incomple restore?
+        print 'missing integrations... skipping'
+        continue #some files do not have all times - incomplete restore?
     
     for pol in files: #loop through 4 pols
+        missing_bls = []
         uvi = aipy.miriad.UV(files[pol])
         print files[pol], '->', files[pol]+'c'
         if os.path.exists(files[pol]+'c'):
@@ -61,3 +67,7 @@ for filename in args:
         uvo = aipy.miriad.UV(files[pol]+'c',status='new')
         uvo.init_from_uv(uvi)
         uvo.pipe(uvi,raw=True,mfunc=mfunc,append2hist='CORRECT_PSA128_POLS:'+' '.join(sys.argv)+'\n')
+        index = len(missing_bls) / len(t[pol]['lsts'])
+        uvo['history'] += ' Missing bls: ' + str(missing_bls[:index])
+        if opts.verbose and len(missing_bls)>0:
+            print ' Missing bls: ' + str(missing_bls[:index])
