@@ -126,7 +126,6 @@ class TestLinearSolver(unittest.TestCase):
         self.assertEqual(A.shape, (2,2,1))
         #np.testing.assert_equal(A.todense(), np.array([[1.,1],[1.,-1]]))
         np.testing.assert_equal(A, np.array([[[1.], [1]],[[1.],[-1]]]))
-<<<<<<< HEAD
     #def test_get_AtAiAt(self):
     #    self.ls.prm_order = {'x':0,'y':1} # override random default ordering
     #    AtAiAt = self.ls.get_AtAiAt().squeeze()
@@ -136,17 +135,6 @@ class TestLinearSolver(unittest.TestCase):
     #    x,y = AtAiAt.dot(measured).flatten()
     #    self.assertAlmostEqual(x, 1.)
     #    self.assertAlmostEqual(y, 2.)
-=======
-    def test_get_AtAiAt(self):
-        self.ls.prm_order = {'x':0,'y':1} # override random default ordering
-        AtAiAt = self.ls.get_AtAiAt().squeeze()
-        #np.testing.assert_equal(AtAiAt.todense(), np.array([[.5,.5],[.5,-.5]]))
-        #np.testing.assert_equal(AtAiAt, np.array([[.5,.5],[.5,-.5]]))
-        measured = np.array([[3.],[-1]])
-        x,y = AtAiAt.dot(measured).flatten()
-        self.assertAlmostEqual(x, 1.)
-        self.assertAlmostEqual(y, 2.)
->>>>>>> ctc_merge
     def test_solve(self):
         sol = self.ls.solve()
         self.assertAlmostEqual(sol['x'], 1.)
