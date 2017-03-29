@@ -98,12 +98,15 @@ class LinearEquation:
         for term in terms:
             for t in term:
                 try:
-                    c = Constant(t, **kwargs) # raises KeyError if not a constant
-                    self.consts[c.name] = c
+                    self.add_const(t, **kwargs)
                 except(KeyError): # must be a parameter then
                     p = Parameter(t)
                     self.prms[p.name] = p
         self.terms = self.order_terms(terms)
+    def add_const(self, name, **kwargs):
+        '''Manually add a constant of given name to internal list of contants. Value is drawn from kwargs.'''
+        c = Constant(name, **kwargs) # raises KeyError if not a constant
+        self.consts[c.name] = c
     def order_terms(self, terms):
         '''Reorder terms to obey (const1,const2,...,prm) ordering.'''
         def cmp(x,y):
@@ -273,22 +276,24 @@ class LogProductSolver:
         for k in sol_amp: sol[k] = np.exp(sol_amp[k] + 1j*sol_phs[k])   
         return sol
 
-def taylor_expand(term, consts={}, prepend='d'):
-    '''First-order Taylor expand a term (product of variables) wrt all
-    parameters except those listed in consts.'''
+def taylor_expand(eq, consts={}, prepend='d'):
+    '''First-order Taylor expand terms (product of variables or the sum of a 
+    product of variables) wrt all parameters except those listed in consts.'''
     terms = []
-    terms.append(term)
-    for i,t in enumerate(term):
-        if type(t) is not str or get_name(t) in consts: continue
-        terms.append(term[:i]+[prepend+t]+term[i+1:])
+    for term in eq: terms.append(term)
+    for term in eq:
+        for i,t in enumerate(term):
+            if type(t) is not str or get_name(t) in consts: continue
+            terms.append(term[:i]+[prepend+t]+term[i+1:])
     return terms
 
 # XXX make a version of linproductsolver that taylor expands in e^{a+bi} form
 class LinProductSolver:
-    '''For equations that are purely products (e.g. x*y*z = m), use 
+    '''For equations that are sums of products (e.g. x*y*z + a*b*c = m), use 
     1st order Taylor expansion to linearize.  For complex variables, a trailing '_' in
     the name is used to denote conjugation (e.g. x*y_ parses as x * y.conj()).
-    Approximate parameter solutions needs to be passed in as sols.'''
+    Approximate parameter solutions needs to be passed in as sols. Distribution over
+    parentheses must be done manually. '''
     def __init__(self, data, sols, wgts={}, **kwargs):
         self.prepend = 'd' # XXX make this something hard to collide with
         keys = data.keys()
@@ -296,14 +301,15 @@ class LinProductSolver:
         dlin, wlin = {}, {}
         taylors = []
         for eq in eqs:
-            assert(len(eq) == 1) # equations have to be purely products---no adds
-            taylors.append(taylor_expand(eq[0], kwargs, prepend=self.prepend))
+            taylors.append(taylor_expand(eq, kwargs, prepend=self.prepend))
         self.sol0 = sols
         kwargs.update(sols)
-        for k,taylor in zip(keys,taylors):
-            eq = LinearEquation(taylor[1:], **kwargs) # exclude zero-order term
-            ans0 = eq.eval_consts(taylor[0])
-            nk = jointerms(eq.terms)
+        for k,taylor,eq in zip(keys,taylors,eqs):
+            nProducts = len(eq)
+            lineq = LinearEquation(taylor[nProducts:], **kwargs) # exclude zero-order terms
+            for key in sols: lineq.add_const(key, **kwargs)
+            ans0 = np.sum([lineq.eval_consts(tayTerm) for tayTerm in taylor[0:nProducts]],axis=0)
+            nk = jointerms(lineq.terms)
             dlin[nk] = data[k]-ans0
             try: wlin[nk] = wgts[k]
             except(KeyError): pass
@@ -316,4 +322,3 @@ class LinProductSolver:
             sol[k] = self.sol0[k] + dsol[dk]
         return sol
 
-        
