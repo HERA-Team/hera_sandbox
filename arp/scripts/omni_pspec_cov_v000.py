@@ -17,9 +17,12 @@ def find_sep(aa, bls, drow=None, dcol=None):
 
 SEPS = [
     (0,103) , #  1
-    (1,4) ,   #  2
+    #(1,4) ,   #  2
+    (0,26), # 2 for psa128 v3
     (0,101) , #  3
     (0,62) ,  #  4
+]
+'''
     (0,100) , #  5
     (1,13) ,  #  6
     (1,70) ,  #  7
@@ -31,11 +34,11 @@ SEPS = [
     (9,71) ,  # 13
     (9,59) ,  # 14
     (57,64) , # 15
-]
+]'''
 
-CONJ = [
+CONJ = [ # XXX why conjugating all of these?
     (0,103) , #  1
-    (1,4) ,   #  2
+    #(1,4) ,   #  2
     (0,101) , #  3
     (0,62) ,  #  4
     (0,100) , #  5
@@ -54,7 +57,8 @@ bandpass = np.load('bandpass.npz')['bandpass']; bandpass.shape = (1,-1)
 fqs = np.linspace(.1,.2,bandpass.size)
 aa = aipy.cal.get_aa('psa6622_v003', fqs)
 #CH0,NCHAN = 110,51
-CH0,NCHAN = 0,203
+CH0,NCHAN = 110,1
+#CH0,NCHAN = 0,203
 aa.select_chans(np.arange(CH0,CH0+NCHAN))
 afreqs = aa.get_afreqs()
 WINDOW = 'blackman-harris'
@@ -72,11 +76,12 @@ scalar_win = capo.pspec.X2Y(z) * bm * B_win
 
 sets = {
     #'day0' : sys.argv[1:],
-    #'day0' : glob.glob('zen.2456714.*.xx.npz'),
-    'day1' : glob.glob('zen.2456715.*.xx.npz'),
-    'day2' : glob.glob('zen.2456716.*.xx.npz'),
-    'day4' : glob.glob('zen.2456718.*.xx.npz'),
-    'day5' : glob.glob('zen.2456719.*.xx.npz'),
+    'day0' : glob.glob('zen.2456680.*.xx.npz'),
+    'day1' : glob.glob('zen.2456681.*.xx.npz'),
+    'day2' : glob.glob('zen.2456682.*.xx.npz'),
+    #'day3' : glob.glob('zen.2456683.*.xx.npz'),
+    'day4' : glob.glob('zen.2456684.*.xx.npz'),
+    'day5' : glob.glob('zen.2456685.*.xx.npz'),
 }
 data,wgts = {}, {}
 lsts = {}
@@ -95,18 +100,20 @@ for s in sets:
             data[k] *= bandpass[:,CH0:CH0+NCHAN]
             wgts[k] = np.where(np.abs(data[k]) == 0, 0., 1)
             #wgts[k] = np.where(np.abs(data[k]) == 0, 0., 1./chisqs[s])
+set1,set2 = sets.keys()[0], sets.keys()[-1]
+lst_res = np.average(lsts[set1][1:] - lsts[set1][:-1])
+'''
 data_g,wgts_g = {}, {}
 for k in data:
     print 'Gridding', k
     lsts_g,data_g[k],wgts_g[k] = capo.oqe.lst_grid(lsts[k[0]], data[k], wgts=wgts[k])
-set1,set2 = sets.keys()[0], sets.keys()[-1]
-lst_res = np.average(lsts[set1][1:] - lsts[set1][:-1])
 
 def k2eq(k):
     return 'g%s * bl%d_%d' % ((k[0],) + k[-1])
 data_eqs, wgts_eqs = {}, {}
 sol0 = {}
 for k in data_g:
+    if not k[-1] == (0,103): continue
     data_eqs[k2eq(k)], wgts_eqs[k2eq(k)] = data_g[k], wgts_g[k]
     sol0['g'+k[0]] = np.ones_like(data_g[k])
     sol0['bl%d_%d' % k[-1]] = data_g[k]
@@ -117,6 +124,7 @@ for cnt,i in enumerate([1,2,4,5]):
     capo.plot.waterfall(sol1['gday%d' % i], mode='lin', mx=1.2, drng=.4)
 plt.show()
 import IPython; IPython.embed()
+'''
 
 inds = capo.oqe.lst_align(lsts, lstres=lst_res)
 data,wgts = capo.oqe.lst_align_data(inds, dsets=data, wgts=wgts)
@@ -170,7 +178,7 @@ def get_p(k1,k2,mode):
         return pC
 
 #set_C(1e-6)
-set_C(0)
+set_C(4e4)
 #pI,pW,pC = get_p(ks[0],ks[1])
 
 for cnt,k in enumerate(ks):
@@ -194,13 +202,13 @@ for cnt,k in enumerate(ks):
     pC = get_p(k,k,'C')
     #pC = get_p(k,('day2',)+k[1:],'C')
     plt.title(k[0])
-    #capo.plot.waterfall(pC, mx=16, drng=7)
+    capo.plot.waterfall(pC, mx=16, drng=7)
     #capo.plot.waterfall(pC.real, mx=1e9, drng=2e9)
     #capo.plot.waterfall(pC.real)
     #plt.plot(np.abs(np.median(pC[:,400:], axis=1).real))
-    plt.plot(np.average(pC[:,400:], axis=1).real)
-    #plt.colorbar()
-plt.show()
+    #plt.plot(np.average(pC[:,400:], axis=1).real)
+    plt.colorbar()
+    plt.show()
 
 #k1 = ('day1','xx',(0,103))
 #k2 = ('day2','xx',(0,103))

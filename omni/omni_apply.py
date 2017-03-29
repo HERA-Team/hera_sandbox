@@ -14,6 +14,8 @@ o.add_option('--omnipath',dest='omnipath',default='%s.npz',type='string',
             help='Format string (e.g. "path/%s.npz", where you actually type the "%s") which converts the input file name to the omnical npz path/file.')
 o.add_option('--firstcal', action='store_true', 
             help='Applying firstcal solutions.')
+o.add_option('--fcfile', type='string', default=None,
+            help='Path to firstal file if using same fcfile for all calibration.')
 o.add_option('--ubls', default=[],
             help='List of unique baselines to include in *O file, separated by semi-colons (ex: "0,2;0,1"). The default will include all baselines.')
 o.add_option('--ba',dest='ba',default=None,
@@ -44,7 +46,8 @@ for f,filename in enumerate(args):
     else:
         npzb=4
     omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:npzb])
-    print '   Omnical npz:', omnifile
+    if opts.fcfile: omnifile = opts.fcfile
+    print 'Omnical npz:', omnifile
     _,gains,_,xtalk = capo.omni.from_npz(omnifile) #loads npz outputs from omni_run
     for p in pols:
         print 'Reading', files[filename][p]
@@ -63,7 +66,7 @@ for f,filename in enumerate(args):
             p1,p2 = pol = aipy.miriad.pol2str[uv['pol']]
             if a1==a2: return p,None,None #skip autos
             try: trysep = bl2sep[aipy.miriad.ij2bl(a1,a2)]
-            except: return p,None,None #outriggers
+            except: trysep = None #return p,None,None #outriggers
             if trysep not in keep and keep != []: return p,None,None #skip some baselines if specified
             if opts.ba != None:
                 if a1 in map(int,opts.ba.split(',')) or a2 in map(int,opts.ba.split(',')): return p,None,None #skip some antennas if specified
