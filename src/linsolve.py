@@ -276,37 +276,38 @@ class LogProductSolver:
         for k in sol_amp: sol[k] = np.exp(sol_amp[k] + 1j*sol_phs[k])   
         return sol
 
-def taylor_expand(term, consts={}, prepend='d'):
-    '''First-order Taylor expand a term (product of variables) wrt all
-    parameters except those listed in consts.'''
+def taylor_expand(eq, consts={}, prepend='d'):
+    '''First-order Taylor expand terms (product of variables or the sum of a 
+    product of variables) wrt all parameters except those listed in consts.'''
     terms = []
-    terms.append(term)
-    for i,t in enumerate(term):
-        if type(t) is not str or get_name(t) in consts: continue
-        terms.append(term[:i]+[prepend+t]+term[i+1:])
+    for term in eq: terms.append(term)
+    for term in eq:
+        for i,t in enumerate(term):
+            if type(t) is not str or get_name(t) in consts: continue
+            terms.append(term[:i]+[prepend+t]+term[i+1:])
     return terms
 
 # XXX make a version of linproductsolver that taylor expands in e^{a+bi} form
 class LinProductSolver:
-    '''For equations that are purely products (e.g. x*y*z = m), use 
+    '''For equations that are sums of products (e.g. x*y*z + a*b*c = m), use 
     1st order Taylor expansion to linearize.  For complex variables, a trailing '_' in
     the name is used to denote conjugation (e.g. x*y_ parses as x * y.conj()).
-    Approximate parameter solutions needs to be passed in as sols.'''
+    Approximate parameter solutions needs to be passed in as sols. No 
+    parentheses are allowed (expand manually). '''
     def __init__(self, data, sols, wgts={}, **kwargs):
         self.prepend = 'd' # XXX make this something hard to collide with
         keys = data.keys()
-        eqs = [ast_getterms(ast.parse(k, mode='eval')) for k in keys]
+        all_terms = [ast_getterms(ast.parse(k, mode='eval')) for k in keys]
         dlin, wlin = {}, {}
         taylors = []
-        for eq in eqs:
-            assert(len(eq) == 1) # equations have to be purely products---no adds
-            taylors.append(taylor_expand(eq[0], kwargs, prepend=self.prepend))
+        for terms in all_terms:
+            taylors.append(taylor_expand(terms, kwargs, prepend=self.prepend))
         self.sol0 = sols
         kwargs.update(sols)
-        for k,taylor in zip(keys,taylors):
-            eq = LinearEquation(taylor[1:], **kwargs) # exclude zero-order term
+        for k,taylor,terms in zip(keys,taylors,all_terms):
+            eq = LinearEquation(taylor[len(terms):], **kwargs) # exclude zero-order terms
             for key in sols: eq.add_const(key, **kwargs)
-            ans0 = eq.eval_consts(taylor[0])
+            ans0 = np.sum([eq.eval_consts(t) for t in taylor[:len(terms)]], axis=0)
             nk = jointerms(eq.terms)
             dlin[nk] = data[k]-ans0
             try: wlin[nk] = wgts[k]
@@ -320,4 +321,3 @@ class LinProductSolver:
             sol[k] = self.sol0[k] + dsol[dk]
         return sol
 
-        

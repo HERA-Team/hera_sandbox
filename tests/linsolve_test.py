@@ -29,11 +29,11 @@ class TestLinSolve(unittest.TestCase):
         terms = linsolve.ast_getterms(n)
         self.assertEqual(terms, [['a','x'],[-1,'a','b','c','y']])
     def test_taylorexpand(self):
-        terms = linsolve.taylor_expand(['x','y','z'],prepend='d')
+        terms = linsolve.taylor_expand([['x','y','z']],prepend='d')
         self.assertEqual(terms, [['x','y','z'],['dx','y','z'],['x','dy','z'],['x','y','dz']])
-        terms = linsolve.taylor_expand([1,'y','z'],prepend='d')
+        terms = linsolve.taylor_expand([[1,'y','z']],prepend='d')
         self.assertEqual(terms, [[1,'y','z'],[1,'dy','z'],[1,'y','dz']])
-        terms = linsolve.taylor_expand([1,'y','z'],consts={'y':3}, prepend='d')
+        terms = linsolve.taylor_expand([[1,'y','z']],consts={'y':3}, prepend='d')
         self.assertEqual(terms, [[1,'y','z'],[1,'y','dz']])
     
 class TestLinearEquation(unittest.TestCase):
@@ -319,6 +319,20 @@ class TestLinProductSolver(unittest.TestCase):
         np.testing.assert_almost_equal(sol['x'], x, 2)
         np.testing.assert_almost_equal(sol['y'], y, 2)
         np.testing.assert_almost_equal(sol['z'], z, 2)
-        
+    def test_sums_of_products(self):
+        x = np.arange(30)*(1.0+1.0j); x.shape=(10,3) 
+        y = np.arange(30)*(2.0-3.0j); y.shape=(10,3)
+        z = np.arange(30)*(3.0-9.0j); z.shape=(10,3)
+        w = np.arange(30)*(4.0+2.0j); w.shape=(10,3)
+        expressions = ['x*y+z*w', '2*x*y+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w', '2*x + 3*y - 4*z']
+        data = {}
+        for ex in expressions: data[ex] = eval(ex)
+        currentSol = {'x':1.1*x, 'y': .9*y, 'z': 1.1*z, 'w':1.2*w}
+        for i in range(20):
+            testSolve = linsolve.LinProductSolver(data, currentSol)
+            currentSol = testSolve.solve()
+        for var in 'wxyz': 
+            np.testing.assert_almost_equal(currentSol[var], eval(var), 4)
+
 if __name__ == '__main__':
     unittest.main()
