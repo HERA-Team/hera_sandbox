@@ -276,16 +276,16 @@ class LogProductSolver:
         for k in sol_amp: sol[k] = np.exp(sol_amp[k] + 1j*sol_phs[k])   
         return sol
 
-def taylor_expand(eq, consts={}, prepend='d'):
+def taylor_expand(terms, consts={}, prepend='d'):
     '''First-order Taylor expand terms (product of variables or the sum of a 
     product of variables) wrt all parameters except those listed in consts.'''
-    terms = []
-    for term in eq: terms.append(term)
-    for term in eq:
+    taylors = []
+    for term in terms: taylors.append(term)
+    for term in terms:
         for i,t in enumerate(term):
             if type(t) is not str or get_name(t) in consts: continue
-            terms.append(term[:i]+[prepend+t]+term[i+1:])
-    return terms
+            taylors.append(term[:i]+[prepend+t]+term[i+1:])
+    return taylors
 
 # XXX make a version of linproductsolver that taylor expands in e^{a+bi} form
 class LinProductSolver:
