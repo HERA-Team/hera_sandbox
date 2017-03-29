@@ -1,7 +1,4 @@
-#! /usr/bin/env python
-
 import numpy as np
-import cPickle as pickle
 import matplotlib.pyplot as plt
 import capo.omni as omni, capo.zsa as zsa, capo.arp as arp
 import scipy
@@ -10,61 +7,105 @@ import aipy as a
 import optparse, sys, os
 import capo
 import capo.uCal as uc
-from joblib import Parallel, delayed
-import multiprocessing
-from scipy.optimize import curve_fit
+
+#TODO: look at phase ramp
+#TODO: look into delta u and Sigma Order
+#TODO: ensure normalization doesn't care about flagged channels and that it's truly consistent across bandpasses
 
 #%%##########################################
 #   Command line parsing
 #############################################
 
 o = optparse.OptionParser()
+o.set_usage('run_uCal.py [omnical .npz file or files] -C [calfile] -p [polarization] [other options]')
 a.scripting.add_standard_options(o, cal=True, pol=True)
-o.add_option('-b', '--nboot', type='int', default=24,
-    help='Number of bootstraps to normalize noise.  Default is 24')
+o.add_option('--overwrite', action='store_true',
+    help='Overwrites previous result with the same filename.')
 o.add_option('--verbose', action='store_true',
     help='Makes uCal verbose.')
-o.add_option('--sfreq', type='float', default=0.1,
+
+array_opts = optparse.OptionGroup(o, 'Array Options', 'These options control specify parameters related to the array.')
+array_opts.add_option('--sfreq', type='float', default=0.1,
     help='Starting frequency in GHz. Default is 0.1.')
-o.add_option('--sdf', type='float', default=0.1/203,
+array_opts.add_option('--sdf', type='float', default=0.1/203,
     help='Frequency channel width in GHz. Default is 0.1/203.')
-o.add_option('--nchan', type='int', default=203,
+array_opts.add_option('--nchan', type='int', default=203,
     help='Number of frequency channels. Default is 203.')
-o.add_option('--spindex', type='float', default=2.55,
-    help='Foreground spectral index used for noise model and final bandpass. Default is 2.55.')
-o.add_option('--umin', type='float', default=25.0, 
-    help='Minimum value of u (in wavelengths) used for uCal. Default is 25.0')
-o.add_option('--umax', type='float', default=100.0, 
-    help='Maximum value of u (in wavelengths) used for uCal. Default is 100.0')
-o.add_option('--deltaumax', type='float', default=0.3, 
-    help='Maximum value of Delta u (in wavelengths) for two bl-freq pairs to be considered redundant. Default is 0.3.')
-o.add_option('--ubinsize', type='float', default=0.5, 
-    help='Discretization of Sigma(u), the spatial term in uCal. Default is 0.5.')
-o.add_option('--flagchan', type='string', default='74, 178, 166, 168, 102',
-    help='Channels to always remove. Defaults are 74, 178, 166, 168, 102.')
-o.add_option('--loadpickle', action='store_true',
-    help='Instead of reloading all the data, reloads the uCal objects from a pickle.')
+array_opts.add_option('--flagchan', type='string', default='14,15,16,17,18,19,20,21,174,175,176,177,178,179,180,181,182,183,184,185,186',
+    help='Channels to always remove. Defaults are 14,15,16,17,18,19,20,21,174,175,176,177,178,179,180,181,182,183,184,185,186.')
+o.add_option_group(array_opts)
 
+uCal_opts = optparse.OptionGroup(o, 'uCal Options', 'These control how uCal is run.')
+uCal_opts.add_option('--umin', type='float', default=0.0, 
+    help='Minimum value of u (in wavelengths) for visibilities. Default is 0.0')
+uCal_opts.add_option('--umax', type='float', default=1000.0, 
+    help='Maximum value of u (in wavelengths) for visibilities. Default is 10000.0')
+uCal_opts.add_option('--deltau', type='float', default=0.5, 
+    help='Discretization of the Fourier-transformed sky. Default is 0.5 wavelengths.')
+uCal_opts.add_option('--skyfreqorder', type='int', default=1, 
+    help='TODO: REWRITE. Polynomial order of the underlying u mode in log(freq). Default is 1.')
+uCal_opts.add_option('--beamFWHMguess', type='float', default=1.0, 
+    help='Initial Gaussian Fourier-transformed primary beam FWMH guess (in wavelengths). Default is 1.0.')
+uCal_opts.add_option('--beamwidthorder', type='int', default=6, 
+    help='Polynomial order of the beam width dependence on freq. Default is 6.')
+uCal_opts.add_option('--beamfullrange', type='float', default=10.0, 
+    help='Outside a region of this width, the primary beam is taken to be 0. Default is 10.0 wavelengths.')
+uCal_opts.add_option('--maxiter', type='int', default=50, 
+    help='Maximum number of allowed iterations of lincal. Default is 50.')
+uCal_opts.add_option('--spindex', type='float', default=.55,
+    help='Foreground spectral index used for final bandpass estimate (for Jy, not K). Default is .55.')
+uCal_opts.add_option('--prefix', type='string', default='.',
+    help='Inserts a string prefix before the saved files. Default is just "."')
+uCal_opts.add_option('-F', '--flagsuffix', type='string', default=None,
+    help='Flags using xrfi flag files with a suffix that replaces the ".npz" at the end of the omnical data files.')
+o.add_option_group(uCal_opts)
 
-opts,args = o.parse_args(sys.argv[1:])
-dataFiles = args#["./Data/" + file for file in os.listdir("./Data") if file.endswith("uvcRRE.npz")]
-nBootstraps = opts.nboot
-verbose = opts.verbose
-pol=opts.pol
-spectralIndex = opts.spindex
-freqs = np.arange(opts.sfreq, opts.sfreq+opts.sdf*opts.nchan, opts.sdf)
-chans = range(len(freqs))
-calFile = opts.cal
-uMin, uMax, maxDeltau, uBinSize = opts.umin, opts.umax, opts.deltaumax, opts.ubinsize
-manualChannelFlags = [int(chan) for chan in opts.flagchan.split(',')]
-loadPickle = opts.loadpickle
+print sys.argv[1:]
 
-#TODO: look into the effects of the range of u values included
-#TODO: look at phase ramp
+if len(sys.argv)==1: #for internal testing only.
+    print "No arguments provided. Exiting..."
+    sys.exit()
+    #TODO: UPDATE THIS!!!
+    # print "WARNING!!! No arguments provided. Using testing parameters."
+    # dataFiles = ['./Data/zen.2456679.49577.xx.npz']
+    # verbose = True
+    # overwrite = True
+    # pol = 'xx'
+    # flagSuffix = None
+    # spectralIndex = 2.55
+    # freqs = np.arange(.1, .2, .1/203)
+    # chans = range(len(freqs))
+    # calFile = 'psa6622_v003'
+    # uMin, uMax = 10.0, 150
+    # qize = 1.0
+    # SigmaOrder = 3
+    # manualChannelFlags = [14, 15, 16, 17, 18, 19, 20, 21, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186]
+    # outfilePrefix = '.'
+    # maxIterations = 50
+    # uc = reload(capo.uCal)
+else:
+    opts,args = o.parse_args(sys.argv[1:])
+    dataFiles = args
+    pol, verbose, overwrite = opts.pol, opts.verbose, opts.overwrite
+    flagSuffix = opts.flagsuffix
+    spectralIndex = opts.spindex
+    freqs = np.arange(opts.sfreq, opts.sfreq+opts.sdf*opts.nchan, opts.sdf)
+    chans = range(len(freqs))
+    calFile = opts.cal
+    uMin, uMax = opts.umin, opts.umax
+    deltau = opts.deltau
+    skyFreqOrder = opts.skyFreqOrder
+    beamFWHMguess, beamWidthOrder, beamFullRange = opts.beamFWHMguess, opts.beamwidthorder, opts.beamfullrange
+    manualChannelFlags = [int(chan) for chan in opts.flagchan.split(',')]
+    #manualChannelFlags = range(0,30) + range(170,210) # flags to fix the screwed up PAPER beam model in the calfile
+    outfilePrefix = opts.prefix
+    maxIterations = opts.maxiter
+
 
 #%%##########################################
 #   Set-up functions specific to PAPER 128
 #############################################
+
 
 def getBaselines(freqs, intSeps, exampleDataFile, calFile='psa6622_v003'):
     aa = a.cal.get_aa(calFile, freqs)
@@ -95,51 +136,37 @@ def blRedundancyDictFromCalFile(calFile = 'psa6622_v003', verbose = False):
         for bl in red: redundancyDict[bl] = len(red)
     return redundancyDict
 
-def loadVisibilitiesAndSamples(dataFiles, pol, blList, redundancyDict):
-    """Based on Zaki and Carina's omni_get_k.py"""
-    print 'Now reading all data files...'
-    data = {}
-    samples = {}
-    jds = []
-    lsts = []
-    files = []
+#TODO: this functionality needs to be tested. It can probably be simplified
+def loadFlags(dataFile, flagSuffix):
+    """This function loads flags from xrfi and flags channels completely that are flagged more than the threshold fraction of the time"""
+    if flagSuffix is None: return None
+    flags = []
+    flag = np.load(dataFile.replace('.npz', flagSuffix))
+    for t in range(len(flag.keys())-1): flags.append(flag[str(t)])
+    return np.asarray(flags)
+
+def loadVisibilitiesAndSamples(dataFile, pol, blList, redundancyDict, flags):
+    """Loads visibilities and samples from an omnical npz. Applies flags."""
+    data, samples = {}, {}
+    jds, lsts = [], []
     conjugate = [(0,101), (0,62), (0,100), (0,97), (12,43), (57,64)]
-    for fl in dataFiles:
-        print '    Reading %s'%fl
-        meta,_,mdl,_ = omni.from_npz(fl)
-        jd = meta['jds']
-        lst = meta['lsts']
-        jds.append(jd)
-        lsts.append(lst)
-        files.append(fl.split('/')[-1]) #ignore the folder
-        for b in bls:
-            if b in conjugate: _d = np.conj(mdl[pol][b])
-            else: _d = mdl[pol][b]
-            if b not in data.keys(): data[b] = _d
-            else: data[b] = np.concatenate((data[b],_d), axis=0)
-            samples[b] = redundancyDict[b] * np.ones(data[b].shape)
-            samples[b][data[b]==0] = 0 #TODO: we need a more sophisticated way of handling flagging than this!!!
+    if verbose: print 'Reading %s'%dataFile
+    meta,_,mdl,_ = omni.from_npz(dataFile)
+    jd = meta['jds']
+    lst = meta['lsts']
+    jds.append(jd)
+    lsts.append(lst)
+    for b in bls:
+        if b in conjugate: _d = np.conj(mdl[pol][b])
+        else: _d = mdl[pol][b]
+        if b not in data.keys(): data[b] = _d
+        else: data[b] = np.concatenate((data[b],_d), axis=0)
+        samples[b] = redundancyDict[b] * np.ones(data[b].shape)
+        samples[b][data[b]==0] = 0
+    if flags is not None:
+        for b in bls: data[b][flags==1] = 0 #apply flags
+        for b in bls: samples[b][flags==1] = 0 #apply flags
     return data, samples
-
-def dataAndSamplesBootstraps(data, samples, bls, nBootstraps):
-    """This function returns a list of """
-    dataBootstraps, samplesBootstraps = [{} for i in range(nBootstraps)], [{} for i in range(nBootstraps)] 
-    nIntegrations = len(data[bls[0]])
-    for i in range(nBootstraps):
-        indices = np.random.random_integers(0,nIntegrations-1,nIntegrations)        
-        for bl in bls:
-            dataBootstraps[i][bl] = data[bl][indices,:]
-            samplesBootstraps[i][bl] = samples[bl][indices,:]
-    return dataBootstraps, samplesBootstraps    
-
-def harmonizeChannelFlags(chans, uCal, uCalBootstraps, verbose=False):
-    """This function flags all channels that are flagged in any of the splits for both uCal and all splits."""
-    unflagged = set(uCal.chans)
-    for split in uCalBootstraps: unflagged &= set(split.chans)
-    toFlag = list(set(chans) - unflagged)
-    uCal.applyChannelFlagCut(toFlag)
-    for split in uCalBootstraps: split.applyChannelFlagCut(toFlag)
-    if verbose: print "After harmonizing channel flags, " + str(len(toFlag)) + " channels have been flagged for all bootstraps."
 
 
 #%%##########################################
@@ -152,142 +179,282 @@ dx = 15.0 / scipy.constants.c * 1e9
 chan2FreqDict = {chan: freqs[chan] for chan in chans}
 separations = dx*intSeps
 if calFile is None: calFile = 'psa6622_v003'
-bls = getBaselines(freqs, intSeps, dataFiles[0], calFile=calFile)
+bls = getBaselines(freqs, intSeps, dataFiles[0], calFile=calFile)#[2:]
 bl2SepDict = {bl: np.asarray([sep,0.0]) for bl,sep in zip(bls,separations)}
 redundancyDict = blRedundancyDictFromCalFile(calFile=calFile)
-
-pickleFileName = dataFiles[0].replace('.npz', '.uCalDataWithBootstraps.p')
-if loadPickle:
-    uReds, uCal, uCalBootstraps, loadedDataFiles = pickle.load(open(pickleFileName,'rb'))
-    if not len(uCalBootstraps) == nBootstraps or not loadedDataFiles == dataFiles: raise RuntimeError('Loaded uCalDataWithBootstraps.p does not match current specifications.')
-else:
-    uReds = uc.uCalReds(freqs, bls, chan2FreqDict, bl2SepDict, maxDeltau=maxDeltau, verbose=verbose) #just pass in freqs
-    uCal = uc.uCalibrator(uReds.getBlChanPairs())
-    data, samples = loadVisibilitiesAndSamples(dataFiles, pol, bls, redundancyDict)
-    uCal.computeVisibilityCorrelations(data, samples, verbose=verbose)
-    uCalBootstraps = [uc.uCalibrator(uReds.getBlChanPairs()) for i in range(nBootstraps)]
-    dataBootstraps, samplesBootstraps = dataAndSamplesBootstraps(data, samples, bls, nBootstraps)
-    for i in range(nBootstraps): 
-        if verbose: print 'Now computing visibility correlations for bootstrap ' + str(i) + ' of ' + str(nBootstraps) + '...'
-        uCalBootstraps[i].computeVisibilityCorrelations(dataBootstraps[i], samplesBootstraps[i], verbose=verbose)
-    harmonizeChannelFlags(chans, uCal, uCalBootstraps, verbose=verbose)
-    if verbose: print 'Now saving intermediate data products to ' + pickleFileName + ' for easy rerunning...'
-    pickle.dump([uReds, uCal, uCalBootstraps, dataFiles], open(pickleFileName, 'wb'))
-
+chans = range(len(freqs))
 
 #%%##########################################
 #   uCal Functionality
 #############################################
 
-def uCalSetup(uCal, channelFlags=[]):
-    if len(channelFlags)> 0: uCal.applyChannelFlagCut(channelFlags)
-    uCal.applyuCut(uMin=uMin, uMax=uMax)
-    uCal.setupBinning(uBinSize=uBinSize, duBinSize=uBinSize/len(chans))
+def prewhitenDataWithPowerLaw(data, freqs, spectralIndex):
+    for bl in data.keys(): data[bl] *= np.array(freqs)**spectralIndex
 
-def performuCal(uCal, noiseVariance=None, maxIterations = 40, verbose = False):
-    if not uCal.binningIsSetup: uCal.setupBinning(uBinSize=uBinSize, duBinSize = uBinSize/len(chans))
+def uCalSetup(data, timeIndex):
+    """Sets up uCal object for a given integration with data, flagged channels, etc."""
+    uCal = uc.uCalibrator(verbose=verbose, beamFWHMguess=beamFWHMguess, beamFullRange=beamFullRange, beamWidthOrder=beamWidthOrder, skyFreqOrder=skyFreqOrder, dampingFactor = 1.0)
+    uCal.setupBaselineChannelPairs(freqs, bls, chan2FreqDict, bl2SepDict, redundancyDict)
+    uCal.loadData(data, timeIndex)
+    uCal.flagChans(flaggedChans=manualChannelFlags)
+    uCal.defineuSampling(deltau, uMin, uMax, beamFullRange)
+    return uCal
+
+#TODO: investigate whether the treshold matters
+def performuCal(uCal, maxIterations=50, thresh=1e-5):
+    """Performs logcal and then iterates lincal until convergence is reached or too many iterations have passed."""
     if verbose: print 'Now performing logcal...'
-    betas, Sigmas, Ds = uCal.performLogcal()
-    noiseCovDiag = uCal.generateNoiseCovariance(betas)
-    if noiseVariance is not None: noiseCovDiag = noiseVariance
-    if verbose: print 'Now performing lincal...'
-    prevBetas, prevSigmas, prevDs = 0, 0, 0
-    for iteration in range(maxIterations): 
-        betas, Sigmas, Ds, chiSqPerDoF = uCal.performLincalIteration(betas, Sigmas, Ds, noiseCovDiag, alpha = .5)
-        if verbose: print '    ' + str(iteration) + ') chi^2/dof = ' + str(chiSqPerDoF)
-        if np.average(np.abs(betas - prevBetas)/np.abs(betas)) < 1e-6: break
-        prevBetas, prevSigmas, prevDs = betas, Sigmas, Ds 
-        noiseCovDiag = uCal.generateNoiseCovariance(betas)
-    noiseCovDiag = uCal.renormalizeNoise(betas, Sigmas, Ds, noiseCovDiag)
-    return betas, Sigmas, Ds, noiseCovDiag
+    betas, Sigmas = uCal.performLogcal()
 
-def renormalizeNoiseFromBootstraps(uCal, betas, Sigmas, Ds, noiseCovDiag, bootstrapBetas, bootstrapSigmas, bootstrapDs, verbose=False):
-    noiseStart = noiseCovDiag[0]
-    for i in range(3):
-        modelAbsErrors = (np.diag(np.linalg.pinv(uCal.AtNinvA))[0::2] + np.diag(np.linalg.pinv(uCal.AtNinvA))[1::2])
-        modelAbsErrors[0:uCal.nChans] *= np.abs(betas)**2
-        bootstrapAbsErrors = np.asarray([sigma for bootstrap in (bootstrapBetas, bootstrapSigmas, bootstrapDs) for sigma in np.var(np.asarray(bootstrap).T,axis=1)])
-        noiseCovDiag *= np.median(bootstrapAbsErrors[0:uCal.nChans]) / np.median(modelAbsErrors[0:uCal.nChans])
-        uCal.performLincalIteration(betas, Sigmas, Ds, noiseCovDiag, alpha = .5)        
-    if verbose: print 'Noise covariance rescaled by ' + str(noiseCovDiag[0]/noiseStart) + ' to match bootstraps.'
-    return noiseCovDiag
+    #result = uCal.minimizeError(betas, Sigmas)
+    #betas = result[0][0:self.nChans]
+    #Sigmas = result[0][self.nChans:]
+    noiseVariance = uCal.generateNoiseVariance(betas)
+    noiseVariance = np.ones(len(noiseVariance))
+    print 'noiseVariance set to identity'
+    #return betas, Sigmas, noiseVariance
+    errors = uCal.computeModelsAndErrors([uCal.bandpassFunc,uCal.uIntegralFunc], [betas, Sigmas])
+    print 'Chi^2 after logcal =', np.average(np.abs(errors)**2 / noiseVariance)
+
+
+
+    # uCal.useLogCalResultsForNLCG(betas, Sigmas)
+    prevBetas = np.array(betas)
+    if verbose: print 'Now performing lincal...'
+    for iteration in range(maxIterations): 
+        print 'beamWidth:', np.dot(Sigmas[uCal.beamWidthIndices], [(.145/.145)**n for n in range(uCal.beamWidthOrder+1)])
+        (betas, Sigmas), chiSqPerDoF = uCal.generalizedLincalIteration([uCal.bandpassFunc,uCal.uIntegralFunc], [betas, Sigmas], noiseVariance, alpha=1)
+        
+        print 'dampingFactor:', uCal.dampingFactor
+        betas, Sigmas = uCal.renormalize(None, [betas, Sigmas], absMeanGoal = uCal.meanAbsVis)
+        #betas, Sigmas = uCal.renormalize(None, [betas, Sigmas], absMeanGoal = 1.0)
+
+        if verbose: print '    Iteration ' + str(iteration+1) + ') chi^2/dof = ' + str(chiSqPerDoF)
+
+        betaConvergence.append(betas)
+
+        #Decide whether to break
+        renormalizedBetas = betas / np.mean(np.abs(betas)) * np.exp(-1.0j * np.mean(np.angle(betas)))
+        renormalizedOldBetas = prevBetas / np.mean(np.abs(prevBetas)) * np.exp(-1.0j * np.mean(np.angle(prevBetas)))
+        print '                               change in betas: ', np.linalg.norm(renormalizedBetas - renormalizedOldBetas) / np.linalg.norm(renormalizedBetas), '\n'
+        if np.linalg.norm(renormalizedBetas - renormalizedOldBetas) / np.linalg.norm(renormalizedBetas) < thresh: break
+
+
+        prevBetas = np.array(betas)
+        #noiseVariance = uCal.generateNoiseVariance(betas)
+        #noiseVariance = uCal.renormalizeNoise([uCal.bandpassFunc,uCal.uIntegralFunc], [betas, Sigmas], noiseVariance)
+    betas, Sigmas = uCal.renormalize(None, [betas, Sigmas], absMeanGoal = 1.0)
+    return betas, Sigmas, noiseVariance
+
+def summarizeResults(freqs, spectralIndex, uCals, allBetas, allSigmas, noiseVariances):
+    """This function computes the relevant quantities for plotting or combining with future results."""
+    allBandpasses = np.zeros((len(allBetas),len(freqs)),dtype=complex)
+    for bandpass, beta, uCal in zip(allBandpasses, allBetas, uCals): bandpass[uCal.chans] = beta.values()
+    for bandpass in allBandpasses: bandpass *= freqs**spectralIndex
+    meanBandpass = np.mean(np.ma.masked_equal(allBandpasses,0),axis=0).data
+    stdBandpass = np.std(np.abs(np.ma.masked_invalid(np.ma.masked_equal(allBandpasses,0))),axis=0).data
+    unflaggedChans = [sorted(beta.keys()) for beta in allBetas]
+    
+    errorsByChan = {chan: [] for chan in range(len(freqs))}
+    channelRMSs = []
+    for uCal,noiseVariance in zip(uCals,noiseVariances):
+        errorsByChanHere = {chan: [] for chan in range(len(freqs))}
+        for ((bl,chan),entry),var in zip(uCal.blChanPairs.items(), noiseVariance):
+            errorsByChan[chan].append(np.abs(entry['vis']-entry['model'])**2 / var)
+            errorsByChanHere[chan].append(np.abs(entry['vis']-entry['model'])**2 / var)
+        channelRMSs.append(np.asarray([np.mean(errorsByChanHere[chan])**.5 for chan in range(len(freqs))]))
+    overallChannelRMS = np.asarray([np.mean(errorsByChan[chan])**.5 for chan in range(len(freqs))])
+    return allBandpasses, meanBandpass, stdBandpass, unflaggedChans, channelRMSs, overallChannelRMS
+
+#%%##########################################
+#   Testing Functionality
+#############################################
+
+def applyArtificialBandpass(data, appliedBandpass):
+    for bl in data.keys():
+        data[bl] *= appliedBandpass
+
+#appliedBandpass = np.ones(len(chans))
+#appliedBandpass = [np.sin(freqs[chan]/.01)+2 for chan in chans]
+#appliedBandpass = [np.exp(1.0j * freqs[chan]/.01) + 3 for chan in chans]
+appliedBandpass = [np.exp(-(freqs[chan]-.15)**2/(2*.025**2)) * (np.exp(1.0j * freqs[chan]/.001) + 10) for chan in chans]
+#appliedBandpass = np.random.rand(len(chans)) + np.random.rand(len(chans))*1.0j + 3.0
+
+appliedBandpass = np.asarray(appliedBandpass) / np.mean(np.abs(appliedBandpass)) * np.exp(-1.0j * np.mean(np.angle(appliedBandpass)))
 
 
 #%%##########################################
 #   Run uCal
 #############################################
 
-if verbose: print 'Now finding channels to remove...'
-try: channelsToFlag = manualChannelFlags
-except: channelsToFlag = []
-while True:
-    uCalSetup(uCal, channelFlags=channelsToFlag)
-    betas, Sigmas, Ds, noiseCovDiag = performuCal(uCal)
-    newFlags = uCal.identifyBadChannels(betas, Sigmas, Ds, noiseCovDiag, maxAvgError=4, cutUpToThisFracOfMaxError=.5)    
-    if len(newFlags)==0: break
-    for chan in newFlags: channelsToFlag.append(chan)
-if verbose: print '    ' + str(len(channelsToFlag)) + ' channels flagged manually or due to high error: ' + str(sorted(channelsToFlag))
-   
-betas, Sigmas, Ds, noiseCovDiag = performuCal(uCal, verbose=True)
-for bootstrap in uCalBootstraps: uCalSetup(bootstrap, channelFlags=channelsToFlag)
-if verbose: print 'Now running ' + str(nBootstraps) + 'bootstraps through logcal and lincal...'
-bootstrapBetas, bootstrapSigmas, bootstrapDs =  [[None for i in range(nBootstraps)] for j in range(3)]
-parallelBootstrapResults = Parallel(n_jobs=multiprocessing.cpu_count())(delayed(performuCal)(uCalBootstraps[i], noiseVariance=noiseCovDiag) for i in range(nBootstraps))
-for i in range(nBootstraps): bootstrapBetas[i], bootstrapSigmas[i], bootstrapDs[i], dummy = parallelBootstrapResults[i]
+betaConvergence = []
+for dataFile in dataFiles:
+    resultsFile = dataFile.replace('.npz', outfilePrefix + 'uCalResults.npz')
+    if os.path.exists(resultsFile) and not overwrite:
+        print '\n    ' + resultsFile + ' exists...skipping.\n'
+        continue
+    flags = loadFlags(dataFile, flagSuffix)
+    data, samples = loadVisibilitiesAndSamples(dataFile, pol, bls, redundancyDict, flags)
+    #prewhitenDataWithPowerLaw(data, freqs, spectralIndex)
 
-noiseCovDiag = renormalizeNoiseFromBootstraps(uCal, betas, Sigmas, Ds, noiseCovDiag, bootstrapBetas, bootstrapSigmas, bootstrapDs, verbose=verbose)
-betas, Sigmas, Ds, chiSqPerDoF = uCal.performLincalIteration(betas, Sigmas, Ds, noiseCovDiag, alpha = .5)
-if verbose: print 'Final chi^2/dof =', chiSqPerDoF 
+
+
+    applyArtificialBandpass(data, appliedBandpass)
+    uCals, allBetas, allSigmas, noiseVariances = [], [], [], []
+    for t in [0]:
+#     #for t in range(len(data[bls[0]])):
+        if verbose: print '\nNow analyzing timeslice ' + str(t) + ' of ' + dataFile
+        uCal = uCalSetup(data, timeIndex=t)
+#        betas, Sigmas, noiseVariance = performuCal(uCal, thresh=1e-8, maxIterations=maxIterations)
+#        uCals.append(uCal)
+#        allBetas.append(betas)
+#        allSigmas.append(Sigmas)
+#        noiseVariances.append(noiseVariance)
+# #TODO: turn back on!!!
+#     allBP, meanBP, stdBP, unflagged, RMSs, RMS = summarizeResults(freqs, spectralIndex, uCals, allBetas, allSigmas, noiseVariances) 
+#     uc.to_npz(resultsFile, [dataFile], allBP, meanBP, stdBP, unflagged, RMSs, RMS)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #%%##########################################
-#   Complex Fitting
+#   Test plots
 #############################################
 
-periodLength = np.max(freqs)-np.min(freqs)
-def fourier(x, *a):
-    ret = a[0]
-    for deg in range(1, len(a)):
-        ret += a[deg] * np.cos((deg) * np.pi / periodLength * x)
-    return ret
+# chans = uCal.chans
 
-def cosineFit(x, data, errors, degree, fullx=None):
-    popt, pcov = curve_fit(fourier, x, data, sigma=errors, p0=[1.0] * (degree+1))
-    if fullx is not None: return fourier(fullx, *popt)
-    else: return fourier(x, *popt)
+# appliedBandpass = appliedBandpass[chans]
+
+# # #%% Plot bandpass
+# # plt.figure(1); plt.clf()
+# for uCal,betas,Sigmas in zip(uCals, allBetas, allSigmas):
+#     #for chan in uCal.chans: betas[uCal.chanIndices[chan]] *= freqs[chan]**spectralIndex
+#     bandpass = uCal.renormalize(None, [betas, Sigmas], absMeanGoal = 1.0)[0]
+#     plt.plot(chans, (np.abs(bandpass - appliedBandpass))/np.abs(appliedBandpass))
+# #plt.errorbar(chans,np.abs(meanBandpass)[allUnflaggedChans],yerr=np.abs(stdBandpass)[allUnflaggedChans], fmt='k')
+# # plt.xlabel('channel'); plt.ylabel('abs(Bandpass) relative error')
+
+# if True:
+
+
+#     allvis = np.asarray([value['vis'] for value in uCal.blChanPairs.values()])
+#     allmodel = np.asarray([value['model'] for value in uCal.blChanPairs.values()])
+#     allu = np.asarray([value['u'] for value in uCal.blChanPairs.values()])
+#     allb = np.asarray([value['u']/freqs[chan] for (bl,chan),value in uCal.blChanPairs.items()])
+#     allfreq = np.asarray([freqs[chan] for (bl,chan),value in uCal.blChanPairs.items()])
+#     allNearestSampleIndices = np.asarray([int(np.round((u - uCal.uSamples[0]  + 1e-10)/uCal.deltau)) for u in allu])
+#     allNearestSamples = np.asarray([uCal.uSamples[index] for index in allNearestSampleIndices])
+#     allDeltaus = allu - allNearestSamples
+
+#     plt.figure(2); plt.clf()
+#     plt.plot(allu, np.real(allvis), '.')
+#     for fBin in [0, 100, 200]:
+#         usToPlot = np.arange(np.min(allu)-beamFullRange/2.0, np.max(allu)+beamFullRange/2.0, .01)
+#         #uModel = [uCal.uIntegralFunc(None, Sigmas, specify={'u':u, 'freq':.145}) for u in usToPlot]
+#         uModel = [betas[fBin]*uCal.uIntegralFunc(None, Sigmas, specify={'u':u, 'freq':freqs[fBin]}) for u in usToPlot]
+#         plt.plot(usToPlot, np.real(uModel),'-')
+
+
+
+
+# plt.figure(3, figsize=(16,8)); plt.clf()
+# plt.subplot(211)
+# plt.plot(chans, np.real(bandpass), 'b.')
+# plt.plot(chans, np.real(appliedBandpass),'r')
+# plt.plot(chans, np.imag(bandpass), 'g.')
+# plt.plot(chans, np.imag(appliedBandpass),'k')
+# plt.legend(['Real(Solved Bandpass)', 'Real(Applied Bandpass)', 'Imag(Solved Bandpass)', 'Imag(Applied Bandpass)'])
+# plt.xlabel('chan'); plt.ylabel('Bandpass Component')
+
+# plt.subplot(212)
+# toFit = np.abs(bandpass) / np.abs(appliedBandpass)
+# plt.semilogy(chans, toFit, '.')
+# maxPolyOrder = 8
+# for order in range(maxPolyOrder+1):
+#     fit = np.polyfit(freqs[chans], toFit, order)
+#     fitResult = np.polyval(fit, freqs[chans])
+#     plt.semilogy(chans, np.abs(fitResult - toFit), '.')
+
+# plt.legend(['Abs(Solved Bandpass / Applied)'] + ['Abs(Order ' + str(order) + ' Polynomial Error)' for order in range(maxPolyOrder+1)], fontsize=8)
+
+
+# plt.figure(1231); plt.clf();
+# beamWidths = [np.dot(Sigmas[uCal.beamWidthIndices[0]:uCal.beamWidthIndices[-1]+1], [(freqs[chan]/.145)**n for n in range(beamWidthOrder+1)]) for chan in chans]
+# plt.plot(np.abs(beamWidths))
+# plt.plot(np.angle(beamWidths))
+# plt.plot() 
+
+# #plt.show()
+
+
+
+
+# evals, evecs = uCal.SortedEigensystem(uCal.AtNinvA)
+
+# #%%
+# plt.figure(100); plt.clf(); plt.semilogy(allfreq, np.abs(allvis - allmodel)/np.abs(allvis),'.'); 
+# plt.xlabel('f'); plt.ylabel('abs(error)/abs(vis)');
+# plt.figure(101); plt.clf(); plt.semilogy(allu, np.abs(allvis - allmodel)/np.abs(allvis),'.'); 
+# plt.xlabel('u'); plt.ylabel('abs(error)/abs(vis)'); 
+# plt.figure(102); plt.clf(); plt.semilogy(allDeltaus, np.abs(allvis - allmodel)/np.abs(allvis),'.'); 
+# plt.xlabel('Delta u'); plt.ylabel('abs(error)/abs(vis)'); 
+# plt.figure(103); plt.clf(); plt.semilogy(allb, np.abs(allvis - allmodel)/np.abs(allvis),'.'); 
+# plt.xlabel('baseline'); plt.ylabel('abs(error)/abs(vis)'); 
+
+
+# # plt.figure(100); plt.clf(); plt.semilogy(allfreq, np.abs(allvis - allmodel),'.'); 
+# # plt.xlabel('f'); plt.ylabel('abs(error)');
+# plt.figure(101); plt.clf(); plt.semilogy(allu, np.abs(allvis - allmodel),'.'); 
+# plt.xlabel('u'); plt.ylabel('abs(error)'); 
+# # plt.figure(102); plt.clf(); plt.semilogy(allDeltaus, np.abs(allvis - allmodel),'.'); 
+# # plt.xlabel('Delta u'); plt.ylabel('abs(error)'); 
+# # plt.figure(103); plt.clf(); plt.semilogy(allb, np.abs(allvis - allmodel),'.'); 
+# # plt.xlabel('baseline'); plt.ylabel('abs(error)'); 
+# #%%
+
+# plt.figure(1001); plt.clf(); plt.semilogy(evals,'.');
+# plt.figure(1002); plt.clf(); plt.semilogy(np.abs(evecs[:,-49:-1]));
+
+# plt.show()
+
+# from IPython import embed; embed()
+
+
+
+# #%% Example Bandpass
+
+# if False:
+#     plt.figure(10101); plt.clf()
+#     plt.semilogy(freqs*1000, np.abs(appliedBandpass), lw=2)
     
-def BIC(data, realModel, imagModel, realErrors, imagErrors, DoF):
-    chiSq = np.sum(((np.real(data) - realModel)/realErrors)**2) + np.sum(((np.imag(data) - imagModel)/imagErrors)**2)
-    return np.sum(np.log(2*np.pi*realErrors**2)) + np.sum(np.log(2*np.pi*imagErrors**2)) + chiSq + DoF*np.log(2*len(data))
-
-def findBestModel(x, data, realErrors, imagErrors, degreeRange, fullx):
-    BICs = []
-    for degree in degreeRange:
-        realModel = cosineFit(x, np.real(data), realErrors, degree)
-        imagModel = cosineFit(x, np.imag(data), imagErrors, degree)
-        BICs.append(BIC(data, realModel, imagModel, realErrors, imagErrors, DoF=2*degree+2))
-    bestDegree = (degreeRange[BICs==np.min(BICs)][0])
-    bestModel = cosineFit(x, np.real(data), realErrors, bestDegree) + 1.0j * cosineFit(x, np.imag(data), imagErrors, bestDegree)
-    fullModel = cosineFit(x, np.real(data), realErrors, bestDegree, fullx=fullx) + 1.0j * cosineFit(x, np.imag(data), imagErrors, bestDegree, fullx=fullx)
-    bestChiSqPerDoF = (np.sum(((np.real(data) - np.real(bestModel))/realErrors)**2) + np.sum(((np.imag(data) - np.imag(bestModel))/imagErrors)**2))/(len(data)*2)
-    return bestModel, fullModel, BICs, bestDegree, bestChiSqPerDoF
-
-degreeRange = np.arange(60,120,2)
-if verbose: print 'Now exploring between degree = ' + str(degreeRange[0]) + ' and degree = ' + str(degreeRange[-1]) + ' for the minimum BIC...'
-observedRealErrors = np.std(np.real(np.asarray(bootstrapBetas).T),axis=1)
-observedImagErrors = np.std(np.imag(np.asarray(bootstrapBetas).T),axis=1)
-modelRealErrors = np.abs(betas)*((np.diag(np.linalg.pinv(uCal.AtNinvA))[0:2*uCal.nChans:2]))**.5
-modelImagErrors = np.abs(betas)*((np.diag(np.linalg.pinv(uCal.AtNinvA))[1:2*uCal.nChans:2]))**.5
-model, fullModel, BICs, bestDegree, bestChiSqPerDoF = findBestModel(freqs[uCal.chans] - .1, betas*freqs[uCal.chans]**spectralIndex, modelRealErrors*freqs[uCal.chans]**spectralIndex, modelImagErrors*freqs[uCal.chans]**spectralIndex, degreeRange, freqs-.1)
-if verbose: print 'The fourier mode limit with the lowest BIC is ' + str(bestDegree) + ' with a fit chi^2 per DoF of ' + str(bestChiSqPerDoF)
-
-
-#%%##########################################
-#   Save Results
-#############################################
-
-uc.save2npz(dataFiles[0].replace('.npz', '.uCalResults.npz'), dataFiles, chans, uCal.chans, betas*freqs[uCal.chans]**spectralIndex, fullModel)
-diagnosticResults = {var: eval(var) for var in ['dataFiles', 'uCal', 'betas', 'Sigmas', 'Ds', 'bootstrapBetas', 'bootstrapSigmas', 'bootstrapDs', 
-                                            'freqs', 'observedRealErrors', 'observedImagErrors', 'model', 'noiseCovDiag', 'BICs', 'degreeRange']}
-pickle.dump(diagnosticResults, open(dataFiles[0].replace('.npz', '.diagnosticResults.p'),'wb'))
-if verbose: print '\nuCal complete! Results saved to ' + dataFiles[0].replace('.npz', '.diagnosticResults.p') + ' and ' + dataFiles[0].replace('.npz', '.uCalResults.p')
+#     toFit = np.abs(appliedBandpass) / np.abs(bandpass)
+#     fit = np.polyfit(freqs[chans], toFit, 4)
+#     fitResult = np.polyval(fit, freqs[chans])
+#     impliedBandpass = np.abs(fitResult * bandpass)
+    
+#     plt.semilogy(freqs*1000, impliedBandpass,'r--', lw=3)
+#     plt.semilogy(freqs*1000, np.abs(np.abs(fitResult * bandpass) - np.abs(appliedBandpass)),'g.-')
+#     plt.xlabel('Frequency (MHz)')
+#     plt.ylabel('Abs(Bandpass)')
+    
+#     plt.legend(['Simulated Bandpass', 'Solved Bandpass', 'Bandpass Error'], loc = 'lower right')
+    
+#     plt.savefig('BandpassError.pdf',bbox_inches='tight')

@@ -34,7 +34,8 @@ def grid_jd(jds, temps, binsize=120):
 offset = 630
 nchan = 1024
 chans = n.arange(offset, offset+nchan)
-skip_ants = [7, 13, 15]
+#skip_ants = [7, 13, 15]
+skip_ants = []
 rewire = {
     6: {'x': 8, 'y': 9},
     7: {'x':10, 'y':11},

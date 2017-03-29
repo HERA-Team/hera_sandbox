@@ -1,8 +1,12 @@
 #!/bin/bash
+#usage:
+#set the output path ($out) to where you want the filtered lstbinned set to go
+#run from within the lstbinned directory of the set you want to filter
+#assumes
 
 seps='sep0,1 sep1,1 sep-1,1'
 cal=psa6240_v003
-out='/home/djacobs/psa64/exp_vs_inttime/lstbin_psa64_data_frwidth2.0_maxfr1.3'
+out='/home/djacobs/psa64/lstbin_psa64_ali_optimal2/'
 appelation='uvGA'
 chan='101'
 
@@ -30,7 +34,7 @@ sleep 1.5
 if [ ! -d $out   ]; then
     printf 'This output director appears to be new\n'
     printf 'Creating Directoires now\n'
-    for path in $paths; do
+    for path in $days; do
         for sep in $seps; do
             mkdir -p ${out}/${path}/${sep}
         done
@@ -74,7 +78,7 @@ for path in $days; do
         else
             printf '%s/frf_filter.py -C %s   -a %s -c %s --bl_scale=%s --fr_width_scale=%s --outpath=%s/' $scriptsdir $cal ${ants[$sep]} $chan $bl_scale $fr_width ${out} 
             printf '%s\n' $path/$sep
-            "${scriptsdir}/frf_filter.py" -C $cal -a ${ants[$sep]} -C $cal  --bl_scale $bl_scale \
+            "${scriptsdir}/frf_filter.py" -C $cal -a ${ants[$sep]}  --bl_scale $bl_scale \
             --fr_width_scale=${fr_width} $files --outpath=${out} -c $chan  --maxfr=${maxfr} --pol=I
 
         fi

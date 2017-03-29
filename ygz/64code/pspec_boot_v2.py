@@ -54,13 +54,33 @@ k0 = n.abs(kpl).argmin()
 #    for j in range(len(pk_vs_t['boot'][i])):
 #        pk_vs_t['boot'][i][j] = pk_vs_t['boot'][i][j][:NN]
 
-pk_2d = n.empty(len(paths), dtype=n.ndarray)
-nocov_2d = n.empty(len(paths), dtype=n.ndarray)
-temp_noise_var = n.empty(len(paths), dtype=n.ndarray)
+# pk_2d = n.empty(len(paths), dtype=n.ndarray)
+# nocov_2d = n.empty(len(paths), dtype=n.ndarray)
+# temp_noise_var = n.empty(len(paths), dtype=n.ndarray)
+#import IPython; IPython.embed()
 for i,path in enumerate(paths):
-    pk_2d[i] = n.array(pk_vs_t[path]) # (bltype/path,bootstraps/numfilesinpath,kpls/nchan,times)
-    nocov_2d[i] = n.array(nocov_vs_t[path]) # (bltype,bootstraps,kpls,times), T averaged over all bls
-    temp_noise_var[i] = n.array(temp_noise_dic[path])
+    #first make all times same length
+    minntimes = n.amin([arr.shape[-1] for arr in pk_vs_t[path]])
+    print minntimes
+    for i, arr in enumerate(pk_vs_t[path]):
+        pk_vs_t[path][i] = arr[:,:minntimes]
+        #import IPython; IPython.embed()
+        nocov_vs_t[path][i] = nocov_vs_t[path][i][:,:minntimes]
+        #import IPython; IPython.embed()
+        try:
+            temp_noise_dic[path][i] = temp_noise_dic[path][i][:,:minntimes]
+        except:
+            pass
+    pk_vs_t[path] = n.array(pk_vs_t[path])
+    nocov_vs_t[path] = n.array(nocov_vs_t[path])
+    temp_noise_dic[path] = n.array(temp_noise_dic[path])
+    #import IPython; IPython.embed()
+pk_2d = n.stack(pk_vs_t.values()) # (bltype/path,bootstraps/numfilesinpath,kpls/nchan,times)
+nocov_2d = n.stack(nocov_vs_t.values()) # (bltype,bootstraps,kpls,times), T averaged over all bls
+temp_noise_var = n.stack(temp_noise_dic.values())
+    # pk_2d[i] = n.array(pk_vs_t[path]) # (bltype/path,bootstraps/numfilesinpath,kpls/nchan,times)
+    # nocov_2d[i] = n.array(nocov_vs_t[path]) # (bltype,bootstraps,kpls,times), T averaged over all bls
+    # temp_noise_var[i] = n.array(temp_noise_dic[path])
 #err_2d = n.array([err_vs_t[path] for path in paths])
 #print err_2d.shape, temp_noise_var.shape, pk_2d.shape
 #wgts = 1./(temp_noise_var * err_2d)
