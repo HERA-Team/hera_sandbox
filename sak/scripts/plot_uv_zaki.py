@@ -444,7 +444,7 @@ for cnt, bl in enumerate(bls):
         p.title(title)
 if not opts.nolegend and (not is_time_range or not is_chan_range): 
     p.legend(loc='best')
-
+"""
 # Save to a file or pop up a window
 if opts.out_file != '': p.savefig(opts.out_file)
 else:
@@ -476,4 +476,5 @@ else:
             print 'Replotting...'
             p.draw()
     p.connect('key_press_event', click)
-    p.show()
+"""
+p.show()
