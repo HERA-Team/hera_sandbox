@@ -17,13 +17,19 @@ o.add_option('--ba',dest='ba',default=None,
             help='Antennas to exclude, separated by commas.')
 o.add_option('--fc2',dest='fc2', type='string',
             help='Path and name of POL.npz file outputted by firstcal v2 (comma delimited string if more than one polarization).')
-o.add_option('--remove_degen',dest='rmdegen',default=True, help='Toggle degeneracy removal functionality (recommended; default=True).')
+o.add_option('--remove_degen',dest='rmdegen',default=True, 
+            help='Toggle degeneracy removal functionality (recommended; default=True).')
+o.add_option('--minV',action='store_true',
+            help='Toggle V minimization capability. This only makes sense in the case of 4-pol cal, which will set crosspols (xy & yx) equal to each other')
 opts,args = o.parse_args(sys.argv[1:])
 
 #Dictionary of calpar gains and files
 pols = opts.pol.split(',')
 files = {}
 g0 = {} #firstcal gains
+
+if opts.minV and len(list(set(''.join(pols))))==1:
+    raise AssertionError('Stokes V minimization requires crosspols.')
 
 try: fc2 = opts.fc2.split(',')
 except AttributeError: print('No fc2 files supplied. Continuing.')
@@ -85,7 +91,7 @@ else: #generate reds from calfile
             ex_ants.append(int(a))
         print 'Excluding antennas:',sorted(ex_ants)
     else: ex_ants = []
-    info = capo.omni.aa_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, crosspols=pols)
+    info = capo.omni.aa_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, crosspols=pols, minV=opts.minV)
 reds = info.get_reds()
 
 ### Omnical-ing! Loop Through Compressed Files ###
