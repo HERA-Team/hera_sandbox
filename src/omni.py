@@ -2,6 +2,7 @@ import numpy as np, omnical, aipy, math
 import capo.red as red
 import numpy.linalg as la
 import warnings
+import sys
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore",category=DeprecationWarning)
     import scipy.sparse as sps
@@ -78,7 +79,40 @@ def compute_reds(nant, pols, *args, **kwargs):
             reds += [[(Antpol(i,pi,nant),Antpol(j,pj,nant)) for i,j in gp] for gp in _reds]
     return reds
 
-def aa_to_info(aa, pols=['x'], fcal=False, **kwargs):
+def imposeVzero(reds,nant,verify=True,verif_N=15):
+    newreds = []
+    L = len(reds)
+    assert(L%2==0)
+    newreds+=reds[:L/4]
+    crosspols = reds[L/4:3*L/4]
+    Lx = len(crosspols)
+    redsV = []
+    for i in range(Lx/2):
+        ubl1 = crosspols[i]
+        ubl2 = crosspols[i+Lx/2]
+        redsV.append(ubl1+ubl2)
+    if verify:
+        #check that verif_N antpols in redsV have their crosspols
+        print 'capo.omni.imposeVzero:    Verifying crosspol reundancy array'
+        from numpy.random import randint
+        for j in randint(0,high=len(redsV),size=verif_N):
+            rUbl = redsV[j]
+            ai,aj = rUbl[0]
+            try:
+                assert(ai.pol()!=aj.pol())
+            except AssertionError:
+                raise Exception('Something has gone wrong in polarized redundancy calculation (contains linpols)')
+            bi,bj = Antpol(ai.ant(),aj.pol(),nant),Antpol(aj.ant(),ai.pol(),nant)
+            if (bi,bj) in rUbl: continue
+            elif (bj,bi) in rUbl: continue
+            else:
+                raise Exception('Something has gone wrong in polarized redundancy calculation (missing crosspols)')
+        print '    ...done'
+    newreds+=redsV
+    newreds+=reds[3*L/4:]
+    return newreds
+
+def aa_to_info(aa, pols=['x'], fcal=False, minV=False, **kwargs):
     '''Use aa.ant_layout to generate redundances based on ideal placement.
         The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
     nant = len(aa)
@@ -93,13 +127,14 @@ def aa_to_info(aa, pols=['x'], fcal=False, **kwargs):
     antpos = -np.ones((nant*len(pols),3)) #remake antpos with pol information. -1 to flag
     for ant,x,y in zip(layout.flatten(), xs.flatten(), ys.flatten()):
         for z, pol in enumerate(pols):
-            z = 2**z
-            i = Antpol(ant, pol, len(aa))
+            z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
+            i = Antpol(ant, pol, nant) # creates index in POLNUM/NUMPOL for pol
             antpos[i,0], antpos[i,1], antpos[i,2] = x,y,z
     reds = compute_reds(nant, pols, antpos[:nant], tol=.1)
     ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] == -1]
     kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
     reds = filter_reds(reds, **kwargs)
+    if minV: reds = imposeVzero(reds,nant)
     if fcal:
         info = FirstCalRedundantInfo(nant)
     else:

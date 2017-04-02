@@ -17,7 +17,11 @@ o.add_option('--ba',dest='ba',default=None,
             help='Antennas to exclude, separated by commas.')
 o.add_option('--fc2',dest='fc2', type='string',
             help='Path and name of POL.npz file outputted by firstcal v2 (comma delimited string if more than one polarization).')
-o.add_option('--remove_degen',dest='rmdegen',default=True, help='Toggle degeneracy removal functionality (recommended; default=True).')
+o.add_option('--remove_degen',dest='rmdegen',default=True, 
+            help='Toggle degeneracy removal functionality (recommended; default=True).')
+o.add_option('--minV',action='store_true',
+            help='Toggle V minimization capability. This only makes sense in the case of 4-pol cal, which will set crosspols (xy & yx) equal to each other')
+o.add_option('--verbose',action='store_true',help='Toggle verbosity')
 opts,args = o.parse_args(sys.argv[1:])
 
 #Dictionary of calpar gains and files
@@ -25,11 +29,17 @@ pols = opts.pol.split(',')
 files = {}
 g0 = {} #firstcal gains
 
+if opts.minV and len(list(set(''.join(pols))))==1:
+    raise AssertionError('Stokes V minimization requires crosspols in the "-p" option.')
+
 try: fc2 = opts.fc2.split(',')
 except AttributeError: print('No fc2 files supplied. Continuing.')
 
 for pp,p in enumerate(pols):
     #dictionary of calpars per pol
+    if len(list(set(p))) > 1:
+        if opts.verbose: print 'Not trying to get fcal info for pol %s'%p
+        continue 
     g0[p[0]] = {} #indexing by one pol letter instead of two
     
     if opts.calpar != None: #if calpar is given
@@ -51,18 +61,16 @@ for pp,p in enumerate(pols):
             else: #if the linpol first_cal is missing, do worry
                 raise IOError('Missing first_cal file %s'%new_cp)
                 
-    if len(fc2) != 0: #if fc2 file is given
+    if len(fc2) != 0: #if fc2 file is given 
         fc2file = next((s for s in fc2 if p in s), None)
         if not fc2file == None:
             print 'Reading %s, pol=%s'%(fc2file,p)
             _,_g0,_,_ = capo.omni.from_npz(fc2file)
             for i in _g0[p[0]].keys():
                 g0[p[0]][i] = _g0[p[0]][i][:,:] / numpy.abs(_g0[p[0]][i][:,:])
-        elif len(list(set(p))) > 1:
-            continue #don't use crosspols to firstcal
         else:
             raise IOError("Please provide a valid first cal file for polarization %s"%p) 
-        
+
 for filename in args:
     files[filename] = {}
     for p in pols:
@@ -74,18 +82,18 @@ for filename in args:
 if opts.redinfo != '': #reading redinfo file
     print 'Reading',opts.redinfo
     info = omnical.info.RedundantInfoLegacy()
-    print '   Getting reds from redundantinfo'
+    if opts.verbose: print '   Getting reds from redundantinfo'
     info.fromfile(opts.redinfo)
 else: #generate reds from calfile
     aa = aipy.cal.get_aa(opts.cal,numpy.array([.15]))
-    print 'Getting reds from calfile'
+    if opts.verbose: print 'Getting reds from calfile'
     if opts.ba: #XXX assumes exclusion of the same antennas for every pol
         ex_ants = []
         for a in opts.ba.split(','):
             ex_ants.append(int(a))
         print 'Excluding antennas:',sorted(ex_ants)
     else: ex_ants = []
-    info = capo.omni.aa_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, crosspols=pols)
+    info = capo.omni.aa_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, crosspols=pols, minV=opts.minV)
 reds = info.get_reds()
 
 ### Omnical-ing! Loop Through Compressed Files ###
@@ -121,7 +129,7 @@ for f,filename in enumerate(args):
             i,j = bl
             wgts[p][(j,i)] = wgts[p][(i,j)] = numpy.logical_not(f[bl][p]).astype(numpy.int)
     if len(g0[g0.keys()[0]]) == 0:
-        print "   Making initial gains of all 1's..."
+        if opts.verbose: print "   Making initial gains of all 1's..."
         for key in g0:
             g0[key] = {}
             for ant in info.subsetant:
