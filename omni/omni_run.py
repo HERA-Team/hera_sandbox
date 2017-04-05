@@ -50,8 +50,7 @@ for pp,p in enumerate(pols):
                 continue
             else: #if the linpol first_cal is missing, do worry
                 raise IOError('Missing first_cal file %s'%new_cp)
-                
-    if len(fc2) != 0: #if fc2 file is given
+    if opts.fc2: #if fc2 file is given
         fc2file = next((s for s in fc2 if p in s), None)
         if not fc2file == None:
             print 'Reading %s, pol=%s'%(fc2file,p)
