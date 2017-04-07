@@ -58,7 +58,7 @@ if opts.gains == True or opts.chisqant == True:
     gains = {} #or chisqant values, depending on option
     for i, f in enumerate(args): #loop over files
         print 'Reading',f
-        file = numpy.load(f)
+        file = np.load(f)
         for a in range(128):
             if opts.chisqant == True: #chisqant / gain
                 try: value = file['chisq'+str(a)+pol[0]]/file[str(a)+pol[0]] #XXX only 0th element of pol
@@ -81,23 +81,24 @@ if opts.gains == True or opts.chisqant == True:
         gains[key] = np.vstack(gains[key])
         mk = np.ma.masked_where(np.abs(gains[key]) == 1,np.abs(gains[key])).mask #flags
         gains[key] = np.ma.masked_array(gains[key],mask=mk) #masked array
-    #calculate degeneracies following Liu+'10 Eqns 11,12a,12b
-    aa = aipy.cal.get_aa(opts.cal,np.array([0.15]))
-    R = np.array([aa.get_baseline(0,i) for i in np.arange(112)]) # get positions relative to antenna 0
-    Dx,Dy,Dz,Do = np.zeros_like(gains['0']),np.zeros_like(gains['0']),np.zeros_like(gains['0']),np.zeros_like(gains['0'])
-    for i in np.arange(112):
-        try:
-            """
-            I'm not assuming the array is planar, as they do in the paper. This is the "simple" version of
-            non-coplanar degeneracy. See Liu+'10 Eqn 44 for the "real" version
-            """
-            Dx+=R[i,0]*np.angle(gains[str(i)])
-            Dy+=R[i,1]*np.angle(gains[str(i)])
-            Dz+=R[i,2]*np.angle(gains[str(i)])
-            Do+=np.angle(gains[str(i)])
-        except KeyError: continue
+    if opts.degen:
+        #calculate degeneracies following Liu+'10 Eqns 11,12a,12b
+        aa = aipy.cal.get_aa(opts.cal,np.array([0.15]))
+        R = np.array([aa.get_baseline(0,i) for i in np.arange(112)]) # get positions relative to antenna 0
+        Dx,Dy,Dz,Do = np.zeros_like(gains['0']),np.zeros_like(gains['0']),np.zeros_like(gains['0']),np.zeros_like(gains['0'])
+        for i in np.arange(112):
+            try:
+                """
+                I'm not assuming the array is planar, as they do in the paper. This is the "simple" version of
+                non-coplanar degeneracy. See Liu+'10 Eqn 44 for the "real" version
+                """
+                Dx+=R[i,0]*np.angle(gains[str(i)])
+                Dy+=R[i,1]*np.angle(gains[str(i)])
+                Dz+=R[i,2]*np.angle(gains[str(i)])
+                Do+=np.angle(gains[str(i)])
+            except KeyError: continue
 
-    if opts.interactive: import IPython;IPython.embed()
+        if opts.interactive: import IPython;IPython.embed()
 
     #plotting stage
     from mpl_toolkits.axes_grid1 import make_axes_locatable
