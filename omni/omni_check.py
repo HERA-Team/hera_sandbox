@@ -3,7 +3,7 @@
 import omnical
 import aipy
 import pylab
-import numpy as np
+import numpy
 import capo
 import pickle
 import matplotlib.pyplot as plt
@@ -13,17 +13,16 @@ import os, sys
 ### Options ###
 o = optparse.OptionParser()
 o.set_usage('omni_check.py [options] *.npz')
-aipy.scripting.add_standard_options(o,pol=True,max=True,drng=True)
+aipy.scripting.add_standard_options(o,pol=True)
 o.add_option('--chisq',dest='chisq',default=False,action="store_true",
             help='Plot chisq.')
 o.add_option('--gains',dest='gains',default=False,action="store_true",
             help='Plot gains of each antenna solved for.')
 o.add_option('--chisqant',dest='chisqant',default=False,action="store_true",
             help='Plot chisqs per antenna.')
-o.add_option('-i','--interactive',default=False,action="store_true",help='Launch IPython session before plotting stage')
-o.add_option('-C',dest='cal',default='psa6622_v003',type='string',help='Path and name of calfile.')
-o.add_option('--degen',dest='degen',action='store_true',help='Plot remaining array degeneracies. MUST also have the "gains" option on.')
 o.set_description(__doc__)
+#o.add_option('-C',dest='cal',default='psa6622_v003',type='string',
+#            help='Path and name of calfile.')
 opts,args = o.parse_args(sys.argv[1:])
 
 
@@ -34,7 +33,7 @@ if opts.chisq == True:
     chisqs = []
     for i,file in enumerate(args):
         print 'Reading',file
-        file = np.load(file)
+        file = numpy.load(file)
         try: #reads *pol.npz files
             chisq = file['chisq '+str(pol)] #shape is (#times, #freqs)
         except: #reads .npz files
@@ -43,8 +42,8 @@ if opts.chisq == True:
             chisqs.append(chisq[t])
             #chisq is sum of square of (model-data) on all visibilities per time/freq snapshot
 
-    cs = np.array(chisqs)
-    plt.imshow(np.log(cs),aspect='auto',interpolation='nearest',vmax=7,vmin=-6)
+    cs = numpy.array(chisqs)
+    plt.imshow(numpy.log(cs),aspect='auto',interpolation='nearest',vmax=7,vmin=-6)
     plt.xlabel('Freq Channel',fontsize=10)
     plt.ylabel('Time',fontsize=10)
     plt.tick_params(axis='both',which='major',labelsize=8)
@@ -58,7 +57,7 @@ if opts.gains == True or opts.chisqant == True:
     gains = {} #or chisqant values, depending on option
     for i, f in enumerate(args): #loop over files
         print 'Reading',f
-        file = np.load(f)
+        file = numpy.load(f)
         for a in range(128):
             if opts.chisqant == True: #chisqant / gain
                 try: value = file['chisq'+str(a)+pol[0]]/file[str(a)+pol[0]] #XXX only 0th element of pol
@@ -77,67 +76,36 @@ if opts.gains == True or opts.chisqant == True:
                 vmax=1.5
         file.close()
     for key in gains.keys():
-        #gains[key] = np.vstack(numpy.abs(gains[key]))
-        gains[key] = np.vstack(gains[key])
-        mk = np.ma.masked_where(np.abs(gains[key]) == 1,np.abs(gains[key])).mask #flags
-        gains[key] = np.ma.masked_array(gains[key],mask=mk) #masked array
-    if opts.degen:
-        #calculate degeneracies following Liu+'10 Eqns 11,12a,12b
-        aa = aipy.cal.get_aa(opts.cal,np.array([0.15]))
-        R = np.array([aa.get_baseline(0,i) for i in np.arange(112)]) # get positions relative to antenna 0
-        Dx,Dy,Dz,Do = np.zeros_like(gains['0']),np.zeros_like(gains['0']),np.zeros_like(gains['0']),np.zeros_like(gains['0'])
-        for i in np.arange(112):
-            try:
-                """
-                I'm not assuming the array is planar, as they do in the paper. This is the "simple" version of
-                non-coplanar degeneracy. See Liu+'10 Eqn 44 for the "real" version
-                """
-                Dx+=R[i,0]*np.angle(gains[str(i)])
-                Dy+=R[i,1]*np.angle(gains[str(i)])
-                Dz+=R[i,2]*np.angle(gains[str(i)])
-                Do+=np.angle(gains[str(i)])
-            except KeyError: continue
-
-        if opts.interactive: import IPython;IPython.embed()
-
-    #plotting stage
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-    if opts.degen:
-        f,axarr = plt.subplots(1, 4,sharex=True,sharey=True)
-        labels = ['x','y','z','overall']
-        Dpars = [Dx,Dy,Dz,Do]
-        if not opts.max is None: mx = opts.max
-        else: mx = np.log10(np.abs(Dx)).max()
-        if not opts.drng is None: mn = mx - opts.drng
-        else: mn = np.log10(np.abs(Do)).min()
-        for i in range(4):
-            im = axarr[i].imshow(np.log10(np.abs(Dpars[i])),vmax=mx,vmin=mn,aspect='auto',interpolation='None')
-            axarr[i].set_xlabel('Frequency bin')
-            divider=make_axes_locatable(axarr[i])
-            cax = divider.append_axes("right",size="20%",pad=0.05)
-            cbar = plt.colorbar(im,cax=cax)
-            axarr[i].set_title(labels[i]+' phase redundancy')
-        axarr[0].set_ylabel('Integration number')
-        #plt.tight_layout()
-        #plt.subplots_adjust(top=0.85)    
-        #plt.setp([a.get_yticklabels() for a in f.axes[1:]], visible=False)
-    plt.show()
-    
-    #plot individual antenna gains
-    subplotnum = 1
-    plotnum = 1
-    plt.figure(plotnum,figsize=(10,10))
-    for ant in gains.keys(): #loop over antennas
-        if subplotnum == 26:
-            #break #only generate one page of plots (faster for testing) 
-            plotnum += 1
-            plt.figure(plotnum,figsize=(10,10))
-            subplotnum = 1
-        plt.subplot(5,5,subplotnum)
-        plt.imshow(np.abs(gains[ant]),vmax=vmax,aspect='auto',interpolation='nearest')
-        plt.title(ant,fontsize=10)
-        plt.tick_params(axis='both',which='major',labelsize=6)
-        plt.tight_layout()
-        subplotnum += 1
+        gains[key] = numpy.vstack(numpy.abs(gains[key])) #cool thing to stack 2D arrays that only match in 1 dimension
+        mk = numpy.ma.masked_where(gains[key] == 1,gains[key]).mask #flags
+        gains[key] = numpy.ma.masked_array(gains[key],mask=mk) #masked array
+    #Plotting
+    means = []
+    ants = []
+    f,axarr = plt.subplots(8,14,figsize=(14,8),sharex=True,sharey=True)
+    for ant in range(max(map(int,gains.keys()))+1):
+        i1 = ant/14 #row number
+        i2 = ant%14 #col number
+        axarr[i1,i2].set_title(ant,fontsize=10)
+        axarr[i1,i2].tick_params(axis='both',which='both',labelsize=8)
+        try:
+            means.append(numpy.median(gains[ant][:,:])) #median, not mean #XXX freq range restriction
+            ants.append(ant)
+            axarr[i1,i2].imshow(gains[ant],vmax=vmax,aspect='auto',interpolation='nearest')
+        except: continue
+    f.subplots_adjust(hspace=0.7)
+    print 'Bad Antennas (starting with highest chisq):',[ants[i] for i in numpy.argsort(means)[::-1]]
+    plt.show()  
+    baddies = [ants[i] for i in numpy.where(means > numpy.mean(means)+1.0*numpy.std(means))[0]]
+    cut = numpy.mean(means)+1.0*numpy.std(means)
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    A = numpy.linspace(0,len(means)-1,len(means))
+    B = numpy.sort(means)[::-1]
+    plt.plot(A,B,'ko')
+    for index,(i,j) in enumerate(zip(A,B)):
+        ax.annotate([ants[k] for k in numpy.argsort(means)[::-1]][index], xy=(i,j),size=10)
+        ax.axhline(cut, color='purple', label='Avg+Std')
+    plt.title('Median Chisq (high to low)')
     plt.show()
     print '1 sigma cut on median chisq: ',baddies
