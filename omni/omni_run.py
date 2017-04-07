@@ -56,7 +56,7 @@ for pp,p in enumerate(pols):
             print 'Reading %s, pol=%s'%(fc2file,p)
             _,_g0,_,_ = capo.omni.from_npz(fc2file)
             for i in _g0[p[0]].keys():
-                g0[p[0]][i] = _g0[p[0]][i][:,:] / numpy.abs(_g0[p[0]][i][:,:])
+                g0[p[0]][i] = _g0[p[0]][i][:,:] #/ numpy.abs(_g0[p[0]][i][:,:])
         elif len(list(set(p))) > 1:
             continue #don't use crosspols to firstcal
         else:
