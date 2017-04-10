@@ -95,11 +95,16 @@ def get_Q(mode, n_k):
         return Q
 
 SEP = opts.sep
+# dsets = {
+
+#     'even': glob.glob('/data4/paper/2012EoR/ali_et_al_2015_apj_data/even/'+SEP+'/*242.[3456]*uvGL'),
+#     'odd' : glob.glob('/data4/paper/2012EoR/ali_et_al_2015_apj_data/odd/'+SEP+'/*243.[3456]*uvGL'),
+
+#}
+PDIR = '/data2/PAPER/'
 dsets = {
-
-    'even': glob.glob('/data4/paper/2012EoR/ali_et_al_2015_apj_data/even/'+SEP+'/*242.[3456]*uvGL'),
-    'odd' : glob.glob('/data4/paper/2012EoR/ali_et_al_2015_apj_data/odd/'+SEP+'/*243.[3456]*uvGL'),
-
+    'even': n.sort(glob.glob(PDIR+'ali_et_al_2015_apj_data/even/'+SEP+'/*242.[3456]*uvGL')),
+    'odd' : n.sort(glob.glob(PDIR+'ali_et_al_2015_apj_data/odd/'+SEP+'/*243.[3456]*uvGL')),
 }
 #for i in xrange(10): dsets[i] = glob.glob('lstbinX%d/%s/lst.24562[45]*.[3456]*.uvAL'%(i,SEP))
 #print dsets
@@ -202,7 +207,7 @@ else:
         for bl in data[k]:
             data[k][bl], flgs[k][bl] = n.array(data[k][bl][:]), n.array(flgs[k][bl][:])
 lsts = lsts.values()[0]
-
+#import IPython; IPython.embed()
 x = {}
 print len(data[k][bl])
 print type(chans)
@@ -211,7 +216,7 @@ for k in days:
     for bl in data[k]:
         print k, bl
         d = data[k][bl][:,chans] * jy2T
-        if conj[bl]: d = n.conj(d)
+        if conj[a.miriad.bl2ij(bl)]: d = n.conj(d)
         x[k][bl] = n.transpose(d, [1,0]) # swap time and freq axes
         
 bls_master = x.values()[0].keys()

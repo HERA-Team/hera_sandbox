@@ -56,7 +56,7 @@ nchan = plot_n['nchan'][0]
 #ipdb.set_trace()
 cmap= p.get_cmap(opts.cmap)
 fig, ax1= p.subplots()
-chans=n.arange( max( n.array( plot_n['nchan']  ) ) )  
+chans=n.arange( max( n.array( plot_n['nchan']  ) ) )
 n_color=n.array(plot_n['cnt']).max()
 levels=n.arange(n_color)
 #cnt_plot=n.reshape(plot_n['cnt'],(len(chans),len(plot_n['jd'])))
@@ -64,7 +64,11 @@ cnt_plot=n.array(plot_n['cnt'])
 #img=ax1.contour( chans , plot_n['jd'], cnt_plot.T , levels )
 lsts = n.array(plot_n['lst'])
 img=ax1.imshow(cnt_plot,aspect='auto',interpolation='nearest',cmap=cmap,
-    extent=(freqs.min(),freqs.max(),lsts.min(),lsts.max()))
+<<<<<<< Updated upstream
+    extent=(freqs.min(),freqs.max(),lsts.max(),lsts.min()))
+=======
+    extent=(freqs.min(),freqs.max(),lsts.max()*12./np.pi,lsts.min()*12./np.pi))
+>>>>>>> Stashed changes
 #ax1.set_yticklabels(str(plot_n['lst']))
 #str_ticks=[ str(plot_n['lst'][k]) for k in xrange(len(times))]
 #ax1.set_yticklabels(str_ticks)

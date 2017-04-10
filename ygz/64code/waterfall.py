@@ -21,7 +21,6 @@ def waterfall(d, ax=None, mode='log', mx=None, drng=None, recenter=False, **kwar
     if drng is None: drng = mx - d.min()
     mn = mx - drng
     if ax:
-    	ax.imshow(d, vmax=mx, vmin=mn, aspect='auto', interpolation='nearest', **kwargs)
-    	return 
+    	return ax.imshow(d, vmax=mx, vmin=mn, aspect='auto', interpolation='nearest', **kwargs)
     else:
     	return plt.imshow(d, vmax=mx, vmin=mn, aspect='auto', interpolation='nearest', **kwargs)

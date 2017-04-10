@@ -107,6 +107,7 @@ for filelist in files:
                 for s in stokes:
                     dsum[s][t], dwgt[s][t] = {}, {}
             for s in stokes:
+                print s, POL_WGTS[s][a.miriad.pol2str[uvi['pol']]]
                 try: wgt = POL_WGTS[s][a.miriad.pol2str[uvi['pol']]]
                 except(KeyError): continue
                 dsum[s][t][bl] = dsum[s][t].get(bl, 0) + n.where(f, 0, wgt*d)
@@ -126,8 +127,8 @@ for filelist in files:
                 p = (n.array([0.,0.,0.]),t,(i,j))
                 #try: 
                 _dsum,_dwgt = dsum[pol][t].pop(bl), dwgt[pol][t].pop(bl)
+                f = n.where(_dwgt <= 1., 1, 0) #flag things that are flagged in any linear pol
                 wgt = _dwgt.clip(1,n.Inf)
-                f = n.where(_dwgt == 0, 1, 0)
                 d = _dsum / wgt
                 #except(KeyError): 
                 #    d, f = None, None

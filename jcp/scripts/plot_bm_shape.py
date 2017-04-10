@@ -38,12 +38,10 @@ aa._cache = {'s_top':top}
 data = aa.bm_response(opts.ant, opts.ant)[:,0] / zresp
 #print data.shape, x.shape
 #print data
-#data = n.clip(10*n.log10(n.abs(data)), -100, n.Inf)
+data = n.clip(10*n.log10(n.abs(data)), -30, n.Inf)
 data.shape = cx.shape
-min = .66
-max = .86
-#min = data.min()
-#max = data.max()
+min = data.min()
+max = data.max()
 #max = data.max() / 2
 step = (max - min) / 20
 levels = n.arange(min-step, max+step, step)
@@ -52,7 +50,7 @@ saz,salt = [], []
 srclist,cutoff,catalogs = a.scripting.parse_srcs(opts.src, opts.cat)
 cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs)
 up = None
-for t in n.arange(2454952.43587, 2454953.14, .0001):
+for t in n.arange(2454952.0, 2454953.0, .0001):
     aa.set_jultime(t)
     cat.compute(aa)
     _up = []
