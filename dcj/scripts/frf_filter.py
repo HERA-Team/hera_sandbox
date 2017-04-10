@@ -35,7 +35,7 @@ uv = a.miriad.UV(args[0])
 nants = uv['nants']
 #inttime = uv['inttime'] * 4 #integration time hack
 aa = a.cal.get_aa(opts.cal, uv['sdf'], uv['sfreq'], uv['nchan'])
-pol = a.miriad.pol2str[uv['pol']]
+polstr = a.miriad.pol2str[uv['pol']]
 
 
 (uvw,t1,(i,j)),d = uv.read()
@@ -69,7 +69,7 @@ print 'Current inttime use for gen_frbins: ',inttime
 #Get the fir filters for the separation used.
 
 baselines = ''.join(sep2ij[sep] for sep in seps)
-times, data, flags = zsa.get_dict_of_uv_data(args, baselines, pol, verbose=True)
+times, data, flags = zsa.get_dict_of_uv_data(args, baselines, polstr, verbose=True)
 
 ##use calculated inttime to generate correct frf bins
 frbins = fringe.gen_frbins(inttime,fringe_res=1./(inttime*len(times)))
@@ -84,11 +84,9 @@ for sep in seps:
         bl = a.miriad.ij2bl(*ij)
         if blconj[bl]: c+=1
         else: break
-    print mychan,ij,opts.bl_scale
     frp, bins = fringe.aa_to_fr_profile(aa, ij, mychan, bins=frbins,pol=opts.pol,bl_scale=opts.bl_scale)
     timebins, firs[sep] = fringe.frp_to_firs(frp, bins, aa.get_afreqs(), fq0=aa.get_afreqs()[mychan],
          bl_scale=opts.bl_scale, fr_width_scale = opts.fr_width_scale, alietal = opts.alietal,maxfr=opts.maxfr)
-
     frp = fringe.fir_to_frp(firs[sep])
     if opts.boxcar:
         print 'Making Boxcar',
@@ -113,16 +111,16 @@ for sep in seps:
         firs[sep] /= n.sqrt(n.sum(n.abs(firs[sep])**2,axis=-1)).reshape(-1,1)
 
 lsts = [ aa.sidereal_time() for k in map(aa.set_jultime(), times) ]
-
+print("filtering data")
 _d = {}
 _w = {}
+progress = 0
 for bl in data.keys():
     if not _d.has_key(bl): _d[bl],_w[bl] = {}, {}
     #get filter which is baseline dependent.
     sep = bl2sep[bl]
     fir = firs[sep]
     if blconj[bl]: fir = n.conj(fir)
-    print map(int, a.miriad.bl2ij(bl)), sep, blconj[bl]
     for pol in data[bl].keys():
         if not _d[bl].has_key(pol): _d[bl][pol], _w[bl][pol] = {}, {}
         _d[bl][pol] = n.zeros_like(data[bl][pol])
@@ -137,7 +135,7 @@ for bl in data.keys():
             #_w[bl][pol][:,ch] = n.convolve(flg, n.abs(firs[ch,:]), mode='same')
             #_d[bl][pol][:,ch] = n.where(flags[bl][pol][:,ch]>0, _d[bl][pol][:,ch]/_w[bl][pol][:,ch], 1)  
             _d[bl][pol][:,ch] = n.where(flg>0, _d[bl][pol][:,ch]/_w[bl][pol][:,ch], 0)
-
+        progress +=1
 def mfunc(uv, p, d, f):
     uvw,t,(i,j) = p
     index = n.where(times==t)
@@ -153,10 +151,10 @@ def mfunc(uv, p, d, f):
 for filename in args:
     outfile = filename+'L'
     uvi = a.miriad.UV(filename)
-    a.scripting.uv_selector(uvi, ants=baselines)
+    a.scripting.uv_selector(uvi, baselines,polstr)
     if opts.outpath:
-        uvo = a.miriad.UV(opts.outpath+'/'+outfile, status='new')
         print 'Writing %s'%(opts.outpath+'/'+outfile)
+        uvo = a.miriad.UV(opts.outpath+'/'+outfile, status='new')
     else:
         uvo = a.miriad.UV(outfile, status='new')
         print 'Writing %s'%(outfile)
