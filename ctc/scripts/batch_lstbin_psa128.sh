@@ -18,7 +18,7 @@ LSTS=`python -c "import numpy as n; hr = 1.0; print ' '.join(['%f_%f' % (d,d+hr/
 
 MY_LSTS=`pull_args.py $LSTS`
 CALFILE=psa6622_v003 #Aaron's fast calfile
-PREFIX=lstbin
+PREFIX=lstbin_S2
 
 
 echo $MY_LSTS
@@ -34,9 +34,10 @@ for LST in $MY_LSTS; do
     #echo ~/capo/scripts/lstbin_v02.py -a cross -C ${CALFILE} --lst_res=31.65 --lst_rng=$LST \
     #--tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/ctc/scripts/select_file_parity.py $*`
     python ~/capo/scripts/lstbin_v02.py -a cross -C ${CALFILE}  --lst_res=31.65 --lst_rng=$LST \
+    #--tfile=600 --altmax=0 --stats=all -s Sun `python ~/capo/ctc/scripts/select_file_parity.py $*`
     --tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/ctc/scripts/select_file_parity.py $*`
     #python ~/capo/scripts/lstbin_v02.py -a cross -C ${CALFILE}  --lst_res=31.65 --lst_rng=$LST \
-    #--tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/sak/scripts/random_jd_select.py --seed=14204 --choice $*`
+    #--tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/sak/scripts/alternate_djd_select.py $*`
     cd ..
     echo Working on odd files
     mkdir odd
@@ -44,9 +45,10 @@ for LST in $MY_LSTS; do
     #echo ~/capo/scripts/lstbin_v02.py -a cross -C ${CALFILE} -s Sun --lst_res=31.65 --lst_rng=$LST \
     #--tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/ctc/scripts/select_file_parity.py $*`
     python ~/capo/scripts/lstbin_v02.py -a cross -C ${CALFILE} --lst_res=31.65 --lst_rng=$LST \
+    #--tfile=600 --altmax=0 --stats=all -s Sun `python ~/capo/ctc/scripts/select_file_parity.py --odd $*`
     --tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/ctc/scripts/select_file_parity.py --odd $*`
     #python ~/capo/scripts/lstbin_v02.py -a cross -C ${CALFILE}  --lst_res=31.65 --lst_rng=$LST \
-    #--tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/sak/scripts/random_jd_select.py --seed=14204 $*`
+    #--tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/sak/scripts/alternate_djd_select.py --odd $*`
     cd ..
 
 done;
