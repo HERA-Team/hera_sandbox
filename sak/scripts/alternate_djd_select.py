@@ -1,4 +1,4 @@
-import os, optparse, re, numpy as np
+import os, sys, optparse, re, numpy as np
 """
 Select alternating files for LST binning 
 """

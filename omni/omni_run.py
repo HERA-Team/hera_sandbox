@@ -60,14 +60,15 @@ for pp,p in enumerate(pols):
                 continue
             else: #if the linpol first_cal is missing, do worry
                 raise IOError('Missing first_cal file %s'%new_cp)
-                
-    if opts.fc2 != None: #if fc2 file is given 
+    if opts.fc2: #if fc2 file is given
         fc2file = next((s for s in fc2 if p in s), None)
         if not fc2file == None:
             print 'Reading %s, pol=%s'%(fc2file,p)
             _,_g0,_,_ = capo.omni.from_npz(fc2file)
             for i in _g0[p[0]].keys():
-                g0[p[0]][i] = _g0[p[0]][i][:,:] #/ numpy.abs(_g0[p[0]][i][:,:])# XXX should we normalize?
+                g0[p[0]][i] = _g0[p[0]][i][:,:] #/ numpy.abs(_g0[p[0]][i][:,:])
+        elif len(list(set(p))) > 1:
+            continue #don't use crosspols to firstcal
         else:
             raise IOError("Please provide a valid first cal file for polarization %s"%p) 
 
@@ -135,9 +136,9 @@ for f,filename in enumerate(args):
             for ant in info.subsetant:
                 g0[key][ant] = numpy.ones(SH,dtype='complex')
     print '   Logcal-ing' 
-    m1,g1,v1 = capo.omni.redcal(data,info,gains=g0, removedegen=opts.rmdegen)
+    m1,g1,v1 = capo.omni.redcal(data, info, gains=g0, removedegen=False)
     print '   Lincal-ing'
-    m2,g2,v2 = capo.omni.redcal(data, info, gains=g1, vis=v1, uselogcal=False, removedegen=opts.rmdegen)
+    m2,g2,v2 = capo.omni.redcal(data, info, gains=g1, vis=v1, uselogcal=False, removedegen=True)
     xtalk = capo.omni.compute_xtalk(m2['res'], wgts) #xtalk is time-average of residual
     m2['history'] = 'OMNI_RUN: '+' '.join(sys.argv) + '\n'
     m2['jds'] = t_jd

@@ -18,5 +18,6 @@ for f,filename in enumerate(args):
     chi_flag=capo.xrfi.omni_chisq_to_flags(m['chisq'], K=opts.boxside, sigma=opts.sig, sigl=opts.sigl)
     flags = dict(zip(map(str,m['jds']),chi_flag))
     newname = '.'.join(filename.split('.')[:4]) + '.chisqflag.npz'
+    print 'Writing', newname
     np.savez(newname, **flags)
 

@@ -32,7 +32,7 @@ if opts.factor == None:
 
     ### FILES ###
     aa = aipy.cal.get_aa('psa898_v003',0.001,0.1,203) #parameters don't matter... only used to find LSTs
-    data128 = numpy.sort(glob.glob('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v3_xtalk/lstbin_fg/even/lst*I.uv')) #S1 PSA-128, FG-containing
+    data128 = numpy.sort(glob.glob('/data4/paper/2013EoR/Analysis/ProcessedData/epoch1/omni_v4_xtalk/lstbin_balanced_fg/even/lst*I.uv')) #S1 PSA-128, FG-containing
     #data128 = numpy.sort(glob.glob('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_fg/even/lst*I.uv')) #LST-binned, FG-containing
     #data64 = numpy.sort(glob.glob('/home/jacobsda/storage/psa128/2014_epoch3/v5_xtalksub_omni/lstbin_June2_v1/even/sep0,2/*uvAS')) #LST-binned, abscal 128 !! 
     #data64 = numpy.sort(glob.glob('/data4/paper/2012EoR/psa_live/forlstbinning_omnical_2/lstbin_even_noxtalk/*uvG')) #LST-binned
@@ -44,6 +44,9 @@ if opts.factor == None:
     i,j = int(opts.bls.split(',')[0].split('_')[0]),int(opts.bls.split(',')[0].split('_')[1])
     d1 = d1[(i, j)][opts.pols.split(',')[0]]
     t1 = t1['lsts']
+    order = numpy.argsort(t1)
+    t1 = t1[order]
+    d1 = d1[order]
 
     ### 128-DATA ###
     print 'Reading 128 Data:',len(numpy.array(data128)),'files'
@@ -51,6 +54,10 @@ if opts.factor == None:
     i,j = int(opts.bls.split(',')[1].split('_')[0]),int(opts.bls.split(',')[1].split('_')[1])
     d2 = d2[(i, j)][opts.pols.split(',')[1]] 
     t2 = t2['lsts']
+    order = numpy.argsort(t2) # sort if LSTs are mixed up
+    t2 = t2[order]
+    d2 = d2[order]
+    
     ### Make sure LST-range for 64-data is larger than 128-data ###
     if numpy.min(t2) < numpy.min(t1):
         print 'Data range for 128 data too large: clipping LSTs below',numpy.min(t1)
@@ -105,10 +112,10 @@ if opts.factor == None:
         plt.colorbar()
         if opts.plot == True:
             plt.show()
-        factors = numpy.median(factors,axis=0)
-        factors[numpy.where(numpy.isfinite(factors.data) == False)] = 0.0
-        factors_complex = numpy.median(factors_complex,axis=0)
-        factors_complex[numpy.where(numpy.isfinite(factors_complex.data) == False)] = 0.0
+        factors = numpy.ma.median(factors,axis=0)
+        #factors[numpy.where(numpy.isfinite(factors.data) == False)] = 0.0
+        factors_complex = numpy.ma.median(factors_complex,axis=0)
+        #factors_complex[numpy.where(numpy.isfinite(factors_complex.data) == False)] = 0.0
         freqs = numpy.ma.masked_where(factors.mask == True,freqs)
         factor = numpy.polyval(numpy.ma.polyfit(freqs,factors,8),freqs)
         plt.plot(factors,'r-',label='PSA64/PSA128 (Abs)')
