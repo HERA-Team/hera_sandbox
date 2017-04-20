@@ -20,8 +20,8 @@ source activate PAPER
 ARGS=`pull_args.py $*`
 
 PATH2CAPO='/home/saulkohn/ReposForCanopy/capo'
-OMNIPATH_s1e1='/data4/paper/2013EoR/Analysis/ProcessedData/epoch1/omni_v4_xtalk_4polTEST/'
-OMNIPATH_s1e2='/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v4_xtalk_4polTEST/'
+OMNIPATH_s1e1='/data4/paper/2013EoR/Analysis/ProcessedData/epoch1/omni_v4_xtalk_4pol/'
+OMNIPATH_s1e2='/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v4_xtalk_4pol/'
 
 OMNIPATH_s2e2='/data4/paper/2014EoR/Analysis/ProcessedData/epoch2/omni_v4_xtalk_4pol_SAKtest/'
 OMNIPATH_s2e3='/data4/paper/2014EoR/Analysis/ProcessedData/epoch3/omni_v4_4polTEST/'

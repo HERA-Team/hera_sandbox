@@ -67,7 +67,7 @@ for pp,p in enumerate(pols):
             print 'Reading %s, pol=%s'%(fc2file,p)
             _,_g0,_,_ = capo.omni.from_npz(fc2file)
             for i in _g0[p[0]].keys():
-                g0[p[0]][i] = _g0[p[0]][i][:,:] / numpy.abs(_g0[p[0]][i][:,:])
+                g0[p[0]][i] = _g0[p[0]][i][:,:] #/ numpy.abs(_g0[p[0]][i][:,:])# XXX should we normalize?
         else:
             raise IOError("Please provide a valid first cal file for polarization %s"%p) 
 
