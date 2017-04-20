@@ -59,7 +59,7 @@ o.add_option('--conj', action='store_true',
     help='Properly conjugate the baselines')
 o.add_option('--blavg', dest='bl_avg', action='store_true',
     help='Average all the baselines give')
-
+o.add_option('--topkl', dest='tonpz', action='store_true', help='Save visibilities given in an npz')
 o.add_option('--lst_avg', dest='lst_avg', action='store_true',
     help='Averag in lst. Takes lst bin size to be 42.95 seconds.')
 
@@ -362,6 +362,12 @@ for cnt, bl in enumerate(bls):
         plots[cnt+1] = p.imshow(d, extent=(c1,c2,t2,t1), origin='upper',
             aspect='auto', interpolation='nearest', 
             vmax=dmax, vmin=dmin, cmap=cmap)
+        if opts.tonpz:
+            pickletitle=args[0]+'_'+args[-1]
+            pickletitle+='_'+opts.ant
+            if opts.delay: pickletitle+='_delay'
+            pickletitle+='_'+opts.mode+'.pkl'
+            d.dump(pickletitle)
         p.colorbar(shrink=0.5)
         p.xlabel(xlabel); p.ylabel(ylabel)
         if not opts.xlim == None: p.xlim(*opts.xlim)

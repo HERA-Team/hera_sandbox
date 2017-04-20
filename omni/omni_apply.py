@@ -46,9 +46,28 @@ for f,filename in enumerate(args):
     else:
         npzb=4
     omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:npzb])
-    if opts.fcfile: omnifile = opts.fcfile
-    print 'Omnical npz:', omnifile
-    _,gains,_,xtalk = capo.omni.from_npz(omnifile) #loads npz outputs from omni_run
+    if opts.fcfile != None:
+        fcfiles = opts.fcfile.split(',')
+        if len(fcfiles)==1:
+            omnifile = opts.fcfile
+            print 'Omnical npz:', omnifile
+            _,gains,_,xtalk = capo.omni.from_npz(omnifile) #loads npz outputs from omni_run
+        else:
+            gains, xtalk = {},{} #gains['x'][1][ti]; xtalk['xx'][(a1,a2)]
+            for pp in pols:
+                if len(list(set(pp))) > 1:
+                    print 'We do not seek firstcal info from %s visibilities'%pp    
+                    continue
+                gains[pp[0]] = {}
+                fc2file = next((s for s in fcfiles if pp in s), None)
+                if not fc2file == None:
+                    print 'Reading %s, pol=%s'%(fc2file,pp)
+                    _,_gns,_,_ = capo.omni.from_npz(fc2file) #no xtalk from firstcal
+                    for i in _gns[pp[0]].keys():
+                        gains[pp[0]][i] = _gns[pp[0]][i][:,:]#/numpy.abs(_gns[pp[0]][i][:,:]) # XXX do we normalize?
+    else:
+        print 'Omnical npz:', omnifile
+        _,gains,_,xtalk = capo.omni.from_npz(omnifile) #loads npz outputs from omni_run
     for p in pols:
         print 'Reading', files[filename][p]
         if opts.firstcal:
