@@ -3,9 +3,11 @@ import capo
 import numpy as np
 import pylab as plt
 
+np.random.seed(0)
+
 SIZE = 100
-VERBOSE = True
-PLOT = True
+VERBOSE = False
+PLOT = False
 
 FILES = {
     'paper': glob.glob('xrfi_data/paper/chisq0*.npz'),
@@ -35,6 +37,8 @@ def plot_result(f, rfi):
     plt.show()
 
 class Template(unittest.TestCase):
+    def setUp(self):
+        raise unittest.SkipTest # setUp has to be overridden to actually run a test
     rfi_gen = None # Need to override this for each TestCase, usually in setUp
     def _run_test(self, func, correct_flag, false_positive, nsig=4):
         for data,rfi in self.rfi_gen():
@@ -43,18 +47,31 @@ class Template(unittest.TestCase):
             plot_waterfall(data, f)
             f = np.where(f > nsig, 1, 0)
             cf,fp = get_accuracy(f, rfi)
+            plot_result(f, rfi)
             self.assertGreater(cf, correct_flag)
             self.assertLess(fp, false_positive)
+    ans = {
+        'detrend_deriv': (.9,.1),
+        'detrend_medfilt': (.99,.01),
+        'detrend_medminfilt': (.97,.05),
+        'xrfi_simple': (.99,.1),
+        'xrfi': (.99,.01),
+    }
     def test_detrend_deriv(self):
-        self._run_test(capo.xrfi.detrend_deriv, .9, .1, nsig=4)
+        cf,fp = self.ans['detrend_deriv']
+        self._run_test(capo.xrfi.detrend_deriv, cf, fp, nsig=4)
     def test_detrend_medfilt(self):
-        self._run_test(capo.xrfi.detrend_medfilt, .99, .01, nsig=4)
+        cf,fp = self.ans['detrend_medfilt']
+        self._run_test(capo.xrfi.detrend_medfilt, cf, fp, nsig=4)
     def test_detrend_medminfilt(self):
-        self._run_test(capo.xrfi.detrend_medminfilt, .97, .05, nsig=6)
+        cf,fp = self.ans['detrend_medminfilt']
+        self._run_test(capo.xrfi.detrend_medminfilt, cf, fp, nsig=6)
     def test_xrfi_simple(self):
-        self._run_test(capo.xrfi.xrfi_simple, .99, .10, nsig=.5)
+        cf,fp = self.ans['xrfi_simple']
+        self._run_test(capo.xrfi.xrfi_simple, cf, fp, nsig=.5)
     def test_xrfi(self):
-        self._run_test(capo.xrfi.xrfi, .99, .01, nsig=.5)
+        cf,fp = self.ans['xrfi']
+        self._run_test(capo.xrfi.xrfi, cf, fp, nsig=.5)
 
 class TestSparseScatter(Template):
     def setUp(self):
@@ -83,6 +100,8 @@ class TestDenseScatter(Template):
                 yield data, rfi
             return
         self.rfi_gen = rfi_gen
+        self.ans['detrend_deriv'] = (.33,.1)
+        self.ans['xrfi_simple'] = (.90,.1)
 
 class TestCluster(Template):
     def setUp(self):
@@ -100,8 +119,8 @@ class TestCluster(Template):
                 yield data, rfi
             return
         self.rfi_gen = rfi_gen
-    def test_xrfi_simple(self):
-        self._run_test(capo.xrfi.xrfi_simple, .39, .10, nsig=.5) # yuck
+        self.ans['xrfi_simple'] = (.39,.1)
+        self.ans['detrend_deriv'] = (-.05,.1)
 
 class TestLines(Template):
     def setUp(self):
@@ -119,12 +138,9 @@ class TestLines(Template):
                 yield data, np.where(mask)
             return
         self.rfi_gen = rfi_gen
-    def test_detrend_deriv(self):
-        self._run_test(capo.xrfi.detrend_deriv, .0, .10, nsig=4) # awful
-    def test_xrfi_simple(self):
-        self._run_test(capo.xrfi.xrfi_simple, .75, .10, nsig=.5) # not great
-    def test_xrfi(self):
-        self._run_test(capo.xrfi.xrfi, .98, .01, nsig=.5) # not great
+        self.ans['detrend_deriv'] = (.0,.1)
+        self.ans['xrfi_simple'] = (.75, .1)
+        self.ans['xrfi'] = (.97, .01)
 
 class TestBackground(Template):
     def setUp(self):
@@ -134,13 +150,17 @@ class TestBackground(Template):
         def rfi_gen():
             for i in xrange(NTRIALS):
                 sin_t = np.sin(np.linspace(0,2*np.pi,SIZE)); sin_t.shape = (-1,1)
-                sin_f = np.sin(np.linspace(0,4*np.pi,SIZE)); sin_t.shape = (1,-1)
-                data = sin_t * sin_f + np.random.normal(size=(SIZE,SIZE))
+                sin_f = np.sin(np.linspace(0,4*np.pi,SIZE)); sin_f.shape = (1,-1)
+                data = 5*sin_t * sin_f + np.random.normal(size=(SIZE,SIZE))
                 rfi = (np.random.randint(SIZE, size=RFI), np.random.randint(SIZE, size=RFI))
                 data[rfi] = NSIG
                 yield data, rfi
             return
         self.rfi_gen = rfi_gen
+        self.ans['detrend_deriv'] = (.83, .1)
+        self.ans['detrend_medminfilt'] = (.2, .1)
+        self.ans['xrfi'] = (.75, .1)
+        self.ans['xrfi_simple'] = (.90, .1)
 
 class TestHERA(Template):
     def setUp(self):
@@ -151,6 +171,10 @@ class TestHERA(Template):
                 yield data, rfi
             return
         self.rfi_gen = rfi_gen
+        self.ans['detrend_deriv'] = (.05, .1)
+        self.ans['detrend_medfilt'] = (.5, .1)
+        self.ans['detrend_medminfilt'] = (.30, .1)
+        self.ans['xrfi_simple'] = (.40, .3)
             
 class TestPAPER(Template):
     def setUp(self):
@@ -161,6 +185,10 @@ class TestPAPER(Template):
                 yield data, rfi
             return
         self.rfi_gen = rfi_gen
+        self.ans['detrend_deriv'] = (.0, .1)
+        self.ans['detrend_medfilt'] = (.1, .1)
+        self.ans['detrend_medminfilt'] = (.0, .35)
+        self.ans['xrfi_simple'] = (.3, .5)
             
 
 # TODO: noise tilts

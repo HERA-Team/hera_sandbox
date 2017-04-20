@@ -146,7 +146,7 @@ def detrend_medfilt(d, K=8):
 
 def xrfi(d, f=None, K=8, sig_init=6, sig_adj=2):
     nsig = detrend_medfilt(d, K=K)
-    f = watershed_flag(nsig, f=f, sig_init=sig_init, sig_adj=sig_adj)
+    f = watershed_flag(np.abs(nsig), f=f, sig_init=sig_init, sig_adj=sig_adj)
     return f
 
 # XXX split off median filter as one type of flagger
