@@ -2,6 +2,7 @@ import numpy as np, omnical, aipy, math
 import capo.red as red
 import numpy.linalg as la
 import warnings
+import sys
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore",category=DeprecationWarning)
     import scipy.sparse as sps
@@ -77,29 +78,41 @@ def compute_reds(nant, pols, *args, **kwargs):
         for pj in pols:
             reds += [[(Antpol(i,pi,nant),Antpol(j,pj,nant)) for i,j in gp] for gp in _reds]
     return reds
- 
-#def aa_to_info(aa, pols=['x'], **kwargs):
-#    '''Use aa.ant_layout to generate redundances based on ideal placement.
-#    The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
-#    layout = aa.ant_layout
-#    nant = len(aa)
-#    antpos = -np.ones((nant*len(pols),3)) # -1 to flag unused antennas
-#    xs,ys = np.indices(layout.shape)
-#    for ant,x,y in zip(layout.flatten(), xs.flatten(), ys.flatten()):
-#        for z,pol in enumerate(pols):
-#            z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
-#            i = Antpol(ant,pol,len(aa)) # creates index in POLNUM/NUMPOL for pol
-#            antpos[i,0],antpos[i,1],antpos[i,2] = x,y,z
-#    reds = compute_reds(nant, pols, antpos[:nant],tol=.1) # only first nant b/c compute_reds treats pol redundancy separately
-#    # XXX haven't enforced xy = yx yet.  need to conjoin red groups for that
-#    ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] < 0]
-#    kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
-#    reds = filter_reds(reds, **kwargs)
-#    info = RedundantInfo(nant)
-#    info.init_from_reds(reds,antpos)
-#    return info
 
-def aa_to_info(aa, pols=['x'], fcal=False, **kwargs):
+def imposeVzero(reds,nant,verify=True,verif_N=15):
+    newreds = []
+    L = len(reds)
+    assert(L%2==0)
+    newreds+=reds[:L/4]
+    crosspols = reds[L/4:3*L/4]
+    Lx = len(crosspols)
+    redsV = []
+    for i in range(Lx/2):
+        ubl1 = crosspols[i]
+        ubl2 = crosspols[i+Lx/2]
+        redsV.append(ubl1+ubl2)
+    if verify:
+        #check that verif_N antpols in redsV have their crosspols
+        print 'capo.omni.imposeVzero:    Verifying crosspol reundancy array'
+        from numpy.random import randint
+        for j in randint(0,high=len(redsV),size=verif_N):
+            rUbl = redsV[j]
+            ai,aj = rUbl[0]
+            try:
+                assert(ai.pol()!=aj.pol())
+            except AssertionError:
+                raise Exception('Something has gone wrong in polarized redundancy calculation (contains linpols)')
+            bi,bj = Antpol(ai.ant(),aj.pol(),nant),Antpol(aj.ant(),ai.pol(),nant)
+            if (bi,bj) in rUbl: continue
+            elif (bj,bi) in rUbl: continue
+            else:
+                raise Exception('Something has gone wrong in polarized redundancy calculation (missing crosspols)')
+        print '    ...done'
+    newreds+=redsV
+    newreds+=reds[3*L/4:]
+    return newreds
+
+def aa_to_info(aa, pols=['x'], fcal=False, minV=False, **kwargs):
     '''Use aa.ant_layout to generate redundances based on ideal placement.
         The remaining arguments are passed to omnical.arrayinfo.filter_reds()'''
     nant = len(aa)
@@ -114,13 +127,14 @@ def aa_to_info(aa, pols=['x'], fcal=False, **kwargs):
     antpos = -np.ones((nant*len(pols),3)) #remake antpos with pol information. -1 to flag
     for ant,x,y in zip(layout.flatten(), xs.flatten(), ys.flatten()):
         for z, pol in enumerate(pols):
-            z = 2**z
-            i = Antpol(ant, pol, len(aa))
+            z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
+            i = Antpol(ant, pol, nant) # creates index in POLNUM/NUMPOL for pol
             antpos[i,0], antpos[i,1], antpos[i,2] = x,y,z
     reds = compute_reds(nant, pols, antpos[:nant], tol=.1)
     ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] == -1]
     kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
     reds = filter_reds(reds, **kwargs)
+    if minV: reds = imposeVzero(reds,nant)
     if fcal:
         info = FirstCalRedundantInfo(nant)
     else:
@@ -218,7 +232,7 @@ def to_npz(filename, meta, gains, vismdl, xtalk):
     '''Write results from omnical.calib.redcal (meta,gains,vismdl,xtalk) to npz file.
     Each of these is assumed to be a dict keyed by pol, and then by bl/ant/keyword'''
     d = {}
-    metakeys = ['jds','lsts','freqs','history']#,chisq]
+    metakeys = ['jds','lsts','freqs','history','iter']#,chisq]
     for key in meta:
         if key.startswith('chisq'): d[key] = meta[key] #separate if statements  pending changes to chisqs
         for k in metakeys: 
@@ -280,28 +294,10 @@ def from_npz(filename, pols=None, bls=None, ants=None, verbose=False):
                     xtalk[pol][bl] = dat
                 else: #append to array
                     xtalk[pol][bl] = np.vstack((xtalk[pol].get(bl),dat))
-        # for k in [f for f in npz.files if f.startswith('<')]:
-        #     pol,bl = parse_key(k)
-        #     if not vismdl.has_key(pol): vismdl[pol] = {}
-        #     vismdl[pol][bl] = vismdl[pol].get(bl,[]) + [np.copy(npz[k])]
-        # for k in [f for f in npz.files if f.startswith('(')]:
-        #     pol,bl = parse_key(k)
-        #     if not xtalk.has_key(pol): xtalk[pol] = {}
-        #     dat = np.resize(np.copy(npz[k]),vismdl[pol][vismdl[pol].keys()[0]][0].shape) #resize xtalk to be like vismdl (with a time dimension too)
-        #     if xtalk[pol].get(bl) is None: #no bl key yet
-        #         xtalk[pol][bl] = dat
-        #     else: #append to array
-        #         xtalk[pol][bl] = np.vstack((xtalk[pol].get(bl),dat))
-        # for k in [f for f in npz.files if f[0].isdigit()]:
-        #     pol,ant = k[-1:],int(k[:-1])
-        #     if not gains.has_key(pol): gains[pol] = {}
-        #     gains[pol][ant] = gains[pol].get(ant,[]) + [np.copy(npz[k])]
-        kws = ['chi','hist','j','l','f']
+        kws = ['chi','hist','j','l','f','it']
         for kw in kws:
             for k in [f for f in npz.files if f.startswith(kw)]:
                 meta[k] = meta.get(k,[]) + [np.copy(npz[k])]
-    #for pol in xtalk: #this is already done above now
-        #for bl in xtalk[pol]: xtalk[pol][bl] = np.concatenate(xtalk[pol][bl])
     for pol in vismdl:
         for bl in vismdl[pol]: vismdl[pol][bl] = np.concatenate(vismdl[pol][bl])
     for pol in gains:

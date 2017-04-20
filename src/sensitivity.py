@@ -26,8 +26,12 @@ class Sense(object):
     def calc(self):
         self.X2Y = pspec.X2Y(self.z)/1e9  #515  @ z=8.4
         if self.Nlstbins is None: self.Nlstbins = self.Nlsthours*3600/self.t_int
-        Nb = (self.Nbls/self.Nblgroups)
-        self.bl_eff = Nb * np.sqrt((self.Nblgroups**2 - self.Nblgroups)/2)
+
+        if self.Nblgroups >1:
+            Nb = (self.Nbls/self.Nblgroups)
+            self.bl_eff = Nb * np.sqrt((self.Nblgroups**2 - self.Nblgroups)/2)
+        else:
+            self.bl_eff = self.Nbls
         self.P_N = self.X2Y * self.Omega_eff * self.Tsys**2
         self.P_N /=(self.t_int * self.Ndays * self.bl_eff * self.Npols * np.sqrt(self.Nlstbins))
         self.P_N /= np.sqrt(2) #factor of 1/sqrt(2) for variance of complex variance and taking real
@@ -54,7 +58,7 @@ if __name__ == "__main__":
     #S_FRF.Nlstbins = 1  #either Nlsthours or Nlstbins must be set
     S_FRF.Nbls = 51
     S_FRF.Nseps = 3
-    S_FRF.Nblgroups = 5
+    S_FRF.Nblgroups = 0
     S_FRF.Omega_eff = 0.51**2/0.24 #use the FRF weighted beams listed in T1 of Parsons etal beam sculpting paper
     S_FRF.calc()
     print "analytic \Delta^2(k=0.3) = ",S_FRF.Delta2_N(0.3)*2 #2sigma

@@ -2,7 +2,6 @@
 """Create simple 2 sigma upper limit plot."""
 
 import matplotlib as mpl
-mpl.use('Agg')
 import numpy as np
 import aipy
 import sys
@@ -47,18 +46,25 @@ opts, args = o.parse_args(sys.argv[1:])
 
 
 data = {
-    'pI': [x for x in args if 'pI' in x],
-    'pC': [x for x in args if 'pI' not in x]
+    'unweighted': [x for x in args if 'pI' in x],
+    'weighted': [x for x in args if 'pI' not in x]
         }
 
-colors = {
-        "pI": "blue",
-        "pC": "green"
-        }
+# colors = {
+#         "unweighted": "blue",
+#         "weighted": "green"
+#         }
 
-z, _, _, _ = capo.eor_results.get_k3pk_from_npz(data['pI'])
+z, _, _, _ = capo.eor_results.get_k3pk_from_npz(data['unweighted'])
+z_ref, z_ind = np.unique(z, return_index=True)
+# reverse because unique orders ascending
+z_ref = z_ref[::-1]
+z_ind = z_ind[::-1]
+# Trim off uncessary unweighted spectra
+data['unweighted'] = np.take(data['unweighted'], z_ind, axis=0).tolist()
+
 try:
-    Nzs = len(z)
+    Nzs = len(z_ref)
 except:
     Nzs = 1
 if opts.ratio:
@@ -66,13 +72,13 @@ if opts.ratio:
     gs = gridspec.GridSpec(3, Nzs)
     gs.update(hspace=0.0, wspace=0.2)
     ax1 = [plt.subplot(gs[:-1, i]) for i in range(Nzs)]
-    ax2 = [plt.subplot(gs[-1, i], sharex=ax1[i]) for i in range(Nzs)]
+    ax2 = [plt.subplot(gs[-1, i], sharex=ax1[gs_ind]) for i in range(Nzs)]
 
     fig2 = plt.figure()
     gs = gridspec.GridSpec(3, Nzs)
     gs.update(hspace=0.0, wspace=0.2)
     ax3 = [plt.subplot(gs[:-1, i]) for i in range(Nzs)]
-    ax4 = [plt.subplot(gs[-1, i], sharex=ax1[i]) for i in range(Nzs)]
+    ax4 = [plt.subplot(gs[-1, i], sharex=ax1[gs_ind]) for i in range(Nzs)]
 else:
     fig = plt.figure()
     gs = gridspec.GridSpec(1, Nzs)
@@ -87,6 +93,15 @@ else:
 noise_freqs, noise_ks, noises = py21cm.load_noise_files(
         glob.glob(opts.noisefiles), polyfit_deg=3
         )
+freqs = capo.pspec.z2f(z_ref) * 1e3
+noise_ind = np.array(
+                     [np.argmin(abs(np.array(noise_freqs) - fq))
+                      for fq in freqs])
+
+noise_freqs = np.take(noise_freqs, noise_ind).tolist()
+noise_ks = np.take(noise_ks, noise_ind, axis=0).tolist()
+noises = np.take(noises, noise_ind, axis=0).tolist()
+
 # POBER_NOISE = py21cm.noise_interp2d(
 #               noise_freqs,noise_ks,noises,interp_kind='linear')
 
@@ -99,51 +114,64 @@ if opts.psa32_noise:
 
 
 for key in data:
+    if not data[key]:
+        continue
     z, ks, k3pk, k3err = capo.eor_results.get_k3pk_from_npz(data[key])
     _, kpls, pk, pkerr = capo.eor_results.get_pk_from_npz(data[key])
     fqs = capo.pspec.z2f(z)*1e3  # put freqs in Mhz
+    k_max = np.max(ks)
     for i, redshift in enumerate(z):
 
-        ax1[i].plot(ks[i], k3pk[i] + k3err[i],
-                    '--', color=colors[key], label=key)
+        if key == 'unweighted':
+            label = key
+        else:
+            prob = data[key][i].split('_')[-1].split('.')[0]
+            label = key + ' ' + prob
 
-        ax1[i].set_yscale('log')
+        gs_ind = np.where(z_ref == redshift)[0].item()
+        # special index for gridspec
+
+        ax1[gs_ind].plot(ks[i], k3pk[i] + k3err[i],
+                         '--', label=label)
+
+        ax1[gs_ind].set_yscale('log')
         if i > 0:
-            ax1[i].get_shared_y_axes().join(ax1[0], ax1[i])
-        ax1[i].set_title('z = {0:.2f}'.format(redshift))
-        ax1[i].set_xlabel('$k$ [$h$ Mpc$^{-1}$]')
+            ax1[gs_ind].get_shared_y_axes().join(ax1[0], ax1[gs_ind])
+        ax1[gs_ind].set_title('z = {0:.2f}'.format(redshift))
+        ax1[gs_ind].set_xlabel('$k$ [$h$ Mpc$^{-1}$]')
 
         if i == 0:
-            ax1[i].set_ylabel('$\\frac{k^{3}}{2\pi^{2}} P(k) [mK]^{2}$')
+            ax1[gs_ind].set_ylabel('$\\frac{k^{3}}{2\pi^{2}} P(k) [mK]^{2}$')
             ax1[0].set_ylim([1e0, 1e9])
         if opts.ratio:
-            plt.setp(ax1[i].get_xticklabels(), visible=False)
-        ax1[i].grid(True)
+            plt.setp(ax1[gs_ind].get_xticklabels(), visible=False)
+        ax1[gs_ind].grid(True)
+        ax1[gs_ind].set_xlim(0, k_max * 1.01)
 
-        if len(np.unique(z)) == 1:
+        if Nzs == 1:
             if i == 0:
-                ax1[i].plot(noise_ks[0], noises[0], 'k-')
+                ax1[gs_ind].plot(noise_ks[0], noises[0], 'k-')
             else:
-                ax1[i].plot(noise_ks[0], noises[0], 'k-')  # * 3887./2022.
+                ax1[gs_ind].plot(noise_ks[0], noises[0], 'k-')  # * 3887./2022.
             d2_n = noises[0]
             pk_n = 2*np.pi**2/(np.array(noise_ks[0])**3)*d2_n
             if len(kpls[0]) > len(pk_n):
-                ax3[i].plot(noise_ks[0], pk_n, '-', color='black')
-                ax3[i].plot(-noise_ks[0], pk_n, '-', color='black')
+                ax3[gs_ind].plot(noise_ks[0], pk_n, '-', color='black')
+                ax3[gs_ind].plot(-noise_ks[0], pk_n, '-', color='black')
             else:
-                ax3[i].plot(noise_ks[0], pk_n, '-', color='black')
+                ax3[gs_ind].plot(noise_ks[0], pk_n, '-', color='black')
         else:
-            ax1[i].plot(noise_ks[i], noises[i], 'k-')
-            d2_n = noises[i]
-            pk_n = 2*np.pi**2/(np.array(noise_ks[i])**3)*d2_n
-            if len(kpls[i]) > len(pk_n):
-                ax3[i].plot(noise_ks[i], pk_n, '-', color='black')
-                ax3[i].plot(-noise_ks[i], pk_n, '-', color='black')
+            ax1[gs_ind].plot(noise_ks[gs_ind], noises[gs_ind], 'k-')
+            d2_n = noises[gs_ind]
+            pk_n = 2*np.pi**2/(np.array(noise_ks[gs_ind])**3)*d2_n
+            if len(kpls[gs_ind]) > len(pk_n):
+                ax3[gs_ind].plot(noise_ks[gs_ind], pk_n, '-', color='black')
+                ax3[gs_ind].plot(-noise_ks[gs_ind], pk_n, '-', color='black')
             else:
-                ax3[i].plot(noise_ks[i], pk_n, '-', color='black')
+                ax3[gs_ind].plot(noise_ks[gs_ind], pk_n, '-', color='black')
 
-        ax3[i].plot(kpls[i], pk[i] + pkerr[i],
-                    '--', color=colors[key], label=key)
+        ax3[gs_ind].plot(kpls[i], pk[i] + pkerr[i],
+                         '--', label=label)
         # print len(kpls[i]), len(pk_n)
 
         # add optional psa32 data
@@ -153,36 +181,40 @@ for key in data:
                             redshift, capo.eor_results.PAPER_32_all())
                 # print "loading GMRT 2014 data near redshift:",GMRT_z
                 if np.abs(PSA32_z - redshift) < 0.5:
-                    ax1[i].plot(PSA32_pspec[:, 0], PSA32_pspec[:, 2], '--',
-                                color='red', label='psa32')
+                    ax1[gs_ind].plot(PSA32_pspec[:, 0], PSA32_pspec[:, 2],
+                                     '--', label='psa32')
 
                     psa32_k = PSA32_pspec[:, 0]
                     psa32_pk = PSA32_pspec[:, 2]*2*np.pi**2/psa32_k**3
-                    ax3[i].plot(PSA32_pspec[:, 0], psa32_pk,
-                                '--', color='red', label='psa32')
+                    ax3[gs_ind].plot(PSA32_pspec[:, 0], psa32_pk,
+                                     '--', label='psa32')
             if opts.psa32_noise:
-                ax1[i].plot(noise_ks_32[i], noises_32[i], 'k--')
+                ax1[gs_ind].plot(noise_ks_32[i], noises_32[i], 'k-.')
 
                 d2_n_32 = noises_32[i]
                 pk_n_32 = 2*np.pi**2/(np.array(noise_ks_32[i])**3) * d2_n_32
 
                 if len(kpls[i]) > len(pk_n_32):
-                    ax3[i].plot(noise_ks_32[i], pk_n_32, '--', color='black')
-                    ax3[i].plot(-noise_ks_32[i], pk_n_32, '--', color='black')
+                    ax3[gs_ind].plot(noise_ks_32[i],
+                                     pk_n_32, '-.', color='black')
+                    ax3[gs_ind].plot(-noise_ks_32[i],
+                                     pk_n_32, '-.', color='black')
                 else:
-                    ax3[i].plot(noise_ks_32[i], pk_n_32, '--', color='black')
+                    ax3[gs_ind].plot(noise_ks_32[i],
+                                     pk_n_32, '-.', color='black')
 
-        ax3[i].set_yscale('log')
+        ax3[gs_ind].set_yscale('log')
 
-        ax3[i].set_title('z = {0:.2f}'.format(redshift))
+        ax3[gs_ind].set_title('z = {0:.2f}'.format(redshift))
         if i > 0:
-            ax3[i].get_shared_y_axes().join(ax3[0], ax3[i])
+            ax3[gs_ind].get_shared_y_axes().join(ax3[0], ax3[gs_ind])
 
         if i == 0:
-            ax3[i].set_ylabel('$ P(k) \\frac{[mK]^{2}}{(hMpc^{-1})^{3}}$')
+            ax3[gs_ind].set_ylabel('$ P(k) \\frac{[mK]^{2}}{(hMpc^{-1})^{3}}$')
         if opts.ratio:
-            plt.setp(ax3[i].get_xticklabels(), visible=False)
-        ax3[i].grid(True)
+            plt.setp(ax3[gs_ind].get_xticklabels(), visible=False)
+        ax3[gs_ind].grid(True)
+        ax3[gs_ind].set_xlim(0, k_max * 1.01)
 
 
 if opts.ratio:
@@ -195,21 +227,23 @@ if opts.ratio:
         fqs = capo.pspec.z2f(z_pI)*1e3  # put freqs in Mhz
         ratio = (k3pk_pC[i] + k3err_pC[i])/(
                     k3pk_pI[i] + k3err_pI[i])
-        ax2[i].plot(ks_pI[i], ratio, '-')
+        ax2[gs_ind].plot(ks_pI[i], ratio, '-')
 
         print '{0:.2f}\t{1:.3f}\t{2:.3f}'.format(
                         redshift, np.mean(ratio), np.std(ratio))
 
         if i == 0:
-            ax2[i].set_ylabel('pC/pI')
-        ax2[i].set_xlabel('$k [hMpc^{-1}]$')
-        # ax2[i].set_yscale('log')
-        nbins = len(ax2[i].get_yticklabels())  # added
-        ax2[i].yaxis.set_major_locator(MaxNLocator(nbins=nbins, prune='upper'))
+            ax2[gs_ind].set_ylabel('pC/pI')
+        ax2[gs_ind].set_xlabel('$k [hMpc^{-1}]$')
+        # ax2[gs_ind].set_yscale('log')
+        nbins = len(ax2[gs_ind].get_yticklabels())  # added
+        ax2[gs_ind].yaxis.set_major_locator(
+                                    MaxNLocator(nbins=nbins, prune='upper'))
         if i == 0:
             nbins = len(ax2[0].get_xticklabels())  # added
             ax2[0].xaxis.set_major_locator(MaxNLocator(nbins=nbins-3))
-        ax2[i].grid(True)
+        ax2[gs_ind].grid(True)
+        ax2[gs_ind].set_xlim(0, k_max * 1.01)
 
         _, kpls_pI, pk_pI, pkerr_pI = capo.eor_results.get_pk_from_npz(
                                     data['pI'])
@@ -217,21 +251,23 @@ if opts.ratio:
                                     data['pC corrected'])
         ratio2 = (pk_pC[i] + pkerr_pC[i])/(
                         pk_pI[i] + pkerr_pI[i])
-        ax4[i].plot(kpls_pI[i], ratio2, '-')
+        ax4[gs_ind].plot(kpls_pI[i], ratio2, '-')
 
         print '{0:.2f}\t{1:.3f}\t{2:.3f}'.format(
                     redshift, np.mean(ratio), np.std(ratio))
 
         if i == 0:
-            ax4[i].set_ylabel('pC/pI')
-        ax4[i].set_xlabel('$k [hMpc^{-1}]$')
+            ax4[gs_ind].set_ylabel('pC/pI')
+        ax4[gs_ind].set_xlabel('$k [hMpc^{-1}]$')
         # ax2[i].set_yscale('log')
-        nbins = len(ax4[i].get_yticklabels())  # added
-        ax4[i].yaxis.set_major_locator(MaxNLocator(nbins=nbins, prune='upper'))
+        nbins = len(ax4[gs_ind].get_yticklabels())  # added
+        ax4[gs_ind].yaxis.set_major_locator(
+                                MaxNLocator(nbins=nbins, prune='upper'))
         if i == 0:
             nbins = len(ax4[0].get_xticklabels())  # added
             ax4[0].xaxis.set_major_locator(MaxNLocator(nbins=nbins-3))
-        ax4[i].grid(True)
+        ax4[gs_ind].grid(True)
+        ax4[gs_ind].set_xlim(0, k_max * 1.01)
 
 handles, labels = ax1[-1].get_legend_handles_labels()
 ax1[-1].legend(reversed(handles), reversed(labels),

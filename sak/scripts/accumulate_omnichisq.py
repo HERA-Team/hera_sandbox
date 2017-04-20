@@ -4,12 +4,13 @@ import optparse
 o = optparse.OptionParser()
 o.add_option('-y', type='str', help='Year label (2013 or 2014)')
 o.add_option('-e', type='str', help='Epoch label (1 or 2)')
+o.add_option('--omni_version',type='str',help='omnical version (max=4)')
 o.add_option('--minJD', type='int', help='Minimum JD')
 o.add_option('--maxJD', type='int', help='Maximum JD')
 o.add_option('--dest', type='str', default=os.getcwd(), help='Destination of output file')
 opts,args = o.parse_args(sys.argv[1:])
 
-path2epoch='/data4/paper/%sEoR/Analysis/ProcessedData/epoch%s/omni_v3_xtalk/'%(opts.y,opts.e)
+path2epoch='/data4/paper/%sEoR/Analysis/ProcessedData/epoch%s/omni_v%s_xtalk/'%(opts.y,opts.e,opts.omni_version)
 
 for jd in range(opts.minJD,opts.maxJD):
     for pol in ['xx','yy']:
