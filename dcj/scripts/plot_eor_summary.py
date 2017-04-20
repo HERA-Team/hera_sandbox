@@ -156,8 +156,12 @@ if plot_psa64_multiz:
     for i,fi in enumerate(files):
         z = float(zs[i])
         f= n.load(fi)
-        results_array = n.array([f['k'],f['pI_fold'],f['pI_fold']+f['pI_fold_up'],f['pI_fold']-f['pI_fold_up']]).T
-        negs = n.argwhere(f['pI_fold'] < 0).squeeze()
+        try:
+            results_array = n.array([f['k'],f['pI_fold'],f['pI_fold']+f['pI_fold_up'],f['pI_fold']-f['pI_fold_up']]).T
+            negs = n.argwhere(f['pI_fold'] < 0).squeeze()
+        except(KeyError):
+            results_array = np.array(f['k'],f['k3pk'],f['k3pk']+f['k3err'],f['k3pk']-f['k3err']).T
+            negs = np.argwhere(f['k3pk']<0).squeeze()
 
         try: len(negs)
         except: negs = n.array([negs.item()])
@@ -228,7 +232,7 @@ PN_HERA = F['T_errs'][3]/F['ks'][3]**3 * (2 * np.pi**2)
 ax.plot(zs,PN_HERA * myk**3/(2*np.pi**2) * (freqs/180.)**-2.55,color='orange',label='HERA127')
 if True:
     #noise
-    Pk_noise = 1808458.61002 #from dcj 21cmsense_check notebook. parameters matched to psa64, agrees with noise realization
+    Pk_noise = 2002238.45892 #from dcj 21cmsense_check notebook. parameters matched to psa64, agrees with noise realization
     ax.plot(zs,myk**3/(2*np.pi**2) * Pk_noise * (freqs/151.)**-2.55,'-b',label='PSA64 concordance' )
     ax.text(10.5,1e4,'PSA64 Concordance',fontsize=textsize)
     ax.plot(zs,myk**3/(2*np.pi**2) * Pk_noise*2 * (freqs/151.)**-2.55,'-c',label='PSA32 concordance' )
