@@ -1,75 +1,61 @@
-import aipy as a, numpy as n
-import capo as C
-import numpy as np #lets start the transition away from n
-def wedge_width_by_bl(aa, sdf, nchan, offset=0., horizon=1.):
-    '''Generate dict of (upper,lower) bounds of delay-domain wedge for 
-    baseline (i,j).  Bounds are given in bin number, derived from sdf (the
-    delta freq between channels in GHz) and nchan.  offset (in ns) adds to
-    the width of the wedge.  horizon is the fraction of the bl length to
-    use, with 1 being the horizon and 0 being zenith.'''
-    filters = {}
-    for i in range(len(aa.ants)):
-      for j in range(len(aa.ants)):
-        if j < i: continue
-        bl_len = aa.get_baseline(i,j)
-        bl_len = horizon * n.sqrt(n.dot(bl_len,bl_len)) + offset
-        filters[(i,j)] = wedge_width(bl_len, sdf, nchan)
-    return filters
+import aipy
+import capo
+import numpy as np
 
-def wedge_width(bl_len, sdf, nchan):
+def wedge_width(bl_len, sdf, nchan, standoff=0., horizon=1.):
     '''Return the (upper,lower) delay bins that geometrically
     correspond to the sky, for bl_len in ns, sdf in GHz, and the number
     of channels nchan.'''
+    bl_dly = horizon * bl_len + standoff
     bin_dly = 1. / (sdf * nchan)
-    uthresh, lthresh = bl_len/bin_dly + 1.5, -bl_len/bin_dly - 0.5
-    uthresh, lthresh = int(n.ceil(uthresh)), int(n.floor(lthresh))
+    w = int(round(bl_dly/bin_dly))
+    uthresh, lthresh = w + 1, -w
+    if lthresh == 0: lthresh = nchan
     return (uthresh,lthresh)
     
-def delay_filter(data, wgts, uthresh, lthresh, tol=1e-4, window='none', maxiter=100):
+def delay_filter(data, wgts, bl_len, sdf, standoff=0., horizon=1., tol=1e-4, 
+        window='none', skip_wgt=0.5, maxiter=100):
     '''Apply a wideband delay filter to data.  Data are weighted again by wgts,
     windowed, Fourier transformed, and deconvolved allowing clean components
     between lthresh and uthresh.  The mdl, residual, and info are returned in
     frequency domain.'''
-    window = a.dsp.gen_window(data.size, window=window)
-    _d = n.fft.ifft(data * wgts * window)
-    _w = n.fft.ifft(wgts * wgts * window)
-    area = n.ones(_d.size, dtype=n.int); area[uthresh:lthresh] = 0
-    _d_cl, info = a.deconv.clean(_d, _w, area=area, tol=tol, stop_if_div=False, maxiter=maxiter)
-    d_mdl = n.fft.fft(_d_cl)# + info['res'])
+    nchan = data.shape[-1]
+    window = aipy.dsp.gen_window(nchan, window=window)
+    _d = np.fft.ifft(data * wgts * window, axis=-1)
+    _w = np.fft.ifft(wgts * wgts * window, axis=-1)
+    uthresh,lthresh = wedge_width(bl_len, sdf, nchan, standoff=standoff, horizon=horizon)
+    area = np.ones(nchan, dtype=np.int); area[uthresh:lthresh] = 0
+    if data.ndim == 1:
+        _d_cl, info = aipy.deconv.clean(_d, _w, area=area, tol=tol, stop_if_div=False, maxiter=maxiter)
+        d_mdl = np.fft.fft(_d_cl)# + info['res'])
+    elif data.ndim == 2:
+        d_mdl = np.empty_like(data)
+        for i in xrange(data.shape[0]):
+            if _w[i,0] < skip_wgt: d_mdl[i] = 0 # skip highly flagged (slow) integrations
+            else:
+                _d_cl, info = aipy.deconv.clean(_d[i], _w[i], area=area, tol=tol, 
+                        stop_if_div=False, maxiter=maxiter)
+                d_mdl[i] = np.fft.fft(_d_cl)# + info['res'])
+                # XXX info overwritten every i
+    else: raise ValueError('data must be a 1D or 2D array')
     d_res = data - d_mdl * wgts
     return d_mdl, d_res, info
 
-def phs2lstbin(aa, data, i, j, jd, lst_res=C.pspec.LST_RES):
-    '''Phase data to the closest lst bin, which is the point that transits zenith
-    at the sidereal time corresponding to the center of an lst bin.'''
-    if aa.get_jultime() != jd: aa.set_jultime(jd)
-    lst = aa.sidereal_time()
-    ubin,vbin,lstbin = C.pspec.bin2uv(C.pspec.uv2bin(0,0,lst,lst_res=lst_res), lst_res=lst_res)
-    zen = a.phs.RadioFixedBody(lstbin, aa.lat, epoch=aa.date)
-    zen.compute(aa)
-    data = aa.phs2src(data,zen,i,j)
-    # XXX should we conjugate to u >= 0?
-    # u = aa.get_uvw(i,j,src=zen)[0].flatten()[-1]
-    # if u < 0: data = n.conj(data)
-    return data
-    
+def delay_filter_aa(aa, data, wgts, i, j, sdf, phs2lst=False, jds=None, 
+        skip_wgt=0.5, lst_res=capo.binning.LST_RES, standoff=0., horizon=1., 
+        tol=1e-4, window='none', maxiter=100):
+    '''Use information from AntennaArray object to delay filter data, with the
+    option to phase data to an lst bin first.  Arguments are the same as for
+    delay_filter and capo.binning.phs2lstbin.  Returns mdl, residual, and info
+    in the frequency domain.'''
+    if phs2lst:
+        data = capo.binning.phs2lstbin(data, aa, i, j, jds=jds, lst_res=lst_res)
+    bl = aa.get_baseline(i,j)
+    return delay_filter(data, wgts, np.linalg.norm(bl), sdf, 
+            standoff=standoff, horizon=horizon, tol=tol, window=window, 
+            skip_wgt=skip_wgt, maxiter=maxiter)
 
-def apply_delay_filter(aa, data, wgts, i, j, wedges, phs2lst=False, jd=None, 
-        skip_wgt=0.5, **kwargs):
-    uthresh,lthresh = wedges[(i,j)]
-    assert(data.ndim in [1,2])
-    if data.ndim == 1: # apply only once and return
-        if phs2lst: data = phs2lstbin(aa, data, i, j, jd, **kwargs)
-        return delay_filter(data, wgts, uthresh, lthresh, **kwargs)
-    else: # apply to each spectrum 
-        dmdl, dres, info = n.zeros_like(data), n.zeros_like(data), {}
-        for t in xrange(data.shape[0]): # loop through time dimension
-            dt,wt = data[t], wgts[t]
-            if n.average(wt) < skip_wgt: continue
-            if phs2lst: dt = phs2lstbin(aa, dt, i, j, jd[t], **kwargs)
-            dtm, dtr, i = delay_filter(dt, wt, uthresh, lthresh, **kwargs)
-            dmdl[t] = dtm; dres[t] = dtr; info.update(i)
-        return dmdl, dres, info
+# XXX is this a used function?
 def delayfiltercov(C,horizon_bins=5,eig_cut_dnr=2):
     #delay filter a spectral covariance matrix
     #horizon_bins = distance delay=0 to be retained, ie the size of the wedge in bins
