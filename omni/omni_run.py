@@ -15,6 +15,8 @@ o.add_option('--omnipath',dest='omnipath',default='',type='string',
             help='Path to save .npz files. Include final / in path.')
 o.add_option('--ba',dest='ba',default=None,
             help='Antennas to exclude, separated by commas.')
+o.add_option('--ex_bls',dest='ex_bls',default=None,
+            help='Baselines to exclude, separated by commas. Ex: 1_4,0_26')
 o.add_option('--fc2',dest='fc2', type='string',
             help='Path and name of POL.npz file outputted by firstcal v2 (comma delimited string if more than one polarization).')
 o.add_option('--remove_degen',dest='rmdegen',default=True, 
@@ -94,7 +96,13 @@ else: #generate reds from calfile
             ex_ants.append(int(a))
         print 'Excluding antennas:',sorted(ex_ants)
     else: ex_ants = []
-    info = capo.omni.aa_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, crosspols=pols, minV=opts.minV)
+    if opts.ex_bls:
+        ex_bls = []
+        for bl in opts.ex_bls.split(','):
+            bl = bl.split('_')
+            ex_bls.append((int(bl[0]),int(bl[1])))
+    else: ex_bls = []
+    info = capo.omni.aa_to_info(aa, pols=list(set(''.join(pols))), ex_ants=ex_ants, crosspols=pols, ex_bls=ex_bls, minV=opts.minV)
 reds = info.get_reds()
 
 ### Omnical-ing! Loop Through Compressed Files ###
