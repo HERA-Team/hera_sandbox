@@ -435,3 +435,31 @@ def save_gains_fc(s,fqs,pol,filename,ubls=None,ex_ants=None,verbose=False):
     s2['cmd'] = ' '.join(sys.argv)
     print 'Saving fcgains to %s'%outname
     np.savez(outname,**s2)
+
+def omni_remove_degen(info, firstcal_phases, omnical_phases, pol='x'):
+    """
+    Remove degen from omnical solutions.
+    """
+    antloc = info.antloc; antloc[:,2] = 0 #convert z pos to zero so that constraint on r_i is satisfied.
+    #Get the R matrix. R = [r_i 1], where ri are the positions
+    R = np.array([np.append(ai,1) for ai in antloc], dtype=np.float32); print R.shape
+    #projection matrix into degeneracy space
+    m1 = np.einsum('ij,jk',np.linalg.pinv(np.einsum('ij,jk',R.T,R)),R.T); print m1.shape
+    #getting firstcal solutions. Make sure to unwrap!
+    phases_fc = np.array([ np.unwrap(np.angle(firstcal_phases['x'][k])) for k in info.subsetant ])
+    #projection matrix into phase space
+    projection_matrix = np.einsum('ij,jk',R,m1)
+    #projected firstcal solutions in phase space. Want to add these back in.
+    projected_firstcal_phases = np.einsum('ij,jkl', projection_matrix, phases_fc)
+
+    phases_omni = np.array([ np.angle(omnical_phases['x'][k]) for k in info.subsetant ])
+    projected_out_omnical_phases = np.einsum('ij,jkl', np.identity(projection_matrix.shape[0]) - projection_matrix, phases_omni)
+
+    final_phases = projected_out_omnical_phases + projected_firstcal_phases
+
+    g = {}
+    g[pol] = {}
+    for i,k in enumerate(info.subsetant):
+        g[pol][k] = np.exp(1j*final_phases[i])
+
+    return g

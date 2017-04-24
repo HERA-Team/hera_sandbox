@@ -277,3 +277,14 @@ def get_aa(freqs):
     aa.set_params(pos_prms)
     return aa
 
+#src_prms = {
+#'J071717.6-250454':{'ra':109.32351, 'dec':-25.0817}}
+#
+#def get_catalog(srcs=None, cutoff= None, catalogs=['helm','misc']):
+#    custom_srcs = ['J071717.6-250454', 'J020012.1-305327', 'J002549.1-260210']
+#    if srcs is None:
+#        cat = a.src.get_catalog(srcs=[s for s in srcs if not s in custom_srcs], cutoff=cutoff, catalogs=catalogs)
+#        for src in [s for s in srcs if s in custom_srcs]:
+#            cat[src] = a.fit.RadioFixedBody(
+        
+            
