@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, diags
 from copy import deepcopy
 
 
@@ -150,8 +150,10 @@ class OmniCalibrator():
                                            -np.real(gi0gj0starVij0), np.imag(gi0gj0star), np.real(gi0gj0star)]
         return csr_matrix((Acoeffs,(rowIndices,colIndices)), shape=(2*self.a.nbl, 2*self.a.nant + 2*self.a.nubl))
     
-    def PerformLincal(self, obsVis, gainStart, visStart, degenGains, realImagMode=False, maxIter=100, convCrit=1e-14, divCrit = 1e14):
-        """Performs lincal, either in the amp/phase mode or the real/imag mode. Projects out degeneracies and replaces them."""
+    def PerformLincal(self, obsVis, gainStart, visStart, degenGains, weights=None, realImagMode=False, maxIter=100, convCrit=1e-14, divCrit = 1e14):
+        """Performs lincal, either in the amp/phase mode or the real/imag mode. Projects out degeneracies and replaces them.
+        Opionally, one can includes a list of weights which correspond to the diagonals of a Ninv matrix in the linear estimator.
+        It is assumed that the real and imaginary parts"""
         gainSols, visSols = gainStart.copy(), visStart.copy()
         if self.verbose: print '\nNow performing Lincal using the', ('Amp/Phs','Re/Imag')[realImagMode], 'method...'
         startingChiSq = np.mean(np.abs(self.ComputeErrors(obsVis, gainSols, visSols))**2) #TODO: update with noise
@@ -159,11 +161,14 @@ class OmniCalibrator():
     
         for iteration in range(maxIter):            
             #Do all the linear algebra
+
             A = self.LincalAMatrix(gainSols, visSols, realImagMode=realImagMode)
-            AtA = (A.conj().T.dot(A)).toarray()
+            if weights is None: Ninv = diags(np.ones(2*self.a.nbl),0)
+            else: Ninv = diags(np.append(weights,weights),0)
+            AtNinvA = (A.conj().T.dot(Ninv).dot(A)).toarray()
             error = self.ComputeErrors(obsVis, gainSols, visSols)
             y = np.dstack((np.real(error),np.imag(error))).flatten()
-            xHat = np.linalg.pinv(AtA).dot(A.conj().T.dot(y))
+            xHat = np.linalg.pinv(AtNinvA).dot(A.conj().T.dot(Ninv.dot(y)))
             
             #Update solutions
             updates = xHat[0::2] + 1.0j*xHat[1::2]
@@ -190,7 +195,9 @@ class OmniCalibrator():
                 break
             gainSols, visSols, prevChiSq = newGainSols, newVisSols, chiSq
         
-        return self.PerChannelDegeneracyCorrection(newGainSols, newVisSols, degenGains)
+        meta = {'iters': iteration+1, 'chisq': chiSq, 'convCrit': convergence}
+        newGainSols, newVisSols = self.PerChannelDegeneracyCorrection(newGainSols, newVisSols, degenGains)
+        return newGainSols, newVisSols, meta
     
     def OverallBandpassDegeneracyProjection(self, allGainSols, allVisSols, allGuessGains):
         """This function corrects degeneracies, but only after unwrapping across all channels. """
@@ -290,7 +297,7 @@ class OmniCalibrator():
                 if n==0: 
                     gainStart, visStart = cal.PerformLogcal(obsVis, guessGains)        
                 else: gainStart, visStart = allGainSols[n-1], allVisSols[n-1]
-                gainSols, visSols = cal.PerformLincal(obsVis, gainStart, visStart, guessGains, realImagMode=True, maxIter=100)
+                gainSols, visSols, meta = cal.PerformLincal(obsVis, gainStart, visStart, guessGains, realImagMode=True, maxIter=100)
                 allGainSols[n,:], allVisSols[n,:] = gainSols, visSols 
                 #print np.mean(np.abs(cal.ComputeErrors(obsVis, gainSols, visSols))**2)
 
