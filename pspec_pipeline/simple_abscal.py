@@ -32,7 +32,7 @@ if opts.factor == None:
 
     ### FILES ###
     aa = aipy.cal.get_aa('psa898_v003',0.001,0.1,203) #parameters don't matter... only used to find LSTs
-    data128 = numpy.sort(glob.glob('/data4/paper/2013EoR/Analysis/ProcessedData/epoch1/omni_v4_xtalk/lstbin_balanced_fg/even/lst*I.uv')) #S1 PSA-128, FG-containing
+    data128 = numpy.sort(glob.glob('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v5_xtalk/lstbin_fg_balanced/even/lst*I.uv')) #S1 PSA-128, FG-containing
     #data128 = numpy.sort(glob.glob('/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v2_xtalk/lstbin_fg/even/lst*I.uv')) #LST-binned, FG-containing
     #data64 = numpy.sort(glob.glob('/home/jacobsda/storage/psa128/2014_epoch3/v5_xtalksub_omni/lstbin_June2_v1/even/sep0,2/*uvAS')) #LST-binned, abscal 128 !! 
     #data64 = numpy.sort(glob.glob('/data4/paper/2012EoR/psa_live/forlstbinning_omnical_2/lstbin_even_noxtalk/*uvG')) #LST-binned
@@ -71,6 +71,20 @@ if opts.factor == None:
         d2_clip = [d for i,d in enumerate(d2) if t2[i] < numpy.max(t1)]
         t2 = t2_clip
         d2 = d2_clip
+    # Only calibrate between this LST range
+    lst1 = 0
+    lst2 = 10 
+    lst1 = (lst1/24.)*2*numpy.pi
+    lst2 = (lst2/24.)*2*numpy.pi
+    t1_lowclip = numpy.argmin(numpy.abs(t1-lst1))
+    t1_hiclip = numpy.argmin(numpy.abs(t1-lst2))
+    t2_lowclip = numpy.argmin(numpy.abs(t2-lst1))
+    t2_hiclip = numpy.argmin(numpy.abs(t2-lst2))
+    t1 = t1[t1_lowclip:t1_hiclip]
+    d1 = d1[t1_lowclip:t1_hiclip]
+    t2 = t2[t2_lowclip:t2_hiclip]
+    d2 = d2[t2_lowclip:t2_hiclip]
+
     ### FIND MATCHING LSTs and FACTORS ###
     factors = []
     factors_complex = []
