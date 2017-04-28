@@ -152,7 +152,7 @@ class OmniCalibrator():
     
     def PerformLincal(self, obsVis, gainStart, visStart, degenGains, weights=None, realImagMode=False, maxIter=100, convCrit=1e-14, divCrit = 1e14):
         """Performs lincal, either in the amp/phase mode or the real/imag mode. Projects out degeneracies and replaces them.
-        Opionally, one can includes a list of weights which correspond to the diagonals of a Ninv matrix in the linear estimator.
+        Opionally, one can includes a list of weights which correspond to the sqrt of the diagonals of a Ninv matrix in the linear estimator.
         It is assumed that the real and imaginary parts"""
         gainSols, visSols = gainStart.copy(), visStart.copy()
         if self.verbose: print '\nNow performing Lincal using the', ('Amp/Phs','Re/Imag')[realImagMode], 'method...'
@@ -164,7 +164,7 @@ class OmniCalibrator():
 
             A = self.LincalAMatrix(gainSols, visSols, realImagMode=realImagMode)
             if weights is None: Ninv = diags(np.ones(2*self.a.nbl),0)
-            else: Ninv = diags(np.append(weights,weights),0)
+            else: Ninv = diags(np.append(weights**2,weights**2),0)
             AtNinvA = (A.conj().T.dot(Ninv).dot(A)).toarray()
             error = self.ComputeErrors(obsVis, gainSols, visSols)
             y = np.dstack((np.real(error),np.imag(error))).flatten()
