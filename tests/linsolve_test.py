@@ -184,6 +184,17 @@ class TestLinearSolver(unittest.TestCase):
         sol = ls.solve()
         np.testing.assert_almost_equal(sol['x'], x*np.ones(4,dtype=np.float))
         np.testing.assert_almost_equal(sol['y'], y*np.ones(4,dtype=np.float))
+    def test_nonunity_wgts(self):
+        x,y = 1.,2.
+        a,b = 3.*np.ones(4),1.
+        eqs = ['a*x+y','x+b*y']
+        d,w = {}, {}
+        for eq in eqs: d[eq],w[eq] = eval(eq)*np.ones(4), 2*np.ones(4)
+        ls = linsolve.LinearSolver(d,w,a=a,b=b)
+        sol = ls.solve()
+        np.testing.assert_almost_equal(sol['x'], x*np.ones(4,dtype=np.float))
+        np.testing.assert_almost_equal(sol['y'], y*np.ones(4,dtype=np.float))
+
 
 class TestLogProductSolver(unittest.TestCase):
     def test_init(self):
