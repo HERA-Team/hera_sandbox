@@ -93,7 +93,7 @@ class LinearEquation:
         if type(val) is str:
             n = ast.parse(val, mode='eval')
             val = ast_getterms(n)
-        self.wgt = kwargs.pop('wgt',1.)
+        self.wgts = kwargs.pop('wgts',1.)
         self.process_terms(val, **kwargs)
     def process_terms(self, terms, **kwargs):
         '''Classify terms from parsed str as Constant or Parameter.'''
@@ -123,10 +123,10 @@ class LinearEquation:
             for ti in t[:-1]:
                 assert(type(ti) is not str or self.consts.has_key(get_name(ti)))
         return terms
-    def eval_consts(self, const_list, wgt=1.):
+    def eval_consts(self, const_list, wgts=1.):
         '''Multiply out constants (and wgts) for placing in matrix.'''
         const_list = [self.consts[get_name(c)].get_val(c) for c in const_list]
-        return wgt * reduce(lambda x,y: x*y, const_list, 1.)
+        return wgts * reduce(lambda x,y: x*y, const_list, 1.)
     def put_matrix(self, m, eqnum, prm_order, reImSplit=True):
         '''Place this equation in line eqnum of pre-made (# eqs,# prms) matrix m.'''
         xs,ys,vals = self.sparse_form(eqnum, prm_order, reImSplit=reImSplit)
@@ -137,7 +137,7 @@ class LinearEquation:
         xs, ys, vals = [], [], []
         for term in self.terms:
             p = self.prms[get_name(term[-1])]
-            f = self.eval_consts(term[:-1], self.wgt)
+            f = self.eval_consts(term[:-1], self.wgts)
             try: x,y,val = p.sparse_form(term[-1], eqnum, prm_order, f.flatten(), reImSplit)
             except(AttributeError): # happens if f is a scalar
                 x,y,val = p.sparse_form(term[-1], eqnum, prm_order, f, reImSplit)
