@@ -2,6 +2,7 @@ import numpy as np
 import ast
 from scipy.sparse import lil_matrix, csr_matrix
 import scipy.sparse.linalg
+from copy import deepcopy
 
 def ast_getterms(n):
     '''Convert an AST parse tree into a list of terms.  E.g. 'a*x1+b*x2' -> [[a,x1],[b,x2]]'''
@@ -249,8 +250,8 @@ class LinearSolver:
         for p in self.prms.values(): sol.update(p.get_sol(x,self.prm_order))
         return sol
 
-    def evalSol(self, sols, data=None):
-        """Returns a dictionary evaluating data keys to the current values given sols and consts.
+    def evalSol(self, sol, data=None):
+        """Returns a dictionary evaluating data keys to the current values given sol and consts.
         Uses the stored data object unless otherwise specified."""
         if data is None: data = self.data
         result = {k: np.zeros_like(data.values()[0]) for k in data.keys()}
@@ -260,22 +261,22 @@ class LinearSolver:
                 termTotal = 1.0
                 for multiplicand in term:
                     if type(multiplicand) is str: 
-                        try: #is in sols
+                        try: #is in sol
                             if multiplicand.endswith('_'): multiplicand = np.conj(sol[multiplicand[:-1]])
-                            else: multiplicand = currentSol[multiplicand]
+                            else: multiplicand = sol[multiplicand]
                         except: #is in constants
                             if multiplicand.endswith('_'): multiplicand = np.conj(self.consts[multiplicand[:-1]].val)
                             else: multiplicand = self.consts[multiplicand].val
                     termTotal *= multiplicand
                 result[k] += termTotal
         return result
-    def chiSq(self, sols, data=None, wgts=None):
+    def chiSq(self, sol, data=None, wgts=None):
         """Compute Chi^2 = |obs - mod|^2 / sigma^2 for the specified solution. Weights are treated as sigma. 
         Empty weights means sigma=1. Uses the stored data and weights unless otherwise overwritten."""
         if wgts is None: wgts = self.wgts
         if len(wgts) == 0: sigmaSq = {k: 1.0 for k in data.keys()} #equal weights
         else: sigmaSq = {k: wgts[k]**2 for k in wgts.keys()} 
-        evaluated = self.evalSol(sols, data=data)
+        evaluated = self.evalSol(sol, data=data)
         chiSq = 0
         for k in data.keys(): chiSq += np.abs(evaluated[k]-data[k])**2 / sigmaSq[k]
         return chiSq
@@ -343,6 +344,7 @@ class LinProductSolver:
     def __init__(self, data, sols, wgts={}, **kwargs):
         self.prepend = 'd' # XXX make this something hard to collide with
         self.data, self.wgts = data, wgts
+        self.init_kwargs = deepcopy(kwargs)
         keys = data.keys()
         eqs = [ast_getterms(ast.parse(k, mode='eval')) for k in keys]
         dlin, wlin = {}, {}
@@ -370,11 +372,22 @@ class LinProductSolver:
             sol[k] = self.sol0[k] + dsol[dk]
         return sol
     
-    def evalSol(self, sols):
-        return self.ls.evalSol(sols, data=self.data)
+    def evalSol(self, sol):
+        """TODO: document"""
+        return self.ls.evalSol(sol, data=self.data)
     
-    def chiSq(self, sols):
-        return self.ls.chiSq(sols, data=self.data, wgts=self.wgts)
+    def chiSq(self, sol):
+        """TODO: document"""
+        return self.ls.chiSq(sol, data=self.data, wgts=self.wgts)
     
-
-
+    def solveIteratively(self, convCrit=1e-10, maxIter=50):
+        """TODO: document"""
+        for i in range(1,maxIter+1):
+            newSol = self.solve()
+            deltas = [newSol[k]-self.sol0[k] for k in newSol.keys()]
+            conv = np.linalg.norm(deltas, axis=0) / np.linalg.norm(newSol.values(),axis=0)
+            if conv < convCrit or i == maxIter:
+                meta = {'iter': i, 'chiSq': self.chiSq(newSol), 'convCrit': conv}
+                return meta, newSol
+            self.__init__(self.data, newSol, self.wgts, **self.init_kwargs)
+            
