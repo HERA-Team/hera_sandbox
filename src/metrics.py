@@ -8,7 +8,10 @@ def count_flags(m, labels):
     for i,label in enumerate(labels): cnts[label] = np.sum(m[i,i:])
     return cnts
 
-def check_ants(reds, data, flag_thresh=.2):
+def check_ants(reds, data, flag_thresh=.2, skip_ants=[]):
+    def exclude_ants(bls, skip_ants): 
+        return [bl for bl in bls if bl[0] not in skip_ants and bl[1] not in skip_ants]
+    reds = [exclude_ants(bls, skip_ants) for bls in reds]
     all_bls = reduce(lambda x,y: x+y, reds)
     auto_pwr, ant2col = {}, {}
     for bl in all_bls:
