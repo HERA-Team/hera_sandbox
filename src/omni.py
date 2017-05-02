@@ -174,7 +174,7 @@ def aa_pos_to_info(aa, pols=['x'], **kwargs):
 ####################################################################################################
 
 
-def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
+def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselogcal=True, uselincal=False, maxiter=50, conv=1e-3, stepsize=.3, computeUBLFit=True, trust_period=1):
     #add layer to support new gains format
     if gains:
         _gains = {}
@@ -190,7 +190,7 @@ def redcal(data, info, xtalk=None, gains=None, vis=None,removedegen=False, uselo
                 ai,aj = Antpol(i,pol[0],info.nant), Antpol(j,pol[1],info.nant)
                 _vis[(int(ai),int(aj))] = vis[pol][(i,j)]
     else: _vis = vis
-    meta, gains, vis = omnical.calib.redcal(data, info, xtalk=xtalk, gains=_gains, vis=_vis, removedegen=removedegen, uselogcal=uselogcal, maxiter=maxiter, conv=conv, stepsize=stepsize, computeUBLFit=computeUBLFit, trust_period=trust_period)    
+    meta, gains, vis = omnical.calib.redcal(data, info, xtalk=xtalk, gains=_gains, vis=_vis, removedegen=removedegen, uselogcal=uselogcal, uselincal=uselincal, maxiter=maxiter, conv=conv, stepsize=stepsize, computeUBLFit=computeUBLFit, trust_period=trust_period)    
     # rewrap to new format
     def mk_ap(a): return Antpol(a, info.nant)
     for i,j in meta['res'].keys():

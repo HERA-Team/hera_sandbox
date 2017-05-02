@@ -2,6 +2,7 @@ import numpy as np
 import ast
 from scipy.sparse import lil_matrix, csr_matrix
 import scipy.sparse.linalg
+from copy import deepcopy
 
 def ast_getterms(n):
     '''Convert an AST parse tree into a list of terms.  E.g. 'a*x1+b*x2' -> [[a,x1],[b,x2]]'''
@@ -25,7 +26,8 @@ def get_name(s, isconj=False):
         if isconj: return s, False
         else: return s
     rv = s
-    if rv.endswith('_'): rv = rv[:-1] # parse 'name_' as 'name' + conj
+    if rv.endswith('_'): 
+        rv = rv[:-1] # parse 'name_' as 'name' + conj
     if isconj: return rv, s.endswith('_') # tag names ending in '_' for conj
     else: return rv
 
@@ -53,14 +55,15 @@ class Parameter:
     '''Container for parameters that are to be solved for.'''
     def __init__(self, name):
         self.name = get_name(name)
-    def put_matrix(self, name, m, eqnum, prm_order, prefactor, complex=True):
+    def put_matrix(self, name, m, eqnum, prm_order, prefactor, re_im_split=True):
         '''Return line for A matrix in A*x=y.  Handles conj if name='prmname_' is 
         requested instead of name='prmname'.'''
-        xs,ys,vals = self.sparse_form(name, eqnum, prm_order, prefactor, complex=complex)
+        xs,ys,vals = self.sparse_form(name, eqnum, prm_order, prefactor, re_im_split=re_im_split)
         m[xs,ys,0] = vals
-    def sparse_form(self, name, eqnum, prm_order, prefactor, complex=True):
+    def sparse_form(self, name, eqnum, prm_order, prefactor, re_im_split=True):
         xs,ys,vals = [], [], []
-        if complex: # XXX for now, either everything's complex or everything's real
+        # separated into real and imaginary parts iff one of the variables is conjugated with "_"
+        if re_im_split: 
             name,conj = get_name(name, True)
             ordr,ordi = 2*prm_order[self.name], 2*prm_order[self.name]+1 
             cr,ci = prefactor.real, prefactor.imag
@@ -79,7 +82,7 @@ class Parameter:
         return xs, ys, vals
     def get_sol(self, x, prm_order):
         '''Extract prm value from appropriate row of x solution.'''
-        if x.shape[0] > len(prm_order): # detect that we are complex
+        if x.shape[0] > len(prm_order): # detect that we are splitting up real and imaginary parts
             ordr,ordi = 2*prm_order[self.name], 2*prm_order[self.name]+1
             return {self.name: x[ordr] + 1j*x[ordi]}
         else: return {self.name: x[prm_order[self.name]]}
@@ -87,6 +90,7 @@ class Parameter:
 class LinearEquation:
     '''Container for all prms and constants associated with a linear equation.'''
     def __init__(self, val, **kwargs):
+        self.val = val
         if type(val) is str:
             n = ast.parse(val, mode='eval')
             val = ast_getterms(n)
@@ -124,27 +128,27 @@ class LinearEquation:
         '''Multiply out constants (and wgts) for placing in matrix.'''
         const_list = [self.consts[get_name(c)].get_val(c) for c in const_list]
         return wgts * reduce(lambda x,y: x*y, const_list, 1.)
-    def put_matrix(self, m, eqnum, prm_order, complex=True):
+    def put_matrix(self, m, eqnum, prm_order, re_im_split=True):
         '''Place this equation in line eqnum of pre-made (# eqs,# prms) matrix m.'''
-        xs,ys,vals = self.sparse_form(eqnum, prm_order, complex=complex)
+        xs,ys,vals = self.sparse_form(eqnum, prm_order, re_im_split=re_im_split)
         ones = np.ones_like(m[0,0])
         m[xs,ys] = [v * ones for v in vals] # XXX ugly
         return
-    def sparse_form(self, eqnum, prm_order, complex=True):
+    def sparse_form(self, eqnum, prm_order, re_im_split=True):
         xs, ys, vals = [], [], []
         for term in self.terms:
             p = self.prms[get_name(term[-1])]
             f = self.eval_consts(term[:-1], self.wgts)
-            try: x,y,val = p.sparse_form(term[-1], eqnum, prm_order, f.flatten(), complex)
+            try: x,y,val = p.sparse_form(term[-1], eqnum, prm_order, f.flatten(), re_im_split)
             except(AttributeError): # happens if f is a scalar
-                x,y,val = p.sparse_form(term[-1], eqnum, prm_order, f, complex)
+                x,y,val = p.sparse_form(term[-1], eqnum, prm_order, f, re_im_split)
             xs += x; ys += y; vals += val
         return xs, ys, vals
         
 class LinearSolver:
     '''Estimate parameters using (AtA)^-1At)'''
     def __init__(self, data, wgts={}, **kwargs):
-        self.data = data
+        self.data = data 
         for k in wgts: assert(np.iscomplexobj(wgts[k]) == False) # tricky errors happen if wgts are complex
         self.wgts = wgts
         self.keys = data.keys()
@@ -156,10 +160,19 @@ class LinearSolver:
         for eq in self.eqs: self.consts.update(eq.consts)
         self.prm_order = {}
         for i,p in enumerate(self.prms): self.prm_order[p] = i
+
         # infer dtype for later arrays
-        self.complex = kwargs.pop('complex',False)
-        for dset in [data, self.consts]:
-            for k in dset: self.complex |= np.iscomplexobj(dset[k])
+        self.re_im_split = kwargs.pop('re_im_split',False)
+        for k in self.keys: #go through and figure out if any variables are CC'ed
+            for term in ast_getterms(ast.parse(k, mode='eval')):
+                for symbol in term:
+                    if type(symbol) is str: 
+                        self.re_im_split |= symbol.endswith('_')
+        if self.re_im_split: self.datatype = float
+        else:
+            self.datatype = np.array(self.data.values()).dtype
+            constType = np.sum(np.sum([np.array([const.val]).flatten() for const in self.consts.values()])).dtype
+            self.datatype = (np.array([1],dtype=self.datatype) + np.array([1],dtype=constType)).dtype 
         self.shape = self._shape()
     def _shape(self):
         '''Get broadcast shape of constants, weights for last dim of A'''
@@ -178,11 +191,13 @@ class LinearSolver:
         '''Get shape of A matrix (# eqs, # prms, data.size). Now always 3D.'''
         try: sh = (reduce(lambda x,y: x*y, self.shape),) # flatten data dimensions so A is always 3D
         except(TypeError): sh = (1,)
-        if self.complex: return (2*len(self.eqs),2*len(self.prm_order))+sh
+        if self.re_im_split: 
+            return (2*len(self.eqs),2*len(self.prm_order))+sh
         else: return (len(self.eqs),len(self.prm_order))+sh
     def get_A(self):
         '''Return A matrix for A*x=y.'''
-        A = np.zeros(self._A_shape(), dtype=np.float) # float even if complex (r/i treated separately)
+        if self.re_im_split: A = np.zeros(self._A_shape(), dtype=np.float) # float even if complex (r/i treated separately)        
+        else: A = np.zeros(self._A_shape(), dtype=self.datatype)
         xs,ys,vals = self.sparse_form()
         ones = np.ones_like(A[0,0])
         A[xs,ys] = [v * ones for v in vals] # XXX ugly
@@ -190,7 +205,7 @@ class LinearSolver:
     def sparse_form(self):
         xs, ys, vals = [], [], []
         for i,eq in enumerate(self.eqs):
-            x,y,val = eq.sparse_form(i, self.prm_order, self.complex)
+            x,y,val = eq.sparse_form(i, self.prm_order, self.re_im_split)
             xs += x; ys += y; vals += val
         return xs, ys, vals
     def get_weighted_data(self):
@@ -203,11 +218,11 @@ class LinearSolver:
             d = d*w
         self._data_shape = d.shape[1:] # store for reshaping sols to original
         d.shape = (d.shape[0],-1) # Flatten 
-        if np.iscomplexobj(d):
+        if self.re_im_split:
             rv = np.empty((2*d.shape[0],)+d.shape[1:], dtype=np.float)
             rv[::2],rv[1::2] = d.real, d.imag
             return rv
-        else: return d.astype(np.float)
+        else: return d
     def solve(self, rcond=1e-10, verbose=False): # XXX add prm for used AtAiAt for all k?
         '''Compute x' = (At A)^-1 At * y, returning x' as dict of prms:values.'''
         A = self.get_A()
@@ -215,7 +230,7 @@ class LinearSolver:
         #xs, ys, vals = self.get_A_sparse() # XXX switch to sparse?
         Ashape = self._A_shape()
         y = self.get_weighted_data()
-        x = np.empty((Ashape[1],y.shape[-1]), dtype=np.float)
+        x = np.empty((Ashape[1],y.shape[-1]), dtype=self.datatype)
         AtAiAt = None
         for k in xrange(y.shape[-1]):
             if verbose: print 'Solving %d/%d' % (k, y.shape[-1])
@@ -223,17 +238,50 @@ class LinearSolver:
                 #Ak = csr_matrix((vals, (xs,ys))) # XXX switch to sparse?
                 Ak = A[...,k]
                 #AtA = np.einsum('ji...,jk...->ik...', A, A) # slow
-                AtA = Ak.T.dot(Ak) # XXX .toarray() for sparse case?
+                AtA = Ak.T.conj().dot(Ak) # XXX .toarray() for sparse case?
                 # pinv 2/3, dot 1/3 compute time for 1200x1200 array
                 AtAi = np.linalg.pinv(AtA, rcond=rcond)
                 #AtAiA[...,i] = np.einsum('ij...,kj...->ik...', AtAi,A) # slow
-                AtAiAt = Ak.dot(AtAi).T # XXX .toarray() for sparse?
+                AtAiAt = AtAi.dot(Ak.T.conj()) # XXX .toarray() for sparse?
             #x[...,k] = np.einsum('ij,j->i', AtAiAt, y[...,k]) # slow
             x[...,k:k+1] = np.dot(AtAiAt,y[...,k:k+1])
         x.shape = x.shape[:1] + self._data_shape # restore to shape of original data
         sol = {}
         for p in self.prms.values(): sol.update(p.get_sol(x,self.prm_order))
         return sol
+
+    def evalSol(self, sol, data=None):
+        """Returns a dictionary evaluating data keys to the current values given sol and consts.
+        Uses the stored data object unless otherwise specified."""
+        if data is None: data = self.data
+        result = {k: np.zeros_like(data.values()[0]) for k in data.keys()}
+        for k in data.keys():
+            eq = ast_getterms(ast.parse(k, mode='eval'))
+            for term in eq:
+                termTotal = 1.0
+                for multiplicand in term:
+                    if type(multiplicand) is str: 
+                        try: #is in sol
+                            if multiplicand.endswith('_'): multiplicand = np.conj(sol[multiplicand[:-1]])
+                            else: multiplicand = sol[multiplicand]
+                        except: #is in constants
+                            if multiplicand.endswith('_'): multiplicand = np.conj(self.consts[multiplicand[:-1]].val)
+                            else: multiplicand = self.consts[multiplicand].val
+                    termTotal *= multiplicand
+                result[k] += termTotal
+        return result
+    def chiSq(self, sol, data=None, wgts=None):
+        """Compute Chi^2 = |obs - mod|^2 / sigma^2 for the specified solution. Weights are treated as sigma. 
+        Empty weights means sigma=1. Uses the stored data and weights unless otherwise overwritten."""
+        if wgts is None: wgts = self.wgts
+        if len(wgts) == 0: sigmaSq = {k: 1.0 for k in data.keys()} #equal weights
+        else: sigmaSq = {k: wgts[k]**2 for k in wgts.keys()} 
+        evaluated = self.evalSol(sol, data=data)
+        chiSq = 0
+        for k in data.keys(): chiSq += np.abs(evaluated[k]-data[k])**2 / sigmaSq[k]
+        return chiSq
+        
+        
 
 # XXX need to add support for conjugated constants
 def conjterm(term, mode='amp'):
@@ -295,6 +343,8 @@ class LinProductSolver:
     parentheses are allowed (expand manually). '''
     def __init__(self, data, sols, wgts={}, **kwargs):
         self.prepend = 'd' # XXX make this something hard to collide with
+        self.data, self.wgts = data, wgts
+        self.init_kwargs = deepcopy(kwargs)
         keys = data.keys()
         all_terms = [ast_getterms(ast.parse(k, mode='eval')) for k in keys]
         dlin, wlin = {}, {}
@@ -312,6 +362,7 @@ class LinProductSolver:
             try: wlin[nk] = wgts[k]
             except(KeyError): pass
         self.ls = LinearSolver(dlin, wgts=wlin, **kwargs)
+        
     def solve(self, rcond=1e-10, verbose=False):
         dsol = self.ls.solve(rcond=rcond, verbose=verbose)
         sol = {}
@@ -319,4 +370,23 @@ class LinProductSolver:
             k = dk[len(self.prepend):]
             sol[k] = self.sol0[k] + dsol[dk]
         return sol
-
+    
+    def evalSol(self, sol):
+        """TODO: document"""
+        return self.ls.evalSol(sol, data=self.data)
+    
+    def chiSq(self, sol):
+        """TODO: document"""
+        return self.ls.chiSq(sol, data=self.data, wgts=self.wgts)
+    
+    def solveIteratively(self, convCrit=1e-10, maxIter=50):
+        """TODO: document"""
+        for i in range(1,maxIter+1):
+            newSol = self.solve()
+            deltas = [newSol[k]-self.sol0[k] for k in newSol.keys()]
+            conv = np.linalg.norm(deltas, axis=0) / np.linalg.norm(newSol.values(),axis=0)
+            if conv < convCrit or i == maxIter:
+                meta = {'iter': i, 'chiSq': self.chiSq(newSol), 'convCrit': conv}
+                return meta, newSol
+            self.__init__(self.data, newSol, self.wgts, **self.init_kwargs)
+            
