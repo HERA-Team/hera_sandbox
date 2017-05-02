@@ -369,3 +369,12 @@ class LinProductSolver:
             k = dk[len(self.prepend):]
             sol[k] = self.sol0[k] + dsol[dk]
         return sol
+    
+    def evalSol(self, sols):
+        return self.ls.evalSol(sols, data=self.data)
+    
+    def chiSq(self, sols):
+        return self.ls.chiSq(sols, data=self.data, wgts=self.wgts)
+    
+
+
