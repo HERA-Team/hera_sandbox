@@ -89,6 +89,7 @@ class Parameter:
 class LinearEquation:
     '''Container for all prms and constants associated with a linear equation.'''
     def __init__(self, val, **kwargs):
+        self.val = val
         if type(val) is str:
             n = ast.parse(val, mode='eval')
             val = ast_getterms(n)
@@ -159,13 +160,12 @@ class LinearSolver:
         self.prm_order = {}
         for i,p in enumerate(self.prms): self.prm_order[p] = i
 
-
         # infer dtype for later arrays
         self.reImSplit = kwargs.pop('reImSplit',False)
         for k in self.keys: #go through and figure out if any variables are CC'ed
             for term in ast_getterms(ast.parse(k, mode='eval')):
                 for symbol in term:
-                    if isinstance(symbol,str): 
+                    if type(symbol) is str: 
                         self.reImSplit |= symbol.endswith('_')
         if self.reImSplit: self.datatype = float
         else:
@@ -249,6 +249,39 @@ class LinearSolver:
         for p in self.prms.values(): sol.update(p.get_sol(x,self.prm_order))
         return sol
 
+    def evalSol(self, sols, data=None):
+        """Returns a dictionary evaluating data keys to the current values given sols and consts.
+        Uses the stored data object unless otherwise specified."""
+        if data is None: data = self.data
+        result = {k: np.zeros_like(data.values()[0]) for k in data.keys()}
+        for k in data.keys():
+            eq = ast_getterms(ast.parse(k, mode='eval'))
+            for term in eq:
+                termTotal = 1.0
+                for multiplicand in term:
+                    if type(multiplicand) is str: 
+                        try: #is in sols
+                            if multiplicand.endswith('_'): multiplicand = np.conj(sol[multiplicand[:-1]])
+                            else: multiplicand = currentSol[multiplicand]
+                        except: #is in constants
+                            if multiplicand.endswith('_'): multiplicand = np.conj(self.consts[multiplicand[:-1]].val)
+                            else: multiplicand = self.consts[multiplicand].val
+                    termTotal *= multiplicand
+                result[k] += termTotal
+        return result
+    def chiSq(self, sols, data=None, wgts=None):
+        """Compute Chi^2 = |obs - mod|^2 / sigma^2 for the specified solution. Weights are treated as sigma. 
+        Empty weights means sigma=1. Uses the stored data and weights unless otherwise overwritten."""
+        if wgts is None: wgts = self.wgts
+        if len(wgts) == 0: sigmaSq = {k: 1.0 for k in data.keys()} #equal weights
+        else: sigmaSq = {k: wgts[k]**2 for k in wgts.keys()} 
+        evaluated = self.evalSol(sols, data=data)
+        chiSq = 0
+        for k in data.keys(): chiSq += np.abs(evaluated[k]-data[k])**2 / sigmaSq[k]
+        return chiSq
+        
+        
+
 # XXX need to add support for conjugated constants
 def conjterm(term, mode='amp'):
     '''Modify prefactor for conjugated terms, according to mode='amp|phs|real|imag'.'''
@@ -309,6 +342,7 @@ class LinProductSolver:
     parentheses must be done manually. '''
     def __init__(self, data, sols, wgts={}, **kwargs):
         self.prepend = 'd' # XXX make this something hard to collide with
+        self.data, self.wgts = data, wgts
         keys = data.keys()
         eqs = [ast_getterms(ast.parse(k, mode='eval')) for k in keys]
         dlin, wlin = {}, {}
@@ -327,6 +361,7 @@ class LinProductSolver:
             try: wlin[nk] = wgts[k]
             except(KeyError): pass
         self.ls = LinearSolver(dlin, wgts=wlin, **kwargs)
+        
     def solve(self, rcond=1e-10, verbose=False):
         dsol = self.ls.solve(rcond=rcond, verbose=verbose)
         sol = {}
