@@ -372,10 +372,10 @@ class TestLinProductSolver(unittest.TestCase):
         np.testing.assert_almost_equal(sol['y'], y, 2)
         np.testing.assert_almost_equal(sol['z'], z, 2)
     def test_sums_of_products(self):
-        x = np.arange(30)*(1.0+1.0j); x.shape=(10,3) 
-        y = np.arange(30)*(2.0-3.0j); y.shape=(10,3)
-        z = np.arange(30)*(3.0-9.0j); z.shape=(10,3)
-        w = np.arange(30)*(4.0+2.0j); w.shape=(10,3)
+        x = np.arange(1,31)*(1.0+1.0j); x.shape=(10,3) 
+        y = np.arange(1,31)*(2.0-3.0j); y.shape=(10,3)
+        z = np.arange(1,31)*(3.0-9.0j); z.shape=(10,3)
+        w = np.arange(1,31)*(4.0+2.0j); w.shape=(10,3)
         expressions = ['x*y+z*w', '2*x*y+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w', '2*x + 3*y - 4*z']
         data = {}
         for ex in expressions: data[ex] = eval(ex)
@@ -386,10 +386,10 @@ class TestLinProductSolver(unittest.TestCase):
         for var in 'wxyz': 
             np.testing.assert_almost_equal(currentSol[var], eval(var), 4)
     def test_eval(self):
-        x = np.arange(30)*(1.0+1.0j); x.shape=(10,3) 
-        y = np.arange(30)*(2.0-3.0j); y.shape=(10,3)
-        z = np.arange(30)*(3.0-9.0j); z.shape=(10,3)
-        w = np.arange(30)*(4.0+2.0j); w.shape=(10,3)
+        x = np.arange(1,31)*(1.0+1.0j); x.shape=(10,3) 
+        y = np.arange(1,31)*(2.0-3.0j); y.shape=(10,3)
+        z = np.arange(1,31)*(3.0-9.0j); z.shape=(10,3)
+        w = np.arange(1,31)*(4.0+2.0j); w.shape=(10,3)
         expressions = ['x*y+z*w', '2*x*y+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w', '2*x + 3*y - 4*z']
         data = {}
         for ex in expressions: data[ex] = eval(ex)
@@ -412,10 +412,10 @@ class TestLinProductSolver(unittest.TestCase):
         chisq = testSolve.chisq(currentSol)
         np.testing.assert_almost_equal(chisq, 5.0/9.0)
     def test_solve_iteratively(self):
-        x = np.arange(12)*(1.0+1.0j); x.shape=(4,3) 
-        y = np.arange(12)*(2.0-3.0j); y.shape=(4,3)
-        z = np.arange(12)*(3.0-9.0j); z.shape=(4,3)
-        w = np.arange(12)*(4.0+2.0j); w.shape=(4,3)
+        x = np.arange(1,31)*(1.0+1.0j); x.shape=(10,3) 
+        y = np.arange(1,31)*(2.0-3.0j); y.shape=(10,3)
+        z = np.arange(1,31)*(3.0-9.0j); z.shape=(10,3)
+        w = np.arange(1,31)*(4.0+2.0j); w.shape=(10,3)
         expressions = ['x*y+z*w', '2*x*y+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w', '2*x + 3*y - 4*z']
         data = {}
         for ex in expressions: data[ex] = eval(ex)
