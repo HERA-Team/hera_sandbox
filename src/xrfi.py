@@ -2,7 +2,6 @@
 import numpy as np
 from scipy.signal import medfilt
 
-<<<<<<< HEAD
 def medmin(d):
     #return np.median(np.min(chisq,axis=0))
     mn = np.min(d,axis=0)
@@ -50,30 +49,6 @@ def medminfilt(d, K=8):
 def watershed_flag(d, f=None, sig_init=6, sig_adj=2):
     '''Returns a watershed flagging of an array that is in units of standard
     deviation (i.e. how many sigma the datapoint is from the center).'''
-=======
-
-def omni_chisq_to_flags(chisq, K=8, sigma=6, sigl=2, smooth=True):
-    '''Returns a mask of RFI given omnical's chisq statistic'''
-    w_sm = np.empty_like(chisq)
-    sig = np.empty_like(chisq)
-    #get smooth component of chisq
-    for i in xrange(chisq.shape[0]):
-        for j in xrange(chisq.shape[1]):
-            i0,j0 = max(0,i-K), max(0,j-K)
-            i1,j1 = min(chisq.shape[0], i+K), min(chisq.shape[1], j+K)
-            w_sm[i,j] = np.median(chisq[i0:i1,j0:j1])
-    #the residual from smooth component
-    w_rs = chisq - w_sm 
-    w_sq = np.abs(w_rs)**2
-    #get the standard deviation of the media.
-    for i in xrange(chisq.shape[0]):
-        for j in xrange(chisq.shape[1]):
-            i0,j0 = max(0,i-K), max(0,j-K)
-            i1,j1 = min(chisq.shape[0], i+K), min(chisq.shape[1], j+K)
-            sig[i,j] = np.sqrt(np.median(w_sq[i0:i1,j0:j1]))
-    #Number of sigma above the residual unsmooth part is.
-    f1 = w_rs / sig
->>>>>>> 5613c25a57c054b06f6d620c2e2242f75754607c
     #mask off any points above 'sig' sigma and nan's.
     f1 = np.ma.array(d, mask=np.where(d > sig_init,1,0)) 
     f1.mask |= np.isnan(f1)
@@ -105,7 +80,6 @@ def toss_times_freqs(mask, sig_t=6, sig_f=6):
     fs = np.where(f1f > 2)
     f1.mask[:,fs] = 1
     mask = f1.mask
-<<<<<<< HEAD
     return mask
 
 def xrfi_simple(d, f=None, nsig_df=6, nsig_dt=6, nsig_all=0):
@@ -179,6 +153,3 @@ def xrfi(d, f=None, K=8, sig_init=6, sig_adj=2):
 
 
 
-=======
-    return mask
->>>>>>> 5613c25a57c054b06f6d620c2e2242f75754607c

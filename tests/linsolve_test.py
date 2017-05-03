@@ -107,6 +107,17 @@ class TestLinearEquation(unittest.TestCase):
         self.assertRaises(AssertionError, le.order_terms, terms4)
         terms5 = [[1,'a','b'],[1,'b','y']]
         self.assertRaises(AssertionError, le.order_terms, terms5)
+    def test_eval(self):
+        le = linsolve.LinearEquation('a*x-b*y',a=2,b=4)
+        sol = {'x':3, 'y':7}
+        self.assertEqual(2*3-4*7, le.eval(sol))
+        sol = {'x':3*np.ones(4), 'y':7*np.ones(4)}
+        np.testing.assert_equal(2*3-4*7, le.eval(sol))
+        le = linsolve.LinearEquation('x_-y')
+        sol = {'x':3+3j*np.ones(10), 'y':7+2j*np.ones(10)}
+        ans = np.conj(sol['x']) - sol['y']
+        np.testing.assert_equal(ans, le.eval(sol))
+        
 
 class TestLinearSolver(unittest.TestCase):
     def setUp(self):
@@ -194,6 +205,21 @@ class TestLinearSolver(unittest.TestCase):
         sol = ls.solve()
         np.testing.assert_almost_equal(sol['x'], x*np.ones(4,dtype=np.float))
         np.testing.assert_almost_equal(sol['y'], y*np.ones(4,dtype=np.float))
+    def test_eval(self):
+        x,y = 1.,2.
+        a,b = 3.*np.ones(4),1.
+        eqs = ['a*x+y','x+b*y']
+        d,w = {}, {}
+        for eq in eqs: d[eq],w[eq] = eval(eq)*np.ones(4), np.ones(4)
+        ls = linsolve.LinearSolver(d,w,a=a,b=b)
+        sol = ls.solve()
+        np.testing.assert_almost_equal(sol['x'], x*np.ones(4,dtype=np.float))
+        np.testing.assert_almost_equal(sol['y'], y*np.ones(4,dtype=np.float))
+        result = ls.eval(sol)
+        for eq in d:
+            np.testing.assert_almost_equal(d[eq], result[eq])
+        result = ls.eval(sol, 'a*x+b*y')
+        np.testing.assert_almost_equal(3*1+1*2, result.values()[0])
 
 
 class TestLogProductSolver(unittest.TestCase):
@@ -344,6 +370,23 @@ class TestLinProductSolver(unittest.TestCase):
             currentSol = testSolve.solve()
         for var in 'wxyz': 
             np.testing.assert_almost_equal(currentSol[var], eval(var), 4)
+    def test_eval(self):
+        x = np.arange(30)*(1.0+1.0j); x.shape=(10,3) 
+        y = np.arange(30)*(2.0-3.0j); y.shape=(10,3)
+        z = np.arange(30)*(3.0-9.0j); z.shape=(10,3)
+        w = np.arange(30)*(4.0+2.0j); w.shape=(10,3)
+        expressions = ['x*y+z*w', '2*x*y+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w', '2*x + 3*y - 4*z']
+        data = {}
+        for ex in expressions: data[ex] = eval(ex)
+        currentSol = {'x':1.1*x, 'y': .9*y, 'z': 1.1*z, 'w':1.2*w}
+        for i in range(40):
+            testSolve = linsolve.LinProductSolver(data, currentSol)
+            currentSol = testSolve.solve()
+        for var in 'wxyz': 
+            np.testing.assert_almost_equal(currentSol[var], eval(var), 4)
+        result = testSolve.eval(currentSol)
+        for eq in data:
+            np.testing.assert_almost_equal(data[eq], result[eq], 4)
 
 if __name__ == '__main__':
     unittest.main()
