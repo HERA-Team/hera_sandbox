@@ -23,8 +23,8 @@ def ast_getterms(n):
 def get_name(s, isconj=False):
     '''Parse variable names of form 'var_' as 'var' + conjugation.'''
     if not type(s) is str:
-        if isconj: return s, False
-        else: return s
+        if isconj: return str(s), False
+        else: return str(s)
     rv = s
     if rv.endswith('_'): 
         rv = rv[:-1] # parse 'name_' as 'name' + conj
@@ -34,10 +34,9 @@ def get_name(s, isconj=False):
 class Constant:
     '''Container for constants (which can be arrays) in linear equations.'''
     def __init__(self, name, **kwargs):
-        if type(name) is str:
-            self.name = get_name(name)
-            self.val = kwargs[self.name]
-        else: self.name, self.val = name, name
+        self.name = get_name(name)
+        if type(name) is str: self.val = kwargs[self.name]
+        else: self.val = name
         try: self.dtype = self.val.dtype
         except(AttributeError): self.dtype = type(self.val)
     def shape(self):
@@ -46,7 +45,7 @@ class Constant:
     def get_val(self, name=None):
         '''Return value of constant. Handles conj if name='varname_' is requested 
         instead of name='varname'.'''
-        if name is not None:
+        if name is not None and type(name) is str:
             name, conj = get_name(name, isconj=True)
             assert(self.name == name)
             if conj: return self.val.conjugate()
