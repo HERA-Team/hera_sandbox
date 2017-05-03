@@ -222,11 +222,18 @@ class TestLinearSolver(unittest.TestCase):
         np.testing.assert_almost_equal(3*1+1*2, result.values()[0])
     def test_chisq(self):
         x = 1.
+        d = {'x':1, 'a*x':2}
+        ls = linsolve.LinearSolver(d,a=1.0)
+        sol = ls.solve()
+        chisq = ls.chisq(sol)
+        np.testing.assert_equal(chisq, .5)
+
+        x = 1.
         d = {'x':1, '1.0*x':2}
         ls = linsolve.LinearSolver(d)
         sol = ls.solve()
         chisq = ls.chisq(sol)
-        np.testing.assertEqual(chisq, .5)
+        np.testing.assert_equal(chisq, .5)
 
 
 
