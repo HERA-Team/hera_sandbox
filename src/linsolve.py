@@ -272,20 +272,22 @@ class LinearSolver:
             eq = LinearEquation(k, **self.consts)
             result[k] = eq.eval(sol)
         return result
-    def chisq(self, sol, data=None, wgts=None, evaluator=None):
-        """Compute Chi^2 = |obs - mod|^2 / sigma^2 for the specified solution. Weights are treated as sigma. 
-        Empty weights means sigma=1. Uses the stored data and weights unless otherwise overwritten.
-        A non-standard evaluating function (which takes sol and keys) can also be provided. """
-        if data is None: data = self.data
-        if wgts is None: wgts = self.wgts
-        if evaluator is None: evaluator = self.eval
+    
+    def _chisq(self, sol, data, wgts, evaluator):
+        """Internal adaptable chisq calculator."""
         if len(wgts) == 0: sigma2 = {k: 1.0 for k in data.keys()} #equal weights
         else: sigma2 = {k: wgts[k]**2 for k in wgts.keys()} 
         evaluated = evaluator(sol, keys=data)
         chisq = 0
         for k in data.keys(): chisq += np.abs(evaluated[k]-data[k])**2 / sigma2[k]
         return chisq
-        
+    
+    def chisq(self, sol, data=None, wgts=None):
+        """Compute Chi^2 = |obs - mod|^2 / sigma^2 for the specified solution. Weights are treated as sigma. 
+        Empty weights means sigma=1. Uses the stored data and weights unless otherwise overwritten."""
+        if data is None: data = self.data
+        if wgts is None: wgts = self.wgts
+        return self._chisq(sol, data,wgts,self.eval)        
         
 
 # XXX need to add support for conjugated constants
@@ -408,7 +410,7 @@ class LinProductSolver:
         Empty weights means sigma=1. Uses the stored data and weights unless otherwise overwritten."""
         if data is None: data = self.data
         if wgts is None: wgts = self.wgts
-        return self.ls.chisq(sol, data=data, wgts=wgts, evaluator=self.eval)
+        return self.ls._chisq(sol, data, wgts, self.eval)
     
     def solve_iteratively(self, conv_crit=1e-10, maxiter=50):
         """Repeatedly solves and updates linsolve until convergence or maxiter is reached. 
