@@ -273,14 +273,16 @@ class LinearSolver:
             eq = LinearEquation(k, **self.consts)
             result[k] = eq.eval(sol)
         return result
-    def chisq(self, sol, data=None, wgts=None):
+    def chisq(self, sol, data=None, wgts=None, evaluator=None):
         """Compute Chi^2 = |obs - mod|^2 / sigma^2 for the specified solution. Weights are treated as sigma. 
-        Empty weights means sigma=1. Uses the stored data and weights unless otherwise overwritten."""
+        Empty weights means sigma=1. Uses the stored data and weights unless otherwise overwritten.
+        A non-standard evaluating function (which takes sol and keys) can also be provided. """
         if data is None: data = self.data
         if wgts is None: wgts = self.wgts
+        if evaluator is None: evaluator = self.eval
         if len(wgts) == 0: sigma2 = {k: 1.0 for k in data.keys()} #equal weights
         else: sigma2 = {k: wgts[k]**2 for k in wgts.keys()} 
-        evaluated = self.eval(sol, keys=data)
+        evaluated = evaluator(sol, keys=data)
         chisq = 0
         for k in data.keys(): chisq += np.abs(evaluated[k]-data[k])**2 / sigma2[k]
         return chisq
@@ -402,9 +404,12 @@ class LinProductSolver:
         result,_ = self._get_ans0(sol, keys=keys)
         return result
     
-    def chisq(self, sol):
-        """TODO: document"""
-        return self.ls.chisq(sol, data=self.data, wgts=self.wgts)
+    def chisq(self, sol, data=None, wgts=None):
+        """Compute Chi^2 = |obs - mod|^2 / sigma^2 for the specified solution. Weights are treated as sigma. 
+        Empty weights means sigma=1. Uses the stored data and weights unless otherwise overwritten."""
+        if data is None: data = self.data
+        if wgts is None: wgts = self.wgts
+        return self.ls.chisq(sol, data=data, wgts=wgts, evaluator=self.eval)
     
     def solve_iteratively(self, conv_crit=1e-10, maxiter=50):
         """TODO: document"""

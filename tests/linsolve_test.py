@@ -402,6 +402,17 @@ class TestLinProductSolver(unittest.TestCase):
         result = testSolve.eval(currentSol)
         for eq in data:
             np.testing.assert_almost_equal(data[eq], result[eq], 4)
+    def test_chisq(self):
+        x = 1.
+        d = {'x*y':1, '.5*x*y+.5*x*y':2, 'y':1}
+        currentSol = {'x':1.5,'y':1}
+        for i in range(40):
+            testSolve = linsolve.LinProductSolver(d, currentSol)
+            currentSol = testSolve.solve()
+        chisq = testSolve.chisq(currentSol)
+        np.testing.assert_almost_equal(chisq, 5.0/9.0)
+
+
 
 if __name__ == '__main__':
     unittest.main()
