@@ -411,6 +411,21 @@ class TestLinProductSolver(unittest.TestCase):
             currentSol = testSolve.solve()
         chisq = testSolve.chisq(currentSol)
         np.testing.assert_almost_equal(chisq, 5.0/9.0)
+    def test_solve_iteratively(self):
+        x = np.arange(12)*(1.0+1.0j); x.shape=(4,3) 
+        y = np.arange(12)*(2.0-3.0j); y.shape=(4,3)
+        z = np.arange(12)*(3.0-9.0j); z.shape=(4,3)
+        w = np.arange(12)*(4.0+2.0j); w.shape=(4,3)
+        expressions = ['x*y+z*w', '2*x*y+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w', '2*x + 3*y - 4*z']
+        data = {}
+        for ex in expressions: data[ex] = eval(ex)
+        currentSol = {'x':1.1*x, 'y': .9*y, 'z': 1.1*z, 'w':1.2*w}
+        testSolve = linsolve.LinProductSolver(data, currentSol)
+        meta, new_sol = testSolve.solve_iteratively()
+        for var in 'wxyz': 
+            np.testing.assert_almost_equal(new_sol[var], eval(var), 4)
+
+
 
 
 

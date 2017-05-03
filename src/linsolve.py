@@ -411,13 +411,13 @@ class LinProductSolver:
         return self.ls.chisq(sol, data=data, wgts=wgts, evaluator=self.eval)
     
     def solve_iteratively(self, conv_crit=1e-10, maxiter=50):
-        """TODO: document"""
+        """Repeatedly solves and updates linsolve until convergence or maxiter is reached. 
+        Returns a meta object containing the number of iterations, chisq, and convergence criterion."""
         for i in range(1,maxiter+1):
             new_sol = self.solve()
             deltas = [new_sol[k]-self.sol0[k] for k in new_sol.keys()]
             conv = np.linalg.norm(deltas, axis=0) / np.linalg.norm(new_sol.values(),axis=0)
-            if conv < conv_crit or i == maxiter:
+            if np.all(conv < conv_crit) or i == maxiter:
                 meta = {'iter': i, 'chisq': self.chisq(new_sol), 'conv_crit': conv}
                 return meta, new_sol
             self.update_solver(new_sol)
-            
