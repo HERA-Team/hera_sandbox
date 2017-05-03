@@ -220,6 +220,14 @@ class TestLinearSolver(unittest.TestCase):
             np.testing.assert_almost_equal(d[eq], result[eq])
         result = ls.eval(sol, 'a*x+b*y')
         np.testing.assert_almost_equal(3*1+1*2, result.values()[0])
+    def test_chisq(self):
+        x = 1.
+        d = {'x':1, '1.0*x':2}
+        ls = linsolve.LinearSolver(d)
+        sol = ls.solve()
+        chisq = ls.chisq(sol)
+        np.testing.assertEqual(chisq, .5)
+
 
 
 class TestLogProductSolver(unittest.TestCase):

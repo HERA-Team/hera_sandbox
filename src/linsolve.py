@@ -276,6 +276,7 @@ class LinearSolver:
     def chisq(self, sol, data=None, wgts=None):
         """Compute Chi^2 = |obs - mod|^2 / sigma^2 for the specified solution. Weights are treated as sigma. 
         Empty weights means sigma=1. Uses the stored data and weights unless otherwise overwritten."""
+        if data is None: data = self.data
         if wgts is None: wgts = self.wgts
         if len(wgts) == 0: sigma2 = {k: 1.0 for k in data.keys()} #equal weights
         else: sigma2 = {k: wgts[k]**2 for k in wgts.keys()} 
