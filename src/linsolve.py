@@ -162,8 +162,9 @@ class LinearEquation:
         
 class LinearSolver:
     '''Estimate parameters using (AtA)^-1At)'''
-    def __init__(self, data, wgts={}, **kwargs):
-        self.data = data 
+    def __init__(self, data, wgts={}, sparse=False, **kwargs):
+        self.data = data
+        self.sparse = sparse
         for k in wgts: assert(np.iscomplexobj(wgts[k]) == False) # tricky errors happen if wgts are complex
         self.wgts = wgts
         self.keys = data.keys()
@@ -183,7 +184,7 @@ class LinearSolver:
         if self.re_im_split: self.dtype = float
         else:
             self.dtype = reduce(np.promote_types, [d.dtype if hasattr(d,'dtype') else type(d) \
-                for d in self.data.values() + self.consts.values()])
+                for d in self.data.values() + self.consts.values() + self.wgts.values()])
         self.shape = self._shape()
     def _shape(self):
         '''Get broadcast shape of constants, weights for last dim of A'''
@@ -207,11 +208,14 @@ class LinearSolver:
         else: return (len(self.eqs),len(self.prm_order))+sh
     def get_A(self):
         '''Return A matrix for A*x=y.'''
+        #TODO: fix this line and others like it to allow 32 single precision inputs to be maintained
         if self.re_im_split: A = np.zeros(self._A_shape(), dtype=np.float) # float even if complex (r/i treated separately)        
         else: A = np.zeros(self._A_shape(), dtype=self.dtype)
         xs,ys,vals = self.sparse_form()
         ones = np.ones_like(A[0,0])
-        A[xs,ys] = [v * ones for v in vals] # XXX ugly
+        #A[xs,ys] += [v * ones for v in vals] # This is broken when a single equation has the same param more than once
+        for x,y,v in zip(xs,ys,[v * ones for v in vals]):
+            A[x,y] += v # XXX ugly
         return A
     def sparse_form(self):
         xs, ys, vals = [], [], []
@@ -219,6 +223,13 @@ class LinearSolver:
             x,y,val = eq.sparse_form(i, self.prm_order, self.re_im_split)
             xs += x; ys += y; vals += val
         return xs, ys, vals
+    def get_A_sparse(self):
+        xs,ys,vals = self.sparse_form()
+        ones = np.ones(self._A_shape()[2:],dtype=self.dtype)
+        for n,val in enumerate(vals): 
+            if type(val) is not np.ndarray:
+                vals[n] = ones*val
+        return np.array(xs), np.array(ys), np.array(vals).T
     def get_weighted_data(self):
         '''Return y = data * wgt as a 2D vector, regardless of original data/wgt shape.'''
         d = np.array([self.data[k] for k in self.keys])
@@ -236,26 +247,31 @@ class LinearSolver:
         else: return d
     def solve(self, rcond=1e-10, verbose=False): # XXX add prm for used AtAiAt for all k?
         '''Compute x' = (At A)^-1 At * y, returning x' as dict of prms:values.'''
-        A = self.get_A()
-        assert(A.ndim == 3)
-        #xs, ys, vals = self.get_A_sparse() # XXX switch to sparse?
-        Ashape = self._A_shape()
         y = self.get_weighted_data()
+        Ashape = self._A_shape()
         x = np.empty((Ashape[1],y.shape[-1]), dtype=self.dtype)
-        AtAiAt = None
-        for k in xrange(y.shape[-1]):
-            if verbose: print 'Solving %d/%d' % (k, y.shape[-1])
-            if AtAiAt is None or Ashape[-1] != 1:
-                #Ak = csr_matrix((vals, (xs,ys))) # XXX switch to sparse?
-                Ak = A[...,k]
-                #AtA = np.einsum('ji...,jk...->ik...', A, A) # slow
-                AtA = Ak.T.conj().dot(Ak) # XXX .toarray() for sparse case?
-                # pinv 2/3, dot 1/3 compute time for 1200x1200 array
-                AtAi = np.linalg.pinv(AtA, rcond=rcond)
-                #AtAiA[...,i] = np.einsum('ij...,kj...->ik...', AtAi,A) # slow
-                AtAiAt = AtAi.dot(Ak.T.conj()) # XXX .toarray() for sparse?
-            #x[...,k] = np.einsum('ij,j->i', AtAiAt, y[...,k]) # slow
-            x[...,k:k+1] = np.dot(AtAiAt,y[...,k:k+1])
+        if self.sparse:
+            xs, ys, vals = self.get_A_sparse()
+            AtAi = None
+            for k in xrange(y.shape[-1]):
+                if verbose: print 'Solving %d/%d' % (k, y.shape[-1])
+                if AtAi is None or Ashape[-1] != 1:
+                    Ak = csr_matrix((vals[k], (xs,ys))) 
+                    AtA = Ak.T.conj().dot(Ak).toarray()
+                    AtAi = np.linalg.pinv(AtA, rcond=rcond)
+                x[...,k:k+1] = AtAi.dot(Ak.T.conj().dot(y[...,k:k+1]))
+        else: 
+            A = self.get_A()
+            assert(A.ndim == 3)
+            AtAiAt = None
+            for k in xrange(y.shape[-1]):
+                if verbose: print 'Solving %d/%d' % (k, y.shape[-1])
+                if AtAiAt is None or Ashape[-1] != 1:
+                    Ak = A[...,k]
+                    AtA = Ak.T.conj().dot(Ak) 
+                    AtAi = np.linalg.pinv(AtA, rcond=rcond)
+                    AtAiAt = AtAi.dot(Ak.T.conj()) 
+                x[...,k:k+1] = np.dot(AtAiAt,y[...,k:k+1])
         x.shape = x.shape[:1] + self._data_shape # restore to shape of original data
         sol = {}
         for p in self.prms.values(): sol.update(p.get_sol(x,self.prm_order))
@@ -304,7 +320,7 @@ class LogProductSolver:
     logarithms to linearize.  For complex variables, a trailing '_' in
     the name is used to denote conjugation (e.g. x*y_ parses as x * y.conj()).
     For LogProductSolver to work'''
-    def __init__(self, data, wgts={}, **kwargs):
+    def __init__(self, data, wgts={}, sparse=False, **kwargs):
         keys = data.keys()
         eqs = [ast_getterms(ast.parse(k, mode='eval')) for k in keys]
         logamp, logphs = {}, {}
@@ -321,8 +337,8 @@ class LogProductSolver:
         for k in kwargs:
             c = np.log(kwargs[k])
             logamp_consts[k], logphs_consts[k] = c.real, c.imag
-        self.ls_amp = LinearSolver(logamp, logampw, **logamp_consts)
-        self.ls_phs = LinearSolver(logphs, logphsw, **logphs_consts)
+        self.ls_amp = LinearSolver(logamp, logampw, sparse=sparse, **logamp_consts)
+        self.ls_phs = LinearSolver(logphs, logphsw, sparse=sparse, **logphs_consts)
     def solve(self, rcond=1e-10, verbose=False):
         sol_amp = self.ls_amp.solve(rcond=rcond, verbose=verbose)
         sol_phs = self.ls_phs.solve(rcond=rcond, verbose=verbose)
@@ -348,9 +364,9 @@ class LinProductSolver:
     the name is used to denote conjugation (e.g. x*y_ parses as x * y.conj()).
     Approximate parameter solutions needs to be passed in as sols. No 
     parentheses are allowed (expand manually). '''
-    def __init__(self, data, sols, wgts={}, **kwargs):
+    def __init__(self, data, sols, wgts={}, sparse=False, **kwargs):
         self.prepend = 'd' # XXX make this something hard to collide with
-        self.data, self.wgts = data, wgts
+        self.data, self.wgts, self.sparse = data, wgts, sparse
         self.init_kwargs = kwargs
         self.sols_kwargs = deepcopy(kwargs)
         self.all_terms, self.taylors = self.gen_taylors()
@@ -387,9 +403,10 @@ class LinProductSolver:
             dlin[nk] = self.data[k]-ans0[k]
             try: wlin[nk] = self.wgts[k]
             except(KeyError): pass
-        self.ls = LinearSolver(dlin, wgts=wlin, **self.sols_kwargs)
+        self.ls = LinearSolver(dlin, wgts=wlin, sparse=self.sparse, **self.sols_kwargs)
         
     def solve(self, rcond=1e-10, verbose=False):
+        """Executes a LinearSolver on the taylor-expanded system of equations, updating sol0 and returning sol."""
         dsol = self.ls.solve(rcond=rcond, verbose=verbose)
         sol = {}
         for dk in dsol:

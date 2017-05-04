@@ -121,11 +121,12 @@ class TestLinearEquation(unittest.TestCase):
 
 class TestLinearSolver(unittest.TestCase):
     def setUp(self):
+        self.sparse = False
         eqs = ['x+y','x-y']
         x,y = 1,2
         d,w = {}, {}
         for eq in eqs: d[eq],w[eq] = eval(eq), 1.
-        self.ls = linsolve.LinearSolver(d,w)
+        self.ls = linsolve.LinearSolver(d,w,sparse=self.sparse)
     def test_basics(self):
         self.assertEqual(len(self.ls.prms),2)
         self.assertEqual(len(self.ls.eqs), 2)
@@ -156,7 +157,7 @@ class TestLinearSolver(unittest.TestCase):
         eqs = ['2*x+y','-x+3*y']
         d,w = {}, {}
         for eq in eqs: d[eq],w[eq] = eval(eq), 1.
-        ls = linsolve.LinearSolver(d,w)
+        ls = linsolve.LinearSolver(d,w, sparse=self.sparse)
         sol = ls.solve()
         np.testing.assert_almost_equal(sol['x'], x)
         np.testing.assert_almost_equal(sol['y'], y)
@@ -171,7 +172,7 @@ class TestLinearSolver(unittest.TestCase):
         eqs = ['a*x+y','x+b*y']
         d,w = {}, {}
         for eq in eqs: d[eq],w[eq] = eval(eq), 1.
-        ls = linsolve.LinearSolver(d,w,a=a,b=b)
+        ls = linsolve.LinearSolver(d,w,a=a,b=b, sparse=self.sparse)
         sol = ls.solve()
         np.testing.assert_almost_equal(sol['x'], x*np.ones(3,dtype=np.float))
         np.testing.assert_almost_equal(sol['y'], y*np.ones(3,dtype=np.float))
@@ -181,7 +182,7 @@ class TestLinearSolver(unittest.TestCase):
         eqs = ['a*x+y','x+b*y']
         d,w = {}, {}
         for eq in eqs: d[eq],w[eq] = eval(eq), np.ones(4)
-        ls = linsolve.LinearSolver(d,w,a=a,b=b)
+        ls = linsolve.LinearSolver(d,w,a=a,b=b, sparse=self.sparse)
         sol = ls.solve()
         np.testing.assert_almost_equal(sol['x'], x*np.ones(4,dtype=np.float))
         np.testing.assert_almost_equal(sol['y'], y*np.ones(4,dtype=np.float))
@@ -191,7 +192,7 @@ class TestLinearSolver(unittest.TestCase):
         eqs = ['a*x+y','x+b*y']
         d,w = {}, {}
         for eq in eqs: d[eq],w[eq] = eval(eq)*np.ones(4), np.ones(4)
-        ls = linsolve.LinearSolver(d,w,a=a,b=b)
+        ls = linsolve.LinearSolver(d,w,a=a,b=b, sparse=self.sparse)
         sol = ls.solve()
         np.testing.assert_almost_equal(sol['x'], x*np.ones(4,dtype=np.float))
         np.testing.assert_almost_equal(sol['y'], y*np.ones(4,dtype=np.float))
@@ -201,7 +202,7 @@ class TestLinearSolver(unittest.TestCase):
         eqs = ['a*x+y','x+b*y']
         d,w = {}, {}
         for eq in eqs: d[eq],w[eq] = eval(eq)*np.ones(4), 2*np.ones(4)
-        ls = linsolve.LinearSolver(d,w,a=a,b=b)
+        ls = linsolve.LinearSolver(d,w,a=a,b=b, sparse=self.sparse)
         sol = ls.solve()
         np.testing.assert_almost_equal(sol['x'], x*np.ones(4,dtype=np.float))
         np.testing.assert_almost_equal(sol['y'], y*np.ones(4,dtype=np.float))
@@ -211,7 +212,7 @@ class TestLinearSolver(unittest.TestCase):
         eqs = ['a*x+y','x+b*y']
         d,w = {}, {}
         for eq in eqs: d[eq],w[eq] = eval(eq)*np.ones(4), np.ones(4)
-        ls = linsolve.LinearSolver(d,w,a=a,b=b)
+        ls = linsolve.LinearSolver(d,w,a=a,b=b, sparse=self.sparse)
         sol = ls.solve()
         np.testing.assert_almost_equal(sol['x'], x*np.ones(4,dtype=np.float))
         np.testing.assert_almost_equal(sol['y'], y*np.ones(4,dtype=np.float))
@@ -223,27 +224,38 @@ class TestLinearSolver(unittest.TestCase):
     def test_chisq(self):
         x = 1.
         d = {'x':1, 'a*x':2}
-        ls = linsolve.LinearSolver(d,a=1.0)
+        ls = linsolve.LinearSolver(d,a=1.0, sparse=self.sparse)
         sol = ls.solve()
         chisq = ls.chisq(sol)
         np.testing.assert_equal(chisq, .5)
 
         x = 1.
         d = {'x':1, '1.0*x':2}
-        ls = linsolve.LinearSolver(d)
+        ls = linsolve.LinearSolver(d, sparse=self.sparse)
         sol = ls.solve()
         chisq = ls.chisq(sol)
         np.testing.assert_equal(chisq, .5)
 
+class TestLinearSolverSparse(TestLinearSolver):
+    def setUp(self):
+        self.sparse = True
+        eqs = ['x+y','x-y']
+        x,y = 1,2
+        d,w = {}, {}
+        for eq in eqs: d[eq],w[eq] = eval(eq), 1.
+        self.ls = linsolve.LinearSolver(d,w,sparse=self.sparse)
+
 
 
 class TestLogProductSolver(unittest.TestCase):
+    def setUp(self):
+        self.sparse=False
     def test_init(self):
         x,y,z = np.exp(1.), np.exp(2.), np.exp(3.)
         keys = ['x*y*z', 'x*y', 'y*z']
         d,w = {}, {}
         for k in keys: d[k],w[k] = eval(k), 1.
-        ls = linsolve.LogProductSolver(d,w)
+        ls = linsolve.LogProductSolver(d,w,sparse=self.sparse)
         for k in ls.ls_phs.data:
             np.testing.assert_equal(ls.ls_phs.data[k], 0)
         x,y,z = 1.,2.,3.
@@ -257,7 +269,7 @@ class TestLogProductSolver(unittest.TestCase):
         d['x*y'] = x * y
         d['x_*y_'] = x.conjugate() * y.conjugate()
         for k in d: w[k] = 1.
-        ls = linsolve.LogProductSolver(d,w)
+        ls = linsolve.LogProductSolver(d,w,sparse=self.sparse)
         self.assertEqual(len(ls.ls_amp.data), 4)
         for k in ls.ls_amp.data:
             self.assertEqual(eval(k), 3+3j) # make sure they are all x+y
@@ -267,7 +279,7 @@ class TestLogProductSolver(unittest.TestCase):
         keys = ['x*y*z', 'x*y', 'y*z']
         d,w = {}, {}
         for k in keys: d[k],w[k] = eval(k), 1.
-        ls = linsolve.LogProductSolver(d,w)
+        ls = linsolve.LogProductSolver(d,w,sparse=self.sparse)
         sol = ls.solve()
         for k in sol:
             self.assertAlmostEqual(sol[k], eval(k))
@@ -275,7 +287,7 @@ class TestLogProductSolver(unittest.TestCase):
         x,y = np.exp(1.), np.exp(2.+1j)
         d,w = {'x*y_':x*y.conjugate(), 'x':x}, {}
         for k in d: w[k] = 1.
-        ls = linsolve.LogProductSolver(d,w)
+        ls = linsolve.LogProductSolver(d,w,sparse=self.sparse)
         sol = ls.solve()
         for k in sol:
             self.assertAlmostEqual(sol[k], eval(k))
@@ -283,7 +295,7 @@ class TestLogProductSolver(unittest.TestCase):
         x,y,z = 1.+1j, 2.+2j, 3.+3j
         d,w = {'x*y_':x*y.conjugate(), 'x*z_':x*z.conjugate(), 'y*z_':y*z.conjugate()}, {}
         for k in d.keys(): w[k] = 1.
-        ls = linsolve.LogProductSolver(d,w)
+        ls = linsolve.LogProductSolver(d,w,sparse=self.sparse)
         sol = ls.solve()
         x,y,z = sol['x'], sol['y'], sol['z']
         self.assertAlmostEqual(np.angle(x*y.conjugate()), 0.)
@@ -293,15 +305,22 @@ class TestLogProductSolver(unittest.TestCase):
         self.assertAlmostEqual(np.angle(x), 0.)
         self.assertAlmostEqual(np.angle(y), 0.)
         self.assertAlmostEqual(np.angle(z), 0.)
-     
+
+class TestLogProductSolverSparse(TestLogProductSolver):
+    def setUp(self):
+        self.sparse=True
+
+
 class TestLinProductSolver(unittest.TestCase):
+    def setUp(self):
+        self.sparse=False
     def test_init(self):
         x,y,z = 1.+1j, 2.+2j, 3.+3j
         d,w = {'x*y_':x*y.conjugate(), 'x*z_':x*z.conjugate(), 'y*z_':y*z.conjugate()}, {}
         for k in d.keys(): w[k] = 1.
         sol0 = {}
         for k in 'xyz': sol0[k] = eval(k)+.01
-        ls = linsolve.LinProductSolver(d,sol0,w)
+        ls = linsolve.LinProductSolver(d,sol0,w,sparse=self.sparse)
         x,y,z = 1.,1.,1.
         x_,y_,z_ = 1.,1.,1.
         dx = dy = dz = .001
@@ -316,7 +335,7 @@ class TestLinProductSolver(unittest.TestCase):
         for k in keys: d[k],w[k] = eval(k), 1.
         sol0 = {}
         for k in 'xyz': sol0[k] = eval(k)+.01
-        ls = linsolve.LinProductSolver(d,sol0,w)
+        ls = linsolve.LinProductSolver(d,sol0,w,sparse=self.sparse)
         sol = ls.solve()
         for k in sol:
             #print sol0[k], sol[k]
@@ -328,7 +347,7 @@ class TestLinProductSolver(unittest.TestCase):
         for k in keys: d[k],w[k] = eval(k), 1.
         sol0 = {}
         for k in 'xyz': sol0[k] = eval(k)+.01
-        ls = linsolve.LinProductSolver(d,sol0,w)
+        ls = linsolve.LinProductSolver(d,sol0,w,sparse=self.sparse)
         sol = ls.solve()
         for k in sol:
             self.assertAlmostEqual(sol[k], eval(k), 4)
@@ -339,7 +358,7 @@ class TestLinProductSolver(unittest.TestCase):
         for k in keys: d[k],w[k] = eval(k), 1.
         sol0 = {}
         for k in 'xyz': sol0[k] = eval(k)+.01
-        ls = linsolve.LinProductSolver(d,sol0,w)
+        ls = linsolve.LinProductSolver(d,sol0,w,sparse=self.sparse)
         sol = ls.solve()
         for k in sol:
             self.assertAlmostEqual(sol[k], eval(k), 4)
@@ -350,7 +369,7 @@ class TestLinProductSolver(unittest.TestCase):
         for k in d.keys(): w[k] = 1.
         sol0 = {}
         for k in 'xyz': sol0[k] = eval(k) + .01
-        ls = linsolve.LinProductSolver(d,sol0,w)
+        ls = linsolve.LinProductSolver(d,sol0,w,sparse=self.sparse)
         ls.prm_order = {'x':0,'y':1,'z':2}
         sol = ls.solve()
         x,y,z = sol['x'], sol['y'], sol['z']
@@ -365,7 +384,7 @@ class TestLinProductSolver(unittest.TestCase):
         for k in d.keys(): w[k] = np.ones(d[k].shape)
         sol0 = {}
         for k in 'xyz': sol0[k] = eval(k) + .01
-        ls = linsolve.LinProductSolver(d,sol0,w)
+        ls = linsolve.LinProductSolver(d,sol0,w,sparse=self.sparse)
         ls.prm_order = {'x':0,'y':1,'z':2}
         sol = ls.solve()
         np.testing.assert_almost_equal(sol['x'], x, 2)
@@ -381,7 +400,7 @@ class TestLinProductSolver(unittest.TestCase):
         for ex in expressions: data[ex] = eval(ex)
         currentSol = {'x':1.1*x, 'y': .9*y, 'z': 1.1*z, 'w':1.2*w}
         for i in range(20):
-            testSolve = linsolve.LinProductSolver(data, currentSol)
+            testSolve = linsolve.LinProductSolver(data, currentSol,sparse=self.sparse)
             currentSol = testSolve.solve()
         for var in 'wxyz': 
             np.testing.assert_almost_equal(currentSol[var], eval(var), 4)
@@ -395,7 +414,7 @@ class TestLinProductSolver(unittest.TestCase):
         for ex in expressions: data[ex] = eval(ex)
         currentSol = {'x':1.1*x, 'y': .9*y, 'z': 1.1*z, 'w':1.2*w}
         for i in range(40):
-            testSolve = linsolve.LinProductSolver(data, currentSol)
+            testSolve = linsolve.LinProductSolver(data, currentSol,sparse=self.sparse)
             currentSol = testSolve.solve()
         for var in 'wxyz': 
             np.testing.assert_almost_equal(currentSol[var], eval(var), 4)
@@ -405,12 +424,12 @@ class TestLinProductSolver(unittest.TestCase):
     def test_chisq(self):
         x = 1.
         d = {'x*y':1, '.5*x*y+.5*x*y':2, 'y':1}
-        currentSol = {'x':1.5,'y':1}
+        currentSol = {'x':2.3,'y':.9}
         for i in range(40):
-            testSolve = linsolve.LinProductSolver(d, currentSol)
+            testSolve = linsolve.LinProductSolver(d, currentSol,sparse=self.sparse)
             currentSol = testSolve.solve()
         chisq = testSolve.chisq(currentSol)
-        np.testing.assert_almost_equal(chisq, 5.0/9.0)
+        np.testing.assert_almost_equal(chisq, .5)
     def test_solve_iteratively(self):
         x = np.arange(1,31)*(1.0+1.0j); x.shape=(10,3) 
         y = np.arange(1,31)*(2.0-3.0j); y.shape=(10,3)
@@ -420,12 +439,14 @@ class TestLinProductSolver(unittest.TestCase):
         data = {}
         for ex in expressions: data[ex] = eval(ex)
         currentSol = {'x':1.1*x, 'y': .9*y, 'z': 1.1*z, 'w':1.2*w}
-        testSolve = linsolve.LinProductSolver(data, currentSol)
+        testSolve = linsolve.LinProductSolver(data, currentSol,sparse=self.sparse)
         meta, new_sol = testSolve.solve_iteratively()
         for var in 'wxyz': 
             np.testing.assert_almost_equal(new_sol[var], eval(var), 4)
 
-
+class TestLinProductSolverSparse(TestLinProductSolver):
+    def setUp(self):
+        self.sparse=True
 
 
 
