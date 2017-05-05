@@ -228,13 +228,28 @@ class TestLinearSolver(unittest.TestCase):
         sol = ls.solve()
         chisq = ls.chisq(sol)
         np.testing.assert_equal(chisq, .5)
-
         x = 1.
         d = {'x':1, '1.0*x':2}
         ls = linsolve.LinearSolver(d, sparse=self.sparse)
         sol = ls.solve()
         chisq = ls.chisq(sol)
         np.testing.assert_equal(chisq, .5)
+    def test_dtypes(self):
+        ls = linsolve.LinearSolver({'x_': 1.0+1.0j}, sparse=self.sparse)
+        self.assertEqual(ls.dtype,float)
+        ls = linsolve.LinearSolver({'x': 1.0+1.0j}, sparse=self.sparse)
+        self.assertEqual(ls.dtype,complex)
+        ls = linsolve.LinearSolver({'x_': np.ones(1,dtype=np.complex64)[0]}, sparse=self.sparse)
+        self.assertEqual(ls.dtype,np.float32)
+        ls = linsolve.LinearSolver({'x': np.ones(1,dtype=np.complex64)[0]}, sparse=self.sparse)
+        self.assertEqual(ls.dtype,np.complex64)
+        ls = linsolve.LinearSolver({'c*x': 1.0}, c=1.0+1.0j, sparse=self.sparse)
+        self.assertEqual(ls.dtype,complex)
+        d = {'c*x': np.ones(1,dtype=np.float32)[0]}
+        wgts = {'c*x': np.ones(1,dtype=np.float64)[0]}
+        c = np.ones(1,dtype=np.float32)[0]
+        ls = linsolve.LinearSolver(d, wgts=wgts, c=c, sparse=self.sparse)
+        self.assertEqual(ls.dtype,np.float64)
 
 class TestLinearSolverSparse(TestLinearSolver):
     def setUp(self):
@@ -403,7 +418,7 @@ class TestLinProductSolver(unittest.TestCase):
             testSolve = linsolve.LinProductSolver(data, currentSol,sparse=self.sparse)
             currentSol = testSolve.solve()
         for var in 'wxyz': 
-            np.testing.assert_almost_equal(currentSol[var], eval(var), 4)
+            np.testing.assert_almost_equal(currentSol[var], eval(var), 4) 
     def test_eval(self):
         x = np.arange(1,31)*(1.0+1.0j); x.shape=(10,3) 
         y = np.arange(1,31)*(2.0-3.0j); y.shape=(10,3)

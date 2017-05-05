@@ -181,10 +181,9 @@ class LinearSolver:
         self.re_im_split = kwargs.pop('re_im_split',False)
         #go through and figure out if any variables are conjugated
         for eq in self.eqs: self.re_im_split |= eq.has_conj
-        if self.re_im_split: self.dtype = float
-        else:
-            self.dtype = reduce(np.promote_types, [d.dtype if hasattr(d,'dtype') else type(d) \
-                for d in self.data.values() + self.consts.values() + self.wgts.values()])
+        numerical_input = self.data.values() + self.consts.values() + self.wgts.values()
+        self.dtype = reduce(np.promote_types, [d.dtype if hasattr(d,'dtype') else type(d) for d in numerical_input])
+        if self.re_im_split: self.dtype = np.real(np.ones(1, dtype=self.dtype)).dtype
         self.shape = self._shape()
     def _shape(self):
         '''Get broadcast shape of constants, weights for last dim of A'''
@@ -209,8 +208,7 @@ class LinearSolver:
     def get_A(self):
         '''Return A matrix for A*x=y.'''
         #TODO: fix this line and others like it to allow 32 single precision inputs to be maintained
-        if self.re_im_split: A = np.zeros(self._A_shape(), dtype=np.float) # float even if complex (r/i treated separately)        
-        else: A = np.zeros(self._A_shape(), dtype=self.dtype)
+        A = np.zeros(self._A_shape(), dtype=self.dtype)
         xs,ys,vals = self.sparse_form()
         ones = np.ones_like(A[0,0])
         #A[xs,ys] += [v * ones for v in vals] # This is broken when a single equation has the same param more than once
@@ -241,7 +239,7 @@ class LinearSolver:
         self._data_shape = d.shape[1:] # store for reshaping sols to original
         d.shape = (d.shape[0],-1) # Flatten 
         if self.re_im_split:
-            rv = np.empty((2*d.shape[0],)+d.shape[1:], dtype=np.float)
+            rv = np.empty((2*d.shape[0],)+d.shape[1:], dtype=self.dtype)
             rv[::2],rv[1::2] = d.real, d.imag
             return rv
         else: return d
