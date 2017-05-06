@@ -377,6 +377,7 @@ class LinProductSolver:
             taylors.append(taylor_expand(terms, self.init_kwargs, prepend=self.prepend))
         return all_terms, taylors
     def _get_ans0(self, sol, keys=None):
+        #XXX: this is better but still pretty inefficient. Can we make this go faster?
         if keys is None:
             keys = self.data.keys()
             all_terms = self.all_terms
@@ -388,7 +389,10 @@ class LinProductSolver:
         new_keys = {}
         for k,taylor,terms in zip(keys,taylors,all_terms):
             eq = LinearEquation(taylor[len(terms):], **self.sols_kwargs) # exclude zero-order terms
-            for key in sol: eq.add_const(key, **self.sols_kwargs)
+            for term in terms:
+                for t in term:
+                    if sol.has_key(t): eq.add_const(t, **self.sols_kwargs)
+            #for key in sol: eq.add_const(key, **self.sols_kwargs)
             ans0[k] = np.sum([eq.eval_consts(t) for t in taylor[:len(terms)]], axis=0)
             new_keys[k] = jointerms(eq.terms)
         return ans0, new_keys
@@ -401,6 +405,7 @@ class LinProductSolver:
             dlin[nk] = self.data[k]-ans0[k]
             try: wlin[nk] = self.wgts[k]
             except(KeyError): pass
+        #XXX: Can we make this update the constants in the solver and the values, rather than the whole solver? 
         self.ls = LinearSolver(dlin, wgts=wlin, sparse=self.sparse, **self.sols_kwargs)
         
     def solve(self, rcond=1e-10, verbose=False):
