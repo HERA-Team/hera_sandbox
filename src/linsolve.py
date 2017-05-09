@@ -173,7 +173,8 @@ class LinearSolver:
         self.prms = {}
         for eq in self.eqs: self.prms.update(eq.prms)
         self.consts = {}
-        for eq in self.eqs: self.consts.update(eq.consts)
+        #TODO: perhaps this is excessive...if the same constant appears many times, it doesn't need to be updated every time
+        for eq in self.eqs: self.consts.update(eq.consts) 
         self.prm_order = {}
         for i,p in enumerate(self.prms): self.prm_order[p] = i
 
@@ -376,6 +377,7 @@ class LinProductSolver:
         for terms in all_terms:
             taylors.append(taylor_expand(terms, self.init_kwargs, prepend=self.prepend))
         return all_terms, taylors
+    
     def _get_ans0(self, sol, keys=None):
         #XXX: this is better but still pretty inefficient. Can we make this go faster?
         if keys is None:
@@ -384,7 +386,6 @@ class LinProductSolver:
             taylors = self.taylors
         else:
             all_terms, taylors = self.gen_taylors(keys)
-        self.sols_kwargs.update(sol)
         ans0 = {}
         new_keys = {}
         for k,taylor,terms in zip(keys,taylors,all_terms):
@@ -392,22 +393,54 @@ class LinProductSolver:
             for term in terms:
                 for t in term:
                     if sol.has_key(t): eq.add_const(t, **self.sols_kwargs)
-            #for key in sol: eq.add_const(key, **self.sols_kwargs)
             ans0[k] = np.sum([eq.eval_consts(t) for t in taylor[:len(terms)]], axis=0)
+            print taylor[:len(terms)]
             new_keys[k] = jointerms(eq.terms)
         return ans0, new_keys
+
+    def evalSol(self):
+        '''Much faster than current version'''
+        result = {k: np.zeros_like(d) for k,d in self.data.items()}
+        for k in self.data.keys():
+            eq = ast_getterms(ast.parse(k, mode='eval'))
+            for term in eq:
+                termTotal = 1.0
+                for t in term:
+                    if type(t) is str: 
+                        try: #is in sols
+                            if t.endswith('_'): t = np.conj(sol0[t[:-1]])
+                            else: t = self.sol0[t]
+                        except: #is in constants
+                            if t.endswith('_'): t = np.conj(self.ls.consts[t[:-1]].val)
+                            else: t = self.ls.consts[t].val
+                    termTotal *= t
+                result[k] += termTotal
+        self.sols_kwargs.update(result)
+        return result
+    
     def update_solver(self, sol):
         self.sol0 = sol
-        ans0, new_keys = self._get_ans0(sol)
-        dlin, wlin = {}, {}
-        for k in ans0:
-            nk = new_keys[k]
-            dlin[nk] = self.data[k]-ans0[k]
-            try: wlin[nk] = self.wgts[k]
-            except(KeyError): pass
+        self.sols_kwargs.update(sol)
+        if hasattr(self, 'ls'):
+            ans0 = self.evalSol()
+            #ans0, new_keys = self._get_ans0(sol)
+            for eq in self.ls.eqs:
+                for c in eq.consts.values(): 
+                    if c.name in sol: eq.consts[c.name].val = self.sols_kwargs[c.name]
+                self.ls.consts.update(eq.consts)
+                for k in ans0: self.ls.data[self.taylor_keys[k]] = self.data[k]-ans0[k]
+        else:
+            ans0, new_keys = self._get_ans0(sol)
+            dlin, wlin = {}, {}
+            for k in ans0:
+                nk = new_keys[k]
+                dlin[nk] = self.data[k]-ans0[k]
+                try: wlin[nk] = self.wgts[k]
+                except(KeyError): pass
+            self.taylor_keys = new_keys
+            self.ls = LinearSolver(dlin, wgts=wlin, sparse=self.sparse, **self.sols_kwargs)
         #XXX: Can we make this update the constants in the solver and the values, rather than the whole solver? 
-        self.ls = LinearSolver(dlin, wgts=wlin, sparse=self.sparse, **self.sols_kwargs)
-        
+
     def solve(self, rcond=1e-10, verbose=False):
         """Executes a LinearSolver on the taylor-expanded system of equations, updating sol0 and returning sol."""
         dsol = self.ls.solve(rcond=rcond, verbose=verbose)
@@ -432,6 +465,16 @@ class LinProductSolver:
         if wgts is None: wgts = self.wgts
         return self.ls._chisq(sol, data, wgts, self.eval)
     
+    def chisq_v2(self):
+        #TODO: for testing
+        if len(self.wgts) == 0: sigma2 = {k: 1.0 for k in self.data.keys()} #equal weights
+        else: sigma2 = {k: self.wgts[k]**2 for k in self.wgts.keys()} 
+        evaluated = self.evalSol()
+        chisq = 0
+        for k in self.data.keys(): chisq += np.abs(evaluated[k]-self.data[k])**2 / sigma2[k]
+        return chisq
+
+
     def solve_iteratively(self, conv_crit=1e-10, maxiter=50):
         """Repeatedly solves and updates linsolve until convergence or maxiter is reached. 
         Returns a meta object containing the number of iterations, chisq, and convergence criterion."""
@@ -439,7 +482,28 @@ class LinProductSolver:
             new_sol = self.solve()
             deltas = [new_sol[k]-self.sol0[k] for k in new_sol.keys()]
             conv = np.linalg.norm(deltas, axis=0) / np.linalg.norm(new_sol.values(),axis=0)
+            #print 'iter', i, 'done.'
+            #print [c.name for c in self.ls.eqs[0].consts.values()] #doesn't change
+            #print [c.val for c in self.ls.eqs[0].consts.values()] #CHANGES
+            #print self.ls.data.keys() #doesn't change
+            #print self.ls.data.values() #CHANGES
+            #print self.ls.dtype #doesn't change
             if np.all(conv < conv_crit) or i == maxiter:
-                meta = {'iter': i, 'chisq': self.chisq(new_sol), 'conv_crit': conv}
+                meta = {'iter': i, 'chisq': self.chisq_v2(), 'conv_crit': conv}
                 return meta, new_sol
             self.update_solver(new_sol)
+
+
+if __name__ == '__main__':
+    x = (1.0+1.0j)#*np.arange(1,31); x.shape=(10,3) 
+    y = (2.0-3.0j)#*np.arange(1,31); y.shape=(10,3)
+    z = (3.0-9.0j)#*np.arange(1,31); z.shape=(10,3)
+    w = (4.0+2.0j)#*np.arange(1,31); w.shape=(10,3)
+    expressions = ['x*y+z*w', '2*x*y+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w', '2*x + 3*y - 4*z']
+    data = {}
+    for ex in expressions: data[ex] = eval(ex)
+    currentSol = {'x':1.1*x, 'y': .9*y, 'z': 1.1*z, 'w':1.2*w}
+    testSolve = LinProductSolver(data, currentSol,sparse=True)
+    meta, new_sol = testSolve.solve_iteratively()
+    print  meta
+    print 'Done.'
