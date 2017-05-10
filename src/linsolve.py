@@ -25,11 +25,8 @@ def get_name(s, isconj=False):
     if not type(s) is str:
         if isconj: return str(s), False
         else: return str(s)
-    rv = s
-    if rv.endswith('_'): 
-        rv = rv[:-1] # parse 'name_' as 'name' + conj
-    if isconj: return rv, s.endswith('_') # tag names ending in '_' for conj
-    else: return rv
+    if isconj: return s.rstrip('_'), s.endswith('_') # tag names ending in '_' for conj
+    else: return s.rstrip('_') # parse 'name_' as 'name' + conj
 
 class Constant:
     '''Container for constants (which can be arrays) in linear equations.'''
@@ -173,7 +170,6 @@ class LinearSolver:
         self.prms = {}
         for eq in self.eqs: self.prms.update(eq.prms)
         self.consts = {}
-        #TODO: perhaps this is excessive...if the same constant appears many times, it doesn't need to be updated every time
         for eq in self.eqs: self.consts.update(eq.consts) 
         self.prm_order = {}
         for i,p in enumerate(self.prms): self.prm_order[p] = i
@@ -208,7 +204,6 @@ class LinearSolver:
         else: return (len(self.eqs),len(self.prm_order))+sh
     def get_A(self):
         '''Return A matrix for A*x=y.'''
-        #TODO: fix this line and others like it to allow 32 single precision inputs to be maintained
         A = np.zeros(self._A_shape(), dtype=self.dtype)
         xs,ys,vals = self.sparse_form()
         ones = np.ones_like(A[0,0])
@@ -279,7 +274,7 @@ class LinearSolver:
     def eval(self, sol, keys=None):
         """Returns a dictionary evaluating data keys to the current values given sol and consts.
         Uses the stored data object unless otherwise specified."""
-        if keys is None: keys = self.data.keys()
+        if keys is None: keys = self.keys
         elif type(keys) is str: keys = [keys]
         elif type(keys) is dict: keys = keys.keys()
         result = {}
@@ -305,7 +300,7 @@ class LinearSolver:
         return self._chisq(sol, data,wgts,self.eval)        
         
 
-# XXX need to add support for conjugated constants
+# XXX need to add support for conjugated constants...maybe this already works because we have conjugated constants inherited form taylor expansion
 def conjterm(term, mode='amp'):
     '''Modify prefactor for conjugated terms, according to mode='amp|phs|real|imag'.'''
     f = {'amp':1,'phs':-1,'real':1,'imag':1j}[mode] # if KeyError, mode was invalid
@@ -365,7 +360,7 @@ class LinProductSolver:
     parentheses are allowed (expand manually). '''
     def __init__(self, data, sol0, wgts={}, sparse=False, **kwargs):
         self.prepend = 'd' # XXX make this something hard to collide with
-        self.data, self.wgts, self.sparse = data, wgts, sparse
+        self.data, self.wgts, self.sparse, self.keys = data, wgts, sparse, data.keys()
         self.init_kwargs, self.sols_kwargs = kwargs, deepcopy(kwargs)
         self.sols_kwargs.update(sol0)
         self.all_terms, self.taylors, self.taylor_keys = self.gen_taylors()
@@ -373,7 +368,7 @@ class LinProductSolver:
     
     def gen_taylors(self, keys=None):
         '''Parses all terms, performs a taylor expansion, and maps equation keys to taylor expansion keys.'''
-        if keys is None: keys = self.data.keys()
+        if keys is None: keys = self.keys
         all_terms = [ast_getterms(ast.parse(k, mode='eval')) for k in keys]
         taylors, taylor_keys = [], {}
         for terms, k in zip(all_terms, keys):
@@ -386,30 +381,30 @@ class LinProductSolver:
         '''Builds a LinearSolver using the taylor expansions and all relevant constants.
         Update it with the latest solutions.'''
         dlin, wlin = {}, {}
-        for k in self.data.keys():
+        for k in self.keys:
             tk = self.taylor_keys[k]
-            dlin[tk] = self.data[k]
+            dlin[tk] = self.data[k] #in theory, this will always be replaced with data - ans0 before use
             try: wlin[tk] = self.wgts[k]
             except(KeyError): pass
         self.ls = LinearSolver(dlin, wgts=wlin, sparse=self.sparse, **self.sols_kwargs)
         self.eq_dict = {eq.val: eq for eq in self.ls.eqs} #maps taylor string expressions to linear equations 
         #Now make sure every taylor equation has every relevant constant, even if they don't appear in the derivative terms.
-        for k,taylor,terms in zip(self.data.keys(), self.taylors, self.all_terms):
+        for k,terms in zip(self.keys, self.all_terms):
             for term in terms:
                 for t in term:
-                    t_unconj = str(t).rstrip('_')
-                    if self.sols_kwargs.has_key(t_unconj):
-                        self.eq_dict[self.taylor_keys[k]].add_const(t_unconj, **self.sols_kwargs)
-        self.update_solver(sol0)
+                    t_name = get_name(t)
+                    if self.sols_kwargs.has_key(t_name):
+                        self.eq_dict[self.taylor_keys[k]].add_const(t_name, **self.sols_kwargs)
+        self._update_solver(sol0)
 
-    def update_solver(self, sol):
+    def _update_solver(self, sol):
         '''Update all constants in the internal LinearSolver and its LinearEquations based on new solutions.
         Also update the residuals (data - ans0) for next iteration.'''
         self.sol0 = sol
         self.sols_kwargs.update(sol)
         for eq in self.ls.eqs:
             for c in eq.consts.values(): 
-                if c.name in sol: eq.consts[c.name].val = self.sols_kwargs[c.name]
+                if sol.has_key(c.name): eq.consts[c.name].val = self.sols_kwargs[c.name]
             self.ls.consts.update(eq.consts)
         ans0 = self._get_ans0(sol)
         for k in ans0: self.ls.data[self.taylor_keys[k]] = self.data[k]-ans0[k]
@@ -418,7 +413,7 @@ class LinProductSolver:
         '''Evaluate the system of equations given input sol. 
         Specify keys to evaluate only a subset of the equations.'''
         if keys is None: 
-            keys = self.data.keys()
+            keys = self.keys
             all_terms = self.all_terms
             taylors = self.taylors
         else:
@@ -462,4 +457,5 @@ class LinProductSolver:
             if np.all(conv < conv_crit) or i == maxiter:
                 meta = {'iter': i, 'chisq': self.chisq(new_sol), 'conv_crit': conv}
                 return meta, new_sol
-            self.update_solver(new_sol)
+            self._update_solver(new_sol)
+
