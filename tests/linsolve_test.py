@@ -410,7 +410,8 @@ class TestLinProductSolver(unittest.TestCase):
         y = np.arange(1,31)*(2.0-3.0j); y.shape=(10,3)
         z = np.arange(1,31)*(3.0-9.0j); z.shape=(10,3)
         w = np.arange(1,31)*(4.0+2.0j); w.shape=(10,3)
-        expressions = ['x*y+z*w', '2*x*y+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w', '2*x + 3*y - 4*z']
+        x_,y_,z_,w_ = map(np.conjugate,(x,y,z,w))
+        expressions = ['x*y+z*w', '2*x_*y_+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w_', '2*x_ + 3*y - 4*z']
         data = {}
         for ex in expressions: data[ex] = eval(ex)
         currentSol = {'x':1.1*x, 'y': .9*y, 'z': 1.1*z, 'w':1.2*w}
@@ -424,7 +425,8 @@ class TestLinProductSolver(unittest.TestCase):
         y = np.arange(1,31)*(2.0-3.0j); y.shape=(10,3)
         z = np.arange(1,31)*(3.0-9.0j); z.shape=(10,3)
         w = np.arange(1,31)*(4.0+2.0j); w.shape=(10,3)
-        expressions = ['x*y+z*w', '2*x*y+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w', '2*x + 3*y - 4*z']
+        x_,y_,z_,w_ = map(np.conjugate,(x,y,z,w))
+        expressions = ['x*y+z*w', '2*x_*y_+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w_', '2*x_ + 3*y - 4*z']
         data = {}
         for ex in expressions: data[ex] = eval(ex)
         currentSol = {'x':1.1*x, 'y': .9*y, 'z': 1.1*z, 'w':1.2*w}
@@ -450,7 +452,8 @@ class TestLinProductSolver(unittest.TestCase):
         y = np.arange(1,31)*(2.0-3.0j); y.shape=(10,3)
         z = np.arange(1,31)*(3.0-9.0j); z.shape=(10,3)
         w = np.arange(1,31)*(4.0+2.0j); w.shape=(10,3)
-        expressions = ['x*y+z*w', '2*x*y+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w', '2*x + 3*y - 4*z']
+        x_,y_,z_,w_ = map(np.conjugate,(x,y,z,w))
+        expressions = ['x*y+z*w', '2*x_*y_+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w_', '2*x_ + 3*y - 4*z']
         data = {}
         for ex in expressions: data[ex] = eval(ex)
         currentSol = {'x':1.1*x, 'y': .9*y, 'z': 1.1*z, 'w':1.2*w}

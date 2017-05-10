@@ -173,7 +173,8 @@ class LinearSolver:
         self.prms = {}
         for eq in self.eqs: self.prms.update(eq.prms)
         self.consts = {}
-        for eq in self.eqs: self.consts.update(eq.consts)
+        #TODO: perhaps this is excessive...if the same constant appears many times, it doesn't need to be updated every time
+        for eq in self.eqs: self.consts.update(eq.consts) 
         self.prm_order = {}
         for i,p in enumerate(self.prms): self.prm_order[p] = i
 
@@ -362,54 +363,74 @@ class LinProductSolver:
     the name is used to denote conjugation (e.g. x*y_ parses as x * y.conj()).
     Approximate parameter solutions needs to be passed in as sols. No 
     parentheses are allowed (expand manually). '''
-    def __init__(self, data, sols, wgts={}, sparse=False, **kwargs):
+    def __init__(self, data, sol0, wgts={}, sparse=False, **kwargs):
         self.prepend = 'd' # XXX make this something hard to collide with
         self.data, self.wgts, self.sparse = data, wgts, sparse
-        self.init_kwargs = kwargs
-        self.sols_kwargs = deepcopy(kwargs)
-        self.all_terms, self.taylors = self.gen_taylors()
-        self.update_solver(sols)
+        self.init_kwargs, self.sols_kwargs = kwargs, deepcopy(kwargs)
+        self.sols_kwargs.update(sol0)
+        self.all_terms, self.taylors, self.taylor_keys = self.gen_taylors()
+        self.build_solver(sol0) 
+    
     def gen_taylors(self, keys=None):
+        '''Parses all terms, performs a taylor expansion, and maps equation keys to taylor expansion keys.'''
         if keys is None: keys = self.data.keys()
         all_terms = [ast_getterms(ast.parse(k, mode='eval')) for k in keys]
-        taylors = []
-        for terms in all_terms:
-            taylors.append(taylor_expand(terms, self.init_kwargs, prepend=self.prepend))
-        return all_terms, taylors
+        taylors, taylor_keys = [], {}
+        for terms, k in zip(all_terms, keys):
+            taylor = taylor_expand(terms, self.init_kwargs, prepend=self.prepend)
+            taylors.append(taylor)
+            taylor_keys[k] = jointerms(taylor[len(terms):])
+        return all_terms, taylors, taylor_keys
+
+    def build_solver(self, sol0):
+        '''Builds a LinearSolver using the taylor expansions and all relevant constants.
+        Update it with the latest solutions.'''
+        dlin, wlin = {}, {}
+        for k in self.data.keys():
+            tk = self.taylor_keys[k]
+            dlin[tk] = self.data[k]
+            try: wlin[tk] = self.wgts[k]
+            except(KeyError): pass
+        self.ls = LinearSolver(dlin, wgts=wlin, sparse=self.sparse, **self.sols_kwargs)
+        self.eq_dict = {eq.val: eq for eq in self.ls.eqs} #maps taylor string expressions to linear equations 
+        #Now make sure every taylor equation has every relevant constant, even if they don't appear in the derivative terms.
+        for k,taylor,terms in zip(self.data.keys(), self.taylors, self.all_terms):
+            for term in terms:
+                for t in term:
+                    t_unconj = str(t).rstrip('_')
+                    if self.sols_kwargs.has_key(t_unconj):
+                        self.eq_dict[self.taylor_keys[k]].add_const(t_unconj, **self.sols_kwargs)
+        self.update_solver(sol0)
+
+    def update_solver(self, sol):
+        '''Update all constants in the internal LinearSolver and its LinearEquations based on new solutions.
+        Also update the residuals (data - ans0) for next iteration.'''
+        self.sol0 = sol
+        self.sols_kwargs.update(sol)
+        for eq in self.ls.eqs:
+            for c in eq.consts.values(): 
+                if c.name in sol: eq.consts[c.name].val = self.sols_kwargs[c.name]
+            self.ls.consts.update(eq.consts)
+        ans0 = self._get_ans0(sol)
+        for k in ans0: self.ls.data[self.taylor_keys[k]] = self.data[k]-ans0[k]
+
     def _get_ans0(self, sol, keys=None):
-        #XXX: this is better but still pretty inefficient. Can we make this go faster?
-        if keys is None:
+        '''Evaluate the system of equations given input sol. 
+        Specify keys to evaluate only a subset of the equations.'''
+        if keys is None: 
             keys = self.data.keys()
             all_terms = self.all_terms
             taylors = self.taylors
         else:
-            all_terms, taylors = self.gen_taylors(keys)
-        self.sols_kwargs.update(sol)
+            all_terms, taylors, _ = self.gen_taylors(keys)
         ans0 = {}
-        new_keys = {}
         for k,taylor,terms in zip(keys,taylors,all_terms):
-            eq = LinearEquation(taylor[len(terms):], **self.sols_kwargs) # exclude zero-order terms
-            for term in terms:
-                for t in term:
-                    if sol.has_key(t): eq.add_const(t, **self.sols_kwargs)
-            #for key in sol: eq.add_const(key, **self.sols_kwargs)
+            eq = self.eq_dict[self.taylor_keys[k]]
             ans0[k] = np.sum([eq.eval_consts(t) for t in taylor[:len(terms)]], axis=0)
-            new_keys[k] = jointerms(eq.terms)
-        return ans0, new_keys
-    def update_solver(self, sol):
-        self.sol0 = sol
-        ans0, new_keys = self._get_ans0(sol)
-        dlin, wlin = {}, {}
-        for k in ans0:
-            nk = new_keys[k]
-            dlin[nk] = self.data[k]-ans0[k]
-            try: wlin[nk] = self.wgts[k]
-            except(KeyError): pass
-        #XXX: Can we make this update the constants in the solver and the values, rather than the whole solver? 
-        self.ls = LinearSolver(dlin, wgts=wlin, sparse=self.sparse, **self.sols_kwargs)
-        
+        return ans0
+
     def solve(self, rcond=1e-10, verbose=False):
-        """Executes a LinearSolver on the taylor-expanded system of equations, updating sol0 and returning sol."""
+        '''Executes a LinearSolver on the taylor-expanded system of equations, updating sol0 and returning sol.'''
         dsol = self.ls.solve(rcond=rcond, verbose=verbose)
         sol = {}
         for dk in dsol:
@@ -418,23 +439,22 @@ class LinProductSolver:
         return sol
     
     def eval(self, sol, keys=None):
-        """Returns a dictionary evaluating data keys to the current values given sol and consts.
-        Uses the stored data object unless otherwise specified."""
+        '''Returns a dictionary evaluating data keys to the current values given sol and consts.
+        Uses the stored data object unless otherwise specified.'''
         if type(keys) is str: keys = [keys]
         elif type(keys) is dict: keys = keys.keys()
-        result,_ = self._get_ans0(sol, keys=keys)
-        return result
+        return self._get_ans0(sol, keys=keys)
     
     def chisq(self, sol, data=None, wgts=None):
-        """Compute Chi^2 = |obs - mod|^2 / sigma^2 for the specified solution. Weights are treated as sigma. 
-        Empty weights means sigma=1. Uses the stored data and weights unless otherwise overwritten."""
+        '''Compute Chi^2 = |obs - mod|^2 / sigma^2 for the specified solution. Weights are treated as sigma. 
+        Empty weights means sigma=1. Uses the stored data and weights unless otherwise overwritten.'''
         if data is None: data = self.data
         if wgts is None: wgts = self.wgts
         return self.ls._chisq(sol, data, wgts, self.eval)
-    
+
     def solve_iteratively(self, conv_crit=1e-10, maxiter=50):
-        """Repeatedly solves and updates linsolve until convergence or maxiter is reached. 
-        Returns a meta object containing the number of iterations, chisq, and convergence criterion."""
+        '''Repeatedly solves and updates linsolve until convergence or maxiter is reached. 
+        Returns a meta object containing the number of iterations, chisq, and convergence criterion.'''
         for i in range(1,maxiter+1):
             new_sol = self.solve()
             deltas = [new_sol[k]-self.sol0[k] for k in new_sol.keys()]
