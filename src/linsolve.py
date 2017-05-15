@@ -335,7 +335,7 @@ class LogProductSolver:
             except(KeyError): pass
         logamp_consts, logphs_consts = {}, {}
         for k in kwargs:
-            c = np.log(kwargs[k])
+            c = np.log(kwargs[k]) # log unwraps complex circle at -pi
             logamp_consts[k], logphs_consts[k] = c.real, c.imag
         self.ls_amp = LinearSolver(logamp, logampw, sparse=sparse, **logamp_consts)
         self.ls_phs = LinearSolver(logphs, logphsw, sparse=sparse, **logphs_consts)
