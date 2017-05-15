@@ -228,13 +228,28 @@ class TestLinearSolver(unittest.TestCase):
         sol = ls.solve()
         chisq = ls.chisq(sol)
         np.testing.assert_equal(chisq, .5)
-
         x = 1.
         d = {'x':1, '1.0*x':2}
         ls = linsolve.LinearSolver(d, sparse=self.sparse)
         sol = ls.solve()
         chisq = ls.chisq(sol)
         np.testing.assert_equal(chisq, .5)
+    def test_dtypes(self):
+        ls = linsolve.LinearSolver({'x_': 1.0+1.0j}, sparse=self.sparse)
+        self.assertEqual(ls.dtype,float)
+        ls = linsolve.LinearSolver({'x': 1.0+1.0j}, sparse=self.sparse)
+        self.assertEqual(ls.dtype,complex)
+        ls = linsolve.LinearSolver({'x_': np.ones(1,dtype=np.complex64)[0]}, sparse=self.sparse)
+        self.assertEqual(ls.dtype,np.float32)
+        ls = linsolve.LinearSolver({'x': np.ones(1,dtype=np.complex64)[0]}, sparse=self.sparse)
+        self.assertEqual(ls.dtype,np.complex64)
+        ls = linsolve.LinearSolver({'c*x': 1.0}, c=1.0+1.0j, sparse=self.sparse)
+        self.assertEqual(ls.dtype,complex)
+        d = {'c*x': np.ones(1,dtype=np.float32)[0]}
+        wgts = {'c*x': np.ones(1,dtype=np.float64)[0]}
+        c = np.ones(1,dtype=np.float32)[0]
+        ls = linsolve.LinearSolver(d, wgts=wgts, c=c, sparse=self.sparse)
+        self.assertEqual(ls.dtype,np.float64)
 
 class TestLinearSolverSparse(TestLinearSolver):
     def setUp(self):
@@ -395,7 +410,8 @@ class TestLinProductSolver(unittest.TestCase):
         y = np.arange(1,31)*(2.0-3.0j); y.shape=(10,3)
         z = np.arange(1,31)*(3.0-9.0j); z.shape=(10,3)
         w = np.arange(1,31)*(4.0+2.0j); w.shape=(10,3)
-        expressions = ['x*y+z*w', '2*x*y+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w', '2*x + 3*y - 4*z']
+        x_,y_,z_,w_ = map(np.conjugate,(x,y,z,w))
+        expressions = ['x*y+z*w', '2*x_*y_+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w_', '2*x_ + 3*y - 4*z']
         data = {}
         for ex in expressions: data[ex] = eval(ex)
         currentSol = {'x':1.1*x, 'y': .9*y, 'z': 1.1*z, 'w':1.2*w}
@@ -403,13 +419,14 @@ class TestLinProductSolver(unittest.TestCase):
             testSolve = linsolve.LinProductSolver(data, currentSol,sparse=self.sparse)
             currentSol = testSolve.solve()
         for var in 'wxyz': 
-            np.testing.assert_almost_equal(currentSol[var], eval(var), 4)
+            np.testing.assert_almost_equal(currentSol[var], eval(var), 4) 
     def test_eval(self):
         x = np.arange(1,31)*(1.0+1.0j); x.shape=(10,3) 
         y = np.arange(1,31)*(2.0-3.0j); y.shape=(10,3)
         z = np.arange(1,31)*(3.0-9.0j); z.shape=(10,3)
         w = np.arange(1,31)*(4.0+2.0j); w.shape=(10,3)
-        expressions = ['x*y+z*w', '2*x*y+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w', '2*x + 3*y - 4*z']
+        x_,y_,z_,w_ = map(np.conjugate,(x,y,z,w))
+        expressions = ['x*y+z*w', '2*x_*y_+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w_', '2*x_ + 3*y - 4*z']
         data = {}
         for ex in expressions: data[ex] = eval(ex)
         currentSol = {'x':1.1*x, 'y': .9*y, 'z': 1.1*z, 'w':1.2*w}
@@ -435,7 +452,8 @@ class TestLinProductSolver(unittest.TestCase):
         y = np.arange(1,31)*(2.0-3.0j); y.shape=(10,3)
         z = np.arange(1,31)*(3.0-9.0j); z.shape=(10,3)
         w = np.arange(1,31)*(4.0+2.0j); w.shape=(10,3)
-        expressions = ['x*y+z*w', '2*x*y+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w', '2*x + 3*y - 4*z']
+        x_,y_,z_,w_ = map(np.conjugate,(x,y,z,w))
+        expressions = ['x*y+z*w', '2*x_*y_+z*w-1.0j*z*w', '2*x*w', '1.0j*x + y*z', '-1*x*z+3*y*w*x+y', '2*w_', '2*x_ + 3*y - 4*z']
         data = {}
         for ex in expressions: data[ex] = eval(ex)
         currentSol = {'x':1.1*x, 'y': .9*y, 'z': 1.1*z, 'w':1.2*w}
