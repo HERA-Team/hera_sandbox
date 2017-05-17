@@ -11,7 +11,11 @@ output plot (i.e. as specified by --chan_axis and --time_axis).
 Author: Aaron Parsons, Griffin Foster
 """
 
-import aipy as a, numpy as n, pylab as p, sys, optparse
+import aipy as a, numpy as n
+import matplotlib
+matplotlib.use('TkAgg')
+import pylab as p, sys, optparse
+import capo.zsa as zsa
 
 o = optparse.OptionParser()
 o.set_usage('plot_uv.py [options] *.uv')
@@ -61,6 +65,10 @@ o.add_option('--lst_avg', dest='lst_avg', action='store_true',
     help='Averag in lst. Takes lst bin size to be 42.95 seconds.')
 o.add_option('--unwrap', dest='unwrap', action='store_true',
     help='Unwrap the phase. Use only when in mode=phs.')
+o.add_option('--mapfile', action='store',
+    help='Full path to antenna mapping file. See zsa.get_ants().')
+o.add_option('--fengine', action='store',
+    help='Only plot antennas on specifica fengine. e.g. "f2" means plot ants only on fengine 2')
 
 def convert_arg_range(arg):
     """Split apart command-line lists/ranges into a list of numbers."""
@@ -103,21 +111,21 @@ def data_mode(data, mode='abs'):
     return data
 
 def check_conjugation(aa,i,j):
-    ANTPOS = aa.ant_layout
-    x = n.where(ANTPOS.flat == i)
-    y = n.where(ANTPOS.flat == j)
-    if y<x: 
+    x,y,z = aa[j] - aa[i]
+    if y<0.0: 
         #print 'conjugated bl', i, j
         return True
     else: return False
 
 opts, args = o.parse_args(sys.argv[1:])
 
+
 # Parse command-line options
 cmap = p.get_cmap(opts.cmap)
 if not opts.xlim == None: opts.xlim = map(float, opts.xlim.split('_'))
 if not opts.ylim == None: opts.ylim = map(float, opts.ylim.split('_'))
 uv = a.miriad.UV(args[0])
+print opts.ant
 a.scripting.uv_selector(uv, opts.ant, opts.pol)
 chans = a.scripting.parse_chans(opts.chan, uv['nchan'])
 is_chan_range, is_time_range = True, True
@@ -477,4 +485,6 @@ else:
             print 'Replotting...'
             p.draw()
     p.connect('key_press_event', click)
+    from mpldatacursor import datacursor
+    datacursor(formatter='{label}'.format)
     p.show()
