@@ -8,9 +8,10 @@ sns.set_context("paper")
 plt.rc('axes', linewidth=2.5)
 
 #FILE = 'corr_res.csv'
-FILES = ['HERA_243_pm.csv', 'HERA_128_pm.csv', 'PAPER_128_pm.csv']
+FILES = ['HERA_243_all.csv', 'HERA_128_all.csv', 'PAPER_128_all.csv']
 LABELS = ['HERA243', 'HERA128', 'PAPER128']
-
+#FILES = ['HERA_128_all_test.csv']
+#LABELS = ['HERA_128_PAPERBEAM']
 def gen_color(l=1):
 	colors = []
 	for i in range(l): colors.append((random(),random(),random()))
@@ -105,7 +106,7 @@ def sensplot():
 
 
 if __name__=="__main__":
-	#sensplot()
+	sensplot()
 	pairplot(0.1)
 
 	plt.show()

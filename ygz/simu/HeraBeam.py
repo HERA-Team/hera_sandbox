@@ -25,6 +25,7 @@ X,Y,Z = X.flatten(),Y.flatten(),Z.flatten()
 
 ant = a.cal.get_aa('psa6622_v001',np.array([.15]))[0]
 PAPERBmI = ant.bm_response([X,Y,Z],pol='I').reshape((400,400))
+GAUSSBmI = np.exp(-(X**2+Y**2)*5**2)
 # Bmx = np.where(Xh[X,Y,Z].real>0, Xh[X,Y,Z], 0)
 # Bmx = np.where(Xh[X,Y,Z].real>0, Xh[X,Y,Z], 0)
 
@@ -46,6 +47,6 @@ map.drawmapboundary()
 map.drawmeridians(np.arange(0, 360, 30))
 map.drawparallels(np.arange(0, 90, 10))
 #import IPython; IPython.embed()
-im = map.imshow(np.abs(PAPERBmI*PAPERBmI))
+im = map.imshow(np.abs(GAUSSBmI*GAUSSBmI))
 f.colorbar(im, ax=[ax,ax2], shrink=0.5)
 plt.show()

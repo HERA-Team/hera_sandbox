@@ -135,12 +135,12 @@ def bl_length(blcoords):
 	blx, bly,blz = blcoords
 	return np.sqrt(blx*blx + bly*bly + blz*blz)
 
-def run_opp(i, comb, outfile, equiv=None, quiet=False):
+def run_opp(i, comb, outfile, equiv=None, quiet=False, printevery=200):
 	#comb=(('40', (44, 26)), ('41', (44, 38)))
 	#i is the index of comb in combs
 	file = open(outfile, 'a')
 	label1, label2 = comb[0][0], comb[1][0]
-
+	if i % printevery == 0: print 'Progress: ', i
 	bl1coords, bl2coords = comb[0][1][0], comb[1][1][0]
 	bl1L = bl_length(bl1coords); bl2L = bl_length(bl2coords)
 	multiplicity = comb[0][1][1]*comb[1][1][1]
@@ -161,16 +161,16 @@ def run_opp(i, comb, outfile, equiv=None, quiet=False):
 def execute(combsname=None): #for profiling
 	CAL = 'psa6622_v003'
 	ARRAY = 'HERA'
-	BEAM = 'PAPER'
-	NANTS = 37
-	version = 37
-	ENTRIES = 300
+	BEAM = 'HERA'
+	NANTS = 243
+	version = 243
+	ENTRIES = 1000
 	if ARRAY == 'HERA':
 		EQUIV = 12127.9726
 	elif ARRAY == 'PAPER':
 		EQUIV = 10.2858996
-	FIRST = '{0}_{1}_all.csv'.format(ARRAY,version)
-	SECOND = '{0}_{1}_pm.csv'.format(ARRAY,version)
+	FIRST = '{0}_{1}_all_test.csv'.format(ARRAY,version)
+	SECOND = '{0}_{1}_pm_test.csv'.format(ARRAY,version)
 	SECONDm = '{0}_{1}_p.csv'.format(ARRAY,version)
 	FILE = "../calfiles/HERA_antconfig/antenna_positions_{}.dat".format(version)
 	combsname = '{0}_{1}_combs'.format(ARRAY,NANTS)
@@ -190,8 +190,8 @@ def execute(combsname=None): #for profiling
 		save_obj('{0}_{1}_combs'.format(ARRAY, NANTS), combs)
 	
 	if True:
-		DT = 0.01
-		T1=np.arange(2456681.3, 2456681.7, DT)
+		DT = 0.002
+		T1=np.arange(2456681.25, 2456681.75, DT)
 		fqs = np.array([.15])
 		print 'Starting survey of all baselines'
 		global WS 
@@ -200,14 +200,14 @@ def execute(combsname=None): #for profiling
 		file.write(',sep,sep2,dT,peak,mult,bl1,bl2\n')
 		file.close()
 
-		NJOBS = 4
+		NJOBS = 10
 		start_time = timeit.default_timer()
 		print 'Starting Opp with %d instances on %d jobs; dT= %f' % (len(combs), NJOBS, DT)
 		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, FIRST, quiet=True) for i, comb in enumerate(combs))
 		elapsed = timeit.default_timer() - start_time
 		print 'Elapsed time: ', elapsed
 
-	if True:
+	if False:
 		DT = 0.001
 		T1=np.arange(2456681.3, 2456681.7, DT)
 		fqs = np.array([.15])
@@ -221,7 +221,7 @@ def execute(combsname=None): #for profiling
 		file.write(',sep,sep2,dT,peak,mult,bl1,bl2\n')
 		file.close()
 
-		NJOBS = 4
+		NJOBS = 12
 		start_time = timeit.default_timer()
 		print 'Starting Opp with %d instances on %d jobs;' % (len(subcombs), NJOBS)
 		#print ',sep,sep2,dT,peak,mult'
