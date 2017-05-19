@@ -8,10 +8,13 @@ sns.set_context("paper")
 plt.rc('axes', linewidth=2.5)
 
 #FILE = 'corr_res.csv'
-FILES = ['HERA_243_all.csv', 'HERA_128_all.csv', 'PAPER_128_all.csv']
-LABELS = ['HERA243', 'HERA128', 'PAPER128']
-#FILES = ['HERA_128_all_test.csv']
-#LABELS = ['HERA_128_PAPERBEAM']
+FILES = ['HERA_350_pm.csv', 'HERA_243_pm.csv', 'HERA_128_pm.csv', 'HERA_37_pm.csv','PAPER_128_pm.csv']
+FILES = ['HERA_350_all.csv', 'HERA_243_all.csv', 'HERA_128_all.csv', 'HERA_37_all.csv','PAPER_128_all.csv']
+FILES = ['HERA_350_pm.csv', 'HERA_128_pm.csv', 'PAPER_128_pm.csv']
+LABELS = ['HERA350', 'HERA243', 'HERA128', 'HERA37', 'PAPER128']
+LABELS = ['HERA350', 'HERA128', 'PAPER128']
+
+#FILES = FILES[::-1]; LABELS = LABELS [::-1]
 def gen_color(l=1):
 	colors = []
 	for i in range(l): colors.append((random(),random(),random()))
@@ -47,19 +50,19 @@ def pairplot(Theta_min=0):
 	# g = g.map_lower(plt.scatter, alpha=0.5, s=30)
 	# g = g.add_legend()
 
-	ax0 = g.axes[0,0]
-	start, end = ax0.get_xlim()
-	start+=0.01; end+=0.01
-	ax0.set_xticks(np.linspace(start, end, 3))
-	ax1 = g.axes[0,1]
-	start, end = ax1.get_xlim()
-	ax1.set_xticks(np.linspace(start, end, 3))
-	ax2 = g.axes[0,2]
-	start, end = ax2.get_xlim()
-	ax2.set_xticks(np.linspace(start, end, 3))
-	ax3 = g.axes[0,3]
-	start, end = ax3.get_xlim()
-	ax3.set_xticks(np.linspace(start, end, 3))
+	# ax0 = g.axes[0,0]
+	# start, end = ax0.get_xlim()
+	# start+=0.01; end+=0.01
+	# ax0.set_xticks(np.linspace(start, end, 3))
+	# ax1 = g.axes[0,1]
+	# start, end = ax1.get_xlim()
+	# ax1.set_xticks(np.linspace(start, end, 3))
+	# ax2 = g.axes[0,2]
+	# start, end = ax2.get_xlim()
+	# ax2.set_xticks(np.linspace(start, end, 3))
+	# ax3 = g.axes[0,3]
+	# start, end = ax3.get_xlim()
+	# ax3.set_xticks(np.linspace(start, end, 3))
 
 	#import IPython; IPython.embed()
 	plt.gcf().subplots_adjust(right=0.9)
@@ -85,7 +88,9 @@ def get_imp(df, Theta_min=0.0):
 def sensplot():
 	print "========= Statistics of sensitibity contribution =========="
 	sns.set(style="ticks", color_codes=True,font='DejaVu Serif', font_scale=2)
+
 	plt.figure()
+	plt.rc('axes', linewidth=4)
 	for i, file in enumerate(FILES):
 		df = pd.read_csv(file)
 		df['rho0'] = 0.001*40/df['bl1']
@@ -103,6 +108,7 @@ def sensplot():
 	plt.xlabel(r'$\widetilde{\Theta}_{min}$')
 	plt.ylabel(r'$\rho$')
 	plt.gcf().subplots_adjust(bottom=0.2)
+	plt.rc('axes', linewidth=4)
 
 
 if __name__=="__main__":
