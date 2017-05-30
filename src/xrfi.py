@@ -15,8 +15,8 @@ def omni_chisq_to_flags(chisq, K=8, sigma=6, sigl=2):
         for j in xrange(chisq.shape[1]):
             i0,j0 = max(0,i-K), max(0,j-K)
             i1,j1 = min(chisq.shape[0], i+K), min(chisq.shape[1], j+K)
-            #w_sm[i,j] = np.median(chisq[i0:i1,j0:j1])
-            w_sm[i,j] = medmin(chisq[i0:i1,j0:j1])
+            w_sm[i,j] = np.median(chisq[i0:i1,j0:j1])
+            #w_sm[i,j] = medmin(chisq[i0:i1,j0:j1])
     #the residual from smooth component
     w_rs = chisq - w_sm 
     w_sq = np.abs(w_rs)**2
@@ -25,8 +25,8 @@ def omni_chisq_to_flags(chisq, K=8, sigma=6, sigl=2):
         for j in xrange(chisq.shape[1]):
             i0,j0 = max(0,i-K), max(0,j-K)
             i1,j1 = min(chisq.shape[0], i+K), min(chisq.shape[1], j+K)
-            #sig[i,j] = np.sqrt(np.median(w_sq[i0:i1,j0:j1]))
-            sig[i,j] = np.sqrt(medmin(w_sq[i0:i1,j0:j1]))
+            sig[i,j] = np.sqrt(np.median(w_sq[i0:i1,j0:j1]))
+            #sig[i,j] = np.sqrt(medmin(w_sq[i0:i1,j0:j1]))
     #Number of sigma above the residual unsmooth part is.
     f1 = w_rs / sig
     #mask off any points above 'sig' sigma and nan's.
