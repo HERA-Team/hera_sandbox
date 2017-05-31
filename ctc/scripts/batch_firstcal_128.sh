@@ -23,7 +23,7 @@ for f in ${ARGS}; do
     fi
     if (( ${f:26:7} > 2456881 && ${f:26:7} < 2456929 )); then
         echo working on ${f}, which is in S2E3...
-        ~/capo/omni/firstcal.py -C psa6622_v003 -p xx --outpath /data4/paper/2014EoR/Analysis/ProcessedData/epoch3/omni_v5_xtalk/ --ubls=64_10,64_49,64_3,64_41,64_25,64_19,64_48,64_29,64_24,64_28,64_55,64_34,64_27,64_51,64_57,64_9,64_22,64_20,64_43,64_53,64_31,10_65,10_72,10_80,10_88,10_96,10_104 --ex_ants=8,13,16,24,26,34,37,38,85,107 ${f} #S2E3xx
-        #~/capo/omni/firstcal.py -C psa6622_v003 -p yy --outpath /data4/paper/2014EoR/Analysis/ProcessedData/epoch3/omni_v5_xtalk/ --ubls=64_10,64_49,64_3,64_41,64_25,64_19,64_48,64_29,64_24,64_28,64_55,64_34,64_27,64_51,64_57,64_9,64_22,64_20,64_43,64_53,64_31,10_65,10_72,10_80,10_88,10_96,10_104 --ex_ants=7,15,16,17,26,34,56,82,107 ${f} #S2E3yy
+        #~/capo/omni/firstcal.py -C psa6622_v003 -p xx --outpath /data4/paper/2014EoR/Analysis/ProcessedData/epoch3/omni_v5_xtalk/ --ubls=64_10,64_49,64_3,64_41,64_25,64_19,64_48,64_29,64_24,64_28,64_55,64_34,64_27,64_51,64_57,64_9,64_22,64_20,64_43,64_53,64_31,10_65,10_72,10_80,10_88,10_96,10_104 --ex_ants=8,13,16,24,26,34,37,38,85,107 ${f} #S2E3xx
+        ~/capo/omni/firstcal.py -C psa6622_v003 -p yy --outpath /data4/paper/2014EoR/Analysis/ProcessedData/epoch3/omni_v5_xtalk/ --ubls=64_10,64_49,64_3,64_41,64_25,64_19,64_48,64_29,64_24,64_28,64_55,64_34,64_27,64_51,64_57,64_9,64_22,64_20,64_43,64_53,64_31,10_65,10_72,10_80,10_88,10_96,10_104 --ex_ants=3,7,15,16,17,26,34,56,81,82,107 ${f} #S2E3yy
     fi
 done

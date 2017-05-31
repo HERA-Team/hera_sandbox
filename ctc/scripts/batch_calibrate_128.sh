@@ -9,32 +9,32 @@
 ARGS=`pull_args.py $*`
 
 ### XX-POL ###
-POL='xx'
+#POL='xx'
 #FIRSTCAL_S1E1='/data4/paper/2013EoR/Analysis/ProcessedData/epoch1/omni_v5_xtalk/*xx.uvcRREc.median.fc.npz' # xx-pol
 #FIRSTCAL_S1E2='/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v5_xtalk/*xx.uvcRREc.median.fc.npz' # xx-pol
 #FIRSTCAL_S2E2='/data4/paper/2014EoR/Analysis/ProcessedData/epoch2/omni_v4_xtalk/*xx.uvcRREc.median.fc.npz' # xx-pol
-FIRSTCAL_S2E3='/data4/paper/2014EoR/Analysis/ProcessedData/epoch3/omni_v5_xtalk/*xx.uvcRREc.median.fc.npz' # xx-pol
+#FIRSTCAL_S2E3='/data4/paper/2014EoR/Analysis/ProcessedData/epoch3/omni_v5_xtalk/*xx.uvcRREc.median.fc.npz' # xx-pol
 #FIRSTCAL_S2E4='/data4/paper/2014EoR/Analysis/ProcessedData/epoch4/omni_v4_xtalk/*xx.uvcRREc.median.fc.npz' # xx-pol
 #FIRSTCAL_S2E5='/data4/paper/2014EoR/Analysis/ProcessedData/epoch5/omni_v4_xtalk/*xx.uvcRREc.median.fc.npz' # xx-pol
 #BADANTS_S1E1='2,10,15,22,31,33,42,43,47,58,64,72,91,97,105,107,8,16,34,84,85,100' # xx-pol
 #BADANTS_S1E2='8,16,34,84,85,100' # xx-pol
 #BADANTS_S2E2='8,16,24,34,38,53,63,74,85' # xx-pol
-BADANTS_S2E3='8,13,16,24,26,34,37,38,85,107' # xx-pol
+#BADANTS_S2E3='8,13,16,24,26,34,37,38,85,107' # xx-pol
 #BADANTS_S2E4='3,4,5,7,8,13,15,16,17,24,28,29,32,34,36,37,38,40,48,51,52,55,56,60,62,68,69,74,76,77,82,84,85,92,93,94,100,101,103,107,109,110' # xx-pol
 #BADANTS_S2E5='' # xx-pol
 
 ### YY-POL ###
-#POL='yy'
+POL='yy'
 #FIRSTCAL_S1E1='/data4/paper/2013EoR/Analysis/ProcessedData/epoch1/omni_v5_xtalk/*yy.uvcRREc.median.fc.npz' # yy-pol
 #FIRSTCAL_S1E2='/data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v5_xtalk/*yy.uvcRREc.median.fc.npz' # yy-pol
 #FIRSTCAL_S2E2='/data4/paper/2014EoR/Analysis/ProcessedData/epoch2/omni_v4_xtalk/*yy.uvcRREc.median.fc.npz' # yy-pol
-#FIRSTCAL_S2E3='/data4/paper/2014EoR/Analysis/ProcessedData/epoch3/omni_v5_xtalk/*yy.uvcRREc.median.fc.npz' # yy-pol
+FIRSTCAL_S2E3='/data4/paper/2014EoR/Analysis/ProcessedData/epoch3/omni_v5_xtalk/*yy.uvcRREc.median.fc.npz' # yy-pol
 #FIRSTCAL_S2E4='/data4/paper/2014EoR/Analysis/ProcessedData/epoch4/omni_v4_xtalk/*yy.uvcRREc.median.fc.npz' # yy-pol
 #FIRSTCAL_S2E5='/data4/paper/2014EoR/Analysis/ProcessedData/epoch5/omni_v4_xtalk/*yy.uvcRREc.median.fc.npz' # yy-pol
 #BADANTS_S1E1='2,10,15,22,31,33,42,43,47,58,64,72,91,97,105,107,100,56,7,84,16'
 #BADANTS_S1E2='7,16,56,84,100' # yy-pol
 #BADANTS_S2E2='7,34,56,81' # yy-pol
-#BADANTS_S2E3='7,15,16,17,26,34,56,82,107' # yy-pol
+BADANTS_S2E3='3,7,15,16,17,26,34,56,81,82,107' # yy-pol
 #BADANTS_S2E4='3,4,5,6,7,8,13,15,16,17,19,24,26,28,29,30,32,34,35,36,37,38,40,44,48,51,52,54,55,56,60,62,68,69,74,76,77,82,84,85,86,87,91,92,93,94,100,101,103,107,109,110' # yy-pol
 #BADANTS_S2E5='' # yy-pol
 
@@ -66,7 +66,7 @@ for f in ${ARGS}; do
         # Omni Apply
         ~/capo/omni/omni_apply.py -p ${POL} --omnipath /data4/paper/2013EoR/Analysis/ProcessedData/epoch2/omni_v5_xtalk/%s.npz --xtalk --ubls="0,3;0,2;0,1;-1,1;1,1;1,2;-1,2" --ba ${BADANTS_S1E2} ${f:29:28}F
         #echo deleting ${f:29:28}F
-        #rm -r ${f:29:28}F
+        rm -r ${f:29:28}F
     fi
     ### SEASON 2 ###
     if (( ${f:26:7} > 2456836 && ${f:26:7} < 2456875 )); then
