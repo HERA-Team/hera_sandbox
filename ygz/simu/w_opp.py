@@ -81,6 +81,14 @@ class OppSolver:
     #@profile
     def opp(self, bl1=None,bl2=None, bl1coords=None, bl2coords=None, rephase=0, delay=True, return_series=False, debug=False):
         #h = a.healpix.HealpixMap(nside=64
+        if rephase == 'auto':
+            maxres, _ = self.opp(bl1=bl1,bl2=bl2, bl1coords=bl1coords, bl2coords=bl2coords, 
+            rephase=0, delay=False, return_series=False)
+            slope = 0
+            bl1off = unwrap_phase(np.angle(maxres))
+            slope, intercept = np.polyfit(self.fqs, bl1off, 1)
+            return self.opp(bl1=bl1,bl2=bl2, bl1coords=bl1coords, bl2coords=bl2coords, 
+                rephase=slope, delay=True, return_series=return_series)
         if bl1coords:
             #convert meters to light seconds to work with fq in GHz
             bl1x, bl1y, bl1z = np.asarray(bl1coords)/a.const.len_ns * 100. 

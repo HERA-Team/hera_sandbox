@@ -10,7 +10,7 @@ plt.rc('axes', linewidth=2.5)
 #FILE = 'corr_res.csv'
 FILES = ['HERA_350_pm.csv', 'HERA_243_pm.csv', 'HERA_128_pm.csv', 'HERA_37_pm.csv','PAPER_128_pm.csv']
 FILES = ['HERA_350_all.csv', 'HERA_243_all.csv', 'HERA_128_all.csv', 'HERA_37_all.csv','PAPER_128_all.csv']
-FILES = ['HERA_350_pm.csv', 'HERA_128_pm.csv', 'PAPER_128_pm.csv']
+FILES = ['HERA_350_pm.csv', 'HERA_128_pm_rephs.csv', 'PAPER_128_pm.csv']
 LABELS = ['HERA350', 'HERA243', 'HERA128', 'HERA37', 'PAPER128']
 LABELS = ['HERA350', 'HERA128', 'PAPER128']
 
