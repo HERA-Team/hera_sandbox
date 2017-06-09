@@ -41,10 +41,10 @@ def get_bl_comb(dicts):
 	return combs
 combs = get_bl_comb(dicts)
 
-
-WS = w_opp.OppSolver(fqs=np.array([.15]), T1=np.arange(2456681.3, 2456681.7, 0.001), cal=CAL)
+fqs = np.linspace(.14, .16, 20)
+WS = w_opp.OppSolver(fqs=fqs, T1=np.arange(2456681.3, 2456681.7, 0.002), cal=CAL)
 print ',sep,sep2,dT,peak,mult'
-def run(i, comb):
+def run(i, comb, rephase='auto'):
 	#comb=(('40', (44, 26)), ('41', (44, 38)))
 	file = open(OUT, 'a')
 	key, key2 = comb[0][0], comb[1][0]
@@ -55,12 +55,12 @@ def run(i, comb):
 	try: mm = int(key2[0]); nn = int(key2[1])
 	except(ValueError):
 		mm = int(key2[0]); nn = int(key2[1:])
-	peak,dT = WS.opp(bl1=comb[0][1],bl2=comb[1][1])
+	peak,dT = WS.opp(bl1=comb[0][1],bl2=comb[1][1], rephase=rephase)
 	line = ', '.join([str(i), comb[0][0],comb[1][0],str(dT[0]),str(np.abs(peak[0])),str(mult(m,n,mm,nn))])
 	print line
 	file.write(line+'\n')
 	file.close()
 
-Parallel(n_jobs=4)(delayed(run)(i, comb) for i, comb in enumerate(combs))
+Parallel(n_jobs=2)(delayed(run)(i, comb) for i, comb in enumerate(combs))
 
 

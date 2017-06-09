@@ -8,7 +8,7 @@ from matplotlib import colors as mcolors
 from matplotlib.font_manager import FontProperties
 import seaborn as sns 
 sns.set_context("paper", font_scale=1.5)
-sns.set(style="ticks", color_codes=False,font='DejaVu Serif', font_scale=1.5)
+sns.set(style="darkgrid", color_codes=False,font='DejaVu Serif', font_scale=1.5)
 plt.rc('axes', linewidth=1.5)
 font = FontProperties()
 # font.set_weight('bold')
@@ -46,7 +46,7 @@ if LEGEND:
 	legend = ax.legend(ncol=4, scatterpoints=1, frameon=False,fontsize = 'x-small')
 	legend.get_frame().set_facecolor('none')
 
-ax.grid()
+#ax.grid()
 #ax.set_xlabel('Time Delay [Sidereal Day]')
 ax.set_ylabel('Correlation')
 ax.set_xlim([-0.01, 0.21])
@@ -66,7 +66,7 @@ if LEGEND:
 	legend = ax2.legend(ncol=4, scatterpoints=1, frameon=False, fontsize = 'x-small')
 	legend.get_frame().set_facecolor('none')
 
-ax2.grid()
+#ax2.grid()
 ax2.set_xlabel('Time Delay [Sidereal Day]')
 ax2.set_ylabel('Weighted Correlation')
 #plt.tight_layout()
