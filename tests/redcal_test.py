@@ -128,8 +128,7 @@ class TestRedundantInfo(unittest.TestCase):
         NANTS = 18
         reds = build_reds(NANTS)
         info = om.RedundantInfo(reds)
-        #gains,d = om.sim_red_data(reds, ['xx'], gain_scatter=.01) # XXX causes svd error
-        gains,d = om.sim_red_data(reds, ['xx'], gain_scatter=.0099999)
+        gains,d = om.sim_red_data(reds, ['xx'], gain_scatter=.01)
         w = dict([(k,1.) for k in d.keys()])
         sol0 = dict([(k,np.ones_like(v)) for k,v in gains.items()])
         sol0.update(info.compute_ubls(d,sol0))
