@@ -8,12 +8,12 @@ from matplotlib import colors as mcolors
 from matplotlib.font_manager import FontProperties
 import seaborn as sns 
 sns.set_context("paper", font_scale=1.5)
-sns.set(style="darkgrid", color_codes=False,font='DejaVu Serif', font_scale=1.5)
+sns.set(style="ticks", color_codes=False,font='DejaVu Serif', font_scale=1.5)
 plt.rc('axes', linewidth=1.5)
 font = FontProperties()
 # font.set_weight('bold')
 # font.set_size('large')
-FILE = 'corr_res.csv'
+FILE = 'corr_res_rephs.csv'
 #FILE = 'HERA_350_core_pm300.csv'
 LEGEND = True
 
@@ -67,7 +67,7 @@ if LEGEND:
 	legend.get_frame().set_facecolor('none')
 
 #ax2.grid()
-ax2.set_xlabel('Time Delay [Sidereal Day]')
+ax2.set_xlabel('Time Offset [Sidereal Day]')
 ax2.set_ylabel('Weighted Correlation')
 #plt.tight_layout()
 f.subplots_adjust(hspace=0.02,bottom=0.2)

@@ -18,7 +18,7 @@ a128_dict4 = {'40':(44,26),'41':(44,38)}
 #dicts = [ant_dict1,ant_dict2,ant_dict3,ant_dict4]
 dicts = [a128_dict1,a128_dict2,a128_dict3,a128_dict4]
 CAL = 'psa6622_v003'
-OUT = 'corr_res.csv'
+OUT = 'corr_res_rephs.csv'
 file = open(OUT, 'w')
 file.write(',sep,sep2,dT,peak,mult\n')
 file.close()
@@ -61,6 +61,6 @@ def run(i, comb, rephase='auto'):
 	file.write(line+'\n')
 	file.close()
 
-Parallel(n_jobs=2)(delayed(run)(i, comb) for i, comb in enumerate(combs))
+Parallel(n_jobs=6)(delayed(run)(i, comb) for i, comb in enumerate(combs))
 
 
