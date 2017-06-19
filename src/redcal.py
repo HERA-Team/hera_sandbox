@@ -43,10 +43,10 @@ def get_reds(antpos, precisionFactor=1000000):
     return [reds[delta] for delta in orderedDeltas]
 
 class RedundantCalibrator:
-    def __init__(self, reds, antpos, stokes_v=True):
+    def __init__(self, reds, antpos, stokes_v_indep=True):
         """Initializes based on list of lists of tuples of antenna indices in the order so that each sublist has only redundant pairs.
         Also takes a dictionary of antenna positions in the form {ant_index: np.array([x,y,z])}."""
-        self.reds, self.antpos, self.stokes_v = reds, antpos, stokes_v
+        self.reds, self.antpos, self.stokes_v_indep = reds, antpos, stokes_v_indep
     
     def build_eqs(self, bls, pols):
         eqs = {}
@@ -75,7 +75,7 @@ class RedundantCalibrator:
         return solver(data=d_ls, wgts=w_ls, sparse=sparse, **kwargs)
     
     def pack_eqs_key(self, ant_i, pol_i, ant_j, pol_j, ubl_num):
-        if self.stokes_v: pol = pol_i + pol_j
+        if self.stokes_v_indep: pol = pol_i + pol_j
         else: pol = ''.join(sorted([pol_i,pol_j])) # make xy and yx the same
         return 'g%d%s * g%d%s_ * u%d%s' % (ant_i,pol_i,ant_j,pol_j,ubl_num,pol)
     
