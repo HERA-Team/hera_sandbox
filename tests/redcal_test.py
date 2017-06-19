@@ -22,7 +22,7 @@ class TestMethods(unittest.TestCase):
     def test_sim_red_data(self):
         reds,antpos = build_reds_linear(10)
         pols = ['xx']
-        gains, true_vis, data = om.sim_red_data(reds, pols, stokes_v=True)
+        gains, true_vis, data = om.sim_red_data(reds, pols, stokes_v_indep=True)
         self.assertEqual(len(gains), 10)
         self.assertEqual(len(data), 45)
         for bls in reds:
@@ -34,7 +34,7 @@ class TestMethods(unittest.TestCase):
                 ans = data[bl+('xx',)] / (gains[(ai,'x')] * gains[(aj,'x')].conj())
                 np.testing.assert_almost_equal(ans0, ans, 7)
         pols = ['xx','yy','xy','yx']
-        gains, true_vis, data = om.sim_red_data(reds, pols, stokes_v=True)
+        gains, true_vis, data = om.sim_red_data(reds, pols, stokes_v_indep=True)
         self.assertEqual(len(gains), 20)
         self.assertEqual(len(data), 4*(45))
         for bls in reds:
@@ -54,7 +54,7 @@ class TestMethods(unittest.TestCase):
                 np.testing.assert_almost_equal(ans0xy, ans_xy, 7)
                 np.testing.assert_almost_equal(ans0yx, ans_yx, 7)
                 np.testing.assert_almost_equal(ans0yy, ans_yy, 7)
-        gains, true_vis, data = om.sim_red_data(reds, pols, stokes_v=False)
+        gains, true_vis, data = om.sim_red_data(reds, pols, stokes_v_indep=False)
         self.assertEqual(len(gains), 20)
         self.assertEqual(len(data), 4*(45))
         for bls in reds:
@@ -96,7 +96,7 @@ class TestRedundantCalibrator(unittest.TestCase):
         self.assertEqual(eqs['g1y * g0x_ * u0yx'], (1,0,'yx'))
         self.assertEqual(eqs['g2y * g1x_ * u0yx'], (2,1,'yx'))
         self.assertEqual(eqs['g2y * g0x_ * u1yx'], (2,0,'yx'))
-        info = om.RedundantCalibrator(reds, antpos,stokes_v=False)
+        info = om.RedundantCalibrator(reds, antpos,stokes_v_indep=False)
         eqs = info.build_eqs(bls, pols)
         self.assertEqual(len(eqs), 3*4)
         self.assertEqual(eqs['g1x * g0y_ * u0xy'], (1,0,'xy'))

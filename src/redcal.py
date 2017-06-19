@@ -1,26 +1,25 @@
-import capo
-import capo.linsolve as ls
+from capo import metrics, oqe, linsolve
 import numpy as np
 from copy import deepcopy
 
-def sim_red_data(reds, pols, gains=None, stokes_v=True, shape=(10,10), gain_scatter=.1):
+def sim_red_data(reds, pols, gains=None, stokes_v_indep=True, shape=(10,10), gain_scatter=.1):
     data, true_vis = {}, {}
-    if not stokes_v: assert('xy' in pols and 'yx' in pols)
+    if not stokes_v_indep: assert('xy' in pols and 'yx' in pols)
     bls = reduce(lambda x,y: x+y, reds)
     ants = set(reduce(lambda x,y: x+y, bls))
     if gains is None: gains = {}
     else: gains = deepcopy(gains)
     for ai in ants:
         for pol in pols:
-            gains[(ai,pol[0])] = gains.get((ai,pol[0]), 1+gain_scatter*capo.oqe.noise((1,))) * np.ones(shape,dtype=np.complex)
-            gains[(ai,pol[1])] = gains.get((ai,pol[1]), 1+gain_scatter*capo.oqe.noise((1,))) * np.ones(shape,dtype=np.complex)
+            gains[(ai,pol[0])] = gains.get((ai,pol[0]), 1+gain_scatter*oqe.noise((1,))) * np.ones(shape,dtype=np.complex)
+            gains[(ai,pol[1])] = gains.get((ai,pol[1]), 1+gain_scatter*oqe.noise((1,))) * np.ones(shape,dtype=np.complex)
     for bls in reds:
         for pol in pols:
-            vis = capo.oqe.noise(shape)
+            vis = oqe.noise(shape)
             true_vis[bls[0]+(pol,)] = vis
             for bl in bls:
                 data[bl+(pol,)] = vis * gains[(bl[0],pol[0])] * gains[(bl[1],pol[1])].conj()
-                if not stokes_v:
+                if not stokes_v_indep:
                     data[bl+(pol[::-1],)] = vis * gains[(bl[0],pol[1])] * gains[(bl[1],pol[0])].conj()
     return gains, true_vis, data
 
@@ -58,7 +57,7 @@ class RedundantCalibrator:
         return eqs
     
     def _solver(self, solver, data, wgts={}, detrend_phs=False, sparse=False, **kwargs):
-        dc = capo.metrics.DataContainer(data)
+        dc = metrics.DataContainer(data)
         eqs = self.build_eqs(dc.bls(), dc.pols())
         self.phs_avg = {} # detrend phases within redundant group, used for logcal to avoid phase wraps
         if detrend_phs:
@@ -70,7 +69,7 @@ class RedundantCalibrator:
         for eq,key in eqs.items():
             d_ls[eq] = dc[key] * self.phs_avg.get(key,1)
         if len(wgts) > 0:
-            wc = capo.metrics.DataContainer(wgts)
+            wc = metrics.DataContainer(wgts)
             for eq,key in eqs.items(): w_ls[eq] = wc[key]
         return solver(data=d_ls, wgts=w_ls, sparse=sparse, **kwargs)
     
@@ -93,7 +92,7 @@ class RedundantCalibrator:
             return 'u%d%s' % (ubl_num, k[-1])
     
     def compute_ubls(self, data, gain_sols):
-        dc = capo.metrics.DataContainer(data)
+        dc = metrics.DataContainer(data)
         ubl_sols = {}
         for ubl, blgrp in enumerate(self.reds):
             for pol in dc.pols():
@@ -103,7 +102,7 @@ class RedundantCalibrator:
         return ubl_sols
     
     def logcal(self, data, wgts={}, sparse=False):
-        ls = self._solver(capo.linsolve.LogProductSolver, data, wgts=wgts, detrend_phs=True, sparse=sparse)
+        ls = self._solver(linsolve.LogProductSolver, data, wgts=wgts, detrend_phs=True, sparse=sparse)
         sol = ls.solve()
         sol = {self.unpack_sol_key(k): sol[k] for k in sol.keys()}
         for ubl_key in [k for k in sol.keys() if len(k) == 3]:
@@ -113,7 +112,7 @@ class RedundantCalibrator:
     def lincal(self, data, sol0, wgts={}, sparse=False, conv_crit=1e-10, maxiter=50): # XXX use itersolve eventually
         #sol0 = dict(zip([self.pack_sol_key(k) for k in sol0.keys()],sol0.values()))
         sol0 = {self.pack_sol_key(k):sol0[k] for k in sol0.keys()}
-        ls = self._solver(capo.linsolve.LinProductSolver, data, sol0=sol0, wgts=wgts, sparse=sparse)
+        ls = self._solver(linsolve.LinProductSolver, data, sol0=sol0, wgts=wgts, sparse=sparse)
         meta, sol = ls.solve_iteratively(conv_crit=conv_crit, maxiter=maxiter)
         return meta, {self.unpack_sol_key(k):sol[k] for k in sol.keys()}
     
