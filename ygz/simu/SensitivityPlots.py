@@ -8,11 +8,11 @@ sns.set_context("paper")
 plt.rc('axes', linewidth=2.5)
 
 #FILE = 'corr_res.csv'
-FILES = ['HERA_350_pm.csv', 'HERA_243_pm.csv', 'HERA_128_pm.csv', 'HERA_37_pm.csv','PAPER_128_pm.csv']
-FILES = ['HERA_350_all.csv', 'HERA_243_all.csv', 'HERA_128_all.csv', 'HERA_37_all.csv','PAPER_128_all.csv']
-FILES = ['HERA_350_pm.csv', 'HERA_128_pm_rephs.csv', 'PAPER_128_pm.csv']
-LABELS = ['HERA350', 'HERA243', 'HERA128', 'HERA37', 'PAPER128']
-LABELS = ['HERA350', 'HERA128', 'PAPER128']
+#FILES = ['HERA_350_pm.csv', 'HERA_243_pm.csv', 'HERA_128_pm.csv', 'HERA_37_pm.csv','PAPER_128_pm.csv']
+#FILES = ['HERA_350_all.csv', 'HERA_243_all.csv', 'HERA_128_all.csv', 'HERA_37_all.csv','PAPER_128_all.csv']
+FILES = ['PAPER_128_pm.csv', 'HERA_350_pm.csv', 'HERA_128_pm.csv']
+#LABELS = ['HERA350', 'HERA243', 'HERA128', 'HERA37', 'PAPER128']
+LABELS = ['PAPER128','HERA350', 'HERA128']
 
 #FILES = FILES[::-1]; LABELS = LABELS [::-1]
 def gen_color(l=1):
@@ -40,8 +40,11 @@ def pairplot(Theta_min=0):
 
 	df = pd.concat(dflist)
 	plt.locator_params(axis='x', nticks=10)
-	g = sns.pairplot(df,hue='Array',vars=['$dT$','$\Theta$','$\widetilde{\Theta}$','$L$'],
+	g = sns.pairplot(df,hue='Array',vars=['$dT$','$\widetilde{\Theta}$','$L$'],
 		plot_kws={'alpha':0.4, "s":30}, diag_kws={'histtype':"step", "linewidth":3})
+	for i, j in zip(*np.triu_indices_from(g.axes, 1)):
+		g.axes[i, j].set_visible(False)
+	plt.legend(loc=2)
 
 	# g = sns.PairGrid(df,hue='Array',vars=['$dT$','$\Theta$','$\widetilde{\Theta}$','$L$'])
 	# g = g.map_diag(plt.hist, histtype="step", linewidth=3)
@@ -50,16 +53,16 @@ def pairplot(Theta_min=0):
 	# g = g.map_lower(plt.scatter, alpha=0.5, s=30)
 	# g = g.add_legend()
 
-	# ax0 = g.axes[0,0]
-	# start, end = ax0.get_xlim()
-	# start+=0.01; end+=0.01
-	# ax0.set_xticks(np.linspace(start, end, 3))
-	# ax1 = g.axes[0,1]
-	# start, end = ax1.get_xlim()
-	# ax1.set_xticks(np.linspace(start, end, 3))
-	# ax2 = g.axes[0,2]
-	# start, end = ax2.get_xlim()
-	# ax2.set_xticks(np.linspace(start, end, 3))
+	ax0 = g.axes[0,0]
+	start, end = ax0.get_xlim()
+	start+=0.01; end+=0.01
+	ax0.set_xticks(np.linspace(start, end, 3))
+	ax1 = g.axes[0,1]
+	start, end = ax1.get_xlim()
+	ax1.set_xticks(np.linspace(start, end, 3))
+	ax2 = g.axes[0,2]
+	start, end = ax2.get_xlim()
+	ax2.set_xticks(np.linspace(start, end, 3))
 	# ax3 = g.axes[0,3]
 	# start, end = ax3.get_xlim()
 	# ax3.set_xticks(np.linspace(start, end, 3))
@@ -113,7 +116,7 @@ def sensplot():
 
 if __name__=="__main__":
 	sensplot()
-	pairplot(0.1)
+	pairplot(0.01)
 
 	plt.show()
 	#import IPython; IPython.embed()
