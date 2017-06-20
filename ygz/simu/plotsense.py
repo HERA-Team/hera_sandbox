@@ -15,8 +15,12 @@ a128_dict1 = {'10':(103,26),'11':(103,38),'12':(103,50),'13':(103,23),'14':(103,
 a128_dict2 = {'20':(0,26),'21':(0,38),'22':(0,50),'23':(0,23)}
 a128_dict3 = {'30':(102,26),'31':(102,38),'32':(102,50)}
 a128_dict4 = {'40':(44,26),'41':(44,38)}
+a128_dict1 = {'10':(103,26),'11':(103,38),'12':(103,50),'13':(103,23)}
+a128_dict2 = {'20':(0,26),'21':(0,38),'22':(0,50),'23':(0,23)}
+a128_dict3 = {'30':(102,26),'31':(102,38),'32':(102,50), '33':(102,23)}
+#a128_dict4 = {'40':(44,26),'41':(44,38)}
 #dicts = [ant_dict1,ant_dict2,ant_dict3,ant_dict4]
-dicts = [a128_dict1,a128_dict2,a128_dict3,a128_dict4]
+dicts = [a128_dict1,a128_dict2,a128_dict3]
 CAL = 'psa6622_v003'
 OUT = 'corr_res_rephs.csv'
 file = open(OUT, 'w')
@@ -27,8 +31,8 @@ def mult(m,n,mm,nn, cal=128):
 		base = (16-abs(m))*(7-abs(n))*(16-abs(mm))*(7-abs(nn))
 	else:
 		base = (8-abs(m))*(8-abs(n))*(8-abs(mm))*(8-abs(nn))
-	if abs(n) != abs(nn):
-		base *= 2
+	# if abs(n) != abs(nn):
+	# 	base *= 2
 	return base
 def get_bl_comb(dicts):
 	combs = []
