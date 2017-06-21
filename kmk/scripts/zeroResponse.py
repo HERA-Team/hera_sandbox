@@ -18,18 +18,18 @@ def calcFreq(array, ij, ref_ij, ref_freq, min_freq, max_freq):
     """ calculates nuCal frequencies (in GHz) based on an initial frequency, reference baseline, 
         and input baseline. must include min and max frequencies for array in order to
         ensure that calculated frequencies are legal. """
-<<<<<<< HEAD
+
     bl = bl2delay(array, ij)
     ref_bl = bl2delay(array, ref_ij)
     f = ref_freq * (ref_bl / bl)
     assert(max_freq >= f >= min_freq)
-=======
+
     i, j = a.miriad.bl2ij(bl)
     bl = aa.get_baseline(i, j)
     bl = np.sqrt(np.dot(bl, bl))
     f = ref_freq * (ref_bl / baseline)
     assert(max_freq >= f >= min_freq) # check for invalid freq
->>>>>>> acc5d41f1b85003fefd93ae51bdd5e0a4d7bff48
+
     return f
 
 def makeFlatMap(nside, freq, Tsky=1.0):
@@ -47,7 +47,6 @@ def hpm_TtoJy(hpm, freq):
     hpm.map *= (4*np.pi/hpm.npix())*2*a.const.k/wvlen**2 # convert to Jy to make summable
     return hpm
 
-<<<<<<< HEAD
 def makeGSM(path, nside, freq):
         gsmMap = a.healpix.HealpixMap(nside=nside)
         g = a.healpix.HealpixMap(nside=512)
@@ -55,7 +54,7 @@ def makeGSM(path, nside, freq):
         g = hpm_TtoJy(g, freq=freq)
         gsmMap.from_hpm(g)
         return gsmMap
-=======
+
 def makeGSM(path, filename, sfreq, sdf, num):
     """ runs the MIT multi-frequency global sky model simulation at given frequencies 
 
@@ -79,7 +78,6 @@ def makeGSM(path, filename, sfreq, sdf, num):
 
 class GSMMap(a.healpix.HealpixMap):
     def from_fits(self, filename):
-        
 
 def makeGSMMap(array, nside, filename, freq, path='/home/kara/capo/kmk/gsm/gsm_raw/'):
     """ create a Healpix map of a given size filled with a simulated global sky model
@@ -98,8 +96,6 @@ def makeGSMMap(array, nside, filename, freq, path='/home/kara/capo/kmk/gsm/gsm_r
     ga2eq2top = np.dot(eq2top, ga2eq)
     i, j, k = ijk = np.dot(ga2eq2top,gsm.px2crd(np.arange(gsm.npix()))) #topocentric
     return gsm
-
->>>>>>> acc5d41f1b85003fefd93ae51bdd5e0a4d7bff48
 
 def extractData(uv):
     """ create arrays for visibilities for each baseline in uv data file for 
@@ -149,13 +145,12 @@ def calcVis(aa, hpm, ij, freq, ha):
     return vis
 
 if __name__ == '__main__':
-<<<<<<< HEAD
+
     import matplotlib.pylab as pl
     import optparse, sys
-=======
+
     import optparse, sys
     import matplotlib.pylab as pl
->>>>>>> acc5d41f1b85003fefd93ae51bdd5e0a4d7bff48
 
     o = optparse.OptionParser()
     o.add_option('--sim_dir', default='/home/kara/capo/kmk/scripts/')
@@ -163,19 +158,16 @@ if __name__ == '__main__':
     o.add_option('--data_file', default='zen.2456895.51490.xx.uvcRRE')
     o.add_option('--calfile', default='test')
     o.add_option('--gsm_dir', default='/home/kara/capo/kmk/gsm/gsm_raw/')
-<<<<<<< HEAD
+
     o.add_option('--fileout', default='sim_results.uv')
 
-=======
-    
->>>>>>> acc5d41f1b85003fefd93ae51bdd5e0a4d7bff48
     opts,args = o.parse_args(sys.argv[1:])
     sim_dir = opts.sim_dir
     data_dir = opts.data_dir
     data_file = opts.data_file
     calfile = opts.calfile
     gsm_dir = opts.gsm_dir
-<<<<<<< HEAD
+
     fileout = opts.fileout
 
     # select 150 MHz and 160 MHz for u-mode calibration test
@@ -183,19 +175,17 @@ if __name__ == '__main__':
     aa = a.cal.get_aa(calfile, np.array([freq]))
 
     flatSky = makeFlatMap(nside=64, Tsky=1.0, freq=freq)
-=======
 
     # select 150 MHz and 160 MHz for u-mode calibration test
     freq = 0.100
 
     flatSky = makeFlatMap(nside=64, Tsky=1.0, freq=freq)
     xyz = flatSky.px2crd(np.arange(flatSky.npix())) #topocentric
->>>>>>> acc5d41f1b85003fefd93ae51bdd5e0a4d7bff48
 
     # create array of baselines
     test_ants = '(64)_(29,24,28,55,34,27,51,57)'
     parsed_ants = a.scripting.parse_ants(test_ants,8)
-<<<<<<< HEAD
+
     ij = []
     for i in xrange(len(parsed_ants)):
         ij.append(a.miriad.bl2ij(parsed_ants[i][0]))
@@ -230,7 +220,6 @@ if __name__ == '__main__':
             sim_data.write(preamble, vis_data)
             print "data written"
 
-=======
     bl = []
     for i in xrange(len(parsed_ants)):
         bl.append(parsed_ants[i][0])
@@ -260,4 +249,4 @@ if __name__ == '__main__':
     np.array(sim_data)
     np.savez(sim_dir+'sim_output',sim_data)
     print sim_data
->>>>>>> acc5d41f1b85003fefd93ae51bdd5e0a4d7bff48
+
