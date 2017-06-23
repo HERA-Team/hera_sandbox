@@ -5,7 +5,6 @@ from matplotlib import rc
 rc('text',usetex=True)
 rc('font', size=16)
 
-#HAAACK HACK HACK HACK HACK
 def dk_du(z):
     '''2pi * [h Mpc^-1] / [wavelengths]'''
     return 2*n.pi / C.pspec.dL_dth(z)
@@ -115,16 +114,31 @@ axis = fig.add_subplot(111)
 
 wfall = wfall.T
 #multiply by 2 for beam cludge
-p.imshow(n.log10(2*n.abs(wfall)),aspect='auto',interpolation='nearest',extent=(0,kprs[-1],0,n.max(kpl)),vmin=11,vmax=20)
-cb = p.colorbar(orientation='horizontal',pad=.125,ticks=[11,13,15])
+#p.imshow(n.log10(2*n.abs(wfall)),aspect='auto',interpolation='nearest',extent=(0,kprs[-1],0,n.max(kpl)),vmin=11,vmax=20)
+#p.imshow(n.log10(2*n.abs(wfall)),interpolation='nearest',extent=(0,kprs[-1],0,n.max(kpl)),vmin=11,vmax=15,cmap='gray')
+p.imshow(n.log10(2*n.abs(wfall)),interpolation='nearest',extent=(0,kprs[-1],0,n.max(kpl)),vmin=11,vmax=15)
+#cb = p.colorbar(orientation='horizontal',pad=.125,ticks=[11,13,15])
+cb = p.colorbar(ticks=[11,13,15])
 cb.set_label(r'${\rm log_{10}}[{\rm mK}^2 (h^{-1}{\rm Mpc})^3]$', size=12)
 
 #save wedge data to npz
-n.savez('wedgedata.npz',data=n.log10(2*n.abs(wfall)),kprs=kprs,kpls=kpl)
+#n.savez('wedgedata.npz',data=n.log10(2*n.abs(wfall)),kprs=kprs,kpls=kpl)
 
 #p.plot(kprs,hors,'.',lw=2,color='white')
 p.scatter(kprs,hors,s=1,color='black')
 #p.plot(kprs,phors,'.',lw=2,color='orange')
+
+kcircs = n.arange(0.,0.5,0.05)
+for kcirc in kcircs:
+    kperps = n.linspace(0.,kcirc,1000.)
+    kpls = []
+    for kperp in kperps:
+        if not kperp > kcirc:
+            kpl = n.sqrt(kcirc**2 - kperp**2)
+            kpls.append(kpl)
+    kperps,kpls = n.array(kperps),n.array(kpls)
+    p.plot(kperps,kpls,color='white')
+    
 
 query = DataQuery(fig,bls)
 
@@ -132,8 +146,10 @@ query = DataQuery(fig,bls)
 p.title(r'${\rm log}_{10}[P(k)]$')
 p.ylabel(r'$k_{\parallel}\ [h{\rm Mpc}^{-1}]$')
 p.xlabel(r'$k_{\perp}\ [h{\rm Mpc}^{-1}]$')
-p.xticks([0,0.04,0.08,0.12])
-p.ylim(0,1)
+#p.xticks([0,0.04,0.08,0.12])
+p.xticks([0,0.06,0.12])
+#p.ylim(0,1)
+p.ylim(0,.5)
 p.xlim(0,.12)
 
 #ay2 = p.twiny()
@@ -146,4 +162,6 @@ p.xlim(0,.12)
 #p.text(.5,1.15,title,horizontalalignment='center',transform=ay2.transAxes)
 
 
+#p.savefig('data-wedge.eps', format='eps', dpi=250)
+#p.savefig('data-wedge-gray.eps', format='eps', dpi=500)
 p.show()

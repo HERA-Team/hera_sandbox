@@ -43,14 +43,20 @@ def gen_lstbinphs(aa, i, j, lst_res=40.):
     zen.compute(aa); zenb.compute(aa)
     return aa.gen_phs(zenb, i, j) * aa.gen_phs(zen, i, j).conj()
 
-def phs2lstbin(data, aa, i, j, times=None, lst_res=40.):
-    if times is None: return data * gen_lstbinphs(aa, i, j, lst_res=lst_res)
-    assert(len(times) == data.shape[0])
-    d = n.empty_like(data)
-    for ti,jd in enumerate(times):
-        aa.set_jultime(jd)
-        d[ti] = data[ti] * gen_lstbinphs(aa, i, j, lst_res=lst_res)
-    return d
+def phs2lstbin(data, aa, i, j, jds=None, lst_res=40.):
+    '''Phase data to the closest lst bin, which is the point that transits zenith
+    at the sidereal time corresponding to the center of an lst bin.'''
+    if data.ndim == 1:
+        if jds is not None: aa.set_jultime(jds)
+        return data * gen_lstbinphs(aa, i, j, lst_res=lst_res)
+    elif data.ndim == 2:
+        assert(len(jds) == data.shape[0])
+        d = n.empty_like(data)
+        for i,jd in enumerate(jds):
+            aa.set_jultime(jd)
+            d[i] = data[i] * gen_lstbinphs(aa, i, j, lst_res=lst_res)
+        return d
+    else: raise ValueError('data must be a 1D or 2D array')
 
 def gen_phs2lstbin_mfunc(aa, lst_res=40.):
     def mfunc(uv, p, d, f):

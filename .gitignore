@@ -1,3 +1,6 @@
+.DS_Store
+*.pyc
+*.png
 build
 *pyc
 .*.swp
@@ -9,5 +12,12 @@ kmk/data
 kmk/calfiles
 jsd/uCal/Data
 jsd/uCal/Old
-.DS_Store
+jsd/uCal/VisibilitySimulator/GSMComponents
+jsd/uCal/VisibilitySimulator/SimulatedVisibilities
+jsd/scripts/HexArray/Figures
+*DS_Store
+*.pdf
 .ipynb_checkpoints
+*.uvc*
+.DS_Store
+*.npz
