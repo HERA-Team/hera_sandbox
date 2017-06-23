@@ -40,6 +40,14 @@ def makeFlatMap(nside, freq, Tsky=1.0):
     print "flat map size = " + str(hpm.map.shape)
     return hpm_TtoJy(hpm, freq)
 
+def makeSynchMap(nside, freq=0.150):
+    """ fill sky map of given size and frequency with flat temperature across whole sky based on synchrotron spectrum,
+        returns map in Janskys. """
+    hpm = a.healpix.HealpixMap(nside=nside)
+    Tsky = 237 * (freq/0.150)**-2.5
+    hpm.map = Tsky*np.ones(shape = hpm.map.shape)
+    print "flat map size = " + str(hpm.map.shape)
+    return hpm_TtoJy(hpm, freq)
 def hpm_TtoJy(hpm, freq):
     """ converts given Healpix map from brightness temperature to Janskys, provided map
         frequency """
@@ -55,29 +63,31 @@ def makeGSM(path, nside, freq):
         gsmMap.from_hpm(g)
         return gsmMap
 
-def makeGSM(path, filename, sfreq, sdf, num):
-    """ runs the MIT multi-frequency global sky model simulation at given frequencies 
+#def makeGSM(path, filename, sfreq, sdf, num):
+#    """ runs the MIT multi-frequency global sky model simulation at given 
+#    frequencies 
 
-        required input variables:
-        path: provides pathname to gsmmf.sh -- need to be in this directory to run sim
-        filename: desired output filenames for GSM maps
-        sfreq: desired starting frequency for your GSM maps
-        sdf: desired frequency spacings of maps
-        num: desired number of maps produced 
+#        required input variables:
+#        path: provides pathname to gsmmf.sh -- need to be in this directory to 
+#        run sim
+#        filename: desired output filenames for GSM maps
+#        sfreq: desired starting frequency for your GSM maps
+#        sdf: desired frequency spacings of maps
+#        num: desired number of maps produced 
         
-        GSM simulator can be downloaded at 
-        <<http://space.mit.edu/~angelica/gsm/index.html>> """
-    os.chdir(path)
-    os.system('rm -rf args.dat')
-    f = open('args.dat', 'w')
-    s = "%s %f %f %d" % (filename, sfreq, sdf, num)
-    print s
-    f.write(s)
-    f.close()
-    os.system(path+'gsmmf.sh')
+#        GSM simulator can be downloaded at 
+#        <<http://space.mit.edu/~angelica/gsm/index.html>> """
+#    os.chdir(path)
+#    os.system('rm -rf args.dat')
+#    f = open('args.dat', 'w')
+#    s = "%s %f %f %d" % (filename, sfreq, sdf, num)
+#    print s
+#    f.write(s)
+#    f.close()
+#    os.system(path+'gsmmf.sh')
 
-class GSMMap(a.healpix.HealpixMap):
-    def from_fits(self, filename):
+#class GSMMap(a.healpix.HealpixMap):
+#    def from_fits(self, filename):
 
 def makeGSMMap(array, nside, filename, freq, path='/home/kara/capo/kmk/gsm/gsm_raw/'):
     """ create a Healpix map of a given size filled with a simulated global sky model
