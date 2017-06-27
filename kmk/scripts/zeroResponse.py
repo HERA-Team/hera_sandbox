@@ -51,8 +51,8 @@ def makeSynchMap(nside, freq=0.150):
 def hpm_TtoJy(hpm, freq):
     """ converts given Healpix map from brightness temperature to Janskys, provided map
         frequency """
-    wvlen = a.const.c / freq
-    hpm.map *= 1e-23*(4*np.pi/hpm.npix())*2*a.const.k/wvlen**2 # convert to Jy to make summable
+    wvlen = a.const.c / (freq*1e9)
+    hpm.map *= 1e23*(4*np.pi/hpm.npix())*2*a.const.k/wvlen**2 # convert to Jy to make summable
     return hpm
 
 def makeGSM(path, nside, freq):
