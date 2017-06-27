@@ -52,8 +52,8 @@ def hpm_TtoJy(hpm, freq):
     """ converts given Healpix map from brightness temperature to Janskys, provided map
         frequency """
     wvlen = a.const.c / freq
-    hpm.map *= (4*np.pi/hpm.npix())*2*a.const.k/wvlen**2 # convert to Jy to make summable
-    return hpm / 1e-23
+    hpm.map *= 1e-23*(4*np.pi/hpm.npix())*2*a.const.k/wvlen**2 # convert to Jy to make summable
+    return hpm
 
 def makeGSM(path, nside, freq):
         gsmMap = a.healpix.HealpixMap(nside=nside)
