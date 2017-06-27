@@ -8,9 +8,9 @@ PLOT = True
 #fqs = np.linspace(.1,.2,203)
 class OppSolver:
     '''uses convolution to compute Opp for two visibilities, thus need to obtain two
-    time series'''
+    time series. This version permits '''
     #@profile
-    def __init__(self, fqs=np.linspace(.14,.16,20), T1=np.arange(2456681.4, 2456681.6, 0.001), cal='psa6622_v003', beam='PAPER', bandpass=None):
+    def __init__(self, fqs=np.array([.145,.155]), T1=np.arange(2456681.4, 2456681.6, 0.002), cal='psa6622_v003', beam='PAPER', bandpass=None):
         print 'Initializing Oppsolver'
         self.fqs = fqs
         self.cal = cal
