@@ -9,12 +9,9 @@ o.set_usage('plot_fc_stats.py [options] /path/to/JD')
 o.add_option('--suffix',dest='suffix',type='string',default='',help='This script will assume a psa128-type directory structure, with /path/to/JD/*uvcRRE files and /path/to/JD/fcal_xx_N/stats_N.txt files. A suffix will land after the fcal_xx_N, e.g. suffix="_allEW".')
 o.add_option('--round3',dest='round3',action='store_true',help='If there was a third round of firstcal-ing, choose this. Otherwise it assumes only 2 rounds.')
 
-print JD
-#I wish you could dynamically name variables in Python
-#dxx1 = np.loadtxt(JD+'/fcal_xx_1/stats_1.txt')
-#dxx2 = np.loadtxt(JD+'/fcal_xx_2/stats_2.txt')
-dxx1 = np.loadtxt(JD+'/stats_test2.txt')
-dxx2 = np.loadtxt(JD+'/stats_test2.txt')
+opts,args = o.parse_args(sys.argv[1:])
+assert(len(args)==1)
+JD = args[0] #this should be something like /data4/paper/2013EoR/2456678
 
 #stoopid python
 fcaldirs=['fcal_xx_1','fcal_xx_2','fcal_yy_1','fcal_yy_2']
@@ -25,10 +22,8 @@ if len(opts.suffix)>0:
         _fcaldirs.append(x+opts.suffix)
     fcaldirs = _fcaldirs
 
-#dyy1 = np.loadtxt(JD+'/fcal_yy_2/stats_1.txt')
-#dyy2 = np.loadtxt(JD+'/fcal_yy_2/stats_2.txt')
-dyy1 = np.loadtxt(JD+'/stats_test2.txt')
-dyy2 = np.loadtxt(JD+'/stats_test2.txt')
+#I wish you could dynamically name variables
+# ARP: you can: eval
 
 dxx1 = np.loadtxt(JD+'/%s/stats_1.txt'%fcaldirs[0])
 dxx2 = np.loadtxt(JD+'/%s/stats_2.txt'%fcaldirs[1])
@@ -84,6 +79,14 @@ npz_yy_1 = sorted(glob.glob(JD+'/*npz'))
 npz_yy_2 = sorted(glob.glob(JD+'/*npz'))
 
 
+npz_xx_1 = sorted(glob.glob(JD+'/%s/*npz'%fcaldirs[0]))
+npz_xx_2 = sorted(glob.glob(JD+'/%s/*npz'%fcaldirs[1]))
+npz_yy_1 = sorted(glob.glob(JD+'/%s/*npz'%fcaldirs[2]))
+npz_yy_2 = sorted(glob.glob(JD+'/%s/*npz'%fcaldirs[3]))
+if opts.round3:
+    npz_xx_3 = sorted(glob.glob(JD+'/%s/*npz'%fcaldirs[4]))
+    npz_yy_3 = sorted(glob.glob(JD+'/%s/*npz'%fcaldirs[5]))
+
 Dx1,Dy1,Dx2,Dy2,Dx3,Dy3 = {},{},{},{},{},{}
 
 Dlists = [Dx1,Dx2,Dy1,Dy2]
@@ -122,30 +125,46 @@ for k in Dx1.keys(): plt.plot(Dx1[k])
 plt.xlabel('File #')
 plt.ylabel('Delay')
 plt.suptitle('fc_xx_1',size=15)
-#plt.savefig(JD+'/fcal_xx_1/delay_per_file.png')
-plt.show()
-#plt.close()
+plt.savefig(JD+'/%s/delay_per_file.png'%fcaldirs[0])
+#plt.show()
+plt.close()
 
 for k in Dx2.keys(): plt.plot(Dx2[k])
 plt.xlabel('File #')
 plt.ylabel('Delay')
 plt.suptitle('fc_xx_2',size=15)
-#plt.savefig(JD+'/fcal_xx_2/delay_per_file.png')
-plt.show()
-#plt.close()
+plt.savefig(JD+'/%s/delay_per_file.png'%fcaldirs[1])
+#plt.show()
+plt.close()
+
+for k in Dx3.keys(): plt.plot(Dx3[k])
+plt.xlabel('File #')
+plt.ylabel('Delay')
+plt.suptitle('fc_xx_3',size=15)
+plt.savefig(JD+'/%s/delay_per_file.png'%fcaldirs[4])
+#plt.show()
+plt.close()
 
 for k in Dy1.keys(): plt.plot(Dy1[k])
 plt.xlabel('File #')
 plt.ylabel('Delay')
 plt.suptitle('fc_yy_1',size=15)
-#plt.savefig(JD+'/fcal_yy_1/delay_per_file.png')
-plt.show()
-#plt.close()
+plt.savefig(JD+'/%s/delay_per_file.png'%fcaldirs[2])
+#plt.show()
+plt.close()
 
 for k in Dy2.keys(): plt.plot(Dy2[k])
 plt.xlabel('File #')
 plt.ylabel('Delay')
 plt.suptitle('fc_yy_2',size=15)
-#plt.savefig(JD+'/fcal_yy_2/delay_per_file.png')
-plt.show()
-#plt.close()
+plt.savefig(JD+'/%s/delay_per_file.png'%fcaldirs[3])
+#plt.show()
+plt.close()
+
+for k in Dy3.keys(): plt.plot(Dy3[k])
+plt.xlabel('File #')
+plt.ylabel('Delay')
+plt.suptitle('fc_yy_3',size=15)
+plt.savefig(JD+'/%s/delay_per_file.png'%fcaldirs[5])
+#plt.show()
+plt.close()

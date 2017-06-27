@@ -1,0 +1,111 @@
+
+# 			SPECIFICATIONS FOR JOINT MAPMAKING AND POWER SPECTRUM ESTIMATION PIPELINE
+
+#########################################################################################################
+[Pipeline Settings]
+#########################################################################################################
+frequencyRange = 150 155
+
+
+
+#########################################################################################################
+[Array Settings]
+#########################################################################################################
+
+#FREQUENCY SETTINGS
+frequencyListFile: [MainDirectory]/InstrumentData/frequencyList.dat
+
+#ANTENNA AND INSTRUMENT SETTINGS
+useOnlyUniqueBaselines: true
+#WARNING: For now, setting this to false will break things.
+antennaPositionsFile: [MainDirectory]/InstrumentData/antenna_positions.dat
+allBaselinesListFile: [MainDirectory]/InstrumentData/all_baselines.dat
+allBaselinePairsListFile: [MainDirectory]/InstrumentData/all_baseline_pairs.dat
+uniqueBaselinesListFile: [MainDirectory]/InstrumentData/unique_baselines.dat
+baselineRedundancyFile: [MainDirectory]/InstrumentData/redundancy.dat
+antennaPairDictFile: [MainDirectory]/InstrumentData/antennaPairUniqueBaselineIndexDict.p
+arrayLat: -30.706267
+arrayLong: 21.321317
+
+#BEAM SETTINGS
+antennasHaveIdenticalBeams: true
+#WARNING: For now, setting this to false will break things.
+
+FITSbeam: true
+antPolList: X Y
+skyPolList: x y
+nPointings: 1
+beamFreqList: 100 110 120 130 140 150 160 170 180 190 200
+beamFileFormat: [MainDirectory]/InstrumentData/Beams/HERA-CST/HERA_DISH_paper_feed_cyl36_[freq]mhz_[antPol]_healpix.fits
+beamNSIDE = 128
+
+#FITSbeam: false
+#antPolList: X Y
+#skyPolList: x y
+#nPointings: 1
+#beamFreqList: 100 110 120 130 140 150 160 170 180 190 200
+#beamFileFormat: [MainDirectory]/InstrumentData/Beams/beam_[antIndex]_[antPol]_[skyPol]_[pointIndex]_[freq].npy
+#beamNSIDE = 64
+
+#########################################################################################################
+[Input Data Settings]
+#########################################################################################################
+
+#OBSERVATION SETTINGS
+LSTsFilename: [MainDirectory]/ObservationData/LSTs.dat
+PointingListFilename: [MainDirectory]/ObservationData/pointings.dat
+PointingCenterDictionaryFilename: [MainDirectory]/ObservationData/pointing_centers.p
+noisePerAntennaPath: [MainDirectory]/ObservationData/AntennaNoise/AntennaNoise_[freq]_MHz.npy
+
+#POINT SOURCE CATALOG SETTINGS
+pointSourceCatalogFilename: [MainDirectory]/ObservationData/mwacs_all_b3_140206.dat
+pointSourceReferenceFreq = 180
+pointSourceBeamWeightedFluxLimitAtReferenceFreq: 1
+#   in Jy
+
+#VISIBILITY SIMULATION SETTINGS
+simulateVisibilitiesWithGSM: true
+simulateVisibilitiesWithPointSources: false
+GSMlocation: [MainDirectory]/ObservationData/GSM/
+GSMNSIDE: 64
+
+#########################################################################################################
+[Mapmaking Specifications]
+#########################################################################################################
+
+#FACET SETTINGS
+facetRA: 50
+#60
+#50.6737
+#266.2417
+facetDec: -30.706267
+facetSize: 10
+SquareFacetInRADec: False
+MaximumAllowedAngleFromFacetCenterToPointingCenter: .02
+
+#MAPMAKING AND PSF SETTINGS
+mapNSIDE: 64
+integrationsPerSnapshot = 1
+PSFforPointSources = true
+PSFextensionBeyondFacetFactor = 1
+#Only relevant if not using adaptive HEALPix
+
+useAdaptiveHEALPixForPSF = true
+adaptiveHEALPixMinNSIDE = 4
+adaptiveHEALPixReferenceFreq = 150
+adaptiveHEALPixBeamPowerScaling = 1
+makeFacetSameAsAdaptivePSF = true
+
+
+
+#POLARIZATION SETTINGS
+makeMapOfStokesIOnly: true
+
+#OUTPUT SETTINGS
+resultsFolder = [MainDirectory]/Results_HERA19/
+
+
+
+#########################################################################################################
+[Power Spectrum Estimation Settings]
+#########################################################################################################

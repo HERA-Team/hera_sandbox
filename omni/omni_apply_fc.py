@@ -16,6 +16,10 @@ o.add_option('--firstcal', dest='firstcal', type='string',
             help='Path to firstcal files.')
 opts,args = o.parse_args(sys.argv[1:])
 
+opts,args = o.parse_args(sys.argv[1:])
+if not os.path.exists(opts.fc):
+    print "First cal file {fc} not found".format(fc=opts.fc)
+    sys.exit(1)
 
 #File Dictionary
 pols = opts.pol.split(',')
@@ -35,7 +39,6 @@ for f,filename in enumerate(args):
         else: npzb=4
         omnifile = opts.omnipath % '.'.join(filename.split('/')[-1].split('.')[0:npzb])
         print ' firstcal npz:', omnifile
-        exit()
         _,gains,_,_ = capo.omni.from_npz(omnifile) #loads the firstcal file gains
         for p in pols:
             print 'Reading', files[filename][p]
@@ -44,7 +47,7 @@ for f,filename in enumerate(args):
                 print '    %s exists.  Skipping...' % newfile
                 continue
             times = []
-    
+
             def mfunc(uv,p,d,f): #loops over time and baseline
                 global times #global list
                 _,t,(a1,a2) = p
@@ -57,10 +60,10 @@ for f,filename in enumerate(args):
                 except(KeyError): pass
                 #try: d /= gains[p1][a1][ti] #apply gains
                 #except(KeyError): pass
-                #try: d /= gains[p2][a2][ti].conj() 
+                #try: d /= gains[p2][a2][ti].conj()
                 #except(KeyError): pass
                 return p, numpy.where(f,0,d), f
-    
+
             if opts.xtalk: print '    Calibrating and subtracting xtalk'
             else: print '    Calibrating'
             uvi = aipy.miriad.UV(files[filename][p])

@@ -20,6 +20,7 @@ class OppSolver:
         #Create equatorial coordinates of the first frame T0
         self.top0 = np.array([tx,ty,tz], dtype=tx.dtype)
         self.beam = beam
+        self.sky = np.ones(self.h.map.size)
         self.T1 = T1
         self.T0 = (T1[0]+T1[-1])/2
         self.k = -2j*np.pi*self.fqs[:,np.newaxis, np.newaxis] #to multiply fringes, prepare two extra dimensions for time and space
@@ -79,15 +80,17 @@ class OppSolver:
         #self.REDNORM,self.Tac_err = self.w_opp((103,26),(103,26))
         #print 'self.REDNORM, self.Tac_err= ', self.REDNORM, self.Tac_err
     #@profile
-    def opp(self, bl1=None,bl2=None, bl1coords=None, bl2coords=None, rephase=0, delay=True, return_series=False, debug=False):
+    def opp(self, bl1=None,bl2=None, bl1coords=None, bl2coords=None, sky=False, rephase=0, delay=False, return_series=False, debug=False):
         #h = a.healpix.HealpixMap(nside=64
+        if sky:
+            self.sky = np.random.random(self.h.map.size).reshape((1,1,self.h.map.size))
         if rephase == 'auto':
             maxres, _ = self.opp(bl1=bl1,bl2=bl2, bl1coords=bl1coords, bl2coords=bl2coords, 
-            rephase=0, delay=False, return_series=False)
+            rephase=0, delay=False, return_series=False, sky=False)
             slope = 0
             bl1off = unwrap_phase(np.angle(maxres))
             slope, intercept = np.polyfit(self.fqs, bl1off, 1)
-            return self.opp(bl1=bl1,bl2=bl2, bl1coords=bl1coords, bl2coords=bl2coords, 
+            return self.opp(bl1=bl1,bl2=bl2, bl1coords=bl1coords, bl2coords=bl2coords, sky=sky,
                 rephase=slope, delay=True, return_series=return_series)
         if bl1coords:
             #convert meters to light seconds to work with fq in GHz
@@ -104,11 +107,15 @@ class OppSolver:
         bl2_prj = tx*bl2x + ty*bl2y + tz*bl2z
         bl1_prj = tx*bl1x + ty*bl1y + tz*bl1z
 
+        bl1_prj *= self.sky
+        bl2_prj *= self.sky
+
         # zx,zy,zz = self.zens
         # bl2_zen = zx*bl2x + zy*bl2y + zz*bl2z
         # bl1_zen = zx*bl1x + zy*bl1y + zz*bl1z
 
         bl1_prj -= rephase/2/np.pi
+
         #import IPython; IPython.embed()
 
         # Original Code for pedagogy, new code for memoery efficiency

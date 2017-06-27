@@ -5,15 +5,15 @@ import sys
 import multiprocessing
 num_cores = multiprocessing.cpu_count()
 #@p.ion()
-#fqs = np.linspace(.1,.2,203)
-fq = .15
+#fqs = np.linspace(.145,.155,10)
+fqs = np.array([.15])
 bl1, bl2 = (0,103),(0,95)
 N = 2400   #number of universes to average over
 
 VIS = False
 MAXCORR_EQUIV = 1228687.26108#1261990. #MAXCORR_EQUIV is the peak of baseline_ton
 
-aa = a.cal.get_aa('psa6622_v001',np.array([fq])) #128
+aa = a.cal.get_aa('psa6622_v001',fqs) #128
 #aa = a.cal.get_aa('psa6240_v003', np.array([fq]))
 #h = a.healpix.HealpixMap(nside=256)
 h = a.healpix.HealpixMap(nside=64)
@@ -59,7 +59,7 @@ def prepare(TT):
 
 def find_corr(i, bm_fngs):
     print i
-    sys.stdout.flush()
+    #sys.stdout.flush()
     sky = np.random.normal(size=h.map.size)
     h.map = sky # assume sky is in eq coord
     #import IPython; IPythonp.embed()

@@ -6,7 +6,14 @@ from binning import LST_RES, UV_RES, uv2bin, bin2uv, rebin_log
 F21 = 1.42040575177 # GHz
 
 # Temperature conversion
-DEFAULT_BEAM_POLY = [ -1.55740671e+09,  1.14162351e+09, -2.80887022e+08,  9.86929340e+06, 7.80672834e+06, -1.55085596e+06,  1.20087809e+05, -3.47520109e+03]
+PAPER_BEAM_POLY = [ -1.55740671e+09,  1.14162351e+09, -2.80887022e+08,  9.86929340e+06, 7.80672834e+06, -1.55085596e+06,  1.20087809e+05, -3.47520109e+03]
+
+HERA_BEAM_POLY = n.array([  8.07774113e+08,  -1.02194430e+09,   
+    5.59397878e+08,  -1.72970713e+08, 3.30317669e+07,  -3.98798031e+06,   
+    2.97189690e+05,  -1.24980700e+04, 2.27220000e+02]) # See HERA Memo #27
+
+HERA_OP_OPP = 2.175 # See HERA Memo #27
+PAPER_OP_OPP = 2.35
 
 # Cosmological conversions
 def f2z(fq):
@@ -39,27 +46,27 @@ def k3pk_21cm(k):
 def dk3pk_21cm(k, dk3):
     '''Return peak 21cm pspec, in mK**2, integrated over dk**3 box size'''
     return k3pk_21cm(k) / (2*n.pi * k**3) * dk3
-def Vhat2_21cm(umag, eta, B, fq0, bm_poly=DEFAULT_BEAM_POLY):
+def Vhat2_21cm(umag, eta, B, fq0, bm_poly=PAPER_BEAM_POLY):
     '''Return \hat V_{21}^2, the (Jy*BW)^2 magnitude of the peak 21cm pspec.'''
     z0 = f2z(fq0)
     Omega = n.polyval(bm_poly, fq0)
     dk3 = Omega * B*1e9 / X2Y(z0)
     kmag = n.sqrt((umag*dk_du(z0))**2 + (eta*dk_deta(z0))**2)
     return dk3pk_21cm(kmag, dk3) / jy2T(fq0, bm_poly=bm_poly)**2
-def V_21cm(fqs, umag, bm_poly=DEFAULT_BEAM_POLY):
+def V_21cm(fqs, umag, bm_poly=PAPER_BEAM_POLY):
     etas = n.fft.fftfreq(fqs.size, fqs[1]-fqs[0])
     B = fqs[-1] - fqs[0]
     fq0 = n.average(fqs)
     Vhat2 = Vhat2_21cm(umag, etas, B, fq0, bm_poly=bm_poly)
     return n.sqrt(Vhat2) * n.exp(2j*n.pi*n.random.uniform(0,2*n.pi,size=Vhat2.size))
 
-def jy2T(f, bm_poly=DEFAULT_BEAM_POLY):
+def jy2T(f, bm_poly=PAPER_BEAM_POLY):
     '''Return [mK] / [Jy] for a beam size vs. frequency (in GHz) defined by the
     polynomial bm_poly.  Default is a poly fit to the PAPER primary beam.'''
     lam = a.const.c / (f * 1e9)
     bm = n.polyval(bm_poly, f)
     return 1e-23 * lam**2 / (2 * a.const.k * bm) * 1e3
-def k3pk_from_Trms(list_of_Trms, list_of_Twgt, k=.3, fq=.150, B=.001, bm_poly=DEFAULT_BEAM_POLY):
+def k3pk_from_Trms(list_of_Trms, list_of_Twgt, k=.3, fq=.150, B=.001, bm_poly=PAPER_BEAM_POLY):
     z = f2z(fq)
     bm = n.polyval(bm_poly, fq)
     scalar = X2Y(z) * bm * B * k**3 / (2*n.pi**2)
@@ -71,7 +78,7 @@ def k3pk_from_Trms(list_of_Trms, list_of_Twgt, k=.3, fq=.150, B=.001, bm_poly=DE
                 Trms2_sum += Ta * n.conj(Tb)
                 Trms2_wgt += Wa * n.conj(Wb)
     return scalar * Trms2_sum / Trms2_wgt, Trms2_wgt
-def k3pk_sense_vs_t(t, k=.3, fq=.150, B=.001, bm_poly=DEFAULT_BEAM_POLY, Tsys=500e3):
+def k3pk_sense_vs_t(t, k=.3, fq=.150, B=.001, bm_poly=PAPER_BEAM_POLY, Tsys=500e3):
     Trms = Tsys / n.sqrt(2*(B*1e9)*t) # This is the correct equation for a single-pol, cross-correlation measurement
     #Trms = Tsys / n.sqrt((B*1e9)*t)
     return k3pk_from_Trms([Trms], [1.], k=k, fq=fq, B=B, bm_poly=bm_poly)[0]
@@ -140,7 +147,7 @@ def ring(dim, r_inner, r_outer, thresh=.4):
     return circ(dim, r_outer, thresh=thresh) - circ(dim, r_inner, thresh=thresh)
 
 def Trms_vs_fq(fqs, jy_spec, umag150=20., B=.008, cen_fqs=None, ntaps=3, 
-        window='kaiser3', bm_poly=DEFAULT_BEAM_POLY, bm_fqs=None):
+        window='kaiser3', bm_poly=PAPER_BEAM_POLY, bm_fqs=None):
     if bm_fqs is None: bm_fqs = fqs
     dfq = fqs[1] - fqs[0]
     dCH = int(n.around(B / dfq))

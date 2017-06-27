@@ -209,7 +209,8 @@ def execute(combsname=None): #for profiling
 		print 'Elapsed time: ', elapsed
 
 	if True:
-		DT = 0.001
+		DT = 0.002
+		resume = 3571
 		rephs = "auto"
 		T1=np.arange(2456681.3, 2456681.7, DT)
 		fqs = np.linspace(.14, .16, 10)
@@ -218,16 +219,18 @@ def execute(combsname=None): #for profiling
 		WS = w_opp.OppSolver(fqs=fqs, cal=CAL, T1=T1, beam=BEAM)
 		subcombs = get_sub_combs(FIRST, combs, mode='pm', num=ENTRIES)
 
-		
-		file = open(SECOND, 'w')
-		file.write(',sep,sep2,dT,peak,mult,bl1,bl2\n')
-		file.close()
+		if resume == 0:
+			file = open(SECOND, 'w')
+			file.write(',sep,sep2,dT,peak,mult,bl1,bl2\n')
+			file.close()
+		subcombs = subcombs[resume:]
 
-		NJOBS = 4
+
+		NJOBS = 16
 		start_time = timeit.default_timer()
 		print 'Starting Opp with %d instances on %d jobs;' % (len(subcombs), NJOBS)
 		#print ',sep,sep2,dT,peak,mult'
-		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i, comb, SECOND, equiv=EQUIV, quiet=True, rephase=rephs) 
+		Parallel(n_jobs=NJOBS)(delayed(run_opp)(i+resume, comb, SECOND, equiv=EQUIV, quiet=True, rephase=rephs) 
 			for i, comb in enumerate(subcombs))
 		elapsed = timeit.default_timer() - start_time
 		print 'Elapsed time: ', elapsed
