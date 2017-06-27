@@ -53,7 +53,7 @@ def hpm_TtoJy(hpm, freq):
         frequency """
     wvlen = a.const.c / freq
     hpm.map *= (4*np.pi/hpm.npix())*2*a.const.k/wvlen**2 # convert to Jy to make summable
-    return hpm
+    return hpm / 1e-23
 
 def makeGSM(path, nside, freq):
         gsmMap = a.healpix.HealpixMap(nside=nside)
