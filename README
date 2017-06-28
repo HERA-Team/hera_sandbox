@@ -1,18 +1,16 @@
-CAPO Notes:
-Pasted from PAPER wiki Sep 12 2011
-====== Calibration and Analysis of PAPER Observations (CAPO)======
-CAPO is hosted as a repository on [[computing:shredder]]((Note that the head node address will occasionally change. As of this writing shredder's head node is folio.sas.upenn.edu.)) using [[http://git-scm.com/|git]]. This repository is meant to contain medium to well developed tools meant to be used on a project-wide basis.  Codes in development may be kept in personal files (eg capo/arp.py) or in subdirectories (eg capo/dcj/).  A tool or script need not be fully documented or tested for inclusion here //but no one will complain if it is.//
-==== To use on shredder ====
-within a python session or script, simply 
-  import capo
-==== To install locally ====
-  git clone username@shredder:/usr/global/paper/capo
-  python setup install
-==== To pull any changes to your local git ==== 
-  git pull 
-  or
-  git pull username@shredder:/usr/global/paper/capo
-==== To push your updates to the main repo ====
-  git push
-  or
-  git push username@shredder:/usr/global/paper/capo
+====== HERA Sandbox ======
+
+This repository is meant to contain all miscellaneous individual code
+being written as part of the HERA project.  Each person maintains
+their own "sandbox" (usually a directory whose name is the 3-letter 
+initials of the author).  A cardinal rule of this repo is to
+not mess up others' sandboxes.  Some jointly-owned sandboxes may exist
+for code that is being jointly developed.  
+
+The expectation is that as code develops to a production level, it should be
+migrated into HERA repos for production code: hera_cal, uvtools, hera_qm,
+hera_rtp, hera_mc, etc.
+
+Note that all code in the src/ directory is considered deprecated and should
+not be edited.  
+
