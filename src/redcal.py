@@ -2,7 +2,7 @@ from capo import metrics, oqe, linsolve
 import numpy as np
 from copy import deepcopy
 
-def sim_red_data(reds, pols, gains=None, stokes_v_indep=True, shape=(10,10), gain_scatter=.1):
+def sim_red_data(reds, pols, gains=None, stokes_v_indep=True, shape=(10,10), gain_scatter=.1, dtype=np.complex):
     data, true_vis = {}, {}
     if not stokes_v_indep: assert('xy' in pols and 'yx' in pols)
     bls = reduce(lambda x,y: x+y, reds)
@@ -11,8 +11,8 @@ def sim_red_data(reds, pols, gains=None, stokes_v_indep=True, shape=(10,10), gai
     else: gains = deepcopy(gains)
     for ai in ants:
         for pol in pols:
-            gains[(ai,pol[0])] = gains.get((ai,pol[0]), 1+gain_scatter*oqe.noise((1,))) * np.ones(shape,dtype=np.complex)
-            gains[(ai,pol[1])] = gains.get((ai,pol[1]), 1+gain_scatter*oqe.noise((1,))) * np.ones(shape,dtype=np.complex)
+            gains[(ai,pol[0])] = (gains.get((ai,pol[0]), 1+gain_scatter*oqe.noise((1,))) * np.ones(shape)).astype(dtype)
+            gains[(ai,pol[1])] = (gains.get((ai,pol[1]), 1+gain_scatter*oqe.noise((1,))) * np.ones(shape)).astype(dtype)
     for bls in reds:
         for pol in pols:
             vis = oqe.noise(shape)
@@ -56,7 +56,7 @@ class RedundantCalibrator:
                     eqs[self.pack_eqs_key(i,pi,j,pj,ubl)] = (i,j,pi+pj)
         return eqs
     
-    def _solver(self, solver, data, wgts={}, detrend_phs=False, sparse=False, **kwargs):
+    def _solver(self, solver, data, wgts={}, detrend_phs=False, target='cpu', sparse=False, **kwargs):
         dc = metrics.DataContainer(data)
         eqs = self.build_eqs(dc.bls(), dc.pols())
         self.phs_avg = {} # detrend phases within redundant group, used for logcal to avoid phase wraps
@@ -71,7 +71,7 @@ class RedundantCalibrator:
         if len(wgts) > 0:
             wc = metrics.DataContainer(wgts)
             for eq,key in eqs.items(): w_ls[eq] = wc[key]
-        return solver(data=d_ls, wgts=w_ls, sparse=sparse, **kwargs)
+        return solver(data=d_ls, wgts=w_ls, sparse=sparse, target=target, **kwargs)
     
     def pack_eqs_key(self, ant_i, pol_i, ant_j, pol_j, ubl_num):
         if self.stokes_v_indep: pol = pol_i + pol_j
@@ -101,9 +101,10 @@ class RedundantCalibrator:
                 ubl_sols[blgrp[0]+(pol,)] = np.average(d_gp, axis=0) # XXX add option for median here?
         return ubl_sols
     
-    def logcal(self, data, wgts={}, sparse=False):
-        ls = self._solver(linsolve.LogProductSolver, data, wgts=wgts, detrend_phs=True, sparse=sparse)
+    def logcal(self, data, wgts={}, sparse=False, target='cpu'):
+        ls = self._solver(linsolve.LogProductSolver, data, wgts=wgts, detrend_phs=True, sparse=sparse, target=target)
         sol = ls.solve()
+        self.ls = ls
         sol = {self.unpack_sol_key(k): sol[k] for k in sol.keys()}
         for ubl_key in [k for k in sol.keys() if len(k) == 3]:
             sol[ubl_key] = sol[ubl_key] * self.phs_avg[ubl_key].conj()

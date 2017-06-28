@@ -3,6 +3,7 @@ import ast
 from scipy.sparse import lil_matrix, csr_matrix
 import scipy.sparse.linalg
 from copy import deepcopy
+from gpusolver import DnSolver
 
 def ast_getterms(n):
     '''Convert an AST parse tree into a list of terms.  E.g. 'a*x1+b*x2' -> [[a,x1],[b,x2]]'''
@@ -159,8 +160,9 @@ class LinearEquation:
         
 class LinearSolver:
     '''Estimate parameters using (AtA)^-1At)'''
-    def __init__(self, data, wgts={}, sparse=False, **kwargs):
+    def __init__(self, data, wgts={}, target='cpu', sparse=False, **kwargs):
         self.data = data
+        self.target = target
         self.sparse = sparse
         for k in wgts: assert(np.iscomplexobj(wgts[k]) == False) # tricky errors happen if wgts are complex
         self.wgts = wgts
@@ -243,17 +245,33 @@ class LinearSolver:
         '''Compute x' = (At A)^-1 At * y, returning x' as dict of prms:values.'''
         y = self.get_weighted_data()
         Ashape = self._A_shape()
+        if self.target == 'cuda':
+            print "Solving with cuda"
+            solver = DnSolver(Ashape[0], Ashape[1])
+
         x = np.empty((Ashape[1],y.shape[-1]), dtype=self.dtype)
         if self.sparse:
             xs, ys, vals = self.get_A_sparse()
             AtAi = None
             for k in xrange(y.shape[-1]):
-                if verbose: print 'Solving %d/%d' % (k, y.shape[-1])
-                if AtAi is None or Ashape[-1] != 1:
-                    Ak = csr_matrix((vals[k], (xs,ys))) 
-                    AtA = Ak.T.conj().dot(Ak).toarray()
-                    AtAi = np.linalg.pinv(AtA, rcond=rcond)
-                x[...,k:k+1] = AtAi.dot(Ak.T.conj().dot(y[...,k:k+1]))
+                if self.target == 'cpu':
+                    if verbose: print 'Solving %d/%d' % (k, y.shape[-1])
+                    if AtAi is None or Ashape[-1] != 1:
+                        Ak = csr_matrix((vals[k], (xs,ys)))
+                        AtA = Ak.T.conj().dot(Ak).toarray()
+                        AtAi = np.linalg.pinv(AtA, rcond=rcond)
+                    x[...,k:k+1] = AtAi.dot(Ak.T.conj().dot(y[...,k:k+1]))
+                elif self.target == 'cuda':
+                    if Ashape[-1] != 1:
+                        Ak = csr_matrix((vals[k], (xs,ys))).astype(np.float32)
+                    else:
+                        Ak = csr_matrix((vals[0], (xs,ys))).astype(np.float32)
+                    #import IPython; IPython.embed()
+                    b = y[...,k:k+1].astype(np.float32)
+                    solver.from_csr(Ak.indptr, Ak.indices, Ak.data, b.flatten())
+                    solver.solve(0)
+                    x[...,k:k+1] = solver.retrieve()[:,np.newaxis]
+
         else: 
             A = self.get_A()
             assert(A.ndim == 3)
@@ -314,7 +332,7 @@ class LogProductSolver:
     logarithms to linearize.  For complex variables, a trailing '_' in
     the name is used to denote conjugation (e.g. x*y_ parses as x * y.conj()).
     For LogProductSolver to work'''
-    def __init__(self, data, wgts={}, sparse=False, **kwargs):
+    def __init__(self, data, wgts={}, sparse=False, target='cpu', **kwargs):
         keys = data.keys()
         eqs = [ast_getterms(ast.parse(k, mode='eval')) for k in keys]
         logamp, logphs = {}, {}
@@ -331,8 +349,8 @@ class LogProductSolver:
         for k in kwargs:
             c = np.log(kwargs[k]) # log unwraps complex circle at -pi
             logamp_consts[k], logphs_consts[k] = c.real, c.imag
-        self.ls_amp = LinearSolver(logamp, logampw, sparse=sparse, **logamp_consts)
-        self.ls_phs = LinearSolver(logphs, logphsw, sparse=sparse, **logphs_consts)
+        self.ls_amp = LinearSolver(logamp, logampw, sparse=sparse, target=target, **logamp_consts)
+        self.ls_phs = LinearSolver(logphs, logphsw, sparse=sparse, target=target, **logphs_consts)
     def solve(self, rcond=1e-10, verbose=False):
         sol_amp = self.ls_amp.solve(rcond=rcond, verbose=verbose)
         sol_phs = self.ls_phs.solve(rcond=rcond, verbose=verbose)
