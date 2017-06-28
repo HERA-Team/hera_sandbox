@@ -143,7 +143,6 @@ class TestRedundantCalibrator(unittest.TestCase):
         NANTS = 18
         reds, antpos = build_reds_linear(NANTS)
         info = om.RedundantCalibrator(reds, antpos)
-        gains,d = om.sim_red_data(reds, ['xx'], gain_scatter=.01)
         gains, true_vis, d = om.sim_red_data(reds, ['xx'], gain_scatter=.01)
         w = dict([(k,1.) for k in d.keys()])
         sol0 = dict([(k,np.ones_like(v)) for k,v in gains.items()])
