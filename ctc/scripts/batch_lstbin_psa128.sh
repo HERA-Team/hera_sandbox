@@ -18,7 +18,7 @@ LSTS=`python -c "import numpy as n; hr = 1.0; print ' '.join(['%f_%f' % (d,d+hr/
 
 MY_LSTS=`pull_args.py $LSTS`
 CALFILE=psa6622_v003 #Aaron's fast calfile
-PREFIX=lstbin_full
+PREFIX=lstbin_fc_fg_balanced
 
 
 echo $MY_LSTS
@@ -33,20 +33,20 @@ for LST in $MY_LSTS; do
     cd even
     #echo ~/capo/scripts/lstbin_v02.py -a cross -C ${CALFILE} --lst_res=31.65 --lst_rng=$LST \
     #--tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/ctc/scripts/select_file_parity.py $*`
-    python ~/capo/scripts/lstbin_v02.py -a cross -C ${CALFILE}  --lst_res=31.65 --lst_rng=$LST \
-    --tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/ctc/scripts/select_file_parity.py $*`
     #python ~/capo/scripts/lstbin_v02.py -a cross -C ${CALFILE}  --lst_res=31.65 --lst_rng=$LST \
-    #--tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/sak/scripts/alternate_djd_select.py $*`
+    #--tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/ctc/scripts/select_file_parity.py $*`
+    python ~/capo/scripts/lstbin_v02.py -a cross -C ${CALFILE}  --lst_res=31.65 --lst_rng=$LST \
+    --tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/sak/scripts/alternate_djd_select.py $*`
     cd ..
     echo Working on odd files
     mkdir odd
     cd odd
     #echo ~/capo/scripts/lstbin_v02.py -a cross -C ${CALFILE} -s Sun --lst_res=31.65 --lst_rng=$LST \
     #--tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/ctc/scripts/select_file_parity.py $*`
-    python ~/capo/scripts/lstbin_v02.py -a cross -C ${CALFILE} --lst_res=31.65 --lst_rng=$LST \
-    --tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/ctc/scripts/select_file_parity.py --odd $*`
-    #python ~/capo/scripts/lstbin_v02.py -a cross -C ${CALFILE}  --lst_res=31.65 --lst_rng=$LST \
-    #--tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/sak/scripts/alternate_djd_select.py --odd $*`
+    #python ~/capo/scripts/lstbin_v02.py -a cross -C ${CALFILE} --lst_res=31.65 --lst_rng=$LST \
+    #--tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/ctc/scripts/select_file_parity.py --odd $*`
+    python ~/capo/scripts/lstbin_v02.py -a cross -C ${CALFILE}  --lst_res=31.65 --lst_rng=$LST \
+    --tfile=600 --altmax=0 --stats=all --median --nsig=3 -s Sun `python ~/capo/sak/scripts/alternate_djd_select.py --odd $*`
     cd ..
 
 done;

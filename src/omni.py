@@ -129,7 +129,7 @@ def aa_to_info(aa, pols=['x'], fcal=False, minV=False, **kwargs):
         for z, pol in enumerate(pols):
             z = 2**z # exponential ensures diff xpols aren't redundant w/ each other
             i = Antpol(ant, pol, nant) # creates index in POLNUM/NUMPOL for pol
-            antpos[i,0], antpos[i,1], antpos[i,2] = x,y,z
+            antpos[int(i),0], antpos[int(i),1], antpos[int(i),2] = x,y,z
     reds = compute_reds(nant, pols, antpos[:nant], tol=.1)
     ex_ants = [Antpol(i,nant).ant() for i in range(antpos.shape[0]) if antpos[i,0] == -1]
     kwargs['ex_ants'] = kwargs.get('ex_ants',[]) + ex_ants
