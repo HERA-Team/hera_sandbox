@@ -19,9 +19,11 @@ antpos = uvutils.ENU_from_ECEF(antpos.T, *uv.telescope_location_lat_lon_alt).T
 
 amps = np.zeros(uv.Nants_telescope)
 for ant in range(uv.Nants_telescope):
-    print(ant)
     d = uv.get_data((uv.antenna_numbers[ant], uv.antenna_numbers[ant]))
     amps[ant] = np.mean(np.abs(d))
 
 plt.scatter(antpos[:, 0], antpos[:, 1], c=amps)
+plt.colorbar()
+for ant in range(uv.Nants_telescope):
+        plt.annotate(str(uv.antenna_numbers[ant]), xy=antpos[ant, 0:2], textcoords='data')
 plt.show()
