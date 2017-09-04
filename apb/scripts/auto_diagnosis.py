@@ -6,7 +6,7 @@ import numpy as np
 import pyuvdata.utils as uvutils
 import matplotlib.pyplot as plt
 from astropy import time
-from hera_mc import corr_handling
+from hera_mc import sys_handling
 import re
 
 parser = argparse.ArgumentParser(description='Plot auto locations and magnitudes')
@@ -23,10 +23,10 @@ antpos = uvutils.ENU_from_ECEF(antpos.T, *uv.telescope_location_lat_lon_alt).T
 amps = np.zeros(uv.Nants_telescope)
 for ant in range(uv.Nants_telescope):
     d = uv.get_data((uv.antenna_numbers[ant], uv.antenna_numbers[ant]))
-    amps[ant] = np.mean(np.abs(d))
+    amps[ant] = np.median(np.abs(d))
 
 at_time = time.Time(uv.extra_keywords['obsid'], format='gps')
-h = corr_handling.Handling()
+h = sys_handling.Handling()
 pol = uvutils.polnum2str(uv.polarization_array[0])[0]
 if pol == 'X':
     pol = 'e'
