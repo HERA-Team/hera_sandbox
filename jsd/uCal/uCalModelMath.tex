@@ -1,0 +1,108 @@
+\documentclass[]{article}
+\usepackage{amsmath,graphicx,bm,amsbsy,color,natbib,subfigure,enumerate}
+\usepackage[margin=1in]{geometry}
+
+\begin{document}
+
+\title{The $u$Cal Model}
+\author{Josh Dillon}
+\date{\today}
+\maketitle
+
+%NOTE TO SELF: what about linear interpolation in the integral? This is easy to implement, even in the achromatic case!
+
+\begin{align}
+V(u,\nu_i) &\approx \beta_i \Sigma(u,\nu_i) \\
+& \equiv \beta_i \sum_m B(u-u_m,\nu_i) S(u_m,\nu_i) \\
+& \equiv \beta_i \sum_m B(\Delta u_m,\nu_i) \sum_n T_{n,m}(u) S_n(\nu_i) \\
+& \equiv \beta_i A(u,\nu_i) \sum_m G(\Delta u_m,\nu_i) N(\Delta u_m,\nu_i) \sum_n T_{n,m}(u) S_n(\nu_i)\\
+& \equiv \beta_i  A(u,\nu_i) \sum_m \Bigg[ \exp\left[\frac{-(\Delta u_m)^2}{2\theta^2(\nu_i)}\right] \Bigg] \Bigg[ \sum_\ell \eta_\ell (\nu_i) H_\ell\left(\frac{\Delta u_m}{\theta(\nu_i)}\right) \Bigg] \Bigg[\sum_{n,j} T_{n,m}(u) S_{n,j} P_{j}(\nu_i) \Bigg].
+\end{align}
+Here the visibility at frequency $\nu_i$ and $u  = |\mathbf{b}|\nu_i/c$ is approximated as a sum over $u_m$ separated by $\Delta u = b_\text{min} \Delta f /c$. At each point, a Fourier beam kernel, $B$, is multiplied an underlying sky component $S$. Since this is too fine a sampling to treat each $S$ as independent, $S(u_m,\nu_i)$ is constructed out of a linear combination of $S_n(\nu_i)$, which is sampled on a much coarser grid (between $\Delta u = 0.25$ and $\Delta u = 0.5$). That linear combination is described by a matrix that takes a subset of all coarse samples (depending on $u$) and performs Fourier interpolation via zero-padding. Finally, each coarse sample is a linear combination of a few frequency basis functions, $P^\text{sky}_j(\nu_i)$.
+
+The beam is modeled as the product of three parts. The first is a normalization, normalization term $A(u,\nu_i)$, which ensures that the amplitude of the sampled beam adds to 1 when summed over all $m$. The second is a Gaussian part, $G(\Delta u_m,\nu_i)$, with $u-u_m \equiv \Delta u_m$. The width of the  Gaussian part is $\theta(\nu_i)$, which is defined as
+\begin{align}
+\theta(\nu_i) \equiv \sum_{j} \theta_j \left(\frac{\nu_0}{\nu_i}\right)^j.
+\end{align} 
+where $\nu_0$ is some reference frequency. The third is the non-Gaussian part, $N(\Delta u_m,\nu_i)$, which is modeled as a sum over a limited numbed of Hermite polynomials, also using $\theta(\nu_i)$ as a width, with frequency-dependent coefficients $\eta_\ell(\nu_i)$ defined as 
+\begin{align}
+\eta_\ell(\nu_i) \equiv \sum_{j} \eta_{\ell,j} \left(\frac{\nu_0}{\nu_i}\right)^j.
+\end{align} 
+(The three sums over $j$ are independent.) In summary, the model parameters are:
+\begin{itemize}
+\item $\beta_i$: a complex bandpass for each frequency $\nu_i$. This is the essential quantity we are looking to constrain.
+\item $S_{n,j}$: This parameter describes the underlying sky at $u_n$ in terms of a small number of frequency basis functions $P_j$.
+\item $\theta_j$: polynomial coefficient of the beam width as a function of frequency
+\item $\eta_{\ell,j}$: polynomial coefficient of the $\ell$th hermite coefficient as a function of frequency
+\end{itemize}
+
+\noindent Here are the relevant derivatives:
+
+\begin{align}
+\frac{\partial V(u,\nu_i)}{\partial S_{n,j}} =& \beta_i A(u,\nu_i) P_j(\nu_i) \sum_m  G(\Delta u_m,\nu_i) N(\Delta u_m,\nu_i) T_{n,m} \\ %\left(\ln\frac{\nu_i}{\nu_0}\right)^m \\
+\frac{\partial V(u,\nu_i)}{\partial \eta_{\ell,j}} =& \beta_i A(u,\nu_i)\left(\frac{\nu_0}{\nu_i}\right)^j \sum_m G (u,u_m,\nu_i)  H_\ell\left(\frac{\Delta u_m}{\theta(\nu_i)}\right) S(u_m,\nu_i) \equiv \beta_i A(u,\nu_i) \left(\frac{\nu_0}{\nu_i}\right)^j \Lambda_\ell(u,\nu_i) \label{eq:dVdeta}\\
+\frac{\partial V(u,\nu_i)}{\partial \theta_j} =& \beta_i A(u,\nu_i) \sum_m G(\Delta u_m,\nu_i) \frac{(\Delta u_m)^2}{\theta^3(\nu_i)} \left(\frac{\nu_0}{\nu_i}\right)^j N(\Delta u_m,\nu_i) S(u_m, \nu_i) \mbox{ }+ \nonumber \\
+& \beta_i A(u,\nu_i) \sum_m G(\Delta u_m,\nu_i) S(u_m, \nu_i) \sum_\ell \eta_\ell(\nu_i) H'_\ell \left(\frac{\Delta u_m}{\theta(\nu_i)}\right) \frac{\Delta u_m}{-\theta^2(\nu_i)} \left(\frac{\nu_0}{\nu_i}\right)^j \nonumber \\
+= & \beta_i A(u,\nu_i) \left(\frac{\nu_0}{\nu_i}\right)^j \sum_m G(\Delta u_m,\nu_i) S(u_m,\nu_i) \times \nonumber \\
+& \left[ \frac{(\Delta u_m)^2}{\theta^{3}(\nu_i)} 
+\sum_\ell \left(\eta_\ell(\nu_i) H_\ell  \left(\frac{\Delta u_m}{\theta(\nu_i)}\right) \right) -  \frac{\Delta u_m}{\theta^2(\nu_i)} \sum_\ell \left(\eta_\ell(\nu_i) H'_\ell\left(\frac{\Delta u_m}{\theta(\nu_i)}\right) \right) \right] \label{eq:dVdth }
+\end{align}
+
+\section{Algorithmic Sketch}
+
+For each step, do the following:
+\begin{enumerate}
+\item At each frequency, calculate $\theta(\nu_i)$.
+
+\item At each frequency, generate $G$ for all possible $\Delta u_m$.
+
+\item At each frequency and $\ell$, generate $H_\ell$ for all possible $\Delta u_m$.
+
+\item At each frequency, calculate $\sum_\ell \eta_\ell H_\ell$ for all possible $\Delta u_m$.
+
+\item At each frequency and $\ell$, calculate $\sum_\ell \eta_\ell H_\ell$ for all possible $\Delta u_m$.
+
+\item At each frequency and $\ell$, generate $G \times H_\ell$ for all possible $\Delta u_m$.
+
+\item For each visibility, determine the set of $\Delta u_m$ that get included in the truncated beam.
+
+\item For each visibility, multiply by $\eta_{\ell,j}$ sum over all $\ell$ and $j$ to get the unnormalized $\sum_m B(\Delta u_m,\nu_i)$ and thus set $A(u,\nu_i)$
+
+\item For each visibility, calculate $S(u_m,\nu_i)$ using zero-padded FFTs of $S_n$.
+
+\item For each visibility and $\ell$, calculate $\Lambda_\ell(u,\nu_i)$.
+
+\item For each visibility, $\ell$, and $j$, calculate $\partial V(u,\nu_i) / \partial \eta_{\ell,j}$.
+
+\item For each visibility, multiply by $\eta_{\ell,j}$ and sum over all $\ell$ and $j$ to get $V(u,\nu_i)$.
+
+\item For each visibility, perform a set of FFTs and decimations to compute $\partial V(u,\nu_i) / \partial S_{n,j}$.
+
+
+%\item For all offsets between $u$ and $u_n$, generate the matrix $T_{n,m}$.
+%
+%\item At each frequency, use $H_\ell$ to generate $N$ for all possible $\Delta u_m$.
+%\item At each frequency and $\ell$, generate $H'_\ell$ for all possible $\Delta u_m$.
+%\item At each frequency, calculate $\sum_\ell \eta_\ell(\nu_i) H'_\ell \left((\Delta u_m) / \theta(\nu_i)\right) [\Delta u_m]$ for all possible $\Delta u_m$.
+%\item 
+
+\end{enumerate}
+
+Some useful equations:
+
+\begin{equation}
+V(u,\nu_i) = 
+\end{equation}
+
+
+Equation \ref{eq:dVdeta} 
+
+
+
+
+
+Term 2 of Equation \ref{eq:dVdth} 
+
+\end{document}
+
+
