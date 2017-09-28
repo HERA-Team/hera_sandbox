@@ -5,11 +5,12 @@ import numpy as np
 from pyuvdata import UVData, UVCal
 import hera_cal
 import argparse
+import sys
 
 parser = argparse.ArgumentParser(
     description='Compute the redundant Vilisbilites and save to new file.')
-parser.add_argument('files', metavar='<FILE>', type='str', nargs='*')
-parse.add_argument('--noise_files', metavar='<NOISE>', type='str', nargs='*')
+parser.add_argument('files', metavar='<FILE>', type=str, nargs='*')
+parser.add_argument('--noise_files', metavar='<NOISE>', type=str, nargs='*')
 args = parser.parse_args()
 
 
@@ -26,7 +27,7 @@ def repeat_visibilities(uvdata_obj, noise_array=False):
     """
     # Get a list of redundant base groups and the ant_pairs in each group
     aa_object = hera_cal.utils.get_aa_from_uv(uvdata_obj)
-    aa_info = hera_cal.omni.aa_to_info(aa)
+    aa_info = hera_cal.omni.aa_to_info(aa_object)
     reds = aa_info.get_reds()
     # Find the ant pairs stored in our object
     # and the redundant group the belong to.
@@ -99,37 +100,42 @@ def repeat_visibilities(uvdata_obj, noise_array=False):
                                          run_check=True)
     return full_observation
 
+if not args.files and not args.noise_files:
+    print "No Input Files given."""
+    sys.exit()
 
-print 'Processing File: ',
-for filename in args.files:
-    print filename,
-    data = UVData()
-    try:
-        data.read_uvfits(filename)
-    else IOError:
-        filename += '.uvfits'
-        data.read_uvfits(filename)
+if args.files:
+    print 'Processing File: ',
+    for filename in args.files:
+        print filename,
+        data = UVData()
+        try:
+            data.read_uvfits(filename)
+        except IOError:
+            filename += '.uvfits'
+            data.read_uvfits(filename)
 
-    full_data = repeat_visibilities(data, noise_array=False)
-    outname = filename.split('.')
-    outname[-2] += '_expanded'
-    outname = '.'.join(outname)
-    full_data.write_uvfits(outname)
-print 'Done'
+        full_data = repeat_visibilities(data, noise_array=False)
+        outname = filename.split('.')
+        outname[-2] += '_expanded'
+        outname = '.'.join(outname)
+        full_data.write_uvfits(outname)
+    print 'Done'
 
-print 'Processing Noise File: ',
-for filename in args.noise_files:
-    noise = UVData()
-    try:
-        noise.read_uvfits(filename)
-    else IOError:
-        filename += '.uvfits'
-        noise.read_uvfits(filename)
-    print filename,
-    full_noise = repeat_visibilities(noise, noise_array=True)
-    outname = filename.split('.')
+if args.noise_files:
+    print 'Processing Noise File: ',
+    for filename in args.noise_files:
+        noise = UVData()
+        try:
+            noise.read_uvfits(filename)
+        except IOError:
+            filename += '.uvfits'
+            noise.read_uvfits(filename)
+        print filename,
+        full_noise = repeat_visibilities(noise, noise_array=True)
+        outname = filename.split('.')
 
-    outname[-2] += '_expanded'
-    outname = '.'.join(outname)
-    full_noise.write_uvfits(outname)
-print 'Done'
+        outname[-2] += '_expanded'
+        outname = '.'.join(outname)
+        full_noise.write_uvfits(outname)
+    print 'Done'
