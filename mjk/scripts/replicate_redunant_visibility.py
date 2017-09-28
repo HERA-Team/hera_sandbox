@@ -2,7 +2,7 @@
 """Compute the redudnant visibilities from a uvfits file."""
 
 import numpy as np
-from pyuvdata import UVData, UVCal
+from pyuvdata import UVData
 import hera_cal
 import argparse
 import sys
@@ -100,12 +100,13 @@ def repeat_visibilities(uvdata_obj, noise_array=False):
                                          run_check=True)
     return full_observation
 
+
 if not args.files and not args.noise_files:
     print "No Input Files given."""
     sys.exit()
 
 if args.files:
-    print 'Processing File: ',
+    print 'Processing Files:'
     for filename in args.files:
         print filename,
         data = UVData()
@@ -119,11 +120,11 @@ if args.files:
         outname = filename.split('.')
         outname[-2] += '_expanded'
         outname = '.'.join(outname)
+        print ' ---> ', outname
         full_data.write_uvfits(outname)
-    print 'Done'
 
 if args.noise_files:
-    print 'Processing Noise File: ',
+    print 'Processing Noise File:'
     for filename in args.noise_files:
         noise = UVData()
         try:
@@ -137,5 +138,5 @@ if args.noise_files:
 
         outname[-2] += '_expanded'
         outname = '.'.join(outname)
+        print ' ---> ', outname
         full_noise.write_uvfits(outname)
-    print 'Done'
