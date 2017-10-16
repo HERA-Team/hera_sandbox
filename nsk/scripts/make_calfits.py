@@ -3,7 +3,7 @@ import numpy as np
 
 def make_calfits(fname, data_array, freq_array, time_array, jones_array,  ants,
                  channel_width=0.0, gain_convention='divide', history='', telescope_name='HERA',
-                 x_orientation='east', integration_time=10.0):
+                 x_orientation='east', integration_time=10.0, freq_range=None, clobber=False):
     """
     make a calfits file from data_array etc. objects
    
@@ -28,7 +28,8 @@ def make_calfits(fname, data_array, freq_array, time_array, jones_array,  ants,
 
     # frequency params
     Nfreqs = len(freq_array)
-    freq_range = np.array([freq_array[0], freq_array[-1]])
+    if freq_range is None:
+        freq_range = np.array([freq_array[0], freq_array[-1]])
     freq_array = freq_array.reshape(1, -1) 
 
     # pol params
@@ -41,7 +42,7 @@ def make_calfits(fname, data_array, freq_array, time_array, jones_array,  ants,
     # spw params
     Nspws = 1
     spw_array = np.array([0])
-    data_array = data_array.reshape(Nants_data, 1, Nfreqs, Ntimes, Njones)
+    data_array = data_array[:, np.newaxis, :, :, :]
 
     # data params
     if data_array.shape[2] > 1:
@@ -54,7 +55,7 @@ def make_calfits(fname, data_array, freq_array, time_array, jones_array,  ants,
         cal_type = 'delay'
 
     flag_array = np.array(np.zeros_like(data_array), np.bool)
-    quality_array = np.zeros_like(data_array) 
+    quality_array = np.zeros_like(data_array, np.float64) 
 
     # make blank uvc
     uvc = UVCal()
@@ -65,5 +66,5 @@ def make_calfits(fname, data_array, freq_array, time_array, jones_array,  ants,
     for p in params:
         uvc.__setattr__(p, locals()[p])
 
-    uvc.write_calfits(fname)
+    uvc.write_calfits(fname, clobber=clobber)
 
