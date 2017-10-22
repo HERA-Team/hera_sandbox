@@ -86,7 +86,8 @@ class Helper(object):
         elif maps.ndim == 4:
             return np.einsum("ghijk,jk->ghik", maps[:, :, :, p], w)
 
-    def rotate_map(self, nside, rot=None, coord=None, theta=None, phi=None, interp=False):
+    def rotate_map(self, nside, rot=None, coord=None, theta=None, phi=None, interp=False,
+                   inv=True):
         """
         rotate healpix map between coordinates and/or in RA & Dec
 
@@ -108,13 +109,16 @@ class Helper(object):
             if True, use interpolation method
             else: use slicing method
 
+        inv : bool, default=True
+            keyword to feed hp.Rotator object
+
         """
         # if theta and phi arrays are not fed, build them
         if theta is None or phi is None:
             theta, phi = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
 
         # get rotation
-        rot_theta, rot_phi = hp.Rotator(rot=rot, coord=coord, inv=True, deg=False)(theta, phi)
+        rot_theta, rot_phi = hp.Rotator(rot=rot, coord=coord, inv=inv, deg=False)(theta, phi)
 
         if interp is False:
             # generate pixel indices array
@@ -501,7 +505,7 @@ class Beam_Model(Helper):
         obs_ra, obs_dec = self.loc.radec_of(0, np.pi/2.0)
 
         # get rotation sorting array
-        rot = self.rotate_map(self.sky_nside, rot=[obs_ra, obs_dec-np.pi/2], coord=['G', 'C'], theta=sky_theta, phi=sky_phi)
+        rot = self.rotate_map(self.sky_nside, rot=[obs_ra, obs_dec-np.pi/2], coord=['G', 'C'], theta=sky_theta, phi=sky_phi, inv=False)
  
         ## Interpolate beam at healpix values to get beam models
         ## projected onto the sky
