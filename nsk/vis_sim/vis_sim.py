@@ -89,13 +89,13 @@ class Helper(object):
     def rotate_map(self, nside, rot=None, coord=None, theta=None, phi=None, interp=False,
                    inv=True):
         """
-        rotate healpix map between coordinates and/or in RA & Dec
+        rotate healpix map between coordinates and/or in longitude and latitude
 
         nside : int, nside resolution of map
 
         rot : list, length=2
-            rot[0] = RA rotation
-            rot[1] = Dec rotation
+            rot[0] = longitude rotation (radians)
+            rot[1] = latitude rotation (radians)
 
         coord : list, length=2
             transformation between coordinate systems
@@ -106,12 +106,13 @@ class Helper(object):
         phi : longitude map in alt-az coordinates
 
         interp : bool, default=False
-            if True, use interpolation method
-            else: use slicing method
+            if True, use interpolation method (healpy.get_interp_val)
+            if False, use slicing method (healpy.ang2pix)
 
         inv : bool, default=True
             keyword to feed hp.Rotator object
-
+            to go from galactic to topocentric, inv=True
+            to go from topocentric to galactic, inv=False
         """
         # if theta and phi arrays are not fed, build them
         if theta is None or phi is None:
