@@ -86,6 +86,45 @@ class Helper(object):
         elif maps.ndim == 4:
             return np.einsum("ghijk,jk->ghik", maps[:, :, :, p], w)
 
+    def rotate_map(self, nside, rot=None, coord=None, theta=None, phi=None, interp=False):
+        """
+        rotate healpix map between coordinates and/or in RA & Dec
+
+        nside : int, nside resolution of map
+
+        rot : list, length=2
+            rot[0] = RA rotation
+            rot[1] = Dec rotation
+
+        coord : list, length=2
+            transformation between coordinate systems
+            see healpy.Rotator for convention
+
+        theta : co-latitude map in alt-az coordinates
+
+        phi : longitude map in alt-az coordinates
+
+        interp : bool, default=False
+            if True, use interpolation method
+            else: use slicing method
+
+        """
+        # if theta and phi arrays are not fed, build them
+        if theta is None or phi is None:
+            theta, phi = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
+
+        # get rotation
+        rot_theta, rot_phi = hp.Rotator(rot=rot, coord=coord, inv=True, deg=False)(theta, phi)
+
+        if interp is False:
+            # generate pixel indices array
+            pix = np.arange(hp.nside2npix(nside))[hp.ang2pix(nside, rot_theta, rot_phi)]
+            return pix
+
+        else:
+            return rot_theta, rot_phi
+
+
 class GlobalSkyModel(Helper):
     """
     GlobalSkyModel
@@ -144,17 +183,18 @@ class GlobalSkyModel(Helper):
             sky_freqs = freqs
 
         # get theta and phi arrays for default data
-        sky_nside = hp.npix2nside(sky_models.shape[1])
-        theta, phi = hp.pix2ang(sky_nside, np.arange(12*sky_nside**2), lonlat=False)
+        default_sky_nside = hp.npix2nside(sky_models.shape[1])
+        theta, phi = hp.pix2ang(sky_nside, np.arange(12*default_sky_nside**2), lonlat=False)
 
         # spatially interpolate healpix if desired
         if sky_nside is not None:
             # down sample
-            theta, phi = hp.pix2ang(sky_nside, np.arange(12*sky_nside**2))
+            default_sky_nside = sky_nside
+            theta, phi = hp.pix2ang(default_sky_nside, np.arange(12*default_sky_nside**2))
             sky_models = np.array(map(lambda x: hp.get_interp_val(x, theta, phi), sky_models))
 
         # Assign variables to class
-        self.sky_nside  = sky_nside
+        self.sky_nside  = default_sky_nside
         self.sky_npix   = 12 * sky_nside**2
         self.sky_models = sky_models
         self.sky_freqs  = sky_freqs
@@ -173,7 +213,7 @@ class GlobalSkyModel(Helper):
 
     def plot_sky(self, loc, skymap, ax=None, log10=True, res=300, axoff=True, cbar=True,
     				save=False, fname=None, plot_kwargs={'cmap':'viridis'},
-    				cbar_kwargs={}, basemap=True):
+    				cbar_kwargs={}, basemap=True, rot=None):
         """
 		Plot Global Sky Model in orthographic coordinates given observer
 		location and date
@@ -220,22 +260,19 @@ class GlobalSkyModel(Helper):
 		if ax is None:
 			outputs matplotlib.pyplot.figure object
         """
+        # rotate map
+        if rot is not None:
+            rot = self.rotate_map(self.sky_nside, rot=rot)
+            skymap = skymap[rot]
 
         # get ra dec of location
         obs_ra, obs_dec = loc.radec_of(0, np.pi/2.0)
 
-        # get sky_theta (co-latitude) and sky_phi (longitude)
-        nside = int(np.sqrt(len(skymap)/12.0))
-        sky_theta, sky_phi = hp.pix2ang(nside, np.arange(len(skymap)), lonlat=False)
+        # get rotation sorting array
+        rot = self.rotate_map(self.sky_nside, rot=[obs_ra, obs_dec-np.pi/2], coord=['G', 'C'], theta=self.sky_theta, phi=self.sky_phi)
 
-        # apply map rotation from galactic to equatorial coordinates
-        # and then to observer frame
-        theta_eq, phi_eq = hp.Rotator(rot=[obs_ra, obs_dec], coord=['G', 'C'], inv=True, deg=False)(sky_theta, sky_phi)
-        obs_sky = hp.get_interp_val(skymap, theta_eq, phi_eq)
-
-        # rotate observed sky upwards
-        theta_pol, phi_pol = hp.Rotator(rot=[0,np.pi/2,0],deg=False,inv=False)(sky_theta,sky_phi)
-        rot_sky = hp.get_interp_val(obs_sky, theta_pol, phi_pol)
+        # get rotated sky
+        rot_sky = skymap[rot]
 
         # Get polar theta and r
         omega, r = np.meshgrid(np.linspace(0,2*np.pi,res), np.linspace(0,np.pi/2.0,res))
@@ -306,7 +343,7 @@ class Beam_Model(Helper):
 
     class for handling of beam models
     """
-    def __init__(self, beamfile, loc=None, pols=None, freqs=None, pool=None, verbose=False, mask=True):
+    def __init__(self, beamfile, loc=None, pols=None, freqs=None, pool=None, verbose=False, mask=True, beam_nside=None):
         """
         Load and configure beam models
 
@@ -329,6 +366,9 @@ class Beam_Model(Helper):
         	path to beam data in fits format with 2 HDUs
         	with healpix beam models in 0th hdu w/ shape=(Npix, Nfreq)
         	and beam frequencies in 1st hdu w/ shape=(Nfreq,)
+
+        beam_nside : int
+            interpolate beam onto beam_nside
 
         Result:
         -------
@@ -377,48 +417,32 @@ class Beam_Model(Helper):
             beam_freqs = freqs
 
         # Get theta and phi arrays
-        self.beam_nside = uvb.nside
-        self.beam_npix = uvb.Npixels
-        beam_theta, beam_phi = hp.pix2ang(self.beam_nside, np.arange(self.beam_npix), lonlat=False)
+        default_beam_nside = uvb.nside
+        default_beam_npix = uvb.Npixels
+        beam_theta, beam_phi = hp.pix2ang(default_beam_nside, np.arange(default_beam_npix), lonlat=False)
+
+        # spatially interpolate healpix if desired
+        if beam_nside is not None:
+            # down sample
+            default_beam_nside = beam_nside
+            default_beam_npix = hp.nside2npix(default_beam_nside)
+            beam_theta, beam_phi = hp.pix2ang(default_beam_nside, np.arange(default_beam_npix))
+            beam_models = np.array(map(lambda x: map(lambda y: hp.get_interp_val(y, beam_theta, beam_phi), x), beam_models))
 
         # mask beam models below horizon
         mask = (beam_phi > np.pi/2.0) & (beam_phi < 3*np.pi/2.0)
         beam_models[:, :, mask] - 0.0
 
         # assign vars to class
+        self.beam_nside  = default_beam_nside
+        self.beam_npix   = default_beam_npix
         self.beam_models = beam_models
         self.beam_freqs  = beam_freqs
         self.beam_theta  = beam_theta
         self.beam_phi    = beam_phi
 
-    def rotate_beam(self, beam_models, beam_theta, beam_phi, rot=[0,0,0]):
-    	"""
-    	rotate beam models
-
-    	Input:
-    	-------
-    	beam_models : ndarray, shape=(Nfreq, Npix)
-    		multi-frequency beam models in healpix format
-
-    	beam_theta : ndarray, shape=(Npix,)
-			healpix colatitude in radians
-
-		beam_phi : ndarray, shape=(Npix,)
-			healpix longitude in radians
-
-		rot : array, default=[0,0,0], shape=(3,)
-			rotation angles in radians (lon, lat, omega)
-
-		pool : pool object, default=None
-			multiprocessing pooling object
-		"""
-    	R = hp.Rotator(rot=rot, deg=False)
-    	beam_theta2, beam_phi2 = R(beam_theta, beam_phi)
-        beam_models = hp.ma(self.healpix_interp(beam_models, self.beam_nside, beam_theta2, beam_phi2))
-    	return beam_models
-
     def project_beams(self, JD, sky_theta, sky_phi, beam_models=None, obs_lat=None, obs_lon=None,
-    					freqs=None, output=False, pool=None):
+    					freqs=None, output=False, pool=None, interp=False):
         """
         Project beam models into healpix galactic coordinates
         given observer location, observation date and sky models
@@ -476,10 +500,9 @@ class Beam_Model(Helper):
         # get ra/dec of zenith
         obs_ra, obs_dec = self.loc.radec_of(0, np.pi/2.0)
 
-        # Apply rotation to equatorial coordinates of observer
-        hrot = hp.Rotator(rot=[obs_ra, obs_dec], coord=['G', 'C'], inv=True, deg=False)
-        theta_eq, phi_eq = hrot(sky_theta, sky_phi)
-
+        # get rotation sorting array
+        rot = self.rotate_map(self.sky_nside, rot=[obs_ra, obs_dec-np.pi/2], coord=['G', 'C'], theta=sky_theta, phi=sky_phi)
+ 
         ## Interpolate beam at healpix values to get beam models
         ## projected onto the sky
         if pool is not None:
@@ -489,11 +512,10 @@ class Beam_Model(Helper):
 
         # Get direction unit vector, s-hat, the way it outputs, X==y, Y==z, and Z==x
         x, y, z = hp.pix2vec(self.beam_nside, np.arange(self.beam_npix))
-        self.s_hat = np.array([y,z,x])
-        self.s_hat = self.healpix_interp(self.s_hat, self.beam_nside, theta_eq, phi_eq).T
+        self.s_hat = np.array([y,z,x]).T[rot]
 
 	    # iterate through polarization, then map through each beam model in frequency
-        self.sky_beam_models = self.healpix_interp(beam_models, self.beam_nside, theta_eq, phi_eq)
+        self.sky_beam_models = beam_models[:, :, rot]
         self.sky_beam_freqs = self.beam_freqs
 
         # Interpolate frequency axis if desired
@@ -509,7 +531,7 @@ class Beam_Model(Helper):
     				contour=True, levels=None, nlevels=None, label_cont=False,
     				save=False, fname=None, basemap=True, verbose=False,
     				plot_kwargs={'cmap':'YlGnBu_r','linewidths':0.75,'alpha':0.8},
-    				cbar_kwargs={}):
+    				cbar_kwargs={}, rot=[0, np.pi/2]):
         """
 		Plot beam model in orthographic coordinates
 
@@ -576,6 +598,11 @@ class Beam_Model(Helper):
             log10 = False
             if verbose == True:
                 print "...both log10 dBi is True, using dBi"
+
+        # rotate beam
+        if rot is not None:
+            rot = self.rotate_map(self.beam_nside, rot=rot)
+            beam = beam[rot]
 
         # get beam_theta (co-latitude) and beam_phi (longitude)
         nside = int(np.sqrt(len(beam)/12.0))
@@ -770,7 +797,7 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
 
         # Initialize fiducial beam models if beamfile
         self.print_message("...initializing beam models", type=1, verbose=verbose)
-        self.init_beam(beamfile, loc=self.loc, pols=self.pols, freqs=self.freqs, verbose=verbose)
+        self.init_beam(beamfile, loc=self.loc, pols=self.pols, freqs=self.freqs, verbose=verbose, beam_nside=sky_nside)
 
     def build_beams(self, ant_inds=None, output=False, one_beam_model=True):
     	""""
