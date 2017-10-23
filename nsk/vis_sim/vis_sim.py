@@ -515,10 +515,6 @@ class Beam_Model(Helper):
         else:
             M = map
 
-        # Get direction unit vector, s-hat, the way it outputs, X==y, Y==z, and Z==x
-        x, y, z = hp.pix2vec(self.beam_nside, np.arange(self.beam_npix))
-        self.s_hat = np.array([y,z,x]).T[rot]
-
 	    # iterate through polarization, then map through each beam model in frequency
         self.sky_beam_models = beam_models[:, :, rot]
         self.sky_beam_freqs = self.beam_freqs
@@ -902,20 +898,33 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
 
         # get vector in u-v plane
         wavelengths = 2.9979e8 / (self.freqs * 1e6)
-        self.uv_vecs     = (ant2_pos - ant1_pos).reshape(Nbls, 3, -1) / wavelengths
+        self.uv_vecs = (ant2_pos - ant1_pos).reshape(Nbls, 3, -1) / wavelengths
+
+        # Get direction unit vector, s-hat, the way it outputs, X==y, Y==z, and Z==x
+        x, y, z = hp.pix2vec(self.beam_nside, np.arange(self.beam_npix))
+        self.s_hat = np.array([y,z,x])
+
+        # get phase map in topocentric frame (sqrt of full phase term)
+        self.sqrt_phase = np.exp( -1j * np.pi * np.einsum('ijk,jl->ikl', self.uv_vecs, self.s_hat) )
 
         # build beams for each antenna in topocentric coordinates
         self.build_beams(ant_inds=ant_inds, one_beam_model=one_beam_model)
+
+        # create phase and beam product maps
+        self.beam_phs = self.ant_beam_models * self.sqrt_phase
 
         # loop over JDs
         self.vis_data = []
         for jd in JD_array:
 
-            # project beams onto GSM
-            self.generate_beams(jd, ant_inds=ant_inds, build_beams=False, one_beam_model=one_beam_model)
+            # map through each antenna and project polarized, multi-frequency beam model onto sky
+            if one_beam_model == True:
+                self.proj_beam_phs = self.project_beams(jd, self.sky_theta, self.sky_phi, beam_models=self.beam_phs, output=True)
 
-            # get phase term
-            phases = np.exp( -2j * np.pi * np.einsum('ijk,lj->ikl', self.uv_vecs, self.s_hat) )
+            else:
+                #proj_ant_beam_models = self.project_beams(JD, self.sky_theta, self.sky_phi,
+                #beam_models=np.array(map(lambda x: self.ant_beam_models[str(x)], self.ant_nums)), output=True)
+                self.proj_beam_phs = self.project_beams(jd, self.sky_theta, self.sky_phi, beam_models=self.beam_phs, output=True)
 
             # calculate visibility
             if pool is None:
@@ -924,11 +933,10 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
                 M = pool.map
 
             if one_beam_model == True:
-                vis = np.einsum("ijk, jk, ljk, hjk -> hilj", self.proj_ant_beam_models, self.sky_models,
-                      self.proj_ant_beam_models, phases)
+                vis = np.einsum("ijk, jk, ljk -> ilj", self.proj_beam_phs, self.sky_models, self.proj_beam_phs)
             else:
-                vis = np.array(map(lambda x: np.einsum("ijk, jk, ljk, jk -> ilj", self.proj_ant_beam_models[rel_ant2ind[x[1][0]]],
-                      self.sky_models, self.proj_ant_beam_models[rel_ant2ind[x[1][1]]], phases[x[0]]), enumerate(str_bls)))
+                vis = np.array(map(lambda x: np.einsum("ijk, jk, ljk -> ilj", self.proj_beam_phs[rel_ant2ind[x[1][0]]],
+                      self.sky_models, self.proj_beam_phs[rel_ant2ind[x[1][1]]]), enumerate(str_bls)))
 
             self.vis_data.append(vis)
 
@@ -937,7 +945,7 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
         
         # normalize by the effective-beam solid angle
         if one_beam_model == True:
-            self.ant_beam_sa = np.repeat(np.einsum('ijk,ljk->ilj', self.proj_ant_beam_models, self.proj_ant_beam_models)[np.newaxis], Nbls, 0)
+            self.ant_beam_sa = np.repeat(np.einsum('ijk,ljk->ilj', self.ant_beam_models, self.ant_beam_models)[np.newaxis], Nbls, 0)
         else:
             self.ant_beam_sa = np.array(map(lambda x: np.einsum('ijk,ljk->ilj', self.proj_ant_beam_models[rel_ant2ind[x[1][0]]],
                                                             self.proj_ant_beam_models[rel_ant2ind[x[1][1]]]), enumerate(str_bls)))
