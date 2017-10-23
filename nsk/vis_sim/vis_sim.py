@@ -159,9 +159,15 @@ class GlobalSkyModel(Helper):
             frequency channels of sky model in MHz. If None, default
             is what the gsmfile provides
 
+        onepol : bool, default=False
+            if True, keep all 2x2 stokes maps
+            if False, only keep stokes I map
+
         Result:
         -------
-        self.sky_models : ndarray, shape=(Nfreqs, Npix)
+        self.sky_models : ndarray, shape=(2, 2, Nfreqs, Npix)
+            first two axes are for 4-pol stokes parameters
+            [ [I+Q, U+iV], [U-iV, I-Q] ]
             (multi-frequency) global sky model in healpix
             using RING ordering in units of MJy-str
 
@@ -182,25 +188,29 @@ class GlobalSkyModel(Helper):
         sky_models = GSM_data['sky']
         sky_freqs  = GSM_data['freqs']
 
+        # check sky_models are appropriate shape
+        if len(sky_models.shape) != 4:
+            raise ValueError("sky_models.shape = {} when it should have len = 4".format(sky_models.shape))
+
         # 1D interpolation of frequency axis
         if freqs is not None:
-            sky_models = interpolate.interp1d(sky_freqs, sky_models, axis=0)(freqs)
+            sky_models = interpolate.interp1d(sky_freqs, sky_models, axis=2)(freqs)
             sky_freqs = freqs
 
         # get theta and phi arrays for default data
-        default_sky_nside = hp.npix2nside(sky_models.shape[1])
-        theta, phi = hp.pix2ang(sky_nside, np.arange(12*default_sky_nside**2), lonlat=False)
+        default_sky_nside = hp.npix2nside(sky_models.shape[3])
+        theta, phi = hp.pix2ang(default_sky_nside, np.arange(12*default_sky_nside**2), lonlat=False)
 
         # spatially interpolate healpix if desired
         if sky_nside is not None:
             # down sample
+            theta, phi = hp.pix2ang(sky_nside, np.arange(12*sky_nside**2))
+            sky_models = self.healpix_interp(sky_models, default_sky_nside, theta, phi)
             default_sky_nside = sky_nside
-            theta, phi = hp.pix2ang(default_sky_nside, np.arange(12*default_sky_nside**2))
-            sky_models = np.array(map(lambda x: hp.get_interp_val(x, theta, phi), sky_models))
 
         # Assign variables to class
         self.sky_nside  = default_sky_nside
-        self.sky_npix   = 12 * sky_nside**2
+        self.sky_npix   = 12 * default_sky_nside**2
         self.sky_models = sky_models
         self.sky_freqs  = sky_freqs
         self.sky_theta  = theta
@@ -213,7 +223,7 @@ class GlobalSkyModel(Helper):
     	freqs : ndarray
     		frequency channels in MHz
     	"""
-    	self.sky_models = interpolate.interp1d(self.sky_freqs, self.sky_models, axis=0)(freqs)
+    	self.sky_models = interpolate.interp1d(self.sky_freqs, self.sky_models, axis=2)(freqs)
     	self.sky_freqs = freqs
 
     def plot_sky(self, loc, skymap, ax=None, log10=True, res=300, axoff=True, cbar=True,
@@ -348,7 +358,7 @@ class Beam_Model(Helper):
 
     class for handling of beam models
     """
-    def __init__(self, beamfile, loc=None, pols=None, freqs=None, pool=None, verbose=False, mask=True, beam_nside=None):
+    def __init__(self, beamfile, loc=None, pols=None, freqs=None, pool=None, verbose=False, mask_hor=True, beam_nside=None):
         """
         Load and configure beam models
 
@@ -435,8 +445,9 @@ class Beam_Model(Helper):
             beam_models = np.array(map(lambda x: map(lambda y: hp.get_interp_val(y, beam_theta, beam_phi), x), beam_models))
 
         # mask beam models below horizon
-        mask = (beam_phi > np.pi/2.0) & (beam_phi < 3*np.pi/2.0)
-        beam_models[:, :, mask] - 0.0
+        if mask_hor is True:
+            mask = (beam_theta > np.pi/2)
+            beam_models[:, :, mask] = 0.0
 
         # assign vars to class
         self.beam_nside  = default_beam_nside
@@ -722,7 +733,7 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
         self.beam_coeffs = np.zeros((self.red_info.nAntenna, self.Npols, self.Nfreqs, self.Npcomps))
 
 
-    def __init__(self, calfile, gsmfile, beamfile, info_kwargs={}, sky_nside=None, freqs=None, pols=['X'],
+    def __init__(self, calfile, gsmfile, beamfile, info_kwargs={}, sky_nside=None, freqs=None, pols=['X', 'Y'],
                 verbose=False):
         """
 		Redundant Array Visibility Simulation with the Global Sky Model
@@ -825,36 +836,6 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
     	if output == True:
     		return self.ant_beam_models
 
-    def generate_beams(self, JD, ant_inds=None, build_beams=True, one_beam_model=True):
-        """
-		generate a polarized, multi-frequency beam model for each antenna
-		and then project onto the sky in healpix galactic coordinates given
-		observer location and time
-
-		Input:
-		------
-		JD : float
-			Julian Date of observation
-
-        """
-        # get antenna indices
-        if ant_inds is None:
-            ant_inds = np.arange(self.Nants)
-
-        # build antenna beam models
-        if build_beams == True:
-            self.build_beams(ant_inds=ant_inds, one_beam_model=one_beam_model)
-
-        # map through each antenna and project polarized, multi-frequency beam model onto sky
-        if one_beam_model == True:
-            self.proj_ant_beam_models = self.project_beams(JD, self.sky_theta, self.sky_phi, beam_models=self.ant_beam_models, output=True)
-
-        else:
-            #proj_ant_beam_models = self.project_beams(JD, self.sky_theta, self.sky_phi,
-            #beam_models=np.array(map(lambda x: self.ant_beam_models[str(x)], self.ant_nums)), output=True)
-            self.proj_ant_beam_models = self.project_beams(JD, self.sky_theta, self.sky_phi, beam_models=self.ant_beam_models, output=True)
-
-
     def sim_obs(self, bl_array, JD_array, freqs=None, pool=None,
                 write_miriad=False, fname=None, clobber=False, one_beam_model=True,
                 interp=True):
@@ -909,7 +890,7 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
         self.build_beams(ant_inds=ant_inds, one_beam_model=one_beam_model)
 
         # create phase and beam product maps
-        self.beam_phs = self.ant_beam_models * self.phase
+        self.beam_phs = self.ant_beam_models.reshape(self.Npols, -1, self.Nfreqs, self.beam_npix) * self.phase
 
         # loop over JDs
         self.vis_data = []
@@ -931,25 +912,24 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
                 M = pool.map
 
             if one_beam_model == True:
-                vis = np.einsum("ijk, jk, ljk -> ilj", self.proj_beam_phs, self.sky_models, self.proj_beam_phs)
+                vis = np.einsum("ijkl, imkl, mjkl -> imjk", self.proj_beam_phs, self.sky_models, self.proj_beam_phs)
             else:
                 vis = np.array(map(lambda x: np.einsum("ijk, jk, ljk -> ilj", self.proj_beam_phs[rel_ant2ind[x[1][0]]],
                       self.sky_models, self.proj_beam_phs[rel_ant2ind[x[1][1]]]), enumerate(str_bls)))
 
             self.vis_data.append(vis)
 
-        self.vis_data = np.array(self.vis_data)
-        self.vis_data.resize(Ntimes, Nbls, self.Nxpols, self.Nfreqs)
+        self.vis_data = np.moveaxis(np.array(self.vis_data), 0, 3)
         
         # normalize by the effective-beam solid angle
         if one_beam_model == True:
-            self.ant_beam_sa = np.repeat(np.einsum('ijk,ljk->ilj', self.ant_beam_models, self.ant_beam_models)[np.newaxis], Nbls, 0)
+            self.ant_beam_sa = np.repeat(np.einsum('ijk,ljk->ilj', self.ant_beam_models, self.ant_beam_models)[:, :, np.newaxis, :], Nbls, 2)
         else:
             self.ant_beam_sa = np.array(map(lambda x: np.einsum('ijk,ljk->ilj', self.proj_ant_beam_models[rel_ant2ind[x[1][0]]],
                                                             self.proj_ant_beam_models[rel_ant2ind[x[1][1]]]), enumerate(str_bls)))
-        self.ant_beam_sa.resize(Nbls, self.Nxpols, self.Nfreqs)
-        self.vis_data /= self.ant_beam_sa[np.newaxis]
-        self.vis_data_shape = "(Ntimes, Nbls, Nxpols, Nfreqs)"
+        self.ant_beam_sa
+        self.vis_data /= self.ant_beam_sa[:, :, :, np.newaxis, :]
+        self.vis_data_shape = "(2, 2, Nbls, Ntimes, Nfreqs)"
 
         # write to file
         if write_miriad == True:
