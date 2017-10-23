@@ -506,17 +506,14 @@ class Beam_Model(Helper):
         obs_ra, obs_dec = self.loc.radec_of(0, np.pi/2.0)
 
         # get rotation sorting array
-        rot = self.rotate_map(self.sky_nside, rot=[obs_ra, obs_dec-np.pi/2], coord=['G', 'C'], theta=sky_theta, phi=sky_phi, inv=False)
- 
-        ## Interpolate beam at healpix values to get beam models
-        ## projected onto the sky
-        if pool is not None:
-            M = pool.map
-        else:
-            M = map
+        if interp is True:
+            rot_theta, rot_phi = self.rotate_map(self.sky_nside, rot=[obs_ra, obs_dec-np.pi/2], coord=['G', 'C'], theta=sky_theta, phi=sky_phi, inv=False, interp=interp)
+            self.sky_beam_models = self.healpix_interp(beam_models, self.beam_nside, rot_theta, rot_phi)
 
-	    # iterate through polarization, then map through each beam model in frequency
-        self.sky_beam_models = beam_models[:, :, rot]
+        else:
+            rot = self.rotate_map(self.sky_nside, rot=[obs_ra, obs_dec-np.pi/2], coord=['G', 'C'], theta=sky_theta, phi=sky_phi, inv=False, interp=interp)
+            self.sky_beam_models = beam_models[:, :, rot]
+
         self.sky_beam_freqs = self.beam_freqs
 
         # Interpolate frequency axis if desired
@@ -859,7 +856,8 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
 
 
     def sim_obs(self, bl_array, JD_array, freqs=None, pool=None,
-                write_miriad=False, fname=None, clobber=False, one_beam_model=True):
+                write_miriad=False, fname=None, clobber=False, one_beam_model=True,
+                interp=True):
         """
 		Simulate a visibility observation of the sky
 
@@ -900,18 +898,18 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
         wavelengths = 2.9979e8 / (self.freqs * 1e6)
         self.uv_vecs = (ant2_pos - ant1_pos).reshape(Nbls, 3, -1) / wavelengths
 
-        # Get direction unit vector, s-hat, the way it outputs, X==y, Y==z, and Z==x
+        # Get direction unit vector, s-hat
         x, y, z = hp.pix2vec(self.beam_nside, np.arange(self.beam_npix))
-        self.s_hat = np.array([y,z,x])
+        self.s_hat = np.array([y, x, z])
 
         # get phase map in topocentric frame (sqrt of full phase term)
-        self.sqrt_phase = np.exp( -1j * np.pi * np.einsum('ijk,jl->ikl', self.uv_vecs, self.s_hat) )
+        self.phase = np.exp( -1j * np.pi * np.einsum('ijk,jl->ikl', self.uv_vecs, self.s_hat) )
 
         # build beams for each antenna in topocentric coordinates
         self.build_beams(ant_inds=ant_inds, one_beam_model=one_beam_model)
 
         # create phase and beam product maps
-        self.beam_phs = self.ant_beam_models * self.sqrt_phase
+        self.beam_phs = self.ant_beam_models * self.phase
 
         # loop over JDs
         self.vis_data = []
@@ -919,12 +917,12 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
 
             # map through each antenna and project polarized, multi-frequency beam model onto sky
             if one_beam_model == True:
-                self.proj_beam_phs = self.project_beams(jd, self.sky_theta, self.sky_phi, beam_models=self.beam_phs, output=True)
+                self.proj_beam_phs = self.project_beams(jd, self.sky_theta, self.sky_phi, beam_models=self.beam_phs, output=True, interp=interp)
 
             else:
                 #proj_ant_beam_models = self.project_beams(JD, self.sky_theta, self.sky_phi,
                 #beam_models=np.array(map(lambda x: self.ant_beam_models[str(x)], self.ant_nums)), output=True)
-                self.proj_beam_phs = self.project_beams(jd, self.sky_theta, self.sky_phi, beam_models=self.beam_phs, output=True)
+                self.proj_beam_phs = self.project_beams(jd, self.sky_theta, self.sky_phi, beam_models=self.beam_phs, output=True, interp=interp)
 
             # calculate visibility
             if pool is None:
