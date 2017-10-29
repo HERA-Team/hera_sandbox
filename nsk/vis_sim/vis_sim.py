@@ -45,13 +45,20 @@ class Helper(object):
             elif type == 1:
                 print("\n%s\n%s" % (message, '-'*40))
 
-    def JD2LST(self, loc, JD):
+    def JD2LST(self, JD, longitude=None, loc=None):
         """
-        use ephem to convert from JD to LST
+        use astropy to convert from JD to LST
+        provide either:
+        loc : ephem Observer instance
+        longitude : float, longitude in degrees East
         """
-        loc2 = loc.copy()
-        loc2.date = Time(JD, format="jd").datetime
-        return loc2.sidereal_time()
+        if loc is not None:
+            t = Time(JD, format="jd")
+            lst = t.sidereal_time('apparent', longitude=loc.lon*180/np.pi)
+        elif longitude is not None:
+            t = Time(JD, format="jd")
+            lst = t.sidereal_time('apparent', longitude=longitude)
+        return lst.value
 
     def healpix_interp(self, maps, map_nside, theta, phi, nest=False):
         """
@@ -137,7 +144,7 @@ class GlobalSkyModel(Helper):
 
     class for handling of global sky model data
     """
-    def __init__(self, gsmfile, sky_nside=None, freqs=None, verbose=False):
+    def __init__(self, gsmfile, sky_nside=None, freqs=None, verbose=False, onepol=False):
         """
         load global sky model
         and optionally interpolate to specific nside
@@ -148,7 +155,8 @@ class GlobalSkyModel(Helper):
         gsmfile : str
             path to gsm data file as a .npz file
             with "sky" as multifrequency sky and
-            "freqs" as frequency channels in MHz
+            "freqs" as frequency channels in MHz.
+            sky is assumed to be in galactic coordinates.
 
         sky_nside : int, default=None
             downsample GSM to desired healpix nside
@@ -160,8 +168,8 @@ class GlobalSkyModel(Helper):
             is what the gsmfile provides
 
         onepol : bool, default=False
-            if True, keep all 2x2 stokes maps
-            if False, only keep stokes I map
+            if True, keep only stokes I map
+            if False, keep full Jones matrix
 
         Result:
         -------
@@ -184,21 +192,27 @@ class GlobalSkyModel(Helper):
         """
 
         # Load GSM Sky 
-        GSM_data   = np.load(gsmfile)
-        sky_models = GSM_data['sky']
-        sky_freqs  = GSM_data['freqs']
+        GSM_data    = np.load(gsmfile)
+        sky_models  = GSM_data['sky']
+        sky_freqs   = GSM_data['freqs']
+        sky_freq_ax = 2
 
         # check sky_models are appropriate shape
         if len(sky_models.shape) != 4:
             raise ValueError("sky_models.shape = {} when it should have len = 4".format(sky_models.shape))
 
+        # check for onepol
+        if onepol is True:
+            sky_models = (np.trace(sky_models, axis1=0, axis2=1) / 2.0)[np.newaxis]
+            sky_freq_ax -= 1
+
         # 1D interpolation of frequency axis
         if freqs is not None:
-            sky_models = interpolate.interp1d(sky_freqs, sky_models, axis=2)(freqs)
+            sky_models = interpolate.interp1d(sky_freqs, sky_models, axis=sky_freq_ax)(freqs)
             sky_freqs = freqs
 
         # get theta and phi arrays for default data
-        default_sky_nside = hp.npix2nside(sky_models.shape[3])
+        default_sky_nside = hp.npix2nside(sky_models.shape[sky_freq_ax+1])
         theta, phi = hp.pix2ang(default_sky_nside, np.arange(12*default_sky_nside**2), lonlat=False)
 
         # spatially interpolate healpix if desired
@@ -215,6 +229,8 @@ class GlobalSkyModel(Helper):
         self.sky_freqs  = sky_freqs
         self.sky_theta  = theta
         self.sky_phi    = phi
+        self.onepol     = onepol
+        self.sky_freq_ax = sky_freq_ax
 
     def GSM_freq_interp(self, freqs):
     	"""
@@ -223,7 +239,7 @@ class GlobalSkyModel(Helper):
     	freqs : ndarray
     		frequency channels in MHz
     	"""
-    	self.sky_models = interpolate.interp1d(self.sky_freqs, self.sky_models, axis=2)(freqs)
+    	self.sky_models = interpolate.interp1d(self.sky_freqs, self.sky_models, axis=self.sky_freq_ax)(freqs)
     	self.sky_freqs = freqs
 
     def plot_sky(self, loc, skymap, ax=None, log10=True, res=300, axoff=True, cbar=True,
@@ -358,20 +374,15 @@ class Beam_Model(Helper):
 
     class for handling of beam models
     """
-    def __init__(self, beamfile, loc=None, pols=None, freqs=None, pool=None, verbose=False, mask_hor=True, beam_nside=None):
+    def __init__(self, beamfile, loc=None, freqs=None, pool=None, verbose=False,
+                 mask_hor=True, beam_nside=None, onepol=False, pol=0, beam_type='intensity_sq'):
         """
         Load and configure beam models
 
         Input:
         ------
         beamfile : str
-            pyuvdata beamfits file
-
-        pols : list, default=['X']
-            list of polarizations of antenna feeds
-            to put in self.beam_models
-            options=['X', 'Y'], for North and/or East
-            North (Y) is assumed to be 90 deg rotation of East (X)
+            pyuvdata beamfits file, holding a healpix beam in topocentric coordinates
 
         freqs : ndarray, default=None
             frequency channels in MHz, defaults to
@@ -384,6 +395,21 @@ class Beam_Model(Helper):
 
         beam_nside : int
             interpolate beam onto beam_nside
+
+        onepol : bool, default=False
+            if True: use only one feed polarization (zeroth axis)
+
+        pol : int, default=0, option = 0 or 1
+            if onepol is True, which pol index to use in beam_models 
+
+        beam_type : str, default='power', options=['intensity', 'intensity_sq']
+            specifies the beam_type of the map. the measurement equation
+            reads V = A1.T * I * A2, where A is the beam intensity and I is the sky
+            brightness. If we assume A1 == A2 and A3 == A2**2, then this
+            simplifies to V = A3 * I, where A1 and A2 have type of 'intensity'
+            and A3 has type of 'intensity_sq', i.e. intensity_sq = intensity**2.
+            this simulation needs a beam type of 'intensiy', so if fed
+            'intensity_sq', it will take the square root of the maps.
 
         Result:
         -------
@@ -413,22 +439,26 @@ class Beam_Model(Helper):
         beam_freqs  = uvb.freq_array.squeeze() / 1e6
         pol_arr     = uvb.polarization_array
 
-        # select polarization
-        if pols is not None:
-            if len(pol_arr) == 1:
-                self.print_message("...only polarization in beamfits is %s"%pol_arr, verbose=verbose)
-            else:
-                try:
-                    pol_select  = map(lambda x: {"X":0, "Y":1}[x], pols)
-                    beam_models = beam_models[pol_select]
-                except KeyError:
-                    raise Exception("...didn't recognize pol %s, try 'X' or 'Y'"%pols)
-                self.print_message("...using pol(s) %s"%pols, verbose=verbose)
+        # ensure beam type is intensity
+        if beam_type == 'intensity_sq':
+            beam_models = beam_models ** (1./2)
+
+        # ensure beam_models.shape
+        if len(beam_models.shape) < 2 or len(beam_models.shape) > 3:
+            raise ValueError("beam_models.shape is {}, but must have len of either 2 or 3".format(beam_models.shape))
+
+        # select onepol
+        if onepol is True:
+            beam_models = beam_models[pol][np.newaxis]
+            pol_arr = np.array(pol_arr[pol])[np.newaxis]
+        else:
+            if beam_models.shape[0] != 2:
+                raise ValueError("beam_models.shape[0] must be 2, but is {}".format(beam_models.shape[0]))
 
         # 1D interpolation of frequency axis if desired
         if freqs is not None:
-            beam_models = interpolate.interp1d(beam_freqs, beam_models, axis=1,\
-                                    bounds_error=False, fill_value='extrapolate')(freqs)
+            beam_models = interpolate.interp1d(beam_freqs, beam_models, axis=1,
+                                               bounds_error=False, fill_value='extrapolate')(freqs)
             beam_freqs = freqs
 
         # Get theta and phi arrays
@@ -444,6 +474,9 @@ class Beam_Model(Helper):
             beam_theta, beam_phi = hp.pix2ang(default_beam_nside, np.arange(default_beam_npix))
             beam_models = np.array(map(lambda x: map(lambda y: hp.get_interp_val(y, beam_theta, beam_phi), x), beam_models))
 
+        # make sure boresight is normalized to 1
+        beam_models /= np.max(beam_models, axis=-1)[:, :, np.newaxis]
+
         # mask beam models below horizon
         if mask_hor is True:
             mask = (beam_theta > np.pi/2)
@@ -456,6 +489,17 @@ class Beam_Model(Helper):
         self.beam_freqs  = beam_freqs
         self.beam_theta  = beam_theta
         self.beam_phi    = beam_phi
+        self.beam_pols   = pol_arr
+
+    def beam_freq_interp(self, freqs):
+        """
+        1D interpolation of beam models along frqeuency axis
+
+        freqs : ndarray
+            frequency channels in MHz
+        """
+        self.beam_models = interpolate.interp1d(self.beam_freqs, self.beam_models, axis=1)(freqs)
+        self.beam_freqs = freqs
 
     def project_beams(self, JD, sky_theta, sky_phi, beam_models=None, obs_lat=None, obs_lon=None,
     					freqs=None, output=False, pool=None, interp=False):
@@ -709,7 +753,6 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
 
     class for handling visibility simulations
 
-    currently assumes an unpolarized sky
     """
 
     def init_GSM(self, gsmfile, **kwargs):
@@ -722,8 +765,15 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
         """
         initialize beam. See Beam_Model class doc-string for info on arguments
         """
+        # initialize Beam_Model class
         super(GlobalSkyModel, self).__init__(beamfile, **kwargs)
-        self.fid_beam_models = np.ma.masked_array(copy.deepcopy(self.beam_models))
+
+        # get polarization parameters
+        self.pols = self.beam_pols.copy()
+        self.Npols = len(self.pols)
+
+        # set fiducial beam models
+        self.fid_beam_models = copy.deepcopy(self.beam_models)
 
         # Initialize principal components
         self.Npcomps = 1
@@ -733,8 +783,8 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
         self.beam_coeffs = np.zeros((self.red_info.nAntenna, self.Npols, self.Nfreqs, self.Npcomps))
 
 
-    def __init__(self, calfile, gsmfile, beamfile, info_kwargs={}, sky_nside=None, freqs=None, pols=['X', 'Y'],
-                verbose=False):
+    def __init__(self, calfile, gsmfile, beamfile, info_kwargs={}, sky_nside=None, freqs=None,
+                 onepol=False, pol=0, verbose=False):
         """
 		Redundant Array Visibility Simulation with the Global Sky Model
 		Inherits from classes <GlobalSkyModel> and <Beam_Model>
@@ -761,10 +811,13 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
             desired visibility frequency channels in MHz
             by default uses sky model frequency channels
 
-        pols : list, default=["X"], options=["X", "Y"]
-            antenna polarizations to model for
-            If more than one is given than it will
-            solve for auto and cross pol correlations
+        onepol : bool, default=False
+            if True: solve only one auto-pol (faster)
+                takes trace/2 of sky models (stokes I) and [pol] of beam models
+            if False: solve full jones matrix for 4-pol terms (slower)
+
+        pol : int, default=0
+            if onepol is True, which polarization index to use for beam models (0 or 1)
 
         verbose : bool, default=False
             print out progress
@@ -773,20 +826,16 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
         self.print_message("...initializing visibility simulation", type=1, verbose=verbose)
 
         # Initialize GSM
-        self.init_GSM(gsmfile, sky_nside=sky_nside, freqs=freqs, verbose=verbose)
+        self.init_GSM(gsmfile, sky_nside=sky_nside, freqs=freqs, verbose=verbose, onepol=onepol)
 
         # Assign variables
         self.calfile     = calfile
         self.info_kwargs = info_kwargs
-        self.pols        = np.array(pols)
-        self.Npols       = len(pols)
         if freqs is None:
             self.freqs   = self.sky_freqs
         else:
             self.freqs   = freqs
         self.Nfreqs      = len(self.freqs)
-        self.Nxpols      = self.Npols**2
-        self.xpols       = np.concatenate(map(lambda x: map(lambda y: x+y, self.pols) , self.pols))
 
         # Get Redundant Info
         self.print_message("...getting redundant info", type=1, verbose=verbose)
@@ -806,7 +855,8 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
 
         # Initialize fiducial beam models if beamfile
         self.print_message("...initializing beam models", type=1, verbose=verbose)
-        self.init_beam(beamfile, loc=self.loc, pols=self.pols, freqs=self.freqs, verbose=verbose, beam_nside=sky_nside)
+        self.init_beam(beamfile, loc=self.loc, pol=pol, onepol=onepol, freqs=self.freqs,
+                       verbose=verbose, beam_nside=sky_nside)
 
     def build_beams(self, ant_inds=None, output=False, one_beam_model=True):
     	""""
@@ -829,14 +879,14 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
 
         # get each antennas beam model
         if one_beam_model == True:
-            self.ant_beam_models = self.fid_beam_models
+            self.ant_beam_models = self.fid_beam_models.copy()
         else:
             self.ant_beam_models = np.array(map(lambda i: np.einsum('ijkl,ijk->ijl', self.pcomps, self.beam_coeffs[i]) + self.fid_beam_models, ant_inds))
 
     	if output == True:
     		return self.ant_beam_models
 
-    def sim_obs(self, bl_array, JD_array, freqs=None, pool=None,
+    def sim_obs(self, bl_array, JD_array, pool=None,
                 write_miriad=False, fname=None, clobber=False, one_beam_model=True,
                 interp=True):
         """
@@ -850,17 +900,7 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
 
 		JD_array : list, shape=(Ntimes,), dtype=float
 			list of Julian Dates for observations
-
-		freqs : ndarray, dtype=float
-			array of frquencies in MHz for visibility 
-			simulation, default uses sky frequency channels
-
     	"""
-
-        # interpolate GSM onto desired frequencies
-        if freqs is not None:
-            self.GSM_freq_interp(freqs)
-
         # get array info
         Nbls         = len(bl_array)
         str_bls      = [(str(x[0]), str(x[1])) for x in bl_array]
@@ -889,7 +929,7 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
         # build beams for each antenna in topocentric coordinates
         self.build_beams(ant_inds=ant_inds, one_beam_model=one_beam_model)
 
-        # create phase and beam product maps
+        # create phase and beam product maps (Npol, Nbl, Nfreqs, Npix)
         self.beam_phs = self.ant_beam_models.reshape(self.Npols, -1, self.Nfreqs, self.beam_npix) * self.phase
 
         # loop over JDs
@@ -912,24 +952,33 @@ class Vis_Sim(GlobalSkyModel, Beam_Model):
                 M = pool.map
 
             if one_beam_model == True:
-                vis = np.einsum("ijkl, imkl, mjkl -> imjk", self.proj_beam_phs, self.sky_models, self.proj_beam_phs)
+                if self.onepol is True:
+                    vis = np.einsum("ijkl, ikl -> ijk", self.proj_beam_phs**2, self.sky_models)
+                else:
+                    vis = np.einsum("ijkl, imkl, mjkl -> imjk", self.proj_beam_phs, self.sky_models, self.proj_beam_phs)
             else:
                 vis = np.array(map(lambda x: np.einsum("ijk, jk, ljk -> ilj", self.proj_beam_phs[rel_ant2ind[x[1][0]]],
                       self.sky_models, self.proj_beam_phs[rel_ant2ind[x[1][1]]]), enumerate(str_bls)))
 
             self.vis_data.append(vis)
 
-        self.vis_data = np.moveaxis(np.array(self.vis_data), 0, 3)
+        if self.onepol is True:
+            self.vis_data = np.moveaxis(np.array(self.vis_data), 0, 2)
+        else:
+            self.vis_data = np.moveaxis(np.array(self.vis_data), 0, 3)
         
         # normalize by the effective-beam solid angle
         if one_beam_model == True:
-            self.ant_beam_sa = np.repeat(np.einsum('ijk,ljk->ilj', self.ant_beam_models, self.ant_beam_models)[:, :, np.newaxis, :], Nbls, 2)
+            self.ant_beam_sa = np.repeat(np.einsum('ijk,ijk->ij', self.ant_beam_models, self.ant_beam_models)[ :, np.newaxis, :], Nbls, 1)
         else:
             self.ant_beam_sa = np.array(map(lambda x: np.einsum('ijk,ljk->ilj', self.proj_ant_beam_models[rel_ant2ind[x[1][0]]],
                                                             self.proj_ant_beam_models[rel_ant2ind[x[1][1]]]), enumerate(str_bls)))
-        self.ant_beam_sa
-        self.vis_data /= self.ant_beam_sa[:, :, :, np.newaxis, :]
-        self.vis_data_shape = "(2, 2, Nbls, Ntimes, Nfreqs)"
+        if self.onepol is True:
+            self.vis_data /= self.ant_beam_sa[:, :, np.newaxis, :]
+            self.vis_data_shape = "(1, Nbls, Ntimes, Nfreqs)"
+        else:
+            self.vis_data /= self.ant_beam_sa[:, :, :, np.newaxis, :]
+            self.vis_data_shape = "(2, 2, Nbls, Ntimes, Nfreqs)"
 
         # write to file
         if write_miriad == True:
