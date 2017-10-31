@@ -20,6 +20,32 @@ def JD2LST(JD, longitude):
     return t.sidereal_time('apparent', longitude=longitude).value
 
 
+def LST2JD(LST, start_JD, longitude):
+    """
+    calculate LST -> JD quickly via a linear fit
+
+    Input:
+    ------
+    LST : local sidereal time, hour angle
+    start_JD : staring JD to anchor LST2JD conversion
+    longitude : degrees east of observer
+
+    Output:
+    JD : float of JD, accurate to ~1 milliseconds
+    """
+    # calculate fit
+    jd1 = start_JD
+    jd2 = start_JD + 0.01
+    lst1, lst2 = JD2LST(jd1, longitude=longitude), JD2LST(jd2, longitude=longitude)
+    slope = (lst2 - lst1) / 0.01
+    offset = lst1 - slope * jd1
+
+    # solve y = mx + b for x
+    JD = (LST - offset) / slope
+
+    return JD
+
+
 if __name__ == "__main__":
     args = a.parse_args()
     if args.jd is not None and args.lon is not None:
