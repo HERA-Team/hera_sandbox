@@ -1,6 +1,16 @@
 from pyuvdata import uvutils
+import numpy as np
 
-def get_antpos(uvd):
-    return uvutils.ENU_from_ECEF((uvd.antenna_positions + uvd.telescope_location).T, *uvd.telescope_location_lat_lon_alt).T
+def get_antpos(uvd, center=True):
+    """
+    get antenna positions in topocentric coordinates in units of meters
+
+    uvd : pyuvdata.UVData object
+    center : bool, if True, subtract median of array position
+    """
+    antpos = uvutils.ENU_from_ECEF((uvd.antenna_positions + uvd.telescope_location).T, *uvd.telescope_location_lat_lon_alt).T
+    if center is True:
+        antpos -= np.median(antpos, axis=0)
+    return antpos
 
 
