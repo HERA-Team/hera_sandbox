@@ -3,6 +3,7 @@ given an RA and a longitude on Earth,
 calculate LST when that RA is at zenith
 """
 import ephem
+import numpy as np
 
 def RA2LST(RA, lon):
     """
