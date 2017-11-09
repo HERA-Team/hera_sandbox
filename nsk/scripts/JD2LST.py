@@ -33,6 +33,7 @@ def LST2JD(LST, start_JD, longitude):
     Output:
     JD : float of JD, accurate to ~1 milliseconds
     """
+    base_JD = float(start_JD)
     while True:
         # calculate fit
         jd1 = start_JD
@@ -45,9 +46,9 @@ def LST2JD(LST, start_JD, longitude):
         JD = (LST - offset) / slope
 
         # redo if JD isn't on starting JD
-        if JD - start_JD < 0:
+        if JD - base_JD < 0:
             start_JD += 1
-        elif JD - start_JD > 1:
+        elif JD - base_JD > 1:
             start_JD -= 1
         else:
             break
