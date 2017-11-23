@@ -1,8 +1,8 @@
 from pyuvdata import UVCal
 import numpy as np
 
-def make_calfits(fname, data_array, freq_array, time_array, jones_array,  ants,
-                 channel_width=0.0, gain_convention='divide', history='', telescope_name='HERA',
+def make_calfits(fname, data_array, freq_array, time_array, jones_array, ants,
+                 channel_width=0.0, gain_convention='multiply', history='', telescope_name='HERA',
                  x_orientation='east', integration_time=10.0, freq_range=None, clobber=False):
     """
     make a calfits file from data_array etc. objects

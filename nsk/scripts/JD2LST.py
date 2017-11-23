@@ -33,15 +33,25 @@ def LST2JD(LST, start_JD, longitude):
     Output:
     JD : float of JD, accurate to ~1 milliseconds
     """
-    # calculate fit
-    jd1 = start_JD
-    jd2 = start_JD + 0.01
-    lst1, lst2 = JD2LST(jd1, longitude=longitude), JD2LST(jd2, longitude=longitude)
-    slope = (lst2 - lst1) / 0.01
-    offset = lst1 - slope * jd1
+    base_JD = float(start_JD)
+    while True:
+        # calculate fit
+        jd1 = start_JD
+        jd2 = start_JD + 0.01
+        lst1, lst2 = JD2LST(jd1, longitude=longitude), JD2LST(jd2, longitude=longitude)
+        slope = (lst2 - lst1) / 0.01
+        offset = lst1 - slope * jd1
 
-    # solve y = mx + b for x
-    JD = (LST - offset) / slope
+        # solve y = mx + b for x
+        JD = (LST - offset) / slope
+
+        # redo if JD isn't on starting JD
+        if JD - base_JD < 0:
+            start_JD += 1
+        elif JD - base_JD > 1:
+            start_JD -= 1
+        else:
+            break
 
     return JD
 
