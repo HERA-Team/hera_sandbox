@@ -1,9 +1,9 @@
 #! /usr/bin/env python
 
-import numpy as n, pylab as p, capo as C, aipy as a
+import numpy as n, pylab as p, hera_pspec.pspec, aipy as a
 
-dk_deta = C.pspec.dk_deta(8.)
-dk_du = C.pspec.dk_du(8.)
+dk_deta = hera_pspec.pspec.dk_deta(8.)
+dk_du = hera_pspec.pspec.dk_du(8.)
 
 u = n.linspace(-1500,1500, 1024)
 tau = u * 150. / a.const.len_ns
