@@ -29,6 +29,7 @@ a.add_argument('--unflag', default=False, action='store_true', help='start by un
 a.add_argument('--rflag', default=False, action='store_true', help='run flagdata(mode=rflag)')
 a.add_argument('--out_dir', default=None, type=str, help='output directory')
 a.add_argument('--nocal', default=False, action='store_true', help='skip calibration and just make an image')
+a.add_argument('--onlyKcal', default=False, action='store_true', help='only perform K calibration, then image')
 a.add_argument('--onlyKGcal', default=False, action='store_true', help='only perform K & G calibration, then image')
 a.add_argument('--source_ext', default=None, type=str, help="extension to source name in output image files")
 a.add_argument('--spec_cube', default=False, action='store_true', help="image spectral cube as well as MFS.")
@@ -42,6 +43,7 @@ if __name__ == "__main__":
     ex_ants = args.ex_ants
     rflag = args.rflag
     nocal = args.nocal
+    onlyKcal = args.onlyKcal
     onlyKGcal = args.onlyKGcal
     spec_cube = args.spec_cube
     niter = args.niter
@@ -127,24 +129,28 @@ if __name__ == "__main__":
         np.savetxt("{}.csv".format(kc), np.vstack([delay_ants, delays]).T, fmt="%12.8f", header="ant_num, delay [ns]", delimiter=", ")
         print("...Saving delays to {}.csv".format(kc))
 
-        # perform initial G calibration (per-spw and per-pol gain)
-        print("...performing G gaincal")
-        if os.path.exists(gc):
-            shutil.rmtree(gc)
-        gaincal(msin, caltable=gc, gaintype='G', solint='inf', refant=refant, minsnr=3, calmode='p', spw="0:300~700", gaintable=[kc])
-        plotcal(gc, xaxis='antenna', yaxis='phase', figfile='{}.png'.format(gc), showgui=False)
+        if onlyKcal:
+            applycal(msin, gaintable=[kc])
 
-        # write phase to file
-        tb.open(gc)
-        phases = np.angle(tb.getcol('CPARAM')[0, 0][~tb.getcol('FLAG')[0, 0]])
-        phase_ants = tb.getcol('ANTENNA1')[~tb.getcol('FLAG')[0, 0]]
-        tb.close()
-        np.savetxt("{}.csv".format(gc), np.vstack([phase_ants, phases]).T, fmt="%12.8f", header="ant_num, phase [radians]", delimiter=", ")
-        print("...Saving phases to {}.csv".format(gc))
+        else:
+            # perform initial G calibration (per-spw and per-pol gain)
+            print("...performing G gaincal")
+            if os.path.exists(gc):
+                shutil.rmtree(gc)
+            gaincal(msin, caltable=gc, gaintype='G', solint='inf', refant=refant, minsnr=3, calmode='p', spw="0:300~700", gaintable=[kc])
+            plotcal(gc, xaxis='antenna', yaxis='phase', figfile='{}.png'.format(gc), showgui=False)
 
-        # apply calibrations
-        print("...applying KG gaincal")
-        applycal(msin, gaintable=[gc, kc])
+            # write phase to file
+            tb.open(gc)
+            phases = np.angle(tb.getcol('CPARAM')[0, 0][~tb.getcol('FLAG')[0, 0]])
+            phase_ants = tb.getcol('ANTENNA1')[~tb.getcol('FLAG')[0, 0]]
+            tb.close()
+            np.savetxt("{}.csv".format(gc), np.vstack([phase_ants, phases]).T, fmt="%12.8f", header="ant_num, phase [radians]", delimiter=", ")
+            print("...Saving phases to {}.csv".format(gc))
+
+            # apply calibrations
+            print("...applying KG gaincal")
+            applycal(msin, gaintable=[gc, kc])
 
         # split data
         KGsplit = os.path.join(out_dir, "{}.KGsplit".format(base_ms))
@@ -157,7 +163,7 @@ if __name__ == "__main__":
                     os.remove(f)
         split(msin, KGsplit, datacolumn="corrected")
 
-        if onlyKGcal is True:
+        if onlyKGcal is True or onlyKcal is True:
             Bsplit = KGsplit
         else:
             # calibrated bandpass
