@@ -12,6 +12,8 @@ def RA2LST(RA, lon):
 
     lon : float
         longitude East of observer in degrees
+
+    return LST_RA (LST in hours)
     """
     # get observer
     obs = ephem.Observer()

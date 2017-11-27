@@ -33,7 +33,13 @@ a.add_argument('--onlyKcal', default=False, action='store_true', help='only perf
 a.add_argument('--onlyKGcal', default=False, action='store_true', help='only perform K & G calibration, then image')
 a.add_argument('--source_ext', default=None, type=str, help="extension to source name in output image files")
 a.add_argument('--spec_cube', default=False, action='store_true', help="image spectral cube as well as MFS.")
-a.add_argument('--niter', default=500, type=int, help='number of clean iterations.')
+a.add_argument('--niter', default=50, type=int, help='number of clean iterations.')
+a.add_argument('--pxsize', default=200, type=int, help='pixel (cell) scale in arcseconds')
+a.add_argument('--imsize', default=350, type=int, help='number of pixels along a side of the output square image.')
+a.add_argument('--bpoly', default=False, action='store_true', help="use BPOLY mode in bandpass")
+a.add_argument('--degamp', default=4, type=int, help="amplitude polynomial degree for BPOLY")
+a.add_argument('--degphase', default=1, type=int, help="phase polynomial degree for BPOLY")
+a.add_argument('--noBPphase', default=False, action='store_true', help="set Bandpass phase solutions to identically zero")
 args = a.parse_args()
 
 if __name__ == "__main__":
@@ -48,6 +54,8 @@ if __name__ == "__main__":
     spec_cube = args.spec_cube
     niter = args.niter
     source_ext = args.source_ext
+    pxsize = args.pxsize
+    imsize = args.imsize
     if source_ext is None:
         source_ext = ''
 
@@ -169,9 +177,35 @@ if __name__ == "__main__":
             # calibrated bandpass
             print("...performing B bandpass cal")
             bc = KGsplit+'.{}.cal'.format('B')
-            bandpass(vis=KGsplit, spw="", minsnr=1, solnorm=False, bandtype='B', caltable=bc)
+            Btype = "B"
+            if args.bpoly:
+                Btype="BPOLY"
+            bandpass(vis=KGsplit, spw="0:100~900", minsnr=2, bandtype=Btype, degamp=args.degamp, degphase=args.degphase,
+                    caltable=bc, solint='inf', refant=refant)
             plotcal(bc, xaxis='chan', yaxis='amp', figfile="{}.amp.png".format(bc), showgui=False)
             plotcal(bc, xaxis='chan', yaxis='phase', figfile="{}.phs.png".format(bc), showgui=False)
+
+            # write bp to file
+            try:
+                tb.open(bc)
+                flags = ~tb.getcol('FLAG')[0]
+                flagged_ants = np.sum(flags, axis=0).astype(np.bool)
+                flags = flags[:, flagged_ants]
+                bp = tb.getcol('CPARAM')[0][:, flagged_ants]
+                bp_ants = tb.getcol("ANTENNA1")[flagged_ants]
+                tb.close()
+                tb.open(bc+"/SPECTRAL_WINDOW")
+                freqs = tb.getcol("CHAN_FREQ")
+                tb.close()
+                bp_real_data = bp.real
+                bp_imag_data = bp.imag
+                bp_data = np.concatenate([freqs/1e6, bp_real_data, bp_imag_data], axis=1)
+                bp_ants_str = ', '.join(map(lambda x: str(x)+'r', bp_ants)) + ', ' + ', '.join(map(lambda x: str(x)+'i', bp_ants))
+                np.savetxt("{}.csv".format(bc), bp_data, fmt="%12.8f", header="freq (MHz), {}".format(bp_ants_str), delimiter=", ")
+                print("...Saving bandpass to {}.csv".format(gc))
+
+            except:
+                pass
 
             applycal(KGsplit, gaintable=[bc])
             Bsplit = os.path.join(out_dir, "{}.Bsplit".format(base_ms))
@@ -199,14 +233,19 @@ if __name__ == "__main__":
 
     # craete mfs image
     print("...running MFS clean")
-    clean(vis=Bsplit, imagename=im_stem, spw="0:200~850", niter=niter, weighting='briggs', robust=-0.5, imsize=[512, 512],
-          cell=['300arcsec'], mode='mfs', nterms=1)#, mask='circle[[{}h{}m{}s, {}d{}m{}s ], 7deg]'.format(*(ra+dec)))
+    clean(vis=Bsplit, imagename=im_stem, spw="0:200~850", niter=niter, weighting='briggs', robust=-0.5, imsize=[imsize, imsize],
+          cell=['{}arcsec'.format(pxsize)], mode='mfs')
     exportfits(imagename='{}.image'.format(im_stem), fitsimage='{}.fits'.format(im_stem))
 
     # create spectrum
     if spec_cube:
         print("...running spectral cube clean")
-        clean(vis=Bsplit, imagename=im_stem+'.spec', niter=1, spw="0:200~850", weighting='briggs', robust=-0.5, imsize=[512, 512],
-                      cell=['200arcsec'], mode='channel', start=200, width=4, nterms=1)#, mask='circle[[{}h{}m{}s, {}d{}m{}s ], 7deg]'.format(*(ra+dec)))
-        exportfits(imagename='{}.spec.image'.format(im_stem), fitsimage='{}.spec.fits'.format(im_stem))
+        dchan = 40
+        for i, chan in enumerate(np.arange(100, 900, dchan)):
+            clean(vis=Bsplit, imagename=im_stem+'.spec{}'.format(chan), niter=0, spw="0:{}~{}".format(chan, chan+dchan-1),
+                    weighting='briggs', robust=0, imsize=[imsize, imsize],
+                    cell=['{}arcsec'.format(pxsize)], mode='mfs')#, mask='circle[[{}h{}m{}s, {}d{}m{}s ], 7deg]'.format(*(ra+dec)))
+            exportfits(imagename='{}.spec{}.image'.format(im_stem, chan), fitsimage='{}.spec{}.fits'.format(im_stem, chan))
+
+
 
