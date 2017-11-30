@@ -1,7 +1,7 @@
 from pyuvdata import UVCal
 import numpy as np
 
-def make_calfits(fname, data_array, freq_array, time_array, jones_array, ants,
+def make_calfits(fname, data_array, freq_array, time_array, jones_array, ants, flag_array=None,
                  channel_width=0.0, gain_convention='multiply', history='', telescope_name='HERA',
                  x_orientation='east', integration_time=10.0, freq_range=None, clobber=False):
     """
@@ -43,6 +43,8 @@ def make_calfits(fname, data_array, freq_array, time_array, jones_array, ants,
     Nspws = 1
     spw_array = np.array([0])
     data_array = data_array[:, np.newaxis, :, :, :]
+    if flag_array is not None:
+        flag_array = flag_array[:, np.newaxis, :, :, :].astype(np.bool)
 
     # data params
     if data_array.shape[2] > 1:
@@ -54,7 +56,8 @@ def make_calfits(fname, data_array, freq_array, time_array, jones_array, ants,
         delay_array = data_array
         cal_type = 'delay'
 
-    flag_array = np.array(np.zeros_like(data_array), np.bool)
+    if flag_array is None:
+        flag_array = np.array(np.zeros_like(data_array), np.bool)
     quality_array = np.zeros_like(data_array, np.float64) 
 
     # make blank uvc

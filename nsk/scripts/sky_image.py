@@ -92,7 +92,7 @@ if __name__ == "__main__":
     except:
         pass
 
-    ft(msin, complist=os.path.join(out_dir, "{}.cl".format(source)), usescratch=True)
+    ft(msin, complist="{}.cl".format(source), usescratch=True)
 
     # unflag
     if args.unflag is True:
