@@ -21,8 +21,9 @@ import glob
 # get args
 a = argparse.ArgumentParser(description="Run with casa as: casa -c sky_image.py <args>")
 a.add_argument('--script', '-c', type=str, help='name of this script', required=True)
-a.add_argument('--msin', default=None, type=str, help='path to CASA measurement set. if fed a .uvfits, will convert to ms', required=True)
+a.add_argument('--msin', default=None, type=str, nargs='*', help='path to CASA measurement set(s). if fed a .uvfits, will convert to ms', required=True)
 a.add_argument('--source', default=None, type=str, help='source name', required=True)
+a.add_argument('--timerange', default="", type=str, help="clean timerange")
 a.add_argument('--refant', default=None, type=str, help='reference antenna')
 a.add_argument('--ex_ants', default=None, type=str, help='bad antennas to flag')
 a.add_argument('--unflag', default=False, action='store_true', help='start by unflagging data')
@@ -30,37 +31,51 @@ a.add_argument('--rflag', default=False, action='store_true', help='run flagdata
 a.add_argument('--out_dir', default=None, type=str, help='output directory')
 a.add_argument('--nocal', default=False, action='store_true', help='skip calibration and just make an image')
 a.add_argument('--onlyKcal', default=False, action='store_true', help='only perform K calibration, then image')
-a.add_argument('--onlyKGcal', default=False, action='store_true', help='only perform K & G calibration, then image')
+a.add_argument('--onlyKGcal', default=False, action='store_true', help='only perform K & G (phs) calibration, then image')
 a.add_argument('--source_ext', default=None, type=str, help="extension to source name in output image files")
 a.add_argument('--spec_cube', default=False, action='store_true', help="image spectral cube as well as MFS.")
 a.add_argument('--niter', default=50, type=int, help='number of clean iterations.')
-a.add_argument('--pxsize', default=200, type=int, help='pixel (cell) scale in arcseconds')
-a.add_argument('--imsize', default=350, type=int, help='number of pixels along a side of the output square image.')
+a.add_argument('--pxsize', default=300, type=int, help='pixel (cell) scale in arcseconds')
+a.add_argument('--imsize', default=500, type=int, help='number of pixels along a side of the output square image.')
 a.add_argument('--bpoly', default=False, action='store_true', help="use BPOLY mode in bandpass")
 a.add_argument('--degamp', default=4, type=int, help="amplitude polynomial degree for BPOLY")
 a.add_argument('--degphase', default=1, type=int, help="phase polynomial degree for BPOLY")
-a.add_argument('--noBPphase', default=False, action='store_true', help="set Bandpass phase solutions to identically zero")
+a.add_argument('--cleanspw', default=None, type=str, help="spectral window selection for clean")
+a.add_argument("--plot_uvdist", default=False, action='store_true', help='make a uvdist plot')
+
 args = a.parse_args()
 
 if __name__ == "__main__":
     # get vars
-    source = args.source
-    refant = args.refant
-    ex_ants = args.ex_ants
-    rflag = args.rflag
-    nocal = args.nocal
-    onlyKcal = args.onlyKcal
-    onlyKGcal = args.onlyKGcal
-    spec_cube = args.spec_cube
-    niter = args.niter
-    source_ext = args.source_ext
-    pxsize = args.pxsize
-    imsize = args.imsize
-    if source_ext is None:
+    if args.source_ext is None:
         source_ext = ''
 
-    # get paths
+    # get files
     msin = args.msin
+    if len(msin) == 1:
+        # get paths
+        msin = msin[0]
+
+    else:
+        # iterate through files and convert if uvfits
+        ms_list = []
+        for i, m in enumerate(msin):
+            if m.split('.')[-1] == 'uvfits':
+                uvfms = '.'.join(m.split('.')[:-1] + ["ms"])
+                if os.path.exists(uvfms):
+                    shutil.rmtree(uvfms)
+                importuvfits(m, uvfms)
+                ms_list.append(uvfms)
+            elif m.split('.')[-1] == 'ms':
+                ms_list.append(m)
+        # basename and path is first ms in ms_list
+        msin = ms_list[0]
+
+        # concatenate all ms into zeroth ms
+        print("...concatenating visibilities")
+        concat(vis=ms_list[1:], concatvis=msin, timesort=True)
+
+    # get paths
     base_ms = os.path.basename(msin)
     if args.out_dir is None:
         out_dir = os.path.dirname(msin)
@@ -79,37 +94,30 @@ if __name__ == "__main__":
 
     # fix vis
     print("...fix vis")
-    ra, dec = np.loadtxt('{}.loc'.format(source), dtype=str)
+    ra, dec = np.loadtxt('{}.loc'.format(args.source), dtype=str)
     ra, dec = ra.split(':'), dec.split(':')
     fixvis(msin, msin, phasecenter='J2000 {}h{}m{}s {}d{}m{}s'.format(*(ra+dec)))
 
     # insert source model
-    # set up calibrator source
-    try:
-        cl.addcomponent(flux=1, fluxunit='Jy', shape='point', dir='J2000 {}h{}m{}s {}d{}m{}s'.format(*(ra+dec)))
-        cl.rename(os.path.join(out_dir, '{}.cl'.format(source)))
-        cl.close()
-    except:
-        pass
-
-    ft(msin, complist="{}.cl".format(source), usescratch=True)
+    ft(msin, complist="{}.cl".format(args.source), usescratch=True)
 
     # unflag
     if args.unflag is True:
         print("...unflagging")
         flagdata(msin, mode='unflag')
 
-    # flag bad ants
-    if ex_ants is not None:
-        print("...flagging bad ants: {}".format(ex_ants))
-        flagdata(msin, mode='manual', antenna=ex_ants)
-
     # flag autocorrs
     print("...flagging autocorrs")
     flagdata(msin, autocorr=True)
 
+    # flag bad ants
+    if args.ex_ants is not None:
+        args.ex_ants = ','.join(map(lambda x: "HH"+x, args.ex_ants.split(',')))
+        print("...flagging bad ants: {}".format(args.ex_ants))
+        flagdata(msin, mode='manual', antenna=args.ex_ants)
+
     # rflag
-    if rflag is True:
+    if args.rflag is True:
         print("...rfi flagging")
         flagdata(msin, mode='rflag')
 
@@ -117,7 +125,7 @@ if __name__ == "__main__":
     kc = os.path.join(out_dir, base_ms+'.{}.cal'.format('K'))
     gc = os.path.join(out_dir, base_ms+'.{}.cal'.format('G'))
 
-    if nocal is True:
+    if args.nocal is True:
         Bsplit = msin
     else:
         # perform initial K calibration (per-antenna delay)
@@ -126,7 +134,7 @@ if __name__ == "__main__":
             shutil.rmtree(kc)
         if os.path.exists("{}.png".format(kc)):
             os.remove("{}.png".format(kc))
-        gaincal(msin, caltable=kc, gaintype="K", solint='inf', refant=refant, minsnr=3.0, spw="0:150~900", gaintable=[])
+        gaincal(msin, caltable=kc, gaintype="K", solint='inf', refant=args.refant, minsnr=3.0, spw="0:150~900", gaintable=[])
         plotcal(kc, xaxis='antenna', yaxis='delay', figfile='{}.png'.format(kc), showgui=False)
 
         # write delays to text file
@@ -137,15 +145,15 @@ if __name__ == "__main__":
         np.savetxt("{}.csv".format(kc), np.vstack([delay_ants, delays]).T, fmt="%12.8f", header="ant_num, delay [ns]", delimiter=", ")
         print("...Saving delays to {}.csv".format(kc))
 
-        if onlyKcal:
+        if args.onlyKcal:
             applycal(msin, gaintable=[kc])
 
         else:
-            # perform initial G calibration (per-spw and per-pol gain)
-            print("...performing G gaincal")
+            # perform initial G calibration for phase (per-spw and per-pol gain)
+            print("...performing G gaincal for phase")
             if os.path.exists(gc):
                 shutil.rmtree(gc)
-            gaincal(msin, caltable=gc, gaintype='G', solint='inf', refant=refant, minsnr=3, calmode='p', spw="0:300~700", gaintable=[kc])
+            gaincal(msin, caltable=gc, gaintype='G', solint='inf', refant=args.refant, minsnr=3, calmode='p', spw="0:150~900", gaintable=[kc])
             plotcal(gc, xaxis='antenna', yaxis='phase', figfile='{}.png'.format(gc), showgui=False)
 
             # write phase to file
@@ -171,7 +179,7 @@ if __name__ == "__main__":
                     os.remove(f)
         split(msin, KGsplit, datacolumn="corrected")
 
-        if onlyKGcal is True or onlyKcal is True:
+        if args.onlyKGcal is True or args.onlyKcal is True:
             Bsplit = KGsplit
         else:
             # calibrated bandpass
@@ -180,13 +188,14 @@ if __name__ == "__main__":
             Btype = "B"
             if args.bpoly:
                 Btype="BPOLY"
-            bandpass(vis=KGsplit, spw="0:100~900", minsnr=2, bandtype=Btype, degamp=args.degamp, degphase=args.degphase,
-                    caltable=bc, solint='inf', refant=refant)
+            bandpass(vis=KGsplit, spw="0:150~900", minsnr=2, bandtype=Btype, degamp=args.degamp, degphase=args.degphase,
+                    caltable=bc, solint='inf', refant=args.refant)
             plotcal(bc, xaxis='chan', yaxis='amp', figfile="{}.amp.png".format(bc), showgui=False)
             plotcal(bc, xaxis='chan', yaxis='phase', figfile="{}.phs.png".format(bc), showgui=False)
 
             # write bp to file
-            try:
+            if args.bpoly is False:
+                # get flags and bandpass data
                 tb.open(bc)
                 flags = ~tb.getcol('FLAG')[0]
                 flagged_ants = np.sum(flags, axis=0).astype(np.bool)
@@ -194,18 +203,19 @@ if __name__ == "__main__":
                 bp = tb.getcol('CPARAM')[0][:, flagged_ants]
                 bp_ants = tb.getcol("ANTENNA1")[flagged_ants]
                 tb.close()
+                # load spectral window data
                 tb.open(bc+"/SPECTRAL_WINDOW")
                 freqs = tb.getcol("CHAN_FREQ")
                 tb.close()
-                bp_real_data = bp.real
-                bp_imag_data = bp.imag
-                bp_data = np.concatenate([freqs/1e6, bp_real_data, bp_imag_data], axis=1)
-                bp_ants_str = ', '.join(map(lambda x: str(x)+'r', bp_ants)) + ', ' + ', '.join(map(lambda x: str(x)+'i', bp_ants))
+                # write to file
+                bp_data = np.concatenate([freqs/1e6, bp.real, bp.imag, ~flags], axis=1)
+                bp_ants_str = ', '.join(map(lambda x: str(x)+'r', bp_ants)) + \
+                                ', ' + ', '.join(map(lambda x: str(x)+'i', bp_ants)) + \
+                                ', ' + ', '.join(map(lambda x: str(x)+'f', bp_ants))
                 np.savetxt("{}.csv".format(bc), bp_data, fmt="%12.8f", header="freq (MHz), {}".format(bp_ants_str), delimiter=", ")
-                print("...Saving bandpass to {}.csv".format(gc))
-
-            except:
-                pass
+                print("...Saving bandpass to {}.csv".format(bc))
+            else:
+                print("couldn't access bandpass data. Note BPOLY solutions not currently compatible w/ caltable2calfits.py")
 
             applycal(KGsplit, gaintable=[bc])
             Bsplit = os.path.join(out_dir, "{}.Bsplit".format(base_ms))
@@ -220,7 +230,7 @@ if __name__ == "__main__":
             split(KGsplit, Bsplit, datacolumn="corrected")
 
     # clean
-    im_stem = os.path.join(out_dir, base_ms + '.' + source + source_ext)
+    im_stem = os.path.join(out_dir, base_ms + '.' + args.source + source_ext)
     print("...performing clean for {}.* output files".format(im_stem))
     source_files = glob.glob(im_stem+'*')
     if len(source_files) > 0:
@@ -231,21 +241,85 @@ if __name__ == "__main__":
                 except OSError:
                     os.remove(sf)
 
-    # craete mfs image
+    # create mfs image
     print("...running MFS clean")
-    clean(vis=Bsplit, imagename=im_stem, spw="0:200~850", niter=niter, weighting='briggs', robust=-0.5, imsize=[imsize, imsize],
-          cell=['{}arcsec'.format(pxsize)], mode='mfs')
+    if args.cleanspw is None:
+        cleanspw = "0:200~850"
+    else:
+        cleanspw = args.cleanspw
+    clean(vis=Bsplit, imagename=im_stem, spw=cleanspw, niter=args.niter, weighting='briggs', robust=-0.5, imsize=[args.imsize, args.imsize],
+          cell=['{}arcsec'.format(args.pxsize)], mode='mfs', timerange=args.timerange)
     exportfits(imagename='{}.image'.format(im_stem), fitsimage='{}.fits'.format(im_stem))
 
     # create spectrum
-    if spec_cube:
+    if args.spec_cube:
         print("...running spectral cube clean")
         dchan = 40
-        for i, chan in enumerate(np.arange(100, 900, dchan)):
+        for i, chan in enumerate(np.arange(200, 850, dchan)):
             clean(vis=Bsplit, imagename=im_stem+'.spec{}'.format(chan), niter=0, spw="0:{}~{}".format(chan, chan+dchan-1),
-                    weighting='briggs', robust=0, imsize=[imsize, imsize],
-                    cell=['{}arcsec'.format(pxsize)], mode='mfs')#, mask='circle[[{}h{}m{}s, {}d{}m{}s ], 7deg]'.format(*(ra+dec)))
+                    weighting='briggs', robust=0, imsize=[args.imsize, args.imsize], timerange=args.timerange,
+                    cell=['{}arcsec'.format(args.pxsize)], mode='mfs')#, mask='circle[[{}h{}m{}s, {}d{}m{}s ], 7deg]'.format(*(ra+dec)))
             exportfits(imagename='{}.spec{}.image'.format(im_stem, chan), fitsimage='{}.spec{}.fits'.format(im_stem, chan))
+
+    # make uvdist plot
+    if args.plot_uvdist:
+        print("...plotting uvdistance")
+        # load visibility amplitudes
+        ms.open(Bsplit)
+        data = ms.getdata(["amplitude", "antenna1", "antenna2", "uvdist", "axis_info"], ifraxis=True)
+        amps = data['amplitude']
+        uvdist = data['uvdist']
+        freqs = data['axis_info']['freq_axis']['chan_freq']
+        ms.close()
+        # get rid of autos
+        select = []
+        for i, a1 in enumerate(data['antenna1']):
+            if a1 != data['antenna2'][i]:
+                select.append(i)
+        amps = amps[:, :, select, :].squeeze()
+        uvdist = uvdist[select, :]
+        # average across time
+        amps = np.nanmedian(amps, 2)
+        uvdist = np.nanmedian(uvdist, 1)
+        # average into channel bins
+        Nchanbin = 6
+        chan_bins = np.digitize(np.arange(1024), np.linspace(0, 1024, Nchanbin, endpoint=True))
+        freq_bins = np.linspace(100., 200., Nchanbin, endpoint=True)
+        freq_bins = (freq_bins + np.nanmedian(np.diff(freq_bins))/2)[:-1]
+        amps_temp = []
+        for i in range(1, Nchanbin):
+            select = np.where(chan_bins == i)[0]
+            amps_temp.append(np.nanmedian(amps[select, :], axis=0))
+        amps = np.array(amps_temp)
+
+        # average into uvdist bins
+        Nuvdbins = 21
+        uvdist_bins = np.linspace(uvdist.min(), uvdist.max(), Nuvdbins, endpoint=True)
+        uvd_bins = np.digitize(uvdist, uvdist_bins)
+        uvdist_bins = np.around((uvdist_bins + np.nanmedian(np.diff(uvdist_bins))/2)[:-1], 1)
+        amps_temp = []
+        uvdist_temp = []
+        for i in range(1, Nuvdbins):
+            select = np.where(uvd_bins == i)[0]
+            amps_temp.append(np.nanmedian(amps[:, select], axis=1))
+            uvdist_temp.append(np.nanmedian(uvdist[select]))
+        amps = np.array(amps_temp).T
+        uvdist = np.array(uvdist_temp)
+
+        # plot
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(1, 1, figsize=(10,7))
+        ax.grid(True)
+        p = ax.plot(uvdist_bins, amps.T, marker='s', markersize=6, alpha=0.8)
+        ax.set_xlabel("uv distance (meters)", fontsize=12)
+        ax.set_ylabel("amplitude (arbitrary units)", fontsize=12)
+        ax.set_title("uvdist for {}".format(msin))
+        ax.legend(p, map(lambda x: str(round(x, 1))+' MHz', freq_bins))
+        ax.set_ylim(0, np.nanmedian(amps)*4)
+        fig.savefig("{}.uvdist.png".format(msin), bbox_inches='tight', pad=0.05)
+        plt.close()
+
+
 
 
 

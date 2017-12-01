@@ -11,7 +11,6 @@ when it is closest to zenith
 import os
 import numpy as np
 import argparse
-import glob
 from astropy.time import Time
 from RA2LST import RA2LST
 import JD2LST
@@ -22,7 +21,7 @@ ap.add_argument("--ra", type=float, help="If a source name isn't fed, you can fe
 ap.add_argument("--lon", default=21.428305555, type=float, help="longitude of observer in degrees East")
 ap.add_argument("--duration", default=2.0, type=float, help="duration in minutes of calibrator integration")
 ap.add_argument("--start_jd", default=None, type=int, help="starting JD of interest")
-ap.add_argument("--jd_files", default=None, type=str, help="glob-parsable search string of files to isolate calibrator in.")
+ap.add_argument("--jd_files", default=None, type=str, nargs='*',  help="glob-parsable search of files to isolate calibrator in.")
 
 if __name__ == "__main__":
     # parse arge
@@ -60,7 +59,7 @@ if __name__ == "__main__":
         if a.start_jd is None:
             raise AttributeError("need start_jd to search files")
         # get files
-        files = glob.glob(a.jd_files)
+        files = a.jd_files
         if len(files) == 0:
             raise AttributeError("length of jd_files is zero")
         # keep files with start_JD in them
