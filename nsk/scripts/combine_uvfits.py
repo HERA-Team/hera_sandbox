@@ -36,6 +36,6 @@ if __name__ == "__main__":
         print("{} exists, not overwriting".format(out_fname))
     else:
         print("writing {}".format(out_fname))
-        uvd.write_uvfits(out_fname, force_phase=True, clobber=a.overwrite)
+        uvd.write_uvfits(out_fname, force_phase=True)
 
 
