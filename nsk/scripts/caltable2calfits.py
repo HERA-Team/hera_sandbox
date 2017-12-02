@@ -46,7 +46,7 @@ a.add_argument('--bp_amp_antavg', default=False, action='store_true', help="aver
 a.add_argument('--bp_TTonly', default=False, action='store_true', help="use only tip-tilt phase mode in bandpass solution")
 a.add_argument('--plot_bp', default=False, action='store_true', help="plot final bandpass solutions")
 # Misc
-a.add_argument("--out_dir", default=None, type=str, help="output directory for calfits file. Default is dly_file path")
+a.add_argument("--out_dir", default=None, type=str, help="output directory for calfits file. Default is working directory path")
 a.add_argument("--overwrite", default=False, action="store_true", help="overwrite output calfits file if it exists")
 a.add_argument("--multiply_gains", default=False, action="store_true", help="change gain_convention from divide to multiply.")
 a.add_argument('--silence', default=False, action='store_true', help="silence output to stdout")
