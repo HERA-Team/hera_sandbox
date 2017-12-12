@@ -23,7 +23,7 @@ a = argparse.ArgumentParser(description="Run with casa as: casa -c sky_image.py 
 a.add_argument('--script', '-c', type=str, help='name of this script', required=True)
 a.add_argument('--msin', default=None, type=str, nargs='*', help='path to CASA measurement set(s). if fed a .uvfits, will convert to ms', required=True)
 a.add_argument('--source', default=None, type=str, help='source name', required=True)
-a.add_argument('--timerange', default="", type=str, help="clean timerange")
+a.add_argument('--timerange', default="", type=str, help="calibration and clean timerange")
 a.add_argument('--refant', default=None, type=str, help='reference antenna')
 a.add_argument('--ex_ants', default=None, type=str, help='bad antennas to flag')
 a.add_argument('--unflag', default=False, action='store_true', help='start by unflagging data')
@@ -34,13 +34,14 @@ a.add_argument('--onlyKcal', default=False, action='store_true', help='only perf
 a.add_argument('--onlyKGcal', default=False, action='store_true', help='only perform K & G (phs) calibration, then image')
 a.add_argument('--source_ext', default=None, type=str, help="extension to source name in output image files")
 a.add_argument('--spec_cube', default=False, action='store_true', help="image spectral cube as well as MFS.")
+a.add_argument('--spec_dchan', default=40, type=int, help="number of channel averaging for a single image in the spectral cube.")
 a.add_argument('--niter', default=50, type=int, help='number of clean iterations.')
 a.add_argument('--pxsize', default=300, type=int, help='pixel (cell) scale in arcseconds')
 a.add_argument('--imsize', default=500, type=int, help='number of pixels along a side of the output square image.')
 a.add_argument('--bpoly', default=False, action='store_true', help="use BPOLY mode in bandpass")
 a.add_argument('--degamp', default=4, type=int, help="amplitude polynomial degree for BPOLY")
 a.add_argument('--degphase', default=1, type=int, help="phase polynomial degree for BPOLY")
-a.add_argument('--cleanspw', default=None, type=str, help="spectral window selection for clean")
+a.add_argument('--cleanspw', default="0:200~850", type=str, help="spectral window selection for clean")
 a.add_argument("--plot_uvdist", default=False, action='store_true', help='make a uvdist plot')
 
 args = a.parse_args()
@@ -50,12 +51,17 @@ if __name__ == "__main__":
     if args.source_ext is None:
         source_ext = ''
 
-    # get files
+    # configure refant
+    args.refant = "HH" + str(args.refant)
+
+    # get phase center
+    ra, dec = np.loadtxt('{}.loc'.format(args.source), dtype=str)
+    ra, dec = ra.split(':'), dec.split(':')
+    fixdir = 'J2000 {}h{}m{}s {}d{}m{}s'.format(*(ra+dec))
     msin = args.msin
     if len(msin) == 1:
         # get paths
         msin = msin[0]
-
     else:
         # iterate through files and convert if uvfits
         ms_list = []
@@ -71,9 +77,14 @@ if __name__ == "__main__":
         # basename and path is first ms in ms_list
         msin = ms_list[0]
 
+        # rephase to source
+        print("...fix vis to {}".format(fixdir))
+        for m in ms_list:
+            fixvis(m, m, phasecenter=fixdir)
+
         # concatenate all ms into zeroth ms
         print("...concatenating visibilities")
-        concat(vis=ms_list[1:], concatvis=msin, timesort=True)
+        concat(vis=ms_list, concatvis=msin, timesort=True)
 
     # get paths
     base_ms = os.path.basename(msin)
@@ -92,11 +103,9 @@ if __name__ == "__main__":
             shutil.rmtree(msin)
         importuvfits(uvfits, msin)
 
-    # fix vis
-    print("...fix vis")
-    ra, dec = np.loadtxt('{}.loc'.format(args.source), dtype=str)
-    ra, dec = ra.split(':'), dec.split(':')
-    fixvis(msin, msin, phasecenter='J2000 {}h{}m{}s {}d{}m{}s'.format(*(ra+dec)))
+    # rephase to source
+    print("...fix vis to {}".format(fixdir))
+    fixvis(msin, msin, phasecenter=fixdir)
 
     # insert source model
     ft(msin, complist="{}.cl".format(args.source), usescratch=True)
@@ -134,7 +143,8 @@ if __name__ == "__main__":
             shutil.rmtree(kc)
         if os.path.exists("{}.png".format(kc)):
             os.remove("{}.png".format(kc))
-        gaincal(msin, caltable=kc, gaintype="K", solint='inf', refant=args.refant, minsnr=3.0, spw="0:150~900", gaintable=[])
+        gaincal(msin, caltable=kc, gaintype="K", solint='inf', refant=args.refant, minsnr=3.0, spw="0:100~924",
+                gaintable=[], timerange=args.timerange)
         plotcal(kc, xaxis='antenna', yaxis='delay', figfile='{}.png'.format(kc), showgui=False)
 
         # write delays to text file
@@ -153,7 +163,8 @@ if __name__ == "__main__":
             print("...performing G gaincal for phase")
             if os.path.exists(gc):
                 shutil.rmtree(gc)
-            gaincal(msin, caltable=gc, gaintype='G', solint='inf', refant=args.refant, minsnr=3, calmode='p', spw="0:150~900", gaintable=[kc])
+            gaincal(msin, caltable=gc, gaintype='G', solint='inf', refant=args.refant, minsnr=3, calmode='p',
+                    spw="0:100~924", gaintable=[kc], timerange=args.timerange)
             plotcal(gc, xaxis='antenna', yaxis='phase', figfile='{}.png'.format(gc), showgui=False)
 
             # write phase to file
@@ -166,7 +177,7 @@ if __name__ == "__main__":
 
             # apply calibrations
             print("...applying KG gaincal")
-            applycal(msin, gaintable=[gc, kc])
+            applycal(msin, gaintable=[kc, gc])
 
         # split data
         KGsplit = os.path.join(out_dir, "{}.KGsplit".format(base_ms))
@@ -178,6 +189,8 @@ if __name__ == "__main__":
                 except OSError:
                     os.remove(f)
         split(msin, KGsplit, datacolumn="corrected")
+        fixvis(KGsplit, KGsplit, phasecenter=fixdir)
+        ft(KGsplit, complist="{}.cl".format(args.source), usescratch=True)
 
         if args.onlyKGcal is True or args.onlyKcal is True:
             Bsplit = KGsplit
@@ -188,8 +201,8 @@ if __name__ == "__main__":
             Btype = "B"
             if args.bpoly:
                 Btype="BPOLY"
-            bandpass(vis=KGsplit, spw="0:150~900", minsnr=2, bandtype=Btype, degamp=args.degamp, degphase=args.degphase,
-                    caltable=bc, solint='inf', refant=args.refant)
+            bandpass(vis=KGsplit, spw="0:100~924", minsnr=2, bandtype=Btype, degamp=args.degamp, degphase=args.degphase,
+                    caltable=bc, solint='inf', refant=args.refant, timerange=args.timerange)
             plotcal(bc, xaxis='chan', yaxis='amp', figfile="{}.amp.png".format(bc), showgui=False)
             plotcal(bc, xaxis='chan', yaxis='phase', figfile="{}.phs.png".format(bc), showgui=False)
 
@@ -228,6 +241,8 @@ if __name__ == "__main__":
                         os.remove(f)
 
             split(KGsplit, Bsplit, datacolumn="corrected")
+            fixvis(Bsplit, Bsplit, phasecenter=fixdir)
+            ft(Bsplit, complist="{}.cl".format(args.source), usescratch=True)
 
     # clean
     im_stem = os.path.join(out_dir, base_ms + '.' + args.source + source_ext)
@@ -244,7 +259,7 @@ if __name__ == "__main__":
     # create mfs image
     print("...running MFS clean")
     if args.cleanspw is None:
-        cleanspw = "0:200~850"
+        cleanspw = "0:100~924"
     else:
         cleanspw = args.cleanspw
     clean(vis=Bsplit, imagename=im_stem, spw=cleanspw, niter=args.niter, weighting='briggs', robust=-0.5, imsize=[args.imsize, args.imsize],
@@ -254,8 +269,8 @@ if __name__ == "__main__":
     # create spectrum
     if args.spec_cube:
         print("...running spectral cube clean")
-        dchan = 40
-        for i, chan in enumerate(np.arange(200, 850, dchan)):
+        dchan = args.spec_dchan
+        for i, chan in enumerate(np.arange(100, 924, dchan)):
             clean(vis=Bsplit, imagename=im_stem+'.spec{}'.format(chan), niter=0, spw="0:{}~{}".format(chan, chan+dchan-1),
                     weighting='briggs', robust=0, imsize=[args.imsize, args.imsize], timerange=args.timerange,
                     cell=['{}arcsec'.format(args.pxsize)], mode='mfs')#, mask='circle[[{}h{}m{}s, {}d{}m{}s ], 7deg]'.format(*(ra+dec)))
@@ -306,20 +321,22 @@ if __name__ == "__main__":
         amps = np.array(amps_temp).T
         uvdist = np.array(uvdist_temp)
 
+        # normalize amplitudes
+        amps /= np.nanmedian(amps, axis=1).reshape(-1, 1)
+        amps += np.linspace(0, 1, amps.shape[0]).reshape(-1, 1)
+
         # plot
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots(1, 1, figsize=(10,7))
         ax.grid(True)
         p = ax.plot(uvdist_bins, amps.T, marker='s', markersize=6, alpha=0.8)
-        ax.set_xlabel("uv distance (meters)", fontsize=12)
-        ax.set_ylabel("amplitude (arbitrary units)", fontsize=12)
-        ax.set_title("uvdist for {}".format(msin))
+        ax.set_xlabel("baseline length (meters)", fontsize=16)
+        ax.set_ylabel("amplitude (arbitrary units)", fontsize=16)
+        ax.set_title("uvdist for {}".format(os.path.basename(msin)))
         ax.legend(p, map(lambda x: str(round(x, 1))+' MHz', freq_bins))
-        ax.set_ylim(0, np.nanmedian(amps)*4)
-        fig.savefig("{}.uvdist.png".format(msin), bbox_inches='tight', pad=0.05)
+        ax.set_ylim(0, 3.0)
+        fig.savefig(os.path.join(out_dir, "{}.uvdist.png".format(os.path.basename(msin))), bbox_inches='tight', pad=0.05)
         plt.close()
-
-
 
 
 

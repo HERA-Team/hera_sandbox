@@ -18,7 +18,7 @@ if __name__ == "__main__":
 
     # set variables
     core_direction = "J2000 3h22m45s -37d12m00s"
-    ref_freq = "0.154GHz"
+    ref_freq = "154MHz"
 
     # West Lobe: McKinley et al. 2015
     cl.addcomponent(label="West Lobe", flux=480, fluxunit="Jy", dir="J2000 3h21m30s -37d10m00s", freq=ref_freq,
@@ -43,16 +43,16 @@ if __name__ == "__main__":
     # make image
     if a.image:
         ia.fromshape("fornaxA.cl.im", [512, 512, 1, 1], overwrite=True)
-        cs=ia.coordsys()
+        cs = ia.coordsys()
         cs.setunits(['rad','rad','','Hz'])
-        cell_rad=qa.convert(qa.quantity("45arcsec"),"rad")['value']
-        cs.setincrement([-cell_rad,cell_rad],'direction')
-        cs.setreferencevalue([qa.convert("03h22m45s",'rad')['value'],qa.convert("-37d12m00s",'rad')['value']],type="direction")
-        cs.setreferencevalue("0.154GHz",'spectral')
-        cs.setincrement('0.001GHz','spectral')
+        cell_rad = qa.convert(qa.quantity("45arcsec"),"rad")['value']
+        cs.setincrement([-cell_rad, cell_rad], 'direction')
+        cs.setreferencevalue([qa.convert("03h22m45s",'rad')['value'], qa.convert("-37d12m00s",'rad')['value']], type="direction")
+        cs.setreferencevalue('154MHz','spectral')
+        cs.setincrement('1MHz','spectral')
         ia.setcoordsys(cs.torecord())
         ia.setbrightnessunit("Jy/pixel")
-        ia.modify(cl.torecord(),subtract=False)
+        ia.modify(cl.torecord(), subtract=False)
         exportfits(imagename="fornaxA.cl.im", fitsimage="fornaxA.cl.fits", overwrite=True)
 
     cl.close()

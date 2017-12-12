@@ -14,14 +14,17 @@ import argparse
 from astropy.time import Time
 from RA2LST import RA2LST
 import JD2LST
+from pyuvdata import UVData
+import sys
 
 ap = argparse.ArgumentParser(description='')
 
-ap.add_argument("--ra", type=float, help="If a source name isn't fed, you can feed the RA of the source in degrees", required=True)
+ap.add_argument("--ra", type=float, help="RA of the source in degrees", required=True)
 ap.add_argument("--lon", default=21.428305555, type=float, help="longitude of observer in degrees East")
 ap.add_argument("--duration", default=2.0, type=float, help="duration in minutes of calibrator integration")
 ap.add_argument("--start_jd", default=None, type=int, help="starting JD of interest")
 ap.add_argument("--jd_files", default=None, type=str, nargs='*',  help="glob-parsable search of files to isolate calibrator in.")
+ap.add_argument("--get_filetimes", default=False, action='store_true', help="open source files and get more accurate duration timerange")
 
 if __name__ == "__main__":
     # parse arge
@@ -44,7 +47,7 @@ if __name__ == "__main__":
         time1 = Time(jd - jd_duration/2, format='jd').to_datetime()
         time2 = Time(jd + jd_duration/2, format='jd').to_datetime()
         time3 = Time(jd, format='jd').to_datetime()
-        print('UTC time range of {} minutes is:\n' \
+        print('UTC time range of closest {} minutes is:\n' \
               '"{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}~{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}", ' \
               'centered on {:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}'.format(a.duration,
                                                         time1.year, time1.month, time1.day,
@@ -93,6 +96,42 @@ if __name__ == "__main__":
         else:
             end_index = np.argmax(jd_before)  
 
-        print("file(s) closest source over {} min duration:\n {}".format(a.duration, files[start_index:end_index+1]))
+        print("file(s) closest to source over {} min duration:\n {}".format(a.duration, files[start_index:end_index+1]))
         print("-"*60)
+
+        if a.get_filetimes:
+            # Get UTC timerange of source in files
+            source_files = files[start_index:end_index+1]
+            uvd = UVData()
+            for i, sf in enumerate(source_files):
+                if i == 0:
+                    uvd.read_miriad(sf)
+                else:
+                    uv = UVData()
+                    uv.read_miriad(sf)
+                    uvd += uv
+            file_jds = np.unique(uvd.time_array)
+            file_delta_jd = np.median(np.diff(file_jds))
+            file_delta_min =  file_delta_jd * (60. * 24 + 4.0)
+            num_file_times = int(np.ceil(a.duration / file_delta_min))
+            file_jd_indices = np.argsort(np.abs(file_jds - jd))[:num_file_times]
+            file_jd1 = file_jds[file_jd_indices].min()
+            file_jd2 = file_jds[file_jd_indices].max()
+
+            time1 = Time(file_jd1, format='jd').to_datetime()
+            time2 = Time(file_jd2, format='jd').to_datetime()
+            print('UTC time range of source in files above over {} minutes is:\n' \
+                  '"{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}~{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}", '.format(a.duration,
+                                                            time1.year, time1.month, time1.day,
+                                                            time1.hour, time1.minute, time1.second,
+                                                            time2.year, time2.month, time2.day,
+                                                            time2.hour, time2.minute, time2.second))
+            print("-"*60)
+
+
+
+
+
+
+
 

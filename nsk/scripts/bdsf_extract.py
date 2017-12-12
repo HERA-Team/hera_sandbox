@@ -24,25 +24,39 @@ import os
 import sys
 import glob
 import argparse
+import numpy as np
+import astropy.io.fits as fits
 
 a = argparse.ArgumentParser(description="Run BSDF source extractor on FITS images.")
-a.add_argument("files", type=str, nargs='*', help="space-separated file(s) or glob-parsable filestem of FITS images to run BDSF on.", required=True)
+a.add_argument("files", type=str, nargs='*', help="space-separated file(s) or glob-parsable filestem of FITS images to run BDSF on.")
 a.add_argument("--source", default=None, type=str, help="source name, with {source}.loc file in working directory.")
 a.add_argument("--outpath", default=None, type=str, help="directory path of output files, default is path to input file.")
 a.add_argument("--extension", default="spectrum.tab", type=str, help="extension of files' common path for final spectrum file of source.")
 a.add_argument("--bdsf_extension", default="bdsf.out", type=str, help="extension of filename for bdsf source catalogues")
 a.add_argument("--overwrite", default=False, action="store_true", help="overwrite output BDSF catalog file if it exists")
+a.add_argument("--trimbox", default=None, type=int, help="number of pixels from image center to search for source")
+a.add_argument("--blank_limit", type=float, default=None, help="Jy/beam limit below which pixels are blanked")
 a.add_argument("--silence", default=False, action="store_true", help="silence output to stdout")
 
-args = a.parse_args()
+def echo(message, type=0, verbose=True):
+    if verbose:
+        if type == 0:
+            print(message)
+        elif type == 1:
+            print('\n{}\n{}'.format(message, '-'*40))
 
 if __name__ == "__main__":
+    args = a.parse_args()
+    verbose = args.silence is False
+
     # parse filenames
     filenames = []
     for i, f in enumerate(args.files):
         filenames.extend(glob.glob(f))
     # sort
     filenames = sorted(filenames)
+    if len(filenames) == 0:
+        raise AttributeError("len(filenames) == 0")
 
     # run bdsf
     outfiles = []
@@ -54,27 +68,37 @@ if __name__ == "__main__":
             outpath = args.outpath
         fname_stem = '.'.join(os.path.basename(fname).split('.')[:-1])
         out_fname = os.path.join(outpath, fname_stem + '.' + args.bdsf_extension)
-        outfiles.append(out_fname)
 
         # check if it exists
-        if args.silence is False:
-            print("\n::: loading {} :::".format(os.path.basename(fname)))
+        echo("\n::: loading {} :::".format(os.path.basename(fname)))
         if os.path.exists(out_fname) and args.overwrite is False:
-            if args.silence is False:
-                print("::: {} exists, not overwriting :::".format(out_fname))
+            echo("::: {} exists, not overwriting :::".format(out_fname))
             continue
 
+        # configure trimbox
+        if args.trimbox is not None:
+            with fits.open(fname) as hdu:
+                naxis1 = hdu[0].header["NAXIS1"]
+                naxis2 = hdu[0].header["NAXIS1"]
+                trim_box = (int(naxis1/2)-args.trimbox, int(naxis1/2)+args.trimbox,
+                            int(naxis2/2)-args.trimbox, int(naxis2/2)+args.trimbox)
+        else:
+            trim_box = None
+        
         # run bdsf
-        img = bdsf.process_image(fname, quiet=args.silence)
+        try:
+            img = bdsf.process_image(fname, quiet=args.silence, trim_box=trim_box, blank_limit=args.blank_limit)
+        except RuntimeError:
+            continue
 
         # save catalog to ASCII file
-        if args.silence is False:
-            print("::: saving {} :::".format(out_fname))
+        outfiles.append(out_fname)
+        echo("::: saving {} :::".format(out_fname))
         bdsf.output.write_ascii_list(img, filename=out_fname, clobber=args.overwrite)
 
     # stop if no source provided
     if args.source is None:
-        print("can't proceed with source extraction because args.source is not provided")
+        echo("can't proceed with source extraction because args.source is not provided")
         sys.exit(0)
 
     # get source position in degrees
@@ -85,9 +109,11 @@ if __name__ == "__main__":
 
     # make filename
     file_stem = os.path.splitext(os.path.basename(os.path.commonprefix(filenames)))[0]
+    if args.outpath is None:
+        args.outpath = os.path.dirname(os.path.commonprefix(filenames))
     filename = os.path.join(args.outpath, file_stem + '.' + args.extension)
     if os.path.exists(filename) and args.overwrite is False:
-        print("{} exists, not overwriting".format(filename))
+        echo("{} exists, not overwriting".format(filename))
         sys.exit(0)
 
     # setup arrays
@@ -95,7 +121,7 @@ if __name__ == "__main__":
     dist = []
     source_data = []
     # iterate over bdsf catalog files
-    for i, fname in enumerate(out_files):
+    for i, fname in enumerate(outfiles):
         if os.path.exists(fname) is False:
             continue
         # open file descriptor
@@ -103,10 +129,14 @@ if __name__ == "__main__":
         # read lines
         lines = f.readlines()
         f.close()
-        # append frequency
-        freqs.append(float(lines[2].strip().split()[-2]))
         # read values via loadtxt
         data = np.loadtxt(fname, usecols=(4, 6, 8, 9, 10, 11, 16, 18, 20))
+        if data.size == 0:
+            continue
+        elif data.ndim == 1:
+            data = data[np.newaxis]
+        # append frequency
+        freqs.append(float(lines[2].strip().split()[-2]))
         # find the gaussian closest to the source
         ra_dist = data[:, 0] - ra
         de_dist = data[:, 1] - dec
@@ -122,12 +152,11 @@ if __name__ == "__main__":
     output_data = np.concatenate([freqs.reshape(-1, 1), source_data, dist.reshape(-1, 1)], axis=1)
 
     # write to file
-    if args.slience is False:
-        print("writing {}".format(filename))
+    echo("writing {}".format(filename))
 
     np.savetxt(filename, output_data, fmt="%10.8f", delimiter='\t',
                header="freq (MHz), RA, Dec, Flux (Jy), Flux Err, Peak Flux (Jy/beam), "\
-                      "Peak Flux Err, Maj (deg), Min (deg), PA (Maj deg E of N)")
+                      "Peak Flux Err, Maj (deg), Min (deg), PA (Maj deg E of N), source_dist")
 
 
 

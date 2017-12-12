@@ -35,7 +35,6 @@ import aipy
 from collections import OrderedDict
 from astropy.time import Time
 from scipy import interpolate
-from get_antpos import get_antpos
 
 ## set flags ##
 T = True

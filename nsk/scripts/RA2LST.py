@@ -1,11 +1,13 @@
 """
 given an RA and a longitude on Earth,
-calculate LST when that RA is at zenith
+calculate LST when that RA is at zenith.
 """
 import ephem
 import numpy as np
+import datetime
+import pytz
 
-def RA2LST(RA, lon):
+def RA2LST(RA, lon, year=2017):
     """
     RA : float
         right ascension (J2000) in degrees
@@ -18,13 +20,14 @@ def RA2LST(RA, lon):
     # get observer
     obs = ephem.Observer()
     obs.lon = lon * np.pi / 180.0
+    obs.date = datetime.datetime(year, 03, 20, 0, 0, 0, 0, pytz.UTC)
 
-    # get current RA at zenith of observer in degrees
-    ra = obs.radec_of(0, np.pi/2)[0] * 180 / np.pi
+    # get RA at zenith of observer in degrees
+    ra_now = obs.radec_of(0, np.pi/2)[0] * 180 / np.pi
 
     # get LST of observer
     LST_now = obs.sidereal_time() * 12.0 / np.pi 
 
     # get the LST of the RA via difference
-    LST_RA = LST_now + (RA - ra) / 15.0
+    LST_RA = LST_now + (RA - ra_now) / 15.0
     return LST_RA
