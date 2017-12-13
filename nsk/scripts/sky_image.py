@@ -3,7 +3,7 @@ sky_image.py
 -------------
 sky-based calibration with CASA 5.1.1
 
-runt the script as:
+run the script as:
 casa -c sky_image.py <args>
 
 Nick Kern
@@ -18,36 +18,42 @@ import subprocess
 import shutil
 import glob
 
-# get args
+## Set Arguments
+# Required Arguments
 a = argparse.ArgumentParser(description="Run with casa as: casa -c sky_image.py <args>")
 a.add_argument('--script', '-c', type=str, help='name of this script', required=True)
 a.add_argument('--msin', default=None, type=str, nargs='*', help='path to CASA measurement set(s). if fed a .uvfits, will convert to ms', required=True)
 a.add_argument('--source', default=None, type=str, help='source name', required=True)
-a.add_argument('--timerange', default="", type=str, help="calibration and clean timerange")
-a.add_argument('--uvrange', default="", type=str, help="uvrange in meters (baseline length) to use in calibration and imaging")
+# IO Arguments
+a.add_argument('--out_dir', default=None, type=str, help='output directory')
+a.add_argument("--silence", default=False, action='store_true', help="turn off output to stdout")
+a.add_argument('--source_ext', default=None, type=str, help="extension to source name in output image files")
+# Calibration Arguments
 a.add_argument('--refant', default=None, type=str, help='reference antenna')
 a.add_argument('--ex_ants', default=None, type=str, help='bad antennas to flag')
-a.add_argument('--unflag', default=False, action='store_true', help='start by unflagging data')
 a.add_argument('--rflag', default=False, action='store_true', help='run flagdata(mode=rflag)')
-a.add_argument('--out_dir', default=None, type=str, help='output directory')
+a.add_argument('--unflag', default=False, action='store_true', help='start by unflagging data')
 a.add_argument('--nocal', default=False, action='store_true', help='skip calibration and just make an image')
 a.add_argument('--noKGcal', default=False, action='store_true', help='do not perform K (dly) & G (phs) calibration')
 a.add_argument('--noAcal', default=False, action='store_true', help='do not perform G (amp) calibration')
 a.add_argument('--noBPcal', default=False, action='store_true', help='do not perform BandPass calibration (phs & amp)')
-a.add_argument('--source_ext', default=None, type=str, help="extension to source name in output image files")
-a.add_argument('--image_model', default=False, action='store_true', help="image model datacolumn instead of data datacolumn")
-a.add_argument('--image_mfs', default=False, action='store_true', help="make an MFS image across the band")
-a.add_argument('--spec_cube', default=False, action='store_true', help="image spectral cube as well as MFS.")
-a.add_argument('--spec_dchan', default=40, type=int, help="number of channel averaging for a single image in the spectral cube.")
-a.add_argument('--niter', default=50, type=int, help='number of clean iterations.')
-a.add_argument('--pxsize', default=300, type=int, help='pixel (cell) scale in arcseconds')
-a.add_argument('--imsize', default=500, type=int, help='number of pixels along a side of the output square image.')
+a.add_argument('--uvrange', default="", type=str, help="uvrange in meters (baseline length) to use in calibration and imaging")
+a.add_argument('--timerange', default="", type=str, help="calibration and clean timerange")
 a.add_argument('--bpoly', default=False, action='store_true', help="use BPOLY mode in bandpass")
 a.add_argument('--degamp', default=4, type=int, help="amplitude polynomial degree for BPOLY")
 a.add_argument('--degphase', default=1, type=int, help="phase polynomial degree for BPOLY")
+# Imaging Arguments
+a.add_argument('--image_mfs', default=False, action='store_true', help="make an MFS image across the band")
+a.add_argument('--niter', default=50, type=int, help='number of clean iterations.')
+a.add_argument('--pxsize', default=300, type=int, help='pixel (cell) scale in arcseconds')
+a.add_argument('--imsize', default=500, type=int, help='number of pixels along a side of the output square image.')
 a.add_argument('--cleanspw', default="0:200~850", type=str, help="spectral window selection for clean")
+a.add_argument('--image_model', default=False, action='store_true', help="image model datacolumn instead of data datacolumn")
+a.add_argument('--spec_cube', default=False, action='store_true', help="image spectral cube as well as MFS.")
+a.add_argument('--spec_dchan', default=40, type=int, help="number of channel averaging for a single image in the spectral cube.")
+# Plotting Arguments
 a.add_argument("--plot_uvdist", default=False, action='store_true', help='make a uvdist plot')
-a.add_argument("--silence", default=False, action='store_true', help="turn off output to stdout")
+
 
 def echo(message, type=0):
     if verbose:
@@ -369,9 +375,8 @@ if __name__ == "__main__":
     # make uvdist plot
     if args.plot_uvdist:
         echo("...plotting uvdistance")
-        # add model if nocal
-        if args.nocal:
-            ft(ms_split, complist="{}.cl".format(args.source), usescratch=True)
+        # add model to ms_split
+        ft(ms_split, complist="{}.cl".format(args.source), usescratch=True)
         # load visibility amplitudes
         ms.open(ms_split)
         data = ms.getdata(["amplitude", "antenna1", "antenna2", "uvdist", "axis_info", "flag", "model_amplitude"], ifraxis=True)
