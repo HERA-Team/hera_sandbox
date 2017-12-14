@@ -38,7 +38,7 @@ a.add_argument('--noKGcal', default=False, action='store_true', help='do not per
 a.add_argument('--noAcal', default=False, action='store_true', help='do not perform G (amp) calibration')
 a.add_argument('--noBPcal', default=False, action='store_true', help='do not perform BandPass calibration (phs & amp)')
 a.add_argument('--uvrange', default="", type=str, help="uvrange in meters (baseline length) to use in calibration and imaging")
-a.add_argument('--timerange', default="", type=str, help="calibration and clean timerange")
+a.add_argument('--timerange', default=[""], type=str, nargs='*', help="calibration and clean timerange(s)")
 a.add_argument('--bpoly', default=False, action='store_true', help="use BPOLY mode in bandpass")
 a.add_argument('--degamp', default=4, type=int, help="amplitude polynomial degree for BPOLY")
 a.add_argument('--degphase', default=1, type=int, help="phase polynomial degree for BPOLY")
@@ -180,7 +180,7 @@ if __name__ == "__main__":
         if os.path.exists("{}.png".format(kc)):
             os.remove("{}.png".format(kc))
         gaincal(msin, caltable=kc, gaintype="K", solint='inf', refant=args.refant, minsnr=3.0, spw="0:100~924",
-                gaintable=gaintables, timerange=args.timerange, uvrange=args.uvrange)
+                gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange)
         plotcal(kc, xaxis='antenna', yaxis='delay', figfile='{}.png'.format(kc), showgui=False)
         gaintables.append(kc)
 
@@ -200,7 +200,7 @@ if __name__ == "__main__":
         if os.path.exists("{}.png".format(gpc)):
             os.remove("{}.png".format(gpc))
         gaincal(msin, caltable=gpc, gaintype='G', solint='inf', refant=args.refant, minsnr=3, calmode='p',
-                spw="0:100~924", gaintable=gaintables, timerange=args.timerange, uvrange=args.uvrange)
+                spw="0:100~924", gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange)
         plotcal(gpc, xaxis='antenna', yaxis='phase', figfile='{}.png'.format(gpc), showgui=False)
         gaintables.append(gpc)
 
@@ -224,7 +224,7 @@ if __name__ == "__main__":
         if os.path.exists("{}.png".format(gac)):
             os.remove("{}.png".format(gac))
         gaincal(msin, caltable=gac, gaintype='G', solint='inf', refant=args.refant, minsnr=3, calmode='a',
-                spw="0:100~924", gaintable=gaintables, timerange=args.timerange, uvrange=args.uvrange)
+                spw="0:100~924", gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange)
         plotcal(gac, xaxis='antenna', yaxis='amp', figfile='{}.png'.format(gac), showgui=False)
         gaintables.append(gac)
 
@@ -253,7 +253,7 @@ if __name__ == "__main__":
         if os.path.exists("{}.phs.png".format(bc)):
             os.remove("{}.phs.png".format(bc))
         bandpass(vis=msin, spw="0:100~924", minsnr=2, bandtype=Btype, degamp=args.degamp, degphase=args.degphase,
-                caltable=bc, gaintable=gaintables, solint='inf', refant=args.refant, timerange=args.timerange, uvrange=args.uvrange)
+                caltable=bc, gaintable=gaintables, solint='inf', refant=args.refant, timerange=cal_timerange, uvrange=args.uvrange)
         plotcal(bc, xaxis='chan', yaxis='amp', figfile="{}.amp.png".format(bc), showgui=False)
         plotcal(bc, xaxis='chan', yaxis='phase', figfile="{}.phs.png".format(bc), showgui=False)
         gaintables.append(bc)
@@ -288,6 +288,8 @@ if __name__ == "__main__":
 
     if args.nocal is False:
         ## Begin Calibration ##
+        # init cal_timerange
+        cal_timerange = ','.join(args.timerange)
         # run through various calibration options
         gaintables = []
         if KGcal:
@@ -318,7 +320,7 @@ if __name__ == "__main__":
         ms_split = msin
 
     if args.image_mfs is True or args.spec_cube is True:
-        # clean
+        # remove paths
         im_stem = os.path.join(out_dir, base_ms + '.' + args.source + args.source_ext)
         echo("...performing clean for output files:\n{}.*".format(im_stem), type=1)
         source_files = glob.glob(im_stem+'*')
@@ -344,33 +346,44 @@ if __name__ == "__main__":
         else:
             cleanspw = args.cleanspw
 
-        def image_mfs(msin, im_stem):
+        def image_mfs(msin, im_stem, timerange):
             clean(vis=msin, imagename=im_stem, spw=cleanspw, niter=args.niter, weighting='briggs', robust=0, imsize=[args.imsize, args.imsize],
-                  cell=['{}arcsec'.format(args.pxsize)], mode='mfs', timerange=args.timerange, uvrange=args.uvrange)
+                  cell=['{}arcsec'.format(args.pxsize)], mode='mfs', timerange=timerange, uvrange=args.uvrange)
             exportfits(imagename='{}.image'.format(im_stem), fitsimage='{}.fits'.format(im_stem))
             print("...saving {}".format('{}.fits'.format(im_stem)))
 
-        image_mfs(ms_split, im_stem)
-   
-        if args.image_model:
-            image_mfs(model_ms_split, model_im_stem)
+    
+        for i, tr in enumerate(args.timerange):
+            if i == 0:
+                image_mfs(ms_split, im_stem, tr)
+                if args.image_model:
+                    image_mfs(model_ms_split, model_im_stem, tr)
+            else:
+                image_mfs(ms_split, im_stem+'_tr{}'.format(i), tr)
+                if args.image_model:
+                    image_mfs(model_ms_split, model_im_stem+'_tr{}'.format(i), tr)
 
     # create spectrum
     if args.spec_cube:
         echo("...running spectral cube clean", type=1)
-        def spec_cube(msin, im_stem):
+        def spec_cube(msin, im_stem, timerange):
             dchan = args.spec_dchan
             for i, chan in enumerate(np.arange(100, 924, dchan)):
                 clean(vis=msin, imagename=im_stem+'.spec{}'.format(chan), niter=0, spw="0:{}~{}".format(chan, chan+dchan-1),
-                        weighting='briggs', robust=0, imsize=[args.imsize, args.imsize], timerange=args.timerange, uvrange=args.uvrange,
+                        weighting='briggs', robust=0, imsize=[args.imsize, args.imsize], timerange=timerange, uvrange=args.uvrange,
                         cell=['{}arcsec'.format(args.pxsize)], mode='mfs')#, mask='circle[[{}h{}m{}s, {}d{}m{}s ], 7deg]'.format(*(ra+dec)))
                 exportfits(imagename='{}.spec{}.image'.format(im_stem, chan), fitsimage='{}.spec{}.fits'.format(im_stem, chan))
                 print("...saving {}".format('{}.spec{}.fits'.format(im_stem, chan)))
 
-        spec_cube(ms_split, im_stem)
-
-        if args.image_model:
-            spec_cube(model_ms_split, model_im_stem)
+        for i, tr in enumerate(args.timerange):
+            if i == 0:
+                spec_cube(ms_split, im_stem, tr)
+                if args.image_model:
+                    spec_cube(model_ms_split, model_im_stem, tr)
+            else:
+                spec_cube(ms_split, im_stem+'_tr{}'.format(i), tr)
+                if args.image_model:
+                    spec_cube(model_ms_split, model_im_stem+'_tr{}'.format(i), tr)
 
     # make uvdist plot
     if args.plot_uvdist:
