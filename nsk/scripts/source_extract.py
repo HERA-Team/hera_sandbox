@@ -20,13 +20,13 @@ a = argparse.ArgumentParser(description="Get FITS image statistics around source
 
 a.add_argument("files", type=str, nargs='*', help="filename(s) or glob-parseable string of filename(s)")
 a.add_argument("--source", type=str, help="source name, with a <source>.loc file in working directory")
-a.add_argument("--radius", type=float, default=1, help="radius in degrees around source position to get imstats")
+a.add_argument("--radius", type=float, default=2, help="radius in degrees around estimated source position to get source peak")
 a.add_argument("--outdir", type=str, default=None, help="output directory")
 a.add_argument("--ext", type=str, default=".spectrum.tab", help='extension string for spectrum file')
 a.add_argument("--overwrite", default=False, action='store_true', help='overwite output')
 a.add_argument("--gaussfit_mult", default=1.0, type=float, help="gaussian fit mask area is gaussfit_mult * synthesized_beam")
 
-def source_extract(imfile, source, radius=1, gaussfit_mult=1.0):
+def source_extract(imfile, source, radius=1, gaussfit_mult=1.0, **kwargs):
 
     # open fits file
     hdu = fits.open(imfile)
@@ -51,7 +51,7 @@ def source_extract(imfile, source, radius=1, gaussfit_mult=1.0):
     ra, dec = np.loadtxt('{}.loc'.format(source), dtype=str)
     ra, dec = map(float, ra.split(':')), map(float,dec.split(':'))
     ra = (ra[0] + ra[1]/60. + ra[2]/3600.) * 15
-    dec = (dec[0] + np.sign(dec[1])*dec[1]/60. + np.sign(dec[2])*dec[2]/3600.)
+    dec = (dec[0] + np.sign(dec[0])*dec[1]/60. + np.sign(dec[0])*dec[2]/3600.)
 
     # get radius coordinates
     R = np.sqrt((RA - ra)**2 + (DEC - dec)**2)
@@ -63,7 +63,7 @@ def source_extract(imfile, source, radius=1, gaussfit_mult=1.0):
     peak = np.max(data[select])
 
     # get rms outside of pixel radius
-    rms = np.sqrt(np.median(data[~select]**2)) * 1.482
+    rms = np.sqrt(np.mean(data[~select]**2))
 
     # get peak error
     peak_err = rms / np.sqrt(Npix_beam / 2.0)
@@ -84,20 +84,21 @@ def source_extract(imfile, source, radius=1, gaussfit_mult=1.0):
 
     # use synthesized beam as data mask
     ecc = head["BMAJ"] / head["BMIN"]
-    beam_theta = head["BPA"] * np.pi / 180
+    beam_theta = head["BPA"] * np.pi / 180 + np.pi/2
     EMAJ = R * np.sqrt(np.cos(T+beam_theta)**2 + ecc**2 * np.sin(T+beam_theta)**2)
     fit_mask = EMAJ < (head["BMAJ"] / 2 * gaussfit_mult)
     masked_data = data.copy()
     masked_data[~fit_mask] = 0.0
 
     # fit 2d gaussian
-    gauss_init = mod.functional_models.Gaussian2D(peak, ra, dec) 
+    gauss_init = mod.functional_models.Gaussian2D(peak, ra, dec, x_stddev=head["BMAJ"]/2, y_stddev=head["BMIN"]/2) 
     fitter = mod.fitting.LevMarLSQFitter()
     gauss_fit = fitter(gauss_init, RA[fit_mask], DEC[fit_mask], data[fit_mask])
 
     # get gaussian fit properties
     peak_gauss_flux = gauss_fit.amplitude.value
     P = np.array([X, Y]).T
+    beam_theta -= np.pi/2
     Prot = P.dot(np.array([[np.cos(beam_theta), -np.sin(beam_theta)], [np.sin(beam_theta), np.cos(beam_theta)]]))
     gauss_cov = np.array([[gauss_fit.x_stddev.value**2, 0], [0, gauss_fit.y_stddev.value**2]])
     model_gauss = stats.multivariate_normal.pdf(Prot, mean=np.array([0,0]), cov=gauss_cov)
@@ -128,7 +129,7 @@ if __name__ == "__main__":
     int_gauss_flux = []
     freqs = []
     for i, fname in enumerate(files):
-        output = source_extract(fname, args.source, radius=args.radius, gaussfit_mult=args.gaussfit_mult)
+        output = source_extract(fname, **vars(args))
         peak_flux.append(output[0])
         peak_flux_err.append(output[2])
         peak_gauss_flux.append(output[3])

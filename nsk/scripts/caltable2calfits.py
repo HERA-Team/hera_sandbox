@@ -41,7 +41,7 @@ a.add_argument("--plot_amp", default=False, action='store_true', help='plot amp 
 a.add_argument("--gain_amp_antavg", default=False, action='store_true', help="average gain amplitudes across antennas")
 # Bandpass Solution Parameters
 a.add_argument("--bp_files", type=str, default=None, nargs='*', help="Path to .csv file(s) with antenna complex bandpass output from sky_image.py (CASA bandpass)")
-a.add_argument("--bp_flag_frac", type=float, default=0.01, help="at each freq bin, fraction of antennas flagged needed to broadcast flag to all ants.")
+a.add_argument("--bp_flag_frac", type=float, default=0.5, help="at each freq bin, fraction of antennas flagged needed to broadcast flag to all ants.")
 a.add_argument("--bp_pass_flags", default=False, action='store_true', help="propagate all bandpass flags")
 a.add_argument("--noBPamp", default=False, action='store_true', help="set BP amplitude solutions to zero.")
 a.add_argument("--noBPphase", default=False, action='store_true', help="set BP phase solutions to zero.")
@@ -370,10 +370,10 @@ def caltable2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=No
         ax.grid(True)
         bp_gains[bp_flags.astype(np.bool)] *= np.nan
         pls = []
-        for i, a in enumerate(ants):
-            if a not in bp_ants:
-                continue
-            p, = ax.plot(bp_freqs / 1e6, np.abs(bp_gains).squeeze()[i], marker='.')
+        bp_ant_select = []
+        bp_ants = sorted(bp_ants)
+        for i, a in enumerate(bp_ants):
+            p, = ax.plot(bp_freqs / 1e6, np.abs(bp_gains).squeeze()[ants.index(a)], marker='.')
             pls.append(p)
         ax.set_xlabel("Frequency [MHz]", fontsize=12)
         ax.set_ylabel("Amplitude", fontsize=12)
@@ -381,15 +381,14 @@ def caltable2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=No
         # phase
         ax = axes[1]
         ax.grid(True)
-        for i, a in enumerate(ants):
-            if a not in bp_ants:
-                continue
-            ax.plot(bp_freqs / 1e6, np.angle(bp_gains).squeeze()[i], marker='.')
+        for i, a in enumerate(bp_ants):
+            ax.plot(bp_freqs / 1e6, np.angle(bp_gains).squeeze()[ants.index(a)], marker='.')
         ax.set_xlabel("Frequency [MHz]", fontsize=12)
         ax.set_ylabel("Phase [radians]", fontsize=12)
         lax = fig.add_axes([1.01, 0.1, 0.05, 0.8])
         lax.axis('off')
-        lax.legend(pls, sorted(ants), ncol=2)
+        ant_sort = np.argsort(ants)
+        lax.legend(pls, bp_ants, ncol=2)
         fig.savefig(bp_file+'.png', dpi=100, bbox_inches='tight', pad=0.05)
         plt.close()
 

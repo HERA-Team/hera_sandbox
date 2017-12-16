@@ -33,10 +33,9 @@ a.add_argument('--refant', default=None, type=str, help='reference antenna')
 a.add_argument('--ex_ants', default=None, type=str, help='bad antennas to flag')
 a.add_argument('--rflag', default=False, action='store_true', help='run flagdata(mode=rflag)')
 a.add_argument('--unflag', default=False, action='store_true', help='start by unflagging data')
-a.add_argument('--nocal', default=False, action='store_true', help='skip calibration and just make an image')
-a.add_argument('--noKGcal', default=False, action='store_true', help='do not perform K (dly) & G (phs) calibration')
-a.add_argument('--noAcal', default=False, action='store_true', help='do not perform G (amp) calibration')
-a.add_argument('--noBPcal', default=False, action='store_true', help='do not perform BandPass calibration (phs & amp)')
+a.add_argument('--KGcal', default=False, action='store_true', help='perform K (dly) & G (phs) calibration')
+a.add_argument('--Acal', default=False, action='store_true', help='perform G (amp) calibration')
+a.add_argument('--BPcal', default=False, action='store_true', help='perform BandPass calibration (phs & amp)')
 a.add_argument('--uvrange', default="", type=str, help="uvrange in meters (baseline length) to use in calibration and imaging")
 a.add_argument('--timerange', default=[""], type=str, nargs='*', help="calibration and clean timerange(s)")
 a.add_argument('--bpoly', default=False, action='store_true', help="use BPOLY mode in bandpass")
@@ -70,9 +69,6 @@ if __name__ == "__main__":
     if args.source_ext is None:
         args.source_ext = ''
     verbose = args.silence is False
-    KGcal = args.noKGcal is False
-    Acal = args.noAcal is False
-    BPcal = args.noBPcal is False
 
     # check for .loc and .cl files
     if os.path.exists('{}.loc'.format(args.source)) is False:
@@ -81,8 +77,8 @@ if __name__ == "__main__":
         raise AttributeError("{}.cl file doesn't exist in working directory".format(args.source))
 
     # configure refant
-    if args.refant is None and args.nocal is False:
-        raise AttributeError("if nocal is False, refant needs to be specified")
+    if args.refant is None and (args.KGcal is True or args.Acal is True or args.BPcal is True):
+        raise AttributeError("if calibrating, refant needs to be specified")
     args.refant = "HH" + str(args.refant)
 
     # get phase center
@@ -138,13 +134,14 @@ if __name__ == "__main__":
                 except OSError:
                     shutil.rmtree(msf)
         importuvfits(uvfits, msin)
+        echo("{}".format(msin))
 
     # rephase to source
     echo("...fix vis to {}".format(fixdir), type=1)
     fixvis(msin, msin, phasecenter=fixdir)
 
     # insert source model
-    if args.nocal is False or args.image_model is True:
+    if (args.KGcal is True or args.Acal is True or args.BPcal is True) or args.image_model is True:
         ft(msin, complist="{}.cl".format(args.source), usescratch=True)
 
     # unflag
@@ -218,7 +215,7 @@ if __name__ == "__main__":
     def ACAL(msin, gaintables=[]):
         # gaincal G amplitude
         echo("...performing G gaincal for amplitude", type=1)
-        gac = msin+'.{}.cal'.format('G')
+        gac = msin+'.{}.cal'.format('Gamp')
         if os.path.exists(gac):
             shutil.rmtree(gac)
         if os.path.exists("{}.png".format(gac)):
@@ -286,19 +283,19 @@ if __name__ == "__main__":
 
         return gaintables
 
-    if args.nocal is False:
+    if (args.KGcal is True or args.Acal is True or args.BPcal is True):
         ## Begin Calibration ##
         # init cal_timerange
         cal_timerange = ','.join(args.timerange)
         # run through various calibration options
         gaintables = []
-        if KGcal:
+        if args.KGcal:
             gaintables = KGCAL(msin, gaintables)
 
-        if Acal:
+        if args.Acal:
             gaintables = ACAL(msin, gaintables)
 
-        if BPcal:
+        if args.BPcal:
             gaintables = BPCAL(msin, gaintables)
 
         # apply calibration gaintables
@@ -317,6 +314,7 @@ if __name__ == "__main__":
         fixvis(ms_split, ms_split, phasecenter=fixdir)
 
     else:
+        echo("...no calibration performed", type=1)
         ms_split = msin
 
     if args.image_mfs is True or args.spec_cube is True:
@@ -335,8 +333,8 @@ if __name__ == "__main__":
     if args.image_model:
         model_ms_split = ms_split + ".model"
         model_im_stem = os.path.join(out_dir, base_ms + '.model.' + args.source + args.source_ext)
+        ft(ms_split, complist="{}.cl".format(args.source), usescratch=True)
         split(ms_split, model_ms_split, datacolumn='model')
-
 
     # create mfs image
     if args.image_mfs:
@@ -387,7 +385,7 @@ if __name__ == "__main__":
 
     # make uvdist plot
     if args.plot_uvdist:
-        echo("...plotting uvdistance")
+        echo("...plotting uvdistance", type=1)
         # add model to ms_split
         ft(ms_split, complist="{}.cl".format(args.source), usescratch=True)
         # load visibility amplitudes
