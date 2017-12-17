@@ -22,6 +22,7 @@ ap = argparse.ArgumentParser(description='')
 ap.add_argument("--ra", type=float, help="RA of the source in degrees", required=True)
 ap.add_argument("--lon", default=21.428305555, type=float, help="longitude of observer in degrees East")
 ap.add_argument("--duration", default=2.0, type=float, help="duration in minutes of calibrator integration")
+ap.add_argument("--offset", default=0.0, type=float, help="offset from closest approach in minutes")
 ap.add_argument("--start_jd", default=None, type=int, help="starting JD of interest")
 ap.add_argument("--jd_files", default=None, type=str, nargs='*',  help="glob-parsable search of files to isolate calibrator in.")
 ap.add_argument("--get_filetimes", default=False, action='store_true', help="open source files and get more accurate duration timerange")
@@ -32,14 +33,17 @@ if __name__ == "__main__":
 
     # get LST of the source
     lst = RA2LST(a.ra, a.lon)
+    # offset
+    lst += args.offset / 60.
+
     print("-"*60)
-    print("source LST = {} Hours".format(lst))
+    print("source LST (offset by {} minutes) = {} Hours".format(args.offset, lst))
     print("-"*60)
 
     if a.start_jd is not None:
         # get JD when source is at zenith
         jd = JD2LST.LST2JD(lst, a.start_jd, a.lon)
-        print("JD when source is closest to zenith: {}".format(jd))
+        print("JD closest to zenith (offset by {} minutes): {}".format(args.offset, jd))
         print("-"*60)
 
         # print out UTC time
@@ -47,7 +51,7 @@ if __name__ == "__main__":
         time1 = Time(jd - jd_duration/2, format='jd').to_datetime()
         time2 = Time(jd + jd_duration/2, format='jd').to_datetime()
         time3 = Time(jd, format='jd').to_datetime()
-        print('UTC time range of closest {} minutes is:\n' \
+        print('UTC time range of {} minutes is:\n' \
               '"{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}~{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}", ' \
               'centered on {:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}'.format(a.duration,
                                                         time1.year, time1.month, time1.day,
@@ -96,7 +100,7 @@ if __name__ == "__main__":
         else:
             end_index = np.argmax(jd_before)  
 
-        print("file(s) closest to source over {} min duration:\n {}".format(a.duration, files[start_index:end_index+1]))
+        print("file(s) closest to source (offset by {} minutes) over {} min duration:\n {}".format(args.offset, a.duration, files[start_index:end_index+1]))
         print("-"*60)
 
         if a.get_filetimes:
