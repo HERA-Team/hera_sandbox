@@ -34,16 +34,16 @@ if __name__ == "__main__":
     # get LST of the source
     lst = RA2LST(a.ra, a.lon)
     # offset
-    lst += args.offset / 60.
+    lst += a.offset / 60.
 
     print("-"*60)
-    print("source LST (offset by {} minutes) = {} Hours".format(args.offset, lst))
+    print("source LST (offset by {} minutes) = {} Hours".format(a.offset, lst))
     print("-"*60)
 
     if a.start_jd is not None:
         # get JD when source is at zenith
         jd = JD2LST.LST2JD(lst, a.start_jd, a.lon)
-        print("JD closest to zenith (offset by {} minutes): {}".format(args.offset, jd))
+        print("JD closest to zenith (offset by {} minutes): {}".format(a.offset, jd))
         print("-"*60)
 
         # print out UTC time
@@ -100,7 +100,7 @@ if __name__ == "__main__":
         else:
             end_index = np.argmax(jd_before)  
 
-        print("file(s) closest to source (offset by {} minutes) over {} min duration:\n {}".format(args.offset, a.duration, files[start_index:end_index+1]))
+        print("file(s) closest to source (offset by {} minutes) over {} min duration:\n {}".format(a.offset, a.duration, files[start_index:end_index+1]))
         print("-"*60)
 
         if a.get_filetimes:

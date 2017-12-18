@@ -34,8 +34,11 @@ a.add_argument('--ex_ants', default=None, type=str, help='bad antennas to flag')
 a.add_argument('--rflag', default=False, action='store_true', help='run flagdata(mode=rflag)')
 a.add_argument('--unflag', default=False, action='store_true', help='start by unflagging data')
 a.add_argument('--KGcal', default=False, action='store_true', help='perform K (dly) & G (phs) calibration')
+a.add_argument("--KGsnr", default=2.0, type=float, help="KG calibration Signal-to-Noise cut")
 a.add_argument('--Acal', default=False, action='store_true', help='perform G (amp) calibration')
+a.add_argument("--Asnr", default=2.0, type=float, help="G-amplitude calibration Signal-to-Noise cut")
 a.add_argument('--BPcal', default=False, action='store_true', help='perform BandPass calibration (phs & amp)')
+a.add_argument("--BPsnr", default=2.0, type=float, help="bandpass calibration Signal-to-Noise cut")
 a.add_argument('--uvrange', default="", type=str, help="uvrange in meters (baseline length) to use in calibration and imaging")
 a.add_argument('--timerange', default=[""], type=str, nargs='*', help="calibration and clean timerange(s)")
 a.add_argument('--bpoly', default=False, action='store_true', help="use BPOLY mode in bandpass")
@@ -176,18 +179,19 @@ if __name__ == "__main__":
             shutil.rmtree(kc)
         if os.path.exists("{}.png".format(kc)):
             os.remove("{}.png".format(kc))
-        gaincal(msin, caltable=kc, gaintype="K", solint='inf', refant=args.refant, minsnr=3.0, spw="0:100~924",
+        gaincal(msin, caltable=kc, gaintype="K", solint='inf', refant=args.refant, minsnr=args.KGsnr, spw="0:100~924",
                 gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange)
         plotcal(kc, xaxis='antenna', yaxis='delay', figfile='{}.png'.format(kc), showgui=False)
         gaintables.append(kc)
 
-        # write delays to text file
+        # write delays as npz file
         tb.open(kc)
-        delays = tb.getcol('FPARAM')[0, 0][~tb.getcol('FLAG')[0, 0]]
-        delay_ants = tb.getcol('ANTENNA1')[~tb.getcol('FLAG')[0, 0]]
+        delays = tb.getcol('FPARAM')[0, 0]
+        delay_ants = tb.getcol('ANTENNA1')
+        delay_flags = tb.getcol('FLAG')[0, 0]
         tb.close()
-        np.savetxt("{}.csv".format(kc), np.vstack([delay_ants, delays]).T, fmt="%12.8f", header="ant_num, delay [ns]", delimiter=", ")
-        echo("...Saving delays to {}.csv".format(kc))
+        np.savez("{}.npz".format(kc), delay_ants=delay_ants, delays=delays, delay_flags=delay_flags)
+        echo("...Saving delays to {}.npz".format(kc))
         echo("...Saving plotcal to {}.png".format(kc))
 
         # perform initial G calibration for phase (per-spw and per-pol gain)
@@ -196,18 +200,19 @@ if __name__ == "__main__":
             shutil.rmtree(gpc)
         if os.path.exists("{}.png".format(gpc)):
             os.remove("{}.png".format(gpc))
-        gaincal(msin, caltable=gpc, gaintype='G', solint='inf', refant=args.refant, minsnr=3, calmode='p',
+        gaincal(msin, caltable=gpc, gaintype='G', solint='inf', refant=args.refant, minsnr=args.KGsnr, calmode='p',
                 spw="0:100~924", gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange)
         plotcal(gpc, xaxis='antenna', yaxis='phase', figfile='{}.png'.format(gpc), showgui=False)
         gaintables.append(gpc)
 
         # write phase to file
         tb.open(gpc)
-        phases = np.angle(tb.getcol('CPARAM')[0, 0][~tb.getcol('FLAG')[0, 0]])
-        phase_ants = tb.getcol('ANTENNA1')[~tb.getcol('FLAG')[0, 0]]
+        phases = np.angle(tb.getcol('CPARAM')[0, 0])
+        phase_ants = tb.getcol('ANTENNA1')
+        phase_flags = tb.getcol('FLAG')[0, 0]
         tb.close()
-        np.savetxt("{}.csv".format(gpc), np.vstack([phase_ants, phases]).T, fmt="%12.8f", header="ant_num, phase [radians]", delimiter=", ")
-        echo("...Saving phases to {}.csv".format(gpc))
+        np.savez("{}.npz".format(gpc), phase_ants=phase_ants, phases=phases, phase_flags=phase_flags)
+        echo("...Saving phases to {}.npz".format(gpc))
         echo("...Saving plotcal to {}.png".format(gpc))
 
         return gaintables
@@ -220,18 +225,19 @@ if __name__ == "__main__":
             shutil.rmtree(gac)
         if os.path.exists("{}.png".format(gac)):
             os.remove("{}.png".format(gac))
-        gaincal(msin, caltable=gac, gaintype='G', solint='inf', refant=args.refant, minsnr=3, calmode='a',
+        gaincal(msin, caltable=gac, gaintype='G', solint='inf', refant=args.refant, minsnr=args.Asnr, calmode='a',
                 spw="0:100~924", gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange)
         plotcal(gac, xaxis='antenna', yaxis='amp', figfile='{}.png'.format(gac), showgui=False)
         gaintables.append(gac)
 
         # write amp to file
         tb.open(gac)
-        amps = np.abs(tb.getcol('CPARAM')[0, 0][~tb.getcol('FLAG')[0, 0]])
-        amp_ants = tb.getcol('ANTENNA1')[~tb.getcol('FLAG')[0, 0]]
+        amps = np.abs(tb.getcol('CPARAM')[0, 0])
+        amp_ants = tb.getcol('ANTENNA1')
+        amp_flags = tb.getcol('FLAG')[0, 0]
         tb.close()
-        np.savetxt("{}.csv".format(gac), np.vstack([amp_ants, amps]).T, fmt="%12.8f", header="ant_num, amplitude", delimiter=", ")
-        echo("...Saving amps to {}.csv".format(gac))
+        np.savez("{}.npz".format(gac), amp_ants=amp_ants, amps=amps, amp_flags=amp_flags)
+        echo("...Saving amps to {}.npz".format(gac))
         echo('...Saving G amp plotcal to {}.png'.format(gac))
 
         return gaintables
@@ -249,7 +255,7 @@ if __name__ == "__main__":
             os.remove("{}.amp.png".format(bc))
         if os.path.exists("{}.phs.png".format(bc)):
             os.remove("{}.phs.png".format(bc))
-        bandpass(vis=msin, spw="0:100~924", minsnr=2, bandtype=Btype, degamp=args.degamp, degphase=args.degphase,
+        bandpass(vis=msin, spw="0:100~924", minsnr=args.BPsnr, bandtype=Btype, degamp=args.degamp, degphase=args.degphase,
                 caltable=bc, gaintable=gaintables, solint='inf', refant=args.refant, timerange=cal_timerange, uvrange=args.uvrange)
         plotcal(bc, xaxis='chan', yaxis='amp', figfile="{}.amp.png".format(bc), showgui=False)
         plotcal(bc, xaxis='chan', yaxis='phase', figfile="{}.phs.png".format(bc), showgui=False)
@@ -259,23 +265,17 @@ if __name__ == "__main__":
         if args.bpoly is False:
             # get flags and bandpass data
             tb.open(bc)
-            flags = ~tb.getcol('FLAG')[0]
-            flagged_ants = np.sum(flags, axis=0).astype(np.bool)
-            flags = flags[:, flagged_ants]
-            bp = tb.getcol('CPARAM')[0][:, flagged_ants]
-            bp_ants = tb.getcol("ANTENNA1")[flagged_ants]
+            bp = tb.getcol('CPARAM')[0]
+            bp_ants = tb.getcol("ANTENNA1")
+            bp_flags = tb.getcol('FLAG')[0]
             tb.close()
             # load spectral window data
             tb.open(bc+"/SPECTRAL_WINDOW")
-            freqs = tb.getcol("CHAN_FREQ")
+            bp_freqs = tb.getcol("CHAN_FREQ")
             tb.close()
             # write to file
-            bp_data = np.concatenate([freqs/1e6, bp.real, bp.imag, ~flags], axis=1)
-            bp_ants_str = ', '.join(map(lambda x: str(x)+'r', bp_ants)) + \
-                            ', ' + ', '.join(map(lambda x: str(x)+'i', bp_ants)) + \
-                            ', ' + ', '.join(map(lambda x: str(x)+'f', bp_ants))
-            np.savetxt("{}.csv".format(bc), bp_data, fmt="%12.8f", header="freq (MHz), {}".format(bp_ants_str), delimiter=", ")
-            echo("...Saving bandpass to {}.csv".format(bc))
+            np.savez("{}.npz".format(bc), bp=bp, bp_ants=bp_ants, bp_flags=bp_flags, bp_freqs=bp_freqs)
+            echo("...Saving bandpass to {}.npz".format(bc))
             echo("...Saving amp plotcal to {}.amp.png".format(bc))
             echo("...Saving phs plotcal to {}.phs.png".format(bc))
         else:

@@ -1,12 +1,12 @@
 #!/usr/bin/env python2.7
 """
-caltable2calfits.py
+skynpz2calfits.py
 ---------------
 
-convert calibration solutions
-from CASA K & G gaincal output
-and bandpass output in csv files
-into gains in calfits file format
+convert sky_image.py calibration
+solution output in .npz format
+(originally from CASA .cal/ tables)
+into pyuvdata .calfits format
 
 Nicholas Kern
 Dec. 2017
@@ -23,24 +23,24 @@ import scipy.signal as signal
 from sklearn import gaussian_process as gp
 import copy
 
-a = argparse.ArgumentParser(description="Turn CASA calibration solutions in {}.csv files from sky_image.py script into .calfits files")
+a = argparse.ArgumentParser(description="Turn CASA calibration solutions in {}.npz files from sky_image.py script into .calfits files")
 
 # Required Parameters
 a.add_argument("--fname", type=str, help="output calfits filename.", required=True)
 a.add_argument("--uv_file", type=str, help="Path to original miriad uv file of data.", required=True)
 # Delay Solution Parameters
-a.add_argument("--dly_files", type=str, default=None, nargs='*', help="Path to .csv file(s) with antenna delay output from sky_image.py (CASA K cal)")
+a.add_argument("--dly_files", type=str, default=None, nargs='*', help="Path to .npz file(s) with antenna delay output from sky_image.py (CASA K cal)")
 a.add_argument("--TTonly", default=False, action="store_true", help="only store Tip-Tilt slopes of delay solution.")
 a.add_argument("--plot_dlys", default=False, action="store_true", help="plot delay solutions across array.")
 # Phase Solution Parameters
-a.add_argument("--phs_files", type=str, default=None, nargs='*', help="Path to .csv file(s) with phase output from sky_image.py (CASA G cal)")
+a.add_argument("--phs_files", type=str, default=None, nargs='*', help="Path to .npz file(s) with phase output from sky_image.py (CASA G phscal)")
 a.add_argument("--plot_phs", default=False, action="store_true", help="plot phase solutions across array.")
 # Amplitude Solution Parameters
-a.add_argument("--amp_files", type=str, default=None, nargs='*',  help="Path to .csv file(s) with amplitude output from sky_image.py (CASA G ampcal)")
+a.add_argument("--amp_files", type=str, default=None, nargs='*',  help="Path to .npz file(s) with amplitude output from sky_image.py (CASA G ampcal)")
 a.add_argument("--plot_amp", default=False, action='store_true', help='plot amp solution across array.')
 a.add_argument("--gain_amp_antavg", default=False, action='store_true', help="average gain amplitudes across antennas")
 # Bandpass Solution Parameters
-a.add_argument("--bp_files", type=str, default=None, nargs='*', help="Path to .csv file(s) with antenna complex bandpass output from sky_image.py (CASA bandpass)")
+a.add_argument("--bp_files", type=str, default=None, nargs='*', help="Path to .npz file(s) with antenna complex bandpass output from sky_image.py (CASA bandpass)")
 a.add_argument("--bp_flag_frac", type=float, default=0.5, help="at each freq bin, fraction of antennas flagged needed to broadcast flag to all ants.")
 a.add_argument("--bp_pass_flags", default=False, action='store_true', help="propagate all bandpass flags")
 a.add_argument("--noBPamp", default=False, action='store_true', help="set BP amplitude solutions to zero.")
@@ -68,11 +68,11 @@ def echo(message, type=0, verbose=True):
         elif type == 1:
             print('\n{}\n{}'.format(message, '-'*40))
 
-def caltable2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None, out_dir=None, phs_files=None, overwrite=False,
-                     TTonly=True, plot_dlys=False, plot_phs=False, gain_convention='multiply', plot_bp=False, noBPphase=False,
-                     noBPamp=False, bp_TTonly=False, bp_medfilt=False, medfilt_kernel=5, bp_amp_antavg=False, bp_flag_frac=0.3,
-                     bp_pass_flags=False, medfilt_flag=False, bp_gp_smooth=False, bp_gp_max_dly=500.0, bp_gp_nrestart=1, bp_gp_thin=2,
-                     plot_amp=False, gain_amp_antavg=False, verbose=True):
+def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None, out_dir=None, phs_files=None, overwrite=False,
+                   TTonly=True, plot_dlys=False, plot_phs=False, gain_convention='multiply', plot_bp=False, noBPphase=False,
+                   noBPamp=False, bp_TTonly=False, bp_medfilt=False, medfilt_kernel=5, bp_amp_antavg=False, bp_flag_frac=0.3,
+                   bp_pass_flags=False, medfilt_flag=False, bp_gp_smooth=False, bp_gp_max_dly=500.0, bp_gp_nrestart=1, bp_gp_thin=2,
+                   plot_amp=False, gain_amp_antavg=False, verbose=True):
     """
 
     """
@@ -99,20 +99,25 @@ def caltable2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=No
 
     # construct blank gains and flags
     gains = np.ones((Nants, Nfreqs, Ntimes, 1), dtype=np.complex)
-    flags = np.zeros((Nants, Nfreqs, Ntimes, 1), dtype=np.float)
+    flags = np.zeros((Nants, Nfreqs, Ntimes, 1), dtype=np.bool)
 
     # process delays if available
     if dly_files is not None:
         echo("...processing delays", verbose=verbose, type=1)
         delays = np.zeros_like(ants, dtype=np.float)
+        delay_flags = np.zeros_like(ants, dtype=np.bool)
         for dly_file in dly_files:
             echo("...processing {}".format(dly_file))
             # get CASA delays and antennas
-            dly_ants, dlys = np.loadtxt(dly_file, delimiter=',', unpack=True)
-            dly_ants = dly_ants.astype(np.int).tolist()
+            dly_data = np.load(dly_file)
+            dly_ants = dly_data['delay_ants']
+            dlys = dly_data['delays']
+            dly_flags = dly_data['delay_flags']
+            dly_ants = dly_ants.tolist()
             dlys *= 1e-9
             # reorder antennas to be consistant w/ ants array
             dlys = np.array(map(lambda a: dlys[dly_ants.index(a)] if a in dly_ants else 0.0, ants))
+            dly_flags = np.array(map(lambda a: dly_flags[dly_ants.index(a)] if a in dly_ants else True, ants))
             # keep only limited information
             if TTonly:
                 echo("...keeping only TT component of delays", verbose=verbose)
@@ -121,59 +126,85 @@ def caltable2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=No
                 dlys = A.dot(fit)
             # add to delay array
             delays += dlys
+            delay_flags += dly_flags
 
         # turn into complex gains
-        dly_gains = np.exp(2j*np.pi*(freqs-freqs.min())*delays.reshape(-1, 1))
-        dly_gains = np.repeat(dly_gains[:, :, np.newaxis], Ntimes, axis=2)[:, :, :, np.newaxis]
+        dly_gains = np.exp(2j*np.pi*(freqs-freqs.min())*delays.reshape(-1, 1))[:, :, np.newaxis, np.newaxis]
+        dly_gain_flags = delay_flags[:, np.newaxis, np.newaxis, np.newaxis]
 
         # multiply into gains
         gains *= dly_gains
+
+        # add into flags
+        flags += dly_gain_flags
 
     # process overall phase if available
     if phs_files is not None:
         echo("...processing gain phase", verbose=verbose, type=1)
         phases = np.zeros_like(ants, dtype=np.float)
+        phase_flags = np.zeros_like(ants, dtype=np.bool)
         for phs_file in phs_files:
             echo("...processing {}".format(phs_file))
             # get phase antennas and phases
-            phs_ants, phs = np.loadtxt(phs_file, delimiter=',', unpack=True)
-            phs_ants = phs_ants.astype(np.int).tolist()
+            phs_data = np.load(phs_file)
+            phs_ants = phs_data['phase_ants']
+            phs = phs_data['phases']
+            phs_flags = phs_data['phase_flags']
+            phs_ants = phs_ants.tolist()
             # reorder to match ants
             phs = np.array([phs[phs_ants.index(a)] if a in phs_ants else 0.0 for a in ants])
+            phs_flags = np.array(map(lambda a: phs_flags[phs_ants.index(a)] if a in phs_ants else True, ants))
             # add to phases
             phases += phs
+            phase_flags += phs_flags
 
         # construct gains
         phase_gains = np.exp(1j * phases)
         phase_gains = phase_gains[:, np.newaxis, np.newaxis, np.newaxis]
+        phase_gain_flags = phase_flags[:, np.newaxis, np.newaxis, np.newaxis]
 
         # mult into gains
         gains *= phase_gains
+
+        # add into flags
+        flags += phase_gain_flags
 
     # process overall amplitude if available
     if amp_files is not None:
         echo("...processing gain amp", verbose=verbose, type=1)
         amplitudes = np.ones_like(ants, dtype=np.float)
+        amplitude_flags = np.zeros_like(ants, dtype=np.bool)
         for amp_file in amp_files:
             echo("...processing {}".format(amp_file))
             # get amp antenna and amps
-            amp_ants, amps = np.loadtxt(amp_file, delimiter=',', unpack=True)
-            amp_ants = amp_ants.astype(np.int).tolist()
+            amp_data = np.load(amp_file)
+            amp_ants = amp_data['amp_ants']
+            amps = amp_data['amps']
+            amp_flags = amp_data['amp_flags']
+            amp_ants = amp_ants.tolist()
             # reorder to match ants
             amps = np.array([amps[amp_ants.index(a)] if a in amp_ants else 1.0 for a in ants])
+            amp_flags = np.array(map(lambda a: amp_flags[amp_ants.index(a)] if a in amp_ants else True, ants))
             # add to amplitudes
             amplitudes *= amps
+            amplitude_flags += amp_flags
 
         # average across ants if desired
         if gain_amp_antavg:
             echo("...averaging antenna gain amplitudes", verbose=verbose)
-            amplitudes *= np.median(amplitudes) / amplitudes
+            avg_amp = np.median(amplitudes[~amplitude_flags])
+            amplitudes *= avg_amp / amplitudes
 
         # construct gains
         amplitude_gains = amplitudes
         amplitude_gains = amplitude_gains[:, np.newaxis, np.newaxis, np.newaxis]
+        amplitude_flags = amplitude_flags[:, np.newaxis, np.newaxis, np.newaxis]
+
         # mult into gains
         gains *= amplitude_gains
+
+        # add into flags
+        flags += amplitude_flags
 
     # process bandpass if available
     if bp_files is not None:
@@ -181,9 +212,12 @@ def caltable2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=No
         for ii, bp_file in enumerate(bp_files):
             echo("...processing {}".format(bp_file))
             # get bandpass and form complex gains
-            bp_data = np.loadtxt(bp_file, delimiter=',', dtype=float)
-            bp_freqs = bp_data[:, 0] * 1e6
+            bp_data = np.load(bp_file)
+            bp_freqs = bp_data['bp_freqs']
             bp_Nfreqs = len(bp_freqs)
+            bandp_gains = bp_data['bp']
+            bandp_flags = bp_data['bp_flags']
+
             bp_data = bp_data[:, 1:]
             bp_header = np.loadtxt(bp_file, delimiter=',', dtype=str, comments='$')[0, 1:]
             bp_header = map(lambda x: x.strip(), bp_header)
