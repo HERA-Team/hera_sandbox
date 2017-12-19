@@ -16,12 +16,12 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 from pyuvdata import UVCal, UVData
 import numpy as np
-from make_calfits import make_calfits
 import argparse
 import os
 import scipy.signal as signal
 from sklearn import gaussian_process as gp
 import copy
+from make_calfits import make_calfits
 
 a = argparse.ArgumentParser(description="Turn CASA calibration solutions in {}.npz files from sky_image.py script into .calfits files")
 
@@ -42,7 +42,7 @@ a.add_argument("--gain_amp_antavg", default=False, action='store_true', help="av
 # Bandpass Solution Parameters
 a.add_argument("--bp_files", type=str, default=None, nargs='*', help="Path to .npz file(s) with antenna complex bandpass output from sky_image.py (CASA bandpass)")
 a.add_argument("--bp_flag_frac", type=float, default=0.5, help="at each freq bin, fraction of antennas flagged needed to broadcast flag to all ants.")
-a.add_argument("--bp_pass_flags", default=False, action='store_true', help="propagate all bandpass flags")
+a.add_argument("--bp_broad_flags", default=False, action='store_true', help="broadcast flags at freq channels that satisfy bp_flag_frac")
 a.add_argument("--noBPamp", default=False, action='store_true', help="set BP amplitude solutions to zero.")
 a.add_argument("--noBPphase", default=False, action='store_true', help="set BP phase solutions to zero.")
 a.add_argument('--bp_medfilt', default=False, action='store_true', help="median filter bandpass solutions")
@@ -71,7 +71,7 @@ def echo(message, type=0, verbose=True):
 def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None, out_dir=None, phs_files=None, overwrite=False,
                    TTonly=True, plot_dlys=False, plot_phs=False, gain_convention='multiply', plot_bp=False, noBPphase=False,
                    noBPamp=False, bp_TTonly=False, bp_medfilt=False, medfilt_kernel=5, bp_amp_antavg=False, bp_flag_frac=0.3,
-                   bp_pass_flags=False, medfilt_flag=False, bp_gp_smooth=False, bp_gp_max_dly=500.0, bp_gp_nrestart=1, bp_gp_thin=2,
+                   bp_broad_flags=False, medfilt_flag=False, bp_gp_smooth=False, bp_gp_max_dly=500.0, bp_gp_nrestart=1, bp_gp_thin=2,
                    plot_amp=False, gain_amp_antavg=False, verbose=True):
     """
 
@@ -100,6 +100,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
     # construct blank gains and flags
     gains = np.ones((Nants, Nfreqs, Ntimes, 1), dtype=np.complex)
     flags = np.zeros((Nants, Nfreqs, Ntimes, 1), dtype=np.bool)
+    flagged_ants = np.zeros(Nants, dtype=np.bool)
 
     # process delays if available
     if dly_files is not None:
@@ -127,6 +128,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
             # add to delay array
             delays += dlys
             delay_flags += dly_flags
+            flagged_ants += dly_flags
 
         # turn into complex gains
         dly_gains = np.exp(2j*np.pi*(freqs-freqs.min())*delays.reshape(-1, 1))[:, :, np.newaxis, np.newaxis]
@@ -157,6 +159,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
             # add to phases
             phases += phs
             phase_flags += phs_flags
+            flagged_ants += phs_flags
 
         # construct gains
         phase_gains = np.exp(1j * phases)
@@ -188,6 +191,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
             # add to amplitudes
             amplitudes *= amps
             amplitude_flags += amp_flags
+            flagged_ants += amp_flags
 
         # average across ants if desired
         if gain_amp_antavg:
@@ -217,20 +221,14 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
             bp_Nfreqs = len(bp_freqs)
             bandp_gains = bp_data['bp']
             bandp_flags = bp_data['bp_flags']
-
-            bp_data = bp_data[:, 1:]
-            bp_header = np.loadtxt(bp_file, delimiter=',', dtype=str, comments='$')[0, 1:]
-            bp_header = map(lambda x: x.strip(), bp_header)
-            bp_data_dict = dict(zip(bp_header, bp_data.T))
-            bp_ants = np.unique(map(lambda x: int(''.join([s for s in x if s.isdigit()])), bp_header))
-            bandp_gains = np.array([bp_data_dict[str(a)+'r'] + 1j*bp_data_dict[str(a)+'i'] if a in bp_ants else np.ones(bp_data.shape[0], dtype=np.complex) for a in ants])
-            bandp_flags = np.array([bp_data_dict[str(a)+'f'] if a in bp_ants else np.zeros(bp_data.shape[0], dtype=np.bool) for a in ants])
-            # apply only flags (for all ants) on data that is flagged more than some fraction
+            bp_ants = bp_data['bp_ants'].tolist()
+            # reorder to match ants
+            bandp_gains = np.array([bandp_gains[:, bp_ants.index(a)].squeeze() if a in bp_ants else np.ones((bp_Nfreqs), dtype=np.complex) for a in ants])
+            bandp_flags = np.array([bandp_flags[:, bp_ants.index(a)].squeeze() if a in bp_ants else np.ones((bp_Nfreqs), dtype=np.bool) for a in ants])
+            # broadcast flags to all antennas at freq channels that satisfy bp_flag_frac
             flag_broadcast = (np.sum(bandp_flags, axis=0) / float(bandp_flags.shape[0])) > bp_flag_frac
-            if bp_pass_flags:
-                bandp_flags = np.repeat(flag_broadcast.reshape(1, -1).astype(np.bool), Nants, 0)
-            else:
-                bandp_flags = bandp_flags + np.repeat(flag_broadcast.reshape(1, -1).astype(np.bool), Nants, 0)
+            if bp_broad_flags:
+                bandp_flags += np.repeat(flag_broadcast.reshape(1, -1).astype(np.bool), Nants, 0)
             # configure gains and flags shapes
             bandp_gains = bandp_gains[:, :, np.newaxis, np.newaxis]
             bandp_flags = bandp_flags[:, :, np.newaxis, np.newaxis]
@@ -249,8 +247,10 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
             if medfilt_flag:
                 echo("...solving for BP flags w/ medfilt data")
                 # get residual and MAD from unfiltered and filtered data
-                residual = (np.abs(bp_gains) - np.abs(bp_gains_medfilt)).squeeze()
-                resid_std = np.median(np.abs(residual - np.median(residual, axis=1)[:, np.newaxis]), axis=1) * 1.5
+                residual = (np.abs(bp_gains) - np.abs(bp_gains_medfilt))
+                residual[bp_flags] *= np.nan
+                residual = residual.squeeze()
+                resid_std = np.nanmedian(np.abs(residual - np.nanmedian(residual, axis=1)[:, np.newaxis]), axis=1) * 1.5
                 # identify outliers as greater than 10-sigma
                 bad = np.array([np.abs(residual[i]) > resid_std[i]*10 for i in range(residual.shape[0])])
                 bp_flags += bad[:, :, np.newaxis, np.newaxis]
@@ -262,7 +262,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
         # average amplitude across antenna if desired
         if bp_amp_antavg:
             echo("...averaging bandpass amplitude across antennas", verbose=verbose)
-            amp_avg = np.median(np.abs(bp_gains), axis=0).reshape(1, -1, 1, 1)
+            amp_avg = np.nanmedian(np.abs(bp_gains), axis=0).reshape(1, -1, 1, 1)
             bp_gains *= amp_avg / np.abs(bp_gains)
 
         # smooth bandpass w/ gaussian process if desired
@@ -279,12 +279,12 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
             for i, a in enumerate(ants):
                 if i % 10 == 0: echo("{}/{} ants".format(i, len(ants)), verbose=verbose)
                 # skip flagged ants
-                if np.isclose(np.nanmean(np.diff(np.abs(bp_gains[i]), axis=0)), 0.0):
+                if np.min(bp_flags[i, :]):
                     bp_gains_real.append(np.ones_like(X.squeeze()))
                     bp_gains_imag.append(np.zeros_like(X.squeeze()))
                     continue
                 GP = gp.GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=bp_gp_nrestart)
-                xdata = X[~bp_flags[i].squeeze()][::bp_gp_thin]
+                xdata = X[~bp_flags[i].squeeze(), :][::bp_gp_thin]
                 yreal = bp_gains[i].squeeze()[~bp_flags[i].squeeze()][::bp_gp_thin].real
                 yimag = bp_gains[i].squeeze()[~bp_flags[i].squeeze()][::bp_gp_thin].imag
                 ydata = np.vstack([yreal, yimag]).T
@@ -317,6 +317,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
         if noBPamp:
             echo("...eliminating BP amplitudes", verbose=verbose)
             bp_gains /= np.abs(bp_gains)
+
         if noBPphase:
             echo("...eliminating BP phases", verbose=verbose)
             bp_gains /= np.exp(1j*np.angle(bp_gains))
@@ -325,6 +326,9 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
         bp_freq_select = np.array([np.argmin(np.abs(freqs-x)) for x in bp_freqs])
         gains[:, bp_freq_select, :, :] *= bp_gains
         flags[:, bp_freq_select, :, :] += bp_flags
+        bp_flagged_ants = np.min(bp_flags, axis=1).squeeze()
+        flagged_ants += bp_flagged_ants
+
 
     # check filename
     if fname.split('.')[-1] != "calfits":
@@ -334,7 +338,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
     fname = os.path.join(out_dir, fname)
     echo("...writing to calfits {}".format(fname), verbose=verbose, type=1)
     make_calfits(fname, gains, freqs, times, jones, ants, flag_array=flags,
-                clobber=overwrite, gain_convention=gain_convention)
+                 clobber=overwrite, gain_convention=gain_convention)
 
     # plot dlys
     if plot_dlys:
@@ -343,7 +347,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
         dly_max = np.max(np.abs(delays*1e9))
         dly_min = -dly_max
         for i, a in enumerate(ants):
-            if a not in dly_ants:
+            if flagged_ants[i] == True:
                 continue
             cax = ax.scatter(antpos[i, 0], antpos[i, 1], c=delays[i]*1e9, s=200, cmap='coolwarm', vmin=dly_min, vmax=dly_max)
             ax.text(antpos[i,0]+1, antpos[i,1]+2, str(a), fontsize=12)
@@ -362,7 +366,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
         phs_max = np.pi
         phs_min = -np.pi
         for i, a in enumerate(ants):
-            if a not in phs_ants:
+            if flagged_ants[i] == True:
                 continue
             cax = ax.scatter(antpos[i, 0], antpos[i, 1], c=phases[i], s=200, cmap='viridis', vmin=phs_min, vmax=phs_max)
             ax.text(antpos[i,0]+1, antpos[i,1]+2, str(a), fontsize=12) 
@@ -378,12 +382,12 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
     if plot_amp:
         fig, ax = plt.subplots(1, figsize=(8,6))
         ax.grid(True)
-        amp_med = np.median(amplitudes[[a in amp_ants for a in ants]])
-        amp_std = np.std(amplitudes[[a in amp_ants for a in ants]])
+        amp_med = np.nanmedian(amplitudes[~amplitude_flags.squeeze()])
+        amp_std = np.std(amplitudes[~amplitude_flags.squeeze()])
         amp_max = amp_med + amp_std * 2
         amp_min = amp_med - amp_std * 2
         for i, a in enumerate(ants):
-            if a not in amp_ants:
+            if flagged_ants[i] == True:
                 continue
             cax = ax.scatter(antpos[i, 0], antpos[i, 1], c=amplitudes[i], s=200, cmap='rainbow', vmin=amp_min, vmax=amp_max)
             ax.text(antpos[i,0]+1, antpos[i,1]+2, str(a))
@@ -402,11 +406,13 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
         # amplitude
         ax = axes[0]
         ax.grid(True)
-        bp_gains[bp_flags.astype(np.bool)] *= np.nan
+        bp_gains[bp_flags] *= np.nan
         pls = []
         bp_ant_select = []
-        bp_ants = sorted(bp_ants)
-        for i, a in enumerate(bp_ants):
+        ant_sort = np.argsort(ants)
+        for i, a in enumerate(np.array(ants)[ant_sort]):
+            if flagged_ants[ant_sort][i] == True:
+                continue
             p, = ax.plot(bp_freqs / 1e6, np.abs(bp_gains).squeeze()[ants.index(a)], marker='.')
             pls.append(p)
         ax.set_xlabel("Frequency [MHz]", fontsize=12)
@@ -415,17 +421,19 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
         # phase
         ax = axes[1]
         ax.grid(True)
-        for i, a in enumerate(bp_ants):
+        plot_ants = []
+        for i, a in enumerate(np.array(ants)[ant_sort]):
+            if flagged_ants[ant_sort][i] == True:
+                continue
+            plot_ants.append(a)
             ax.plot(bp_freqs / 1e6, np.angle(bp_gains).squeeze()[ants.index(a)], marker='.')
         ax.set_xlabel("Frequency [MHz]", fontsize=12)
         ax.set_ylabel("Phase [radians]", fontsize=12)
         lax = fig.add_axes([1.01, 0.1, 0.05, 0.8])
         lax.axis('off')
-        ant_sort = np.argsort(ants)
-        lax.legend(pls, bp_ants, ncol=2)
+        lax.legend(pls, plot_ants, ncol=2)
         fig.savefig(bp_file+'.png', dpi=100, bbox_inches='tight', pad=0.05)
         plt.close()
-
 
 if __name__ == "__main__":
     args = a.parse_args()
@@ -438,9 +446,8 @@ if __name__ == "__main__":
     kwargs.pop('fname')
     kwargs.pop('uv_file')
     kwargs.pop('multiply_gains')
-    kwargs['verbose'] = args.silence is False
+    kwargs['verbose'] = args.silence == False
     kwargs.pop('silence')
     kwargs['gain_convention'] = gain_convention
-    caltable2calfits(args.fname, args.uv_file, **kwargs)
-
+    skynpz2calfits(args.fname, args.uv_file, **kwargs)
 
