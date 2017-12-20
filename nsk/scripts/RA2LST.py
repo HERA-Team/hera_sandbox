@@ -7,7 +7,7 @@ import numpy as np
 import datetime
 import pytz
 
-def RA2LST(RA, lon, year=2017):
+def RA2LST(RA, lon):
     """
     RA : float
         right ascension (J2000) in degrees
@@ -20,7 +20,7 @@ def RA2LST(RA, lon, year=2017):
     # get observer
     obs = ephem.Observer()
     obs.lon = lon * np.pi / 180.0
-    obs.date = datetime.datetime(year, 03, 20, 0, 0, 0, 0, pytz.UTC)
+    obs.date = datetime.datetime(2000, 03, 20, 12, 0, 0, 0, pytz.UTC)
 
     # get RA at zenith of observer in degrees
     ra_now = obs.radec_of(0, np.pi/2)[0] * 180 / np.pi
@@ -31,3 +31,8 @@ def RA2LST(RA, lon, year=2017):
     # get the LST of the RA via difference
     LST_RA = LST_now + (RA - ra_now) / 15.0
     return LST_RA
+
+
+
+
+

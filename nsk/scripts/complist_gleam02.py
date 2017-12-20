@@ -8,6 +8,8 @@ import os
 import shutil
 import numpy as np
 import argparse
+from beam_interop import beam_interp
+
 
 args = argparse.ArgumentParser(description="Run with casa as: casa -c complist_gleam02.py <args>")
 args.add_argument("-c", type=str, help="name of this script")
