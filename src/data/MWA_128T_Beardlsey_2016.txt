@@ -1,0 +1,8 @@
+#significance 97.7% (2 sigma)
+redshift, k, Delta2, Delta2_err, pol 
+7.1, 0.231,0,3.67e4, EW
+7.1,0.27,0,2.7e4, NS
+6.8,0.24,0,3.56e4,EW
+6.8,0.24,0,3.02e4,NS
+6.5,0.2,0,4.7e4,EW
+6.5,0.24,0,3.22e4,NS
