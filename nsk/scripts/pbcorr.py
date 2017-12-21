@@ -134,13 +134,21 @@ if __name__ == "__main__":
         echo("...loading {}".format(ffile))
         hdu = fits.open(ffile)
 
+        # determine if freq precedes stokes in header
+        if head['CTYPE3'] == 'FREQ':
+            freq_ax = 3
+            stok_ax = 4
+        else:
+            freq_ax = 4
+            stok_ax = 3
+
         # get header and data
         head = hdu[0].header
         data = hdu[0].data
         npix1 = head["NAXIS1"]
         npix2 = head["NAXIS2"]
-        nstok = head["NAXIS3"]
-        nfreq = head["NAXIS4"]
+        nstok = head["NAXIS{}".format(stok_ax)]
+        nfreq = head["NAXIS{}".format(freq_ax)]
 
         # get observer coordinates
         observer = ephem.Observer()
@@ -163,7 +171,10 @@ if __name__ == "__main__":
         phi = np.arctan2((lat-point_dec), (lon-point_ra)) + np.pi
 
         # get data frequencies
-        data_freqs = w.all_pix2world(0, 0, 0, np.arange(nfreq), 0)[3] / 1e6
+        if freq_ax == 3:
+            data_freqs = w.all_pix2world(0, 0, np.arange(nfreq), 0, 0)[2] / 1e6
+        else:
+            data_freqs = w.all_pix2world(0, 0, 0, np.arange(nfreq), 0)[3] / 1e6
         Ndata_freqs = len(data_freqs)
 
         # evaluate primary beam
@@ -177,7 +188,10 @@ if __name__ == "__main__":
         pb_interp = (pb_interp.T).reshape((Ndata_freqs,) + pb_shape)
 
         # data shape is [naxis4, naxis3, naxis2, naxis1]
-        pb_interp = pb_interp[:, np.newaxis]
+        if freq_ax == 3:
+            pb_interp = pb_interp[np.newaxis]
+        else:
+            pb_interp = pb_interp[:, np.newaxis]
 
         # divide or multiply by primary beam
         if a.multiply is True:
@@ -189,5 +203,4 @@ if __name__ == "__main__":
 
         echo("...saving {}".format(output_fname))
         fits.writeto(output_fname, data_pbcorr, head, overwrite=True)
-
 
