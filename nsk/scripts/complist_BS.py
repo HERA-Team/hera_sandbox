@@ -34,7 +34,7 @@ if __name__ == "__main__":
 
     # GLEAM 2107 -2529
     cl.addcomponent(label="GLEAM2107-2529", flux=14.1, fluxunit="Jy", dir="J2000 21h07m24s -25d29m53s", freq=ref_freq,
-                    shape="point", spectrumtype='spectral index', index=)
+                    shape="point", spectrumtype='spectral index', index=-0.72)
 
     # GLEAM 2101 -2803
     cl.addcomponent(label="GLEAM2101-2803", flux=7.7, fluxunit="Jy", dir="J2000 21h01m41s -28d03m27s", freq=ref_freq,
