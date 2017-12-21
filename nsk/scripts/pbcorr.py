@@ -1,3 +1,4 @@
+#!/usr/bin/env python2.7
 """
 pbcorr.py
 =========
@@ -25,27 +26,35 @@ import scipy.stats as stats
 import pytz
 import datetime
 import ephem
+from scipy import interpolate
 
 
 args = argparse.ArgumentParser(description="")
-args.add_argument("fitsfiles", type=str, nargs='*', help='path to image FITS file(s) to PB correct')
-# Beam HEALpix args
+
+args.add_argument("fitsfiles", type=str, nargs='*', help='path of image FITS file(s) to PB correct')
+
+# HEALpix Beam args
 args.add_argument("--beamfile", type=str, help="path to primary beam healpix map in pyuvdata.UVBeam format")
 args.add_argument("--pol", type=int, default=-5, help="polarization of healpix maps to use for beam models")
+
 # Gaussian Beam args
 args.add_argument("--ew_sig", type=float, default=None, nargs='*',
-                 help="if no healpix map provided, array of gaussian beam sigma (per freq) in the east-west direction")
+                 help="if no healpix map provided, array of gaussian beam sigmas (per freq) in the east-west direction")
 args.add_argument("--ns_sig", type=float, default=None, nargs='*',
-                 help="if no healpix map provided, array of gaussian beam sigma (per freq) in the north-south direction")
+                 help="if no healpix map provided, array of gaussian beam sigmas (per freq) in the north-south direction")
+args.add_argument("--gauss_freqs", type=float, default=None, nargs='*',
+                  help="if no healpix map provided, array of frequencies (Hz) matching length of ew_sig and ns_sig")
+
 # IO args
-args.add_argument("--extension", type=str, default="pbcorr", help='extension for output file')
+args.add_argument("--ext", type=str, default="pbcorr", help='extension for output file')
 args.add_argument("--outdir", type=str, default=None, help="output directory, default is path to fitsfile")
 args.add_argument("--overwrite", default=False, action='store_true', help='overwrite output files')
 args.add_argument("--silence", default=False, action='store_true', help='silence output to stdout')
+
 # Misc args
 args.add_argument("--lon", default=21.42830, type=float, help="longitude of observer in degrees east")
 args.add_argument("--lat", default=-30.72152, type=float, help="latitude of observer in degrees north")
-args.add_argument("--time", type=str, help="time of image observation in UTC {yr}/{mon}/{day} {hr}:{min}:{sec} format")
+args.add_argument("--time", type=str, help='time of image observation in UTC "{yr}/{mon}/{day} {hr}:{min}:{sec}" format')
 
 def echo(message, type=0):
     if verbose:
@@ -79,8 +88,8 @@ if __name__ == "__main__":
         # construct beam interpolation function
         def beam_interp_func(theta, phi):
             # convert to radians
-            theta *= np.pi / 180.0
-            phi *= np.pi / 180.0
+            theta = copy.copy(theta) * np.pi / 180.0
+            phi = copy.copy(phi) * np.pi / 180.0
             shape = theta.shape
             beam_interp = map(lambda m: healpy.get_interp_val(m, theta.ravel(), phi.ravel(), lonlat=False).reshape(shape), beam_maps)
             return np.array(beam_interp)
@@ -91,22 +100,37 @@ if __name__ == "__main__":
         echo("...constructing beam from Gaussian models")
         if a.ew_sig is None or a.ns_sig is None:
             raise AttributeError("if beamfile is None, then must feed ew_sig and ns_sig")
-            def beam_interp_func(theta, phi):
-                beam_interp = []
-                psi_ew = theta * np.cos(phi)
-                psi_ns = theta * np.sin(phi)
-                shape = theta.shape
-                for i, (ews, nss) in enumerate(zip(a.ew_sig, a.ns_sig)):
-                    m = stats.multivariate_normal.pdf(np.array([psi_ew.ravel(), psi_ns.ravel()]).T, mean=np.zeros(2),
-                                                  cov=np.array([[ews**2, 0],[0, nss**2]]))
-                    beam_interp.append(m.reshape(shape))
-                return np.array(beam_interp)
+        def beam_interp_func(theta, phi):
+            beam_interp = []
+            psi_ew = theta * np.cos(phi)
+            psi_ns = theta * np.sin(phi)
+            shape = theta.shape
+            for i, (ews, nss) in enumerate(zip(a.ew_sig, a.ns_sig)):
+                m = stats.multivariate_normal.pdf(np.array([psi_ew.ravel(), psi_ns.ravel()]).T, mean=np.zeros(2),
+                                              cov=np.array([[ews**2, 0],[0, nss**2]]))
+                beam_interp.append(m.reshape(shape))
+            return np.array(beam_interp)
+        beam_freqs = np.array(a.gauss_freqs) / 1e6
 
     # iterate over FITS files
     for i, ffile in enumerate(a.fitsfiles):
-        echo("...loading {}".format(ffile))
+
+        # create output filename
+        if a.outdir is None:
+            output_dir = os.path.dirname(ffile)
+        else:
+            output_dir = a.outdir
+
+        output_fname = os.path.basename(ffile)
+        output_fname = os.path.splitext(output_fname)
+        output_fname = os.path.join(output_dir, output_fname[0] + '.{}'.format(a.ext) + output_fname[1])
+
+        # check for overwrite
+        if os.path.exists(output_fname) and a.overwrite is False:
+            raise IOError("{} exists, not overwriting".format(output_fname))
 
         # load hdu
+        echo("...loading {}".format(ffile))
         hdu = fits.open(ffile)
 
         # get header and data
@@ -116,30 +140,48 @@ if __name__ == "__main__":
         npix2 = head["NAXIS2"]
         nfreq = head["NAXIS3"]
         nstok = head["NAXIS4"]
-        obsra = head["OBSRA"]
-        obsde = head["OBSDEC"]
 
         # get observer coordinates
         observer = ephem.Observer()
         observer.lat = a.lat * np.pi / 180
         observer.lon = a.lon * np.pi / 180
         observer.date = a.time
+
+        # pointing direction
         point_ra, point_dec = np.array(observer.radec_of(0, np.pi/2)) * 180 / np.pi
 
         # get WCS
         w = wcs.WCS(ffile)
 
         # get pixel coordinates
-        lon, lat, imfreqs, stokes = w.all_pix2world(np.arange(npix1), np.arange(npix2), np.arange(nfreq), np.arange(nstok), 0)
+        lon_arr, lat_arr = np.meshgrid(np.arange(npix1), np.arange(npix2))
+        lon, lat, f, s = w.all_pix2world(lon_arr.ravel(), lat_arr.ravel(), 0, 0, 0)
+        lon = lon.reshape(npix2, npix1)
+        lat = lat.reshape(npix2, npix1)
+        theta = np.sqrt( (lon - point_ra)**2 + (lat - point_dec)**2 )
+        phi = np.arctan2((lat-point_dec), (lon-point_ra)) + np.pi
 
+        # get data frequencies
+        data_freqs = w.all_pix2world(0, 0, np.arange(nfreq), 0, 0)[2] / 1e6
+        Ndata_freqs = len(data_freqs)
 
+        # evaluate primary beam
+        echo("...evaluating PB")
+        pb = beam_interp_func(theta, phi)
 
+        # interpolate primary beam onto data frequencies
+        echo("...interpolating PB")
+        pb_shape = (pb.shape[1], pb.shape[2])
+        pb_interp = interpolate.interp1d(beam_freqs, pb.reshape(pb.shape[0], -1).T, fill_value='extrapolate')(data_freqs)
+        pb_interp = (pb_interp.T).reshape((Ndata_freqs,) + pb_shape)
 
-
-
-
+        # multiply by primary beam
+        echo("...applying PB to image")
+        # data shape is [naxis4, naxis3, naxis2, naxis1]
+        pb_interp = pb_interp[np.newaxis]
+        data_pbcorr = data * pb_interp
 
         echo("...saving {}".format(output_fname))
-
+        fits.writeto(output_fname, data_pbcorr, head, overwrite=True)
 
 
