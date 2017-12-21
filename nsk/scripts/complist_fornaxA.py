@@ -61,7 +61,7 @@ if __name__ == "__main__":
         cs.setunits(['rad','rad','','Hz'])
 
         # set pixel properties
-        cell_rad = qa.convert(qa.quantiity(a.cell),"rad")['value']
+        cell_rad = qa.convert(qa.quantity(a.cell),"rad")['value']
         cs.setincrement([-cell_rad, cell_rad], type='direction')
         cs.setreferencevalue([qa.convert("03h22m45s",'rad')['value'], qa.convert("-37d12m00s",'rad')['value']], type="direction")
 
