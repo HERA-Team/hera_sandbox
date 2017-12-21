@@ -21,12 +21,14 @@ a = argparse.ArgumentParser(description="Get FITS image statistics around source
 a.add_argument("files", type=str, nargs='*', help="filename(s) or glob-parseable string of filename(s)")
 a.add_argument("--source", type=str, help="source name, with a <source>.loc file in working directory")
 a.add_argument("--radius", type=float, default=2, help="radius in degrees around estimated source position to get source peak")
+a.add_argument("--rms_max_r", type=float, default=None, help="max radius in degrees around source to make rms calculation")
+a.add_argument("--rms_min_r", type=float, default=None, help="min radius in degrees around source to make rms calculation")
 a.add_argument("--outdir", type=str, default=None, help="output directory")
 a.add_argument("--ext", type=str, default=".spectrum.tab", help='extension string for spectrum file')
 a.add_argument("--overwrite", default=False, action='store_true', help='overwite output')
 a.add_argument("--gaussfit_mult", default=1.0, type=float, help="gaussian fit mask area is gaussfit_mult * synthesized_beam")
 
-def source_extract(imfile, source, radius=1, gaussfit_mult=1.0, **kwargs):
+def source_extract(imfile, source, radius=1, gaussfit_mult=1.0, rms_max_r=None, rms_min_r=None, **kwargs):
 
     # open fits file
     hdu = fits.open(imfile)
@@ -63,7 +65,11 @@ def source_extract(imfile, source, radius=1, gaussfit_mult=1.0, **kwargs):
     peak = np.max(data[select])
 
     # get rms outside of pixel radius
-    rms = np.sqrt(np.mean(data[~select]**2))
+    if rms_max_r is not None and rms_max_r is not None:
+        rms_select = (R < rms_max_r) & (R > rms_min_r)
+        rms = np.sqrt(np.mean(data[select]**2))
+    else:
+        rms = np.sqrt(np.mean(data[~select]**2))
 
     # get peak error
     peak_err = rms / np.sqrt(Npix_beam / 2.0)
