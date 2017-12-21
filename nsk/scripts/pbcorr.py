@@ -180,12 +180,12 @@ if __name__ == "__main__":
         pb_interp = pb_interp[:, np.newaxis]
 
         # divide or multiply by primary beam
-		if args.multiply is True:
-			echo("...multiplying PB into image")
-			data_pbcorr = data * pb_interp
-		else:
-			echo("...dividing PB into image")
-			data_pbcorr = data / pb_interp
+        if args.multiply is True:
+            echo("...multiplying PB into image")
+            data_pbcorr = data * pb_interp
+        else:
+            echo("...dividing PB into image")
+            data_pbcorr = data / pb_interp
 
         echo("...saving {}".format(output_fname))
         fits.writeto(output_fname, data_pbcorr, head, overwrite=True)
