@@ -138,8 +138,8 @@ if __name__ == "__main__":
         data = hdu[0].data
         npix1 = head["NAXIS1"]
         npix2 = head["NAXIS2"]
-        nfreq = head["NAXIS3"]
-        nstok = head["NAXIS4"]
+        nstok = head["NAXIS3"]
+        nfreq = head["NAXIS4"]
 
         # get observer coordinates
         observer = ephem.Observer()
@@ -155,14 +155,14 @@ if __name__ == "__main__":
 
         # get pixel coordinates
         lon_arr, lat_arr = np.meshgrid(np.arange(npix1), np.arange(npix2))
-        lon, lat, f, s = w.all_pix2world(lon_arr.ravel(), lat_arr.ravel(), 0, 0, 0)
+        lon, lat, s, f = w.all_pix2world(lon_arr.ravel(), lat_arr.ravel(), 0, 0, 0)
         lon = lon.reshape(npix2, npix1)
         lat = lat.reshape(npix2, npix1)
         theta = np.sqrt( (lon - point_ra)**2 + (lat - point_dec)**2 )
         phi = np.arctan2((lat-point_dec), (lon-point_ra)) + np.pi
 
         # get data frequencies
-        data_freqs = w.all_pix2world(0, 0, np.arange(nfreq), 0, 0)[2] / 1e6
+        data_freqs = w.all_pix2world(0, 0, 0, np.arange(nfreq), 0)[3] / 1e6
         Ndata_freqs = len(data_freqs)
 
         # evaluate primary beam
@@ -178,7 +178,7 @@ if __name__ == "__main__":
         # multiply by primary beam
         echo("...applying PB to image")
         # data shape is [naxis4, naxis3, naxis2, naxis1]
-        pb_interp = pb_interp[np.newaxis]
+        pb_interp = pb_interp[:, np.newaxis]
         data_pbcorr = data * pb_interp
 
         echo("...saving {}".format(output_fname))
