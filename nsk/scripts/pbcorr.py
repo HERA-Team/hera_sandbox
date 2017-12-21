@@ -134,6 +134,10 @@ if __name__ == "__main__":
         echo("...loading {}".format(ffile))
         hdu = fits.open(ffile)
 
+        # get header and data
+        head = hdu[0].header
+        data = hdu[0].data
+
         # determine if freq precedes stokes in header
         if head['CTYPE3'] == 'FREQ':
             freq_ax = 3
@@ -142,9 +146,7 @@ if __name__ == "__main__":
             freq_ax = 4
             stok_ax = 3
 
-        # get header and data
-        head = hdu[0].header
-        data = hdu[0].data
+        # get axes info
         npix1 = head["NAXIS1"]
         npix2 = head["NAXIS2"]
         nstok = head["NAXIS{}".format(stok_ax)]
