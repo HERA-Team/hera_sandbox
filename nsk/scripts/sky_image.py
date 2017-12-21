@@ -30,6 +30,7 @@ a.add_argument('--out_dir', default=None, type=str, help='output directory')
 a.add_argument("--silence", default=False, action='store_true', help="turn off output to stdout")
 a.add_argument('--source_ext', default=None, type=str, help="extension to source name in output image files")
 # Calibration Arguments
+a.add_argument("--model_im", default=None, type=str, help="path to model image, if None will look for a {source}.cl file")
 a.add_argument('--refant', default=None, type=str, help='reference antenna')
 a.add_argument('--ex_ants', default=None, type=str, help='bad antennas to flag')
 a.add_argument('--rflag', default=False, action='store_true', help='run flagdata(mode=rflag)')
@@ -146,7 +147,12 @@ if __name__ == "__main__":
 
     # insert source model
     if (args.KGcal is True or args.Acal is True or args.BPcal is True) or args.image_model is True:
-        ft(msin, complist="{}.cl".format(args.source), usescratch=True)
+        if args.model_im is None:
+            echo("...inserting {} as MODEL".format("{}.cl".format(args.source)))
+            ft(msin, complist="{}.cl".format(args.source), usescratch=True)
+        else:
+            echo("...inserting {} as MODEL".format(args.model_im))
+            ft(msin, model=args.model_im, usescratch=True)
 
     # unflag
     if args.unflag is True:
@@ -334,7 +340,12 @@ if __name__ == "__main__":
     if args.image_model:
         model_ms_split = ms_split + ".model"
         model_im_stem = os.path.join(out_dir, base_ms + '.model.' + args.source + args.source_ext)
-        ft(ms_split, complist="{}.cl".format(args.source), usescratch=True)
+        if args.model_im is None:
+            echo("...inserting {} as MODEL".format("{}.cl".format(args.source)))
+            ft(ms_split, complist="{}.cl".format(args.source), usescratch=True)
+        else:
+            echo("...inserting {} as MODEL".format(args.model_im))
+            ft(ms_split, model=args.model_im, usescratch=True)
         split(ms_split, model_ms_split, datacolumn='model')
 
     # create mfs image
@@ -388,7 +399,10 @@ if __name__ == "__main__":
     if args.plot_uvdist:
         echo("...plotting uvdistance", type=1)
         # add model to ms_split
-        ft(ms_split, complist="{}.cl".format(args.source), usescratch=True)
+        if args.model_im is None:
+            ft(ms_split, complist="{}.cl".format(args.source), usescratch=True)
+        else:
+            ft(ms_split, model=args.model_im, usescratch=True)
         # load visibility amplitudes
         ms.open(ms_split)
         data = ms.getdata(["amplitude", "antenna1", "antenna2", "uvdist", "axis_info", "flag", "model_amplitude"], ifraxis=True)
