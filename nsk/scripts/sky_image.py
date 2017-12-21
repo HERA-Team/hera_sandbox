@@ -148,10 +148,10 @@ if __name__ == "__main__":
     # insert source model
     if (args.KGcal is True or args.Acal is True or args.BPcal is True) or args.image_model is True:
         if args.model_im is None:
-            echo("...inserting {} as MODEL".format("{}.cl".format(args.source)))
+            echo("...inserting {} as MODEL".format("{}.cl".format(args.source)), type=1)
             ft(msin, complist="{}.cl".format(args.source), usescratch=True)
         else:
-            echo("...inserting {} as MODEL".format(args.model_im))
+            echo("...inserting {} as MODEL".format(args.model_im), type=1)
             ft(msin, model=args.model_im, usescratch=True)
 
     # unflag
@@ -341,10 +341,10 @@ if __name__ == "__main__":
         model_ms_split = ms_split + ".model"
         model_im_stem = os.path.join(out_dir, base_ms + '.model.' + args.source + args.source_ext)
         if args.model_im is None:
-            echo("...inserting {} as MODEL".format("{}.cl".format(args.source)))
+            echo("...inserting {} as MODEL".format("{}.cl".format(args.source)), type=1)
             ft(ms_split, complist="{}.cl".format(args.source), usescratch=True)
         else:
-            echo("...inserting {} as MODEL".format(args.model_im))
+            echo("...inserting {} as MODEL".format(args.model_im), type=1)
             ft(ms_split, model=args.model_im, usescratch=True)
         split(ms_split, model_ms_split, datacolumn='model')
 
@@ -422,8 +422,8 @@ if __name__ == "__main__":
         uvdist = uvdist[select, :]
         flags = flags[:, :, select, :].squeeze()
         # omit flagged data
-        amps[~flags] *= np.nan
-        mamps[~flags] *= np.nan
+        amps[flags] *= np.nan
+        mamps[flags] *= np.nan
         # average across time
         amps = np.nanmean(amps, axis=2)
         mamps = np.nanmean(mamps, axis=2)
