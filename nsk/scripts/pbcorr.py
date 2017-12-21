@@ -180,7 +180,7 @@ if __name__ == "__main__":
         pb_interp = pb_interp[:, np.newaxis]
 
         # divide or multiply by primary beam
-        if args.multiply is True:
+        if a.multiply is True:
             echo("...multiplying PB into image")
             data_pbcorr = data * pb_interp
         else:
