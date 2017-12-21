@@ -29,11 +29,11 @@ if __name__ == "__main__":
                     shape="point", spectrumtype='spectral index', index=-0.86)
 
     # gleam 0150 -2931
-    cl.addcomponent(label="GLEAM0200-3053", flux=16.6, fluxunit="Jy", dir="J2000 01h50m36s -29d31m59s", freq=ref_freq,
+    cl.addcomponent(label="GLEAM0150-2931", flux=16.6, fluxunit="Jy", dir="J2000 01h50m36s -29d31m59s", freq=ref_freq,
                     shape="point", spectrumtype='spectral index', index=-0.80)
 
     # gleam 015200 -294056
-    cl.addcomponent(label="GLEAM0200-3053", flux=4.7, fluxunit="Jy", dir="J2000 01h52m00s -29d40m56s", freq=ref_freq,
+    cl.addcomponent(label="GLEAM0152-2940", flux=4.7, fluxunit="Jy", dir="J2000 01h52m00s -29d40m56s", freq=ref_freq,
                     shape="point", spectrumtype='spectral index', index=-0.73)
 
     # save

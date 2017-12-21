@@ -56,6 +56,7 @@ args.add_argument("--ext", type=str, default="pbcorr", help='extension for outpu
 args.add_argument("--outdir", type=str, default=None, help="output directory, default is path to fitsfile")
 args.add_argument("--overwrite", default=False, action='store_true', help='overwrite output files')
 args.add_argument("--silence", default=False, action='store_true', help='silence output to stdout')
+args.add_argument("--spec_cube", default=False, action='store_true', help='assume all fitsfiles are identical except they each have a single but different frequency')
 
 def echo(message, type=0):
     if verbose:
@@ -179,9 +180,10 @@ if __name__ == "__main__":
             data_freqs = w.all_pix2world(0, 0, 0, np.arange(nfreq), 0)[3] / 1e6
         Ndata_freqs = len(data_freqs)
 
-        # evaluate primary beam
-        echo("...evaluating PB")
-        pb = beam_interp_func(theta, phi)
+        if i == 0 or a.spec_cube is False:
+            # evaluate primary beam
+            echo("...evaluating PB")
+            pb = beam_interp_func(theta, phi)
 
         # interpolate primary beam onto data frequencies
         echo("...interpolating PB")
