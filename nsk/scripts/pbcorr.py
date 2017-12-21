@@ -208,7 +208,7 @@ if __name__ == "__main__":
         echo("...saving {}".format(output_fname))
         fits.writeto(output_fname, data_pbcorr, head, overwrite=True)
 
-        output_pb = output_fname.split('.')[:-2] + '.pb.' + output_fname.split('.')[-1]
+        output_pb = '.'.join(output_fname.split('.')[:-2]) + '.pb.' + output_fname.split('.')[-1]
         echo("...saving {}".format(output_pb))
         fits.writeto(output_pb, pb_interp, head, overwrite=True)
 
