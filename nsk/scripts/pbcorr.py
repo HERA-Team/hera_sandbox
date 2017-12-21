@@ -29,9 +29,15 @@ import ephem
 from scipy import interpolate
 
 
-args = argparse.ArgumentParser(description="")
+args = argparse.ArgumentParser(description="Primary beam correction on FITS image files, given primary beam model")
 
 args.add_argument("fitsfiles", type=str, nargs='*', help='path of image FITS file(s) to PB correct')
+
+# PB args
+args.add_argument("--multiply", default=False, action='store_true', help='multiply data by primary beam, rather than divide')
+args.add_argument("--lon", default=21.42830, type=float, help="longitude of observer in degrees east")
+args.add_argument("--lat", default=-30.72152, type=float, help="latitude of observer in degrees north")
+args.add_argument("--time", type=str, help='time of image observation in UTC "{yr}/{mon}/{day} {hr}:{min}:{sec}" format')
 
 # HEALpix Beam args
 args.add_argument("--beamfile", type=str, help="path to primary beam healpix map in pyuvdata.UVBeam format")
@@ -51,11 +57,6 @@ args.add_argument("--outdir", type=str, default=None, help="output directory, de
 args.add_argument("--overwrite", default=False, action='store_true', help='overwrite output files')
 args.add_argument("--silence", default=False, action='store_true', help='silence output to stdout')
 
-# Misc args
-args.add_argument("--lon", default=21.42830, type=float, help="longitude of observer in degrees east")
-args.add_argument("--lat", default=-30.72152, type=float, help="latitude of observer in degrees north")
-args.add_argument("--time", type=str, help='time of image observation in UTC "{yr}/{mon}/{day} {hr}:{min}:{sec}" format')
-
 def echo(message, type=0):
     if verbose:
         if type == 0:
@@ -68,7 +69,7 @@ if __name__ == "__main__":
 
     # parse args
     a = args.parse_args()
-    verbose = a.silence is False
+    verbose = a.silence == False
 
     # load pb
     if a.beamfile is not None:
@@ -175,11 +176,16 @@ if __name__ == "__main__":
         pb_interp = interpolate.interp1d(beam_freqs, pb.reshape(pb.shape[0], -1).T, fill_value='extrapolate')(data_freqs)
         pb_interp = (pb_interp.T).reshape((Ndata_freqs,) + pb_shape)
 
-        # multiply by primary beam
-        echo("...applying PB to image")
         # data shape is [naxis4, naxis3, naxis2, naxis1]
         pb_interp = pb_interp[:, np.newaxis]
-        data_pbcorr = data * pb_interp
+
+        # divide or multiply by primary beam
+		if args.multiply is True:
+			echo("...multiplying PB into image")
+			data_pbcorr = data * pb_interp
+		else:
+			echo("...dividing PB into image")
+			data_pbcorr = data / pb_interp
 
         echo("...saving {}".format(output_fname))
         fits.writeto(output_fname, data_pbcorr, head, overwrite=True)
