@@ -69,6 +69,7 @@ if __name__ == "__main__":
         ia.setcoordsys(cs.torecord())
         ia.setbrightnessunit("Jy/pixel")
         ia.modify(cl.torecord(), subtract=False)
+        print("...saving gleam02.cl.fits")
         exportfits(imagename="gleam02.cl.im", fitsimage="gleam02.cl.fits", overwrite=True, stokeslast=False)
 
     cl.close()

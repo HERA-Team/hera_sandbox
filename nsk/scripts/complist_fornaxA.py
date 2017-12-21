@@ -73,6 +73,7 @@ if __name__ == "__main__":
         ia.setcoordsys(cs.torecord())
         ia.setbrightnessunit("Jy/pixel")
         ia.modify(cl.torecord(), subtract=False)
+        print("..saving fornaxA.cl.fits")
         exportfits(imagename="fornaxA.cl.im", fitsimage="fornaxA.cl.fits", overwrite=True, stokeslast=False)
 
     cl.close()
