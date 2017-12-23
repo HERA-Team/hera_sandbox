@@ -52,7 +52,7 @@ a.add_argument('--bp_amp_antavg', default=False, action='store_true', help="aver
 a.add_argument('--bp_TTonly', default=False, action='store_true', help="use only tip-tilt phase mode in bandpass solution")
 a.add_argument('--plot_bp', default=False, action='store_true', help="plot final bandpass solutions")
 a.add_argument('--bp_gp_smooth', default=False, action='store_true', help='smooth bandpass w/ gaussian process. Recommended to precede w/ bp_medfilt.')
-a.add_argument('--bp_gp_max_dly', default=1000.0, type=float, help="maximum delay in nanosec allowed for gaussian process fit")
+a.add_argument('--bp_gp_max_dly', default=200.0, type=float, help="maximum delay in nanosec allowed for gaussian process fit")
 a.add_argument('--bp_gp_nrestart', default=1, type=int, help='number of restarts for GP hyperparameter gradient descent.')
 a.add_argument('--bp_gp_thin', default=2, type=int, help="thinning factor for freq bins in GP smooth fit")
 # Misc
@@ -265,14 +265,17 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
             amp_avg = np.nanmedian(np.abs(bp_gains), axis=0).reshape(1, -1, 1, 1)
             bp_gains *= amp_avg / np.abs(bp_gains)
 
+        from IPython import embed
+        embed()
+        
         # smooth bandpass w/ gaussian process if desired
         if bp_gp_smooth:
             echo("...smoothing with gaussian process", verbose=verbose)
-            freq_lambda = 2 * np.pi / (bp_gp_max_dly*1e-9)
-            chan_lambda = freq_lambda / np.median(np.diff(freqs)) 
-            kernel = 1**2 * gp.kernels.RBF(100.0, (chan_lambda, 2000.0)) + gp.kernels.WhiteKernel(1e-4, (1e-8, 1e0))
+            freq_lambda = 1. / (bp_gp_max_dly*1e-3) # MHz
+            kernel = 1**2 * gp.kernels.RBF(10.0, (freq_lambda, 200.0)) + gp.kernels.WhiteKernel(1e-4, (1e-8, 1e0))
+
             # configure data
-            X = np.arange(len(bp_freqs)).reshape(-1, 1)
+            X = np.arange(bp_freqs).reshape(-1, 1)
             bp_gains_real = []
             bp_gains_imag = []
             # iterate over antennas
