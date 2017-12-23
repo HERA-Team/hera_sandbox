@@ -265,17 +265,14 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
             amp_avg = np.nanmedian(np.abs(bp_gains), axis=0).reshape(1, -1, 1, 1)
             bp_gains *= amp_avg / np.abs(bp_gains)
 
-        from IPython import embed
-        embed()
-        
         # smooth bandpass w/ gaussian process if desired
         if bp_gp_smooth:
             echo("...smoothing with gaussian process", verbose=verbose)
             freq_lambda = 1. / (bp_gp_max_dly*1e-3) # MHz
-            kernel = 1**2 * gp.kernels.RBF(10.0, (freq_lambda, 200.0)) + gp.kernels.WhiteKernel(1e-4, (1e-8, 1e0))
+            kernel = 1**2 * gp.kernels.RBF(freq_lambda + 10, (freq_lambda, 200.0)) + gp.kernels.WhiteKernel(1e-4, (1e-8, 1e0))
 
             # configure data
-            X = np.arange(bp_freqs).reshape(-1, 1)
+            X = bp_freqs / 1e6
             bp_gains_real = []
             bp_gains_imag = []
             # iterate over antennas
@@ -291,8 +288,10 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
                 yreal = bp_gains[i].squeeze()[~bp_flags[i].squeeze()][::bp_gp_thin].real
                 yimag = bp_gains[i].squeeze()[~bp_flags[i].squeeze()][::bp_gp_thin].imag
                 ydata = np.vstack([yreal, yimag]).T
+                ydata_med = np.median(ydata, axis=0)
+                ydata -= ydata_med
                 GP.fit(xdata, ydata)
-                ypred = GP.predict(X)
+                ypred = GP.predict(X) + ydata_med
                 bp_gains_real.append(ypred[:, 0])
                 bp_gains_imag.append(ypred[:, 1])
             # reconstruct bp gains
@@ -331,7 +330,6 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
         flags[:, bp_freq_select, :, :] += bp_flags
         bp_flagged_ants = np.min(bp_flags, axis=1).squeeze()
         flagged_ants += bp_flagged_ants
-
 
     # check filename
     if fname.split('.')[-1] != "calfits":
