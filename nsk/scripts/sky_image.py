@@ -78,8 +78,6 @@ if __name__ == "__main__":
     # check for .loc and .cl files
     if os.path.exists('{}.loc'.format(args.source)) is False:
         raise AttributeError("{}.loc file doesn't exist in working directory".format(args.source))
-    if os.path.exists('{}.cl'.format(args.source)) is False:
-        raise AttributeError("{}.cl file doesn't exist in working directory".format(args.source))
 
     # configure refant
     if args.refant is None and (args.KGcal is True or args.Acal is True or args.BPcal is True):
