@@ -27,9 +27,136 @@ ap.add_argument("--start_jd", default=None, type=int, help="starting JD of inter
 ap.add_argument("--jd_files", default=None, type=str, nargs='*',  help="glob-parsable search of files to isolate calibrator in.")
 ap.add_argument("--get_filetimes", default=False, action='store_true', help="open source files and get more accurate duration timerange")
 
+
+def echo(message, type=0, verbose=True):
+    if verbose:
+        if type == 0:
+            print(message)
+        elif type == 1:
+            print('\n{}\n{}'.format(message, '-'*40))
+
+
+def source2file(ra, lon=21.428305555, duration=2.0, offset=0.0, start_jd=None,
+                    jd_files=None, get_filetimes=False, verbose=False):
+    """
+    """
+    # get LST of source
+    lst = RA2LST(ra, lon)
+
+    # offset
+    lst += offset / 60.
+
+    echo("source LST (offset by {} minutes) = {} Hours\n".format(offset, lst), type=1, verbose=verbose)
+
+    jd = None
+    utc_range = None
+    utc_center = None
+    source_files = None
+    source_utc_range = None
+
+    if start_jd is not None:
+        # get JD when source is at zenith
+        jd = JD2LST.LST2JD(lst, start_jd, lon)
+        echo("JD closest to zenith (offset by {} minutes): {}".format(a.offset, jd), type=1, verbose=verbose)
+
+        # print out UTC time
+        jd_duration = duration / (60. * 24 + 4.0)
+        time1 = Time(jd - jd_duration/2, format='jd').to_datetime()
+        time2 = Time(jd + jd_duration/2, format='jd').to_datetime()
+        time3 = Time(jd, format='jd').to_datetime()
+        utc_range = '"{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}~{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}"'\
+                    ''.format(time1.year, time1.month, time1.day, time1.hour, time1.minute, time1.second,
+                              time2.year, time2.month, time2.day, time2.hour, time2.minute, time2.second)
+        utc_center = '{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}'.format(time3.year, time3.month, time3.day,
+                                                                        time3.hour, time3.minute, time3.second)
+        echo('UTC time range of {} minutes is:\n{}\ncentered on {}'\
+             ''.format(duration, utc_range, utc_center), type=1, verbose=verbose)
+
+    if jd_files is not None:
+
+        if start_jd is None:
+            raise AttributeError("need start_jd to search files")
+
+        # get files
+        files = jd_files
+        if len(files) == 0:
+            raise AttributeError("length of jd_files is zero")
+
+        # keep files with start_JD in them
+        file_jds = []
+        for i, f in enumerate(files):
+            if str(start_jd) not in f:
+                files.remove(f)
+            else:
+                fjd = os.path.basename(f).split('.')
+                findex = fjd.index(str(start_jd))
+                file_jds.append(float('.'.join(fjd[findex:findex+2])))
+        files = np.array(files)[np.argsort(file_jds)]
+        file_jds = np.array(file_jds)[np.argsort(file_jds)]
+
+        # get file with closest jd1 that doesn't exceed it
+        jd1 = jd - jd_duration / 2
+        jd2 = jd + jd_duration / 2
+
+        jd_diff = file_jds - jd1
+        jd_before = jd_diff[jd_diff < 0]
+        if len(jd_before) == 0:
+            start_index = np.argmin(np.abs(jd_diff))
+        else:
+            start_index = np.argmax(jd_before) 
+
+        # get file closest to jd2 that doesn't exceed it
+        jd_diff = file_jds - jd2
+        jd_before = jd_diff[jd_diff < 0]
+        if len(jd_before) == 0:
+            end_index = np.argmin(np.abs(jd_diff))
+        else:
+            end_index = np.argmax(jd_before) 
+
+        source_files = files[start_index:end_index+1]
+
+        echo("file(s) closest to source (offset by {} minutes) over {} min duration:\n {}"\
+             "".format(offset, source_files), type=1, verbose=verbose)
+
+        if get_filetimes:
+            # Get UTC timerange of source in files
+            uvd = UVData()
+            for i, sf in enumerate(source_files):
+                if i == 0:
+                    uvd.read_miriad(sf)
+                else:
+                    uv = UVData()
+                    uv.read_miriad(sf)
+                    uvd += uv
+            file_jds = np.unique(uvd.time_array)
+            file_delta_jd = np.median(np.diff(file_jds))
+            file_delta_min =  file_delta_jd * (60. * 24 + 4.0)
+            num_file_times = int(np.ceil(duration / file_delta_min))
+            file_jd_indices = np.argsort(np.abs(file_jds - jd))[:num_file_times]
+            file_jd1 = file_jds[file_jd_indices].min()
+            file_jd2 = file_jds[file_jd_indices].max()
+
+            time1 = Time(file_jd1, format='jd').to_datetime()
+            time2 = Time(file_jd2, format='jd').to_datetime()
+
+            source_utc_range = '"{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}~{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}"'\
+                               ''.format(time1.year, time1.month, time1.day, time1.hour, time1.minute, time1.second,
+                                         time2.year, time2.month, time2.day, time2.hour, time2.minute, time2.second)
+
+            echo('UTC time range of source in files above over {} minutes is:\n{}'\
+                 ''.format(duration, source_utc_range)) 
+
+    return (lst, jd, utc_range, utc_center, source_files, source_utc_range)
+
 if __name__ == "__main__":
     # parse arge
     a = ap.parse_args()
+    kwargs = dict(vars(a))
+    ra = a.ra
+    kwargs.pop('ra')
+
+    source2file(ra, **kwargs)
+    sys.exit(0)
 
     # get LST of the source
     lst = RA2LST(a.ra, a.lon)
