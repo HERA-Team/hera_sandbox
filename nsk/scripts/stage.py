@@ -17,7 +17,7 @@ import shutil
 
 args = argparse.ArgumentParser(description="")
 
-args.add_argument("search", type=str, help="glob-parsable search string")
+args.add_argument("search", type=str, nargs='*', help="glob-parsable search string")
 args.add_argument("--jd", type=str, help="julian date string")
 args.add_argument("--stage_dir", type=str, help="staging directory")
 args.add_argument("--overwrite", default=False, action='store_true', help='overwrite staged files if they exist')
