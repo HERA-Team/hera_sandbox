@@ -85,7 +85,7 @@ def uvc2uv(uvcfile, calfile, outdir=None, overwrite=False):
 
     # write to file
     print("..saving {}".format(output_fname))
-    uvc.write_miriad(output_fname)
+    uvc.write_miriad(output_fname, clobber=True)
 
 if __name__ == "__main__":
 

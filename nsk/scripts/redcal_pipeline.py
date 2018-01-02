@@ -1,12 +1,14 @@
+#!/usr/bin/env python2.7
 """
 redcal_pipeline.py
 -------------
 
-Reprocessing for H1C
+Reprocessing for H1C.
+Requires a redcal_params.py 
+files in working directory.
 
 Nicholas Kern
 """
-
 # Import Modules
 import matplotlib
 matplotlib.use('Agg')
@@ -35,62 +37,12 @@ import aipy
 from collections import OrderedDict
 from astropy.time import Time
 from scipy import interpolate
+import argparse
 
-## set flags ##
-T = True
-F = False
+# Import Params
+from redcal_params import *
 
-overwrite           = T
-
-run_firstcal        = F
-run_fcmets          = F
-collate_fcmets      = F
-
-run_omnical         = T
-run_ocmets          = T
-apply_omni          = T
-
-run_rfi             = T
-apply_rfi           = T
-plot_reds           = F
-
-multiprocess        = F
-Nproc               = 16
-
-def print_message(message, type=0):
-    if type == 0:
-        print message
-    elif type == 1:
-        print "\n"+message+"\n"+"-"*40
-
-# get JD
-JD = 2458042
-
-# assign mp pooling
-if multiprocess is True:
-    pool = pathos.multiprocessing.Pool(Nproc)
-    M = pool.map
-else:
-    M = map
-
-# Get data files
-print_message("...getting files")
-data_path = os.path.join("/lustre/aoc/projects/hera/H1C_IDR1", str(JD))
-out_dir = os.path.join("/lustre/aoc/projects/hera/nkern/data/H1C", str(JD))
-uv_files = sorted(glob.glob("{}/zen*.HH.uv".format(data_path)))
-
-uv_files = uv_files
-xx_files = sorted([x for x in uv_files if 'xx' in x])
-xx_bases = map(lambda x: os.path.basename(x), xx_files)
-xy_files = sorted([x for x in uv_files if 'xy' in x])
-yx_files = sorted([x for x in uv_files if 'yx' in x])
-yy_files = sorted([x for x in uv_files if 'yy' in x])
-yy_bases = map(lambda x: os.path.basename(x), yy_files)
-jd_files = map(lambda x: '.'.join(os.path.basename(x).split('/')[-1].split('.')[1:3]), xx_files)
-
-Nfiles = len(xx_files)
-devnull = open(os.devnull, 'w')
-
+sys.exit(0)
 # get info
 uvd = UVData()
 uvd.read_miriad(xx_files[0])
@@ -100,7 +52,7 @@ freqs = uvd.freq_array.squeeze()
 Nfreqs = len(freqs)
 HHaa = hc.utils.get_aa_from_uv(uvd)
 info = hc.omni.aa_to_info(HHaa)
-antpos = get_antpos(uvd)
+antpos, ants = uvd.get_ENU_antpos()
 red_bls = info.get_reds()
 
 ####################
