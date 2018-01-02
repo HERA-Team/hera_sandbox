@@ -57,7 +57,7 @@ def source2file(ra, lon=21.428305555, duration=2.0, offset=0.0, start_jd=None,
     if start_jd is not None:
         # get JD when source is at zenith
         jd = JD2LST.LST2JD(lst, start_jd, lon)
-        echo("JD closest to zenith (offset by {} minutes): {}".format(a.offset, jd), type=1, verbose=verbose)
+        echo("JD closest to zenith (offset by {} minutes): {}".format(offset, jd), type=1, verbose=verbose)
 
         # print out UTC time
         jd_duration = duration / (60. * 24 + 4.0)
