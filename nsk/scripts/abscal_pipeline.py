@@ -42,6 +42,9 @@ from sklearn import linear_model
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import PolynomialFeatures
 
+# import parameter file
+from abscal_params import *
+
 # get source info
 source_ra, source_dec = np.loadtxt("{}.loc".format(source), dtype=str)
 source_ra, source_dec= source_ra.split(':'), source_dec.split(':')
