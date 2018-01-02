@@ -316,7 +316,7 @@ if source_spectrum:
         ax.grid()
         ax.set_xlabel("Frequency [MHz]", fontsize=18)
         ax.set_ylabel("Flux [Jansky]", fontsize=18)
-        ax.set_title("{} Recovered Spectrum after Absolute Calibration".format(source), fontsize=14)
+        ax.set_title("{} Recovered {} Spectrum after Absolute Calibration".format(source, polstr), fontsize=14)
         _ = [tl.set_size(14) for tl in ax.get_xticklabels()]
         _ = [tl.set_size(14) for tl in ax.get_yticklabels()]
 
@@ -327,8 +327,8 @@ if source_spectrum:
         ax.legend([p0, p1, p2], ["Recovered Data Flux", "Recovered Model Flux", "Recovered Model Flux Fit"], fontsize=20)
         ax.set_ylim(0, np.max(np.concatenate([source_model_flux, source_flux, source_model_flux_fit])*1.8))
 
-        fig.savefig("{}_spec.png".format(source), dpi=150, bbox_inches='tight')
-        echo("saving {}_spec.png".format(source))
+        fig.savefig("{}_{}_spec.png".format(source, polstr), dpi=150, bbox_inches='tight')
+        echo("saving {}_{}_spec.png".format(source, polstr))
         plt.close()
 
     source_extract(xx_files, pol=-5)
