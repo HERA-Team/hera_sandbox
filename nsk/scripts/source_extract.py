@@ -152,7 +152,7 @@ if __name__ == "__main__":
 
     # save spectrum
     print("...saving {}".format(output_fname))
-    np.savetxt(output_fname, data, fmt="%8.5f", header="freqs (MHz)\t peak flux (Jy)\t flux err\t peak gaussfit (Jy)\t integ gaussfit (Jy)", delimiter='\t')
+    np.savetxt(output_fname, data, fmt="%8.5f", header="freqs (MHz)\t peak flux (Jy/beam)\t flux err\t peak gaussfit (Jy/beam)\t integ gaussfit (Jy)", delimiter='\t')
 
 
 

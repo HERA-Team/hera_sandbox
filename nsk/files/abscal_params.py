@@ -3,6 +3,10 @@ abscal_params.py
 
 abscal parameter file
 """
+import os
+import glob
+import sys
+
 ## set flags ##
 T = True
 F = False
@@ -32,7 +36,7 @@ field = 'gleam04'
 source = 'gleam0444'
 
 ## set calibration parameters ##
-ex_ants = '0,2,11,14,50,98'
+ex_ants = '--ex_ants 0,2,11,14,50,98'
 refant = '53'
 duration = 4.0
 imsize = 512

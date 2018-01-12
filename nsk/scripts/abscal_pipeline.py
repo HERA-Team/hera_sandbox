@@ -41,9 +41,14 @@ from source2file import source2file
 from sklearn import linear_model
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import PolynomialFeatures
+import aplpy
 
 # import parameter file
 from abscal_params import *
+if overwrite:
+    overwrite = '--overwrite'
+else:
+    overwrite = ''
 
 # get source info
 source_ra, source_dec = np.loadtxt("{}.loc".format(source), dtype=str)
@@ -95,8 +100,8 @@ if run_abscal:
 
         # apply PB correction to flux model
         echo("applying PB to flux model")
-        cmd = "pbcorr.py --beamfile {} --outdir ./ --pol {} --time {} --ext pbcorr --lon {} --lat {} --overwrite --multiply {}.cl.fits"\
-              "".format(beamfile, pol, utc_center, lon, lat, field)
+        cmd = "pbcorr.py --beamfile {} --outdir ./ --pol {} --time {} --ext pbcorr --lon {} --lat {} {} --multiply {}.cl.fits"\
+              "".format(beamfile, pol, utc_center, lon, lat, overwrite, field)
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("flux model PB corr exit {}".format(out))
 
@@ -117,7 +122,7 @@ if run_abscal:
 
             echo("applying RFI flags")
             for i, sf in enumerate(source_files):
-                cmd = "xrfi_apply.py --ext R --overwrite --flag_file {}.flags.npz {}".format(sf, sf)
+                cmd = "xrfi_apply.py --ext R {} --flag_file {}.flags.npz {}".format(overwrite, sf, sf)
                 out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
                 echo("RFI apply on {} exit {}".format(sf, out))
 
@@ -135,7 +140,7 @@ if run_abscal:
         # combine uvfits
         if len(source_uvfits) > 1:
             echo("combining uvfits", type=1)
-            cmd = "combine_uvfits.py {}".format(' '.join(source_uvfits))
+            cmd = "combine_uvfits.py {} {}".format(overwrite, ' '.join(source_uvfits))
             out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
             echo("combine uvfits exit {}".format(out))
         source_uvfile = source_files[0]
@@ -144,7 +149,7 @@ if run_abscal:
         # absolute calibration
         echo("absolutely calibrating", type=1)
         cmd = "casa --nologger --nocrashreport --nogui --agg -c sky_image.py " \
-              "--msin {} --source {} --model_im {} --refant {} --ex_ants {} --imsize {} --pxsize {} --niter {} --timerange {} " \
+              "--msin {} --source {} --model_im {} --refant {} {} --imsize {} --pxsize {} --niter {} --timerange {} " \
               "--KGcal --Acal --BPcal --image_mfs --image_model --plot_uvdist" \
               "".format(source_uvfits, source, modelfile, refant, ex_ants, imsize, pxsize, niter, source_utc_range)
         if casa_rflag:
@@ -161,9 +166,62 @@ if run_abscal:
         bp_file = source_uvfile + '.ms.B.cal.npz'
         cmd = "skynpz2calfits.py --fname {} --uv_file {} --dly_file {} --phs_file {} --amp_file {} --bp_file {} " \
               "--plot_bp --plot_phs --plot_amp --plot_dlys --bp_medfilt --medfilt_kernel 13 --bp_gp_smooth " \
-              "--bp_gp_max_dly 200 --bp_gp_thin 4 --overwrite".format(calfits_fname, source_uvfile, dly_file, phs_file, amp_file, bp_file)
+              "--bp_gp_max_dly 200 --bp_gp_thin 4 {}".format(calfits_fname, source_uvfile, dly_file, phs_file, amp_file, bp_file, overwrite)
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("skynpz2calfits exit {}".format(out))
+
+        # primary beam correct MFS image
+        echo("pb correct mfs image", type=1)
+        cmd = "pbcorr.py --beamfile {} --pol {} --time {} --ext pbcorr --lon {} --lat {} --spec_cube {} {}" \
+              "".format(beamfile, pol, utc_center, lon, lat, overwrite, source_uvfile+".ms.{}.fits".format(source))
+        out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
+        echo("pb correction exit {}".format(out))
+
+        # plot source and model source
+        source_im = source_uvfile + ".ms.{}".format(source)
+        model_im = source_uvfile + ".ms.model.{}".format(source)
+        vmin = -5
+        vmax = 40
+
+        fig = plt.figure(figsize=(14,10))
+
+        f1 = aplpy.FITSFigure(source_im+".fits", figure=fig, subplot=[0.0, 0.55, 0.45, 0.45])
+        f1.show_colorscale(cmap='nipy_spectral', vmin=vmin, vmax=vmax)
+        f1.add_grid()
+        f1.add_beam()
+        f1.recenter(source_ra, source_dec, width=15, height=15)
+        f1.add_colorbar()
+        f1.colorbar.set_axis_label_text("Jy/beam")
+        f1.set_title("{} {} MFS Image".format(source, polstr))
+
+        f2 = aplpy.FITSFigure(source_im+".pb.fits", figure=fig, subplot=[0.55, 0.55, 0.45, 0.45])
+        f2.show_colorscale(cmap='nipy_spectral', vmin=0, vmax=1)
+        f2.add_grid()
+        f2.recenter(source_ra, source_dec, width=15, height=15)
+        f2.add_colorbar()
+        f2.colorbar.set_axis_label_text("PB Beam Response")
+        f2.set_title("Primary Beam")
+
+        f3 = aplpy.FITSFigure(source_im+".pbcorr.fits", figure=fig, subplot=[0.0, 0.0, 0.45, 0.45])
+        f3.show_colorscale(cmap='nipy_spectral', vmin=vmin, vmax=vmax)
+        f3.add_grid()
+        f3.add_beam()
+        f3.recenter(source_ra, source_dec, width=15, height=15)
+        f3.add_colorbar()
+        f3.colorbar.set_axis_label_text("Jy/beam")
+        f3.set_title("{} {} MFS Image + PB Correction".format(source, polstr))
+
+        f4 = aplpy.FITSFigure(model_im+".fits", figure=fig, subplot=[0.55, 0.0, 0.45, 0.45])
+        f4.show_colorscale(cmap='nipy_spectral', vmin=vmin, vmax=vmax)
+        f4.add_grid()
+        f4.add_beam()
+        f4.recenter(source_ra, source_dec, width=15, height=15)
+        f4.add_colorbar()
+        f4.colorbar.set_axis_label_text("Jy/beam")
+        f4.set_title("Model MFS Image")
+
+        fig.savefig("{}_{}_MFS.png".format(source, polstr), dpi=150, bbox_inches='tight')
+        plt.close()
 
         return calfits_fname
 
@@ -173,7 +231,7 @@ if run_abscal:
 # apply abscal
 if apply_abscal:
     def apply_abs(uv_file, calfits, pol='xx'):
-        cmd = "omni_apply.py -p {} --omnipath {} --extension X --overwrite {}".format(pol, calfits, uv_file)
+        cmd = "omni_apply.py -p {} --omnipath {} --extension X {} {}".format(pol, calfits, overwrite, uv_file)
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("omni apply on {} exit {}".format(uv_file, out))
         return out
@@ -216,8 +274,8 @@ if source_spectrum:
 
         # apply PB correction to flux model
         echo("applying PB to flux model")
-        cmd = "pbcorr.py --beamfile {} --outdir ./ --pol {} --time {} --ext pbcorr --lon {} --lat {} --overwrite --multiply {}.cl.fits"\
-              "".format(beamfile, pol, utc_center, lon, lat, field)
+        cmd = "pbcorr.py --beamfile {} --outdir ./ --pol {} --time {} --ext pbcorr --lon {} --lat {} {} --multiply {}.cl.fits"\
+              "".format(beamfile, pol, utc_center, lon, lat, overwrite, field)
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("flux model PB corr exit {}".format(out))
 
@@ -238,7 +296,7 @@ if source_spectrum:
 
             echo("applying RFI flags")
             for i, sf in enumerate(source_files):
-                cmd = "xrfi_apply.py --ext R --overwrite --flag_file {}.flags.npz {}".format(sf, sf)
+                cmd = "xrfi_apply.py --ext R {} --flag_file {}.flags.npz {}".format(overwrite, sf, sf)
                 out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
                 echo("RFI apply on {} exit {}".format(sf, out))
 
@@ -256,7 +314,7 @@ if source_spectrum:
         # combine uvfits
         if len(source_uvfits) > 1:
             echo("combining uvfits", type=1)
-            cmd = "combine_uvfits.py {}".format(' '.join(source_uvfits))
+            cmd = "combine_uvfits.py {} {}".format(overwrite, ' '.join(source_uvfits))
             out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
             echo("combine uvfits exit {}".format(out))
         source_uvfile = source_files[0]
@@ -265,7 +323,7 @@ if source_spectrum:
         # spectral cube imaging
         echo("imaging spectral cube", type=1)
         cmd = "casa --nologger --nocrashreport --nogui --agg -c sky_image.py " \
-              "--msin {} --source {} --model_im {} --ex_ants {} --imsize {} --pxsize {} --niter {} --timerange {} " \
+              "--msin {} --source {} --model_im {} {} --imsize {} --pxsize {} --niter {} --timerange {} " \
               "--image_mfs --image_model --spec_cube --spec_dchan {}" \
               "".format(source_uvfits, source, modelfile, ex_ants, imsize, pxsize, niter, source_utc_range, spec_dchan)
         if spec_casa_rflag:
@@ -277,21 +335,21 @@ if source_spectrum:
 
         # primary beam correction
         echo("applying primary beam correction to spectral cube", type=1)
-        cmd = "pbcorr.py --beamfile {} --pol {} --time {} --ext pbcorr --lon {} --lat {} --spec_cube --overwrite {}" \
-              "".format(beamfile, pol, utc_center, lon, lat, source_im + ".spec*.fits")
+        cmd = "pbcorr.py --beamfile {} --pol {} --time {} --ext pbcorr --lon {} --lat {} --spec_cube {} {}" \
+              "".format(beamfile, pol, utc_center, lon, lat, overwrite, source_im + ".spec*.fits")
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("pb correction exit {}".format(out))
 
         # source extraction
         echo("running source extraction on data", type=1)
-        cmd = "source_extract.py --source {} --radius 1 --overwrite --gaussfit_mult {} --ext .spectrum.tab --rms_max_r {} --rms_min_r {} {}" \
-              "".format(source, gf_mult, rms_maxr, rms_minr, source_im + ".spec*.pbcorr.fits")
+        cmd = "source_extract.py --source {} --radius 1 {} --gaussfit_mult {} --ext .spectrum.tab --rms_max_r {} --rms_min_r {} {}" \
+              "".format(source, overwrite, gf_mult, rms_maxr, rms_minr, source_im + ".spec*.pbcorr.fits")
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("source extract exit {}".format(out))
 
         echo("running source extraction on model", type=1)
-        cmd = "source_extract.py --source {} --radius 1 --overwrite --gaussfit_mult {} --ext .spectrum.tab --rms_max_r {} --rms_min_r {} {}" \
-                "".format(source, gf_mult, rms_maxr, rms_minr, model_im + ".spec*.fits")
+        cmd = "source_extract.py --source {} --radius 1 {} --gaussfit_mult {} --ext .spectrum.tab --rms_max_r {} --rms_min_r {} {}" \
+                "".format(source, overwrite, gf_mult, rms_maxr, rms_minr, model_im + ".spec*.fits")
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("model extract exit {}".format(out))
 
