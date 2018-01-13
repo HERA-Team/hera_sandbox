@@ -37,6 +37,20 @@ def source_extract(imfile, source, radius=1, gaussfit_mult=1.0, rms_max_r=None, 
     head = hdu[0].header
     data = hdu[0].data.squeeze()
 
+    # determine if freq precedes stokes in header
+    if head['CTYPE3'] == 'FREQ':
+        freq_ax = 3
+        stok_ax = 4
+    else:
+        freq_ax = 4
+        stok_ax = 3
+
+    # get axes info
+    npix1 = head["NAXIS1"]
+    npix2 = head["NAXIS2"]
+    nstok = head["NAXIS{}".format(stok_ax)]
+    nfreq = head["NAXIS{}".format(freq_ax)]
+
     # calculate beam area in degrees^2
     beam_area = (head["BMAJ"] * head["BMIN"] * np.pi / 4 / np.log(2))
 

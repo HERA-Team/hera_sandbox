@@ -414,7 +414,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
         for i, a in enumerate(np.array(ants)[ant_sort]):
             if flagged_ants[ant_sort][i] == True:
                 continue
-            p, = ax.plot(bp_freqs / 1e6, np.abs(bp_gains).squeeze()[ants.index(a)], marker='.')
+            p, = ax.plot(bp_freqs / 1e6, np.abs(bp_gains).squeeze()[ants.index(a)], marker='.', ls='')
             pls.append(p)
         ax.set_xlabel("Frequency [MHz]", fontsize=12)
         ax.set_ylabel("Amplitude", fontsize=12)
@@ -427,7 +427,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
             if flagged_ants[ant_sort][i] == True:
                 continue
             plot_ants.append(a)
-            ax.plot(bp_freqs / 1e6, np.angle(bp_gains).squeeze()[ants.index(a)], marker='.')
+            ax.plot(bp_freqs / 1e6, np.angle(bp_gains).squeeze()[ants.index(a)], marker='.', ls='')
         ax.set_xlabel("Frequency [MHz]", fontsize=12)
         ax.set_ylabel("Phase [radians]", fontsize=12)
         lax = fig.add_axes([1.01, 0.1, 0.05, 0.8])
