@@ -12,7 +12,7 @@ from collections import OrderedDict as odict
 
 args = argparse.ArgumentParser(description="read-in miriad file, select subset of data and write out")
 args.add_argument("files", nargs='*', type=str, help="files to select data on")
-args.add_argunent("--ext", default="S", type=str, help="file extension for output miriad file")
+args.add_argument("--ext", default="S", type=str, help="file extension for output miriad file")
 args.add_argument("--overwrite", default=False, action='store_true', help='overwrite output data files')
 args.add_argument("--outdir", default=None, type=str, help="output directory")
 args.add_argument("--ants", default=None, nargs='*', type=int, help="antenna numbers to keep")
