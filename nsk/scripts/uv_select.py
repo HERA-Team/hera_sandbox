@@ -1,3 +1,4 @@
+#!/usr/bin/env python2.7
 """
 read in miriad file, select on data and write out
 """
