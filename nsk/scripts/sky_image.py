@@ -23,14 +23,14 @@ import glob
 # Required Arguments
 a = argparse.ArgumentParser(description="Run with casa as: casa -c sky_image.py <args>")
 a.add_argument('--script', '-c', type=str, help='name of this script', required=True)
-a.add_argument('--msin', default=None, type=str, nargs='*', help='path to CASA measurement set(s). if fed a .uvfits, will convert to ms', required=True)
+a.add_argument('--msin', default=None, type=str, help='path to a CASA measurement set. if fed a .uvfits, will convert to ms', required=True)
 a.add_argument('--source', default=None, type=str, help='source name', required=True)
 # IO Arguments
 a.add_argument('--out_dir', default=None, type=str, help='output directory')
 a.add_argument("--silence", default=False, action='store_true', help="turn off output to stdout")
 a.add_argument('--source_ext', default=None, type=str, help="extension to source name in output image files")
 # Calibration Arguments
-a.add_argument("--model_im", default=None, type=str, help="path to model image, if None will look for a {source}.cl file")
+a.add_argument("--model_im", default=None, nargs='*', type=str, help="path to model image(s), if None will look for a {source}.cl file")
 a.add_argument('--refant', default=None, type=str, help='reference antenna')
 a.add_argument('--ex_ants', default=None, type=str, help='bad antennas to flag')
 a.add_argument('--rflag', default=False, action='store_true', help='run flagdata(mode=rflag)')
@@ -46,15 +46,18 @@ a.add_argument('--timerange', default=[""], type=str, nargs='*', help="calibrati
 a.add_argument('--bpoly', default=False, action='store_true', help="use BPOLY mode in bandpass")
 a.add_argument('--degamp', default=4, type=int, help="amplitude polynomial degree for BPOLY")
 a.add_argument('--degphase', default=1, type=int, help="phase polynomial degree for BPOLY")
+a.add_argument('--calspw', default='0:100~924', type=str, help="calibration spectral window selection")
 # Imaging Arguments
 a.add_argument('--image_mfs', default=False, action='store_true', help="make an MFS image across the band")
 a.add_argument('--niter', default=50, type=int, help='number of clean iterations.')
 a.add_argument('--pxsize', default=300, type=int, help='pixel (cell) scale in arcseconds')
 a.add_argument('--imsize', default=500, type=int, help='number of pixels along a side of the output square image.')
-a.add_argument('--cleanspw', default="0:200~850", type=str, help="spectral window selection for clean")
+a.add_argument('--cleanspw', default="0:100~924", type=str, help="spectral window selection for clean")
 a.add_argument('--image_model', default=False, action='store_true', help="image model datacolumn instead of data datacolumn")
 a.add_argument('--spec_cube', default=False, action='store_true', help="image spectral cube as well as MFS.")
 a.add_argument('--spec_dchan', default=40, type=int, help="number of channel averaging for a single image in the spectral cube.")
+a.add_argument('--spec_start', default=100, type=int, help='starting channel for spectral cube')
+a.add_argument('--spec_end', default=924, type=int, help='ending channel for spectral cube')
 # Plotting Arguments
 a.add_argument("--plot_uvdist", default=False, action='store_true', help='make a uvdist plot')
 
@@ -89,32 +92,6 @@ if __name__ == "__main__":
     ra, dec = ra.split(':'), dec.split(':')
     fixdir = 'J2000 {}h{}m{}s {}d{}m{}s'.format(*(ra+dec))
     msin = args.msin
-    if len(msin) == 1:
-        # get paths
-        msin = msin[0]
-    else:
-        # iterate through files and convert if uvfits
-        ms_list = []
-        for i, m in enumerate(msin):
-            if m.split('.')[-1] == 'uvfits':
-                uvfms = '.'.join(m.split('.')[:-1] + ["ms"])
-                if os.path.exists(uvfms):
-                    shutil.rmtree(uvfms)
-                importuvfits(m, uvfms)
-                ms_list.append(uvfms)
-            elif m.split('.')[-1] == 'ms':
-                ms_list.append(m)
-        # basename and path is first ms in ms_list
-        msin = ms_list[0]
-
-        # rephase to source
-        echo("...fix vis to {}".format(fixdir), type=1)
-        for m in ms_list:
-            fixvis(m, m, phasecenter=fixdir)
-
-        # concatenate all ms into zeroth ms
-        echo("...concatenating visibilities", type=1)
-        concat(vis=ms_list, concatvis=msin, timesort=True)
 
     # get paths
     base_ms = os.path.basename(msin)
@@ -149,8 +126,9 @@ if __name__ == "__main__":
             echo("...inserting {} as MODEL".format("{}.cl".format(args.source)), type=1)
             ft(msin, complist="{}.cl".format(args.source), usescratch=True)
         else:
-            echo("...inserting {} as MODEL".format(args.model_im), type=1)
-            ft(msin, model=args.model_im, usescratch=True)
+            for i, im in enumerate(args.model_im):
+                echo("...inserting {} as MODEL".format(im), type=1)
+                ft(msin, model=im, usescratch=True, incremental=True)
 
     # unflag
     if args.unflag is True:
@@ -184,7 +162,7 @@ if __name__ == "__main__":
             shutil.rmtree(kc)
         if os.path.exists("{}.png".format(kc)):
             os.remove("{}.png".format(kc))
-        gaincal(msin, caltable=kc, gaintype="K", solint='inf', refant=args.refant, minsnr=args.KGsnr, spw="0:100~924",
+        gaincal(msin, caltable=kc, gaintype="K", solint='inf', refant=args.refant, minsnr=args.KGsnr, spw=args.calspw,
                 gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange)
         plotcal(kc, xaxis='antenna', yaxis='delay', figfile='{}.png'.format(kc), showgui=False)
         gaintables.append(kc)
@@ -206,7 +184,7 @@ if __name__ == "__main__":
         if os.path.exists("{}.png".format(gpc)):
             os.remove("{}.png".format(gpc))
         gaincal(msin, caltable=gpc, gaintype='G', solint='inf', refant=args.refant, minsnr=args.KGsnr, calmode='p',
-                spw="0:100~924", gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange)
+                spw=args.calspw, gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange)
         plotcal(gpc, xaxis='antenna', yaxis='phase', figfile='{}.png'.format(gpc), showgui=False)
         gaintables.append(gpc)
 
@@ -231,7 +209,7 @@ if __name__ == "__main__":
         if os.path.exists("{}.png".format(gac)):
             os.remove("{}.png".format(gac))
         gaincal(msin, caltable=gac, gaintype='G', solint='inf', refant=args.refant, minsnr=args.Asnr, calmode='a',
-                spw="0:100~924", gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange)
+                spw=args.calspw, gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange)
         plotcal(gac, xaxis='antenna', yaxis='amp', figfile='{}.png'.format(gac), showgui=False)
         gaintables.append(gac)
 
@@ -260,7 +238,7 @@ if __name__ == "__main__":
             os.remove("{}.amp.png".format(bc))
         if os.path.exists("{}.phs.png".format(bc)):
             os.remove("{}.phs.png".format(bc))
-        bandpass(vis=msin, spw="0:100~924", minsnr=args.BPsnr, bandtype=Btype, degamp=args.degamp, degphase=args.degphase,
+        bandpass(vis=msin, spw="", minsnr=args.BPsnr, bandtype=Btype, degamp=args.degamp, degphase=args.degphase,
                 caltable=bc, gaintable=gaintables, solint='inf', refant=args.refant, timerange=cal_timerange, uvrange=args.uvrange)
         plotcal(bc, xaxis='chan', yaxis='amp', figfile="{}.amp.png".format(bc), showgui=False)
         plotcal(bc, xaxis='chan', yaxis='phase', figfile="{}.phs.png".format(bc), showgui=False)
@@ -342,19 +320,15 @@ if __name__ == "__main__":
             echo("...inserting {} as MODEL".format("{}.cl".format(args.source)), type=1)
             ft(ms_split, complist="{}.cl".format(args.source), usescratch=True)
         else:
-            echo("...inserting {} as MODEL".format(args.model_im), type=1)
-            ft(ms_split, model=args.model_im, usescratch=True)
+            for i, im in enumerate(args.model_im):
+                echo("...inserting {} as MODEL".format(im), type=1)
+                ft(ms_split, model=im, usescratch=True, incremental=True)
         split(ms_split, model_ms_split, datacolumn='model')
 
     # create mfs image
     if args.image_mfs:
         echo("...running MFS clean", type=1)
-        if args.cleanspw is None:
-            cleanspw = "0:100~924"
-        else:
-            cleanspw = args.cleanspw
-
-        def image_mfs(msin, im_stem, timerange):
+        def image_mfs(msin, im_stem, timerange, cleanspw):
             clean(vis=msin, imagename=im_stem, spw=cleanspw, niter=args.niter, weighting='briggs', robust=0, imsize=[args.imsize, args.imsize],
                   cell=['{}arcsec'.format(args.pxsize)], mode='mfs', timerange=timerange, uvrange=args.uvrange)
             exportfits(imagename='{}.image'.format(im_stem), fitsimage='{}.fits'.format(im_stem))
@@ -363,25 +337,25 @@ if __name__ == "__main__":
     
         for i, tr in enumerate(args.timerange):
             if i == 0:
-                image_mfs(ms_split, im_stem, tr)
+                image_mfs(ms_split, im_stem, tr, args.cleanspw)
                 if args.image_model:
-                    image_mfs(model_ms_split, model_im_stem, tr)
+                    image_mfs(model_ms_split, model_im_stem, tr, args.cleanspw)
             else:
-                image_mfs(ms_split, im_stem+'_tr{}'.format(i), tr)
+                image_mfs(ms_split, im_stem+'_tr{}'.format(i), tr, args.cleanspw)
                 if args.image_model:
-                    image_mfs(model_ms_split, model_im_stem+'_tr{}'.format(i), tr)
+                    image_mfs(model_ms_split, model_im_stem+'_tr{}'.format(i), tr, args.cleanspw)
 
     # create spectrum
     if args.spec_cube:
         echo("...running spectral cube clean", type=1)
         def spec_cube(msin, im_stem, timerange):
             dchan = args.spec_dchan
-            for i, chan in enumerate(np.arange(100, 924, dchan)):
-                clean(vis=msin, imagename=im_stem+'.spec{}'.format(chan), niter=0, spw="0:{}~{}".format(chan, chan+dchan-1),
+            for i, chan in enumerate(np.arange(args.spec_start, args.spec_end, dchan)):
+                clean(vis=msin, imagename=im_stem+'.spec{:04d}'.format(chan), niter=0, spw="0:{}~{}".format(chan, chan+dchan-1),
                         weighting='briggs', robust=0, imsize=[args.imsize, args.imsize], timerange=timerange, uvrange=args.uvrange,
                         cell=['{}arcsec'.format(args.pxsize)], mode='mfs')#, mask='circle[[{}h{}m{}s, {}d{}m{}s ], 7deg]'.format(*(ra+dec)))
-                exportfits(imagename='{}.spec{}.image'.format(im_stem, chan), fitsimage='{}.spec{}.fits'.format(im_stem, chan))
-                print("...saving {}".format('{}.spec{}.fits'.format(im_stem, chan)))
+                exportfits(imagename='{}.spec{:04d}.image'.format(im_stem, chan), fitsimage='{}.spec{:04d}.fits'.format(im_stem, chan))
+                print("...saving {}".format('{}.spec{:04d}.fits'.format(im_stem, chan)))
 
         for i, tr in enumerate(args.timerange):
             if i == 0:
@@ -400,7 +374,8 @@ if __name__ == "__main__":
         if args.model_im is None:
             ft(ms_split, complist="{}.cl".format(args.source), usescratch=True)
         else:
-            ft(ms_split, model=args.model_im, usescratch=True)
+            for i, im in enumerate(args.model_im):
+                ft(ms_split, model=im, usescratch=True, incremental=True)
         # load visibility amplitudes
         ms.open(ms_split)
         data = ms.getdata(["amplitude", "antenna1", "antenna2", "uvdist", "axis_info", "flag", "model_amplitude"], ifraxis=True)
