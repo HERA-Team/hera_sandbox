@@ -18,7 +18,7 @@ args.add_argument("--outdir", default=None, type=str, help="output directory")
 args.add_argument("--ants", default=None, nargs='*', type=int, help="antenna numbers to keep")
 args.add_argument("--freq_thin", default=None, type=int, help="factor by which to thin frequency axis")
 args.add_argument("--time_thin", default=None, type=int, help="factor by which to thin time axis")
-args.add_argument("--bl_types", default=None, nargs='*', type=tuple, "(ant1, ant2) tuples specifying unique baseline types to keep")
+args.add_argument("--bl_types", default=None, nargs='*', type=tuple, help="(ant1, ant2) tuples specifying unique baseline types to keep")
 
 # parse args
 a = args.parse_args()
