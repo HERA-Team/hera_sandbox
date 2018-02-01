@@ -46,7 +46,7 @@ a.add_argument('--timerange', default=[""], type=str, nargs='*', help="calibrati
 a.add_argument('--bpoly', default=False, action='store_true', help="use BPOLY mode in bandpass")
 a.add_argument('--degamp', default=4, type=int, help="amplitude polynomial degree for BPOLY")
 a.add_argument('--degphase', default=1, type=int, help="phase polynomial degree for BPOLY")
-a.add_argument('--calspw', default='0:100~924', type=str, help="calibration spectral window selection")
+a.add_argument('--calspw', default='0:100~924', type=str, help="Calibration spectral window selection")
 # Imaging Arguments
 a.add_argument('--image_mfs', default=False, action='store_true', help="make an MFS image across the band")
 a.add_argument('--niter', default=50, type=int, help='number of clean iterations.')

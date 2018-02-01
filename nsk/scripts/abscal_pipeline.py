@@ -220,7 +220,7 @@ if run_abscal:
         f4.colorbar.set_axis_label_text("Jy/beam")
         f4.set_title("Model MFS Image")
 
-        fig.savefig("{}_{}_MFS.png".format(source, polstr), dpi=150, bbox_inches='tight')
+        fig.savefig("{}/{}_{}_MFS.png".format(data_path, source, polstr), dpi=150, bbox_inches='tight')
         plt.close()
 
         return calfits_fname
@@ -388,7 +388,7 @@ if source_spectrum:
         ax.legend([p0, p1, p2], ["Recovered Data Flux", "Recovered Model Flux", "Recovered Model Flux Fit"], fontsize=20)
         ax.set_ylim(0, np.max(np.concatenate([source_model_flux, source_flux, source_model_flux_fit])*1.8))
 
-        fig.savefig("{}_{}_spec.png".format(source, polstr), dpi=150, bbox_inches='tight')
+        fig.savefig("{}/{}_{}_spec.png".format(data_path, source, polstr), dpi=150, bbox_inches='tight')
         echo("saving {}_{}_spec.png".format(source, polstr))
         plt.close()
 
