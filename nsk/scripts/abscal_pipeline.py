@@ -272,20 +272,13 @@ if source_spectrum:
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("flux model exit {}".format(out))
 
-        # apply PB correction to flux model
-        echo("applying PB to flux model")
-        cmd = "pbcorr.py --beamfile {} --outdir ./ --pol {} --time {} --ext pbcorr --lon {} --lat {} {} --multiply {}.cl.fits"\
-              "".format(beamfile, pol, utc_center, lon, lat, overwrite, field)
-        out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
-        echo("flux model PB corr exit {}".format(out))
-
         # import to CASA image
         echo("importing model file to CASA image format")
         cmd = '''casa --nologger --nocrashreport --nogui --agg -c ''' \
-              '''"importfits('{}.cl.pbcorr.fits', '{}.cl.pbcorr.image', overwrite=True)"'''.format(field, field)
+              '''"importfits('{}.cl.fits', '{}.cl.image', overwrite=True)"'''.format(field, field)
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("flux model CASA import exit {}".format(out))
-        modelfile = field + '.cl.pbcorr.image'
+        modelfile = field + '.cl.image'
 
         if spec_rfi_flag:
             echo("RFI flagging data", type=1)
