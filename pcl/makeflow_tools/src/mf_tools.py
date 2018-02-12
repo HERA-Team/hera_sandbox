@@ -1,11 +1,13 @@
 # -*- mode: python; coding: utf-8 -*-
-# Copyright (c) 2017 The HERA Collaboration
+# Copyright (c) 2018 The HERA Collaboration
 
 from __future__ import print_function, division, absolute_import
 import os
 import re
 import sys
 import time
+import gzip
+import shutil
 import ConfigParser as configparser
 from configparser import ConfigParser, ExtendedInterpolation
 
@@ -94,7 +96,7 @@ def build_makeflow_from_config(obsids, config_file, mf_name=None):
         t = str(int(time.time()))
         fn = "{0}.{1}.mf".format(t, cf)
 
-    # write file
+    # write makeflow file
     with open(fn, "w") as f:
         for obsid in obsids:
             for ia, action in enumerate(workflow):
@@ -176,4 +178,111 @@ def build_makeflow_from_config(obsids, config_file, mf_name=None):
 
     return
 
+def clean_wrapper_scripts(work_dir):
+    """
+    Clean up wrapper scripts from work directory.
+
+    This script removes any files in the specified directory that begin with "wrapper_",
+    which is how the scripts are named in the 'build_makeflow_from_config' function above.
+
+    Arguments:
+    ====================
+    work_dir (str) -- the full path to the work directory
+
+    Returns:
+    ====================
+    None
+
+    """
+    # list files in work directory
+    files = os.listdir(work_dir)
+    wrapper_files = [fn for fn in files if fn[:8] == "wrapper_"]
+
+    # remove files; assumes individual files (and not directories)
+    for fn in wrapper_files:
+        os.remove(fn)
+
+    return
+
+def clean_output_files(work_dir):
+    """
+    Clean up output files from work directory.
+
+    The pipeline process uses empty files ending in '.out' to mark task completion.
+    This script removes such files, since they are unnecessary once the pipeline is
+    completed.
+
+    Arguments:
+    ====================
+    work_dir (str) -- the full path to the work directory
+
+    Returns:
+    ====================
+    None
+
+    """
+    # list files in work directory
+    files = os.listdir(work_dir)
+    output_files = [fn for fn in files if fn[-4:] == ".out"]
+
+    # remove files; assumes individual files (and not directories)
+    for fn in output_files:
+        os.remove(fn)
+
+    return
+
+def consolidate_logs(work_dir, output_fn, overwrite=False, remove_original=True,
+                     zip_file=False):
+    """
+    Combine logs from a makeflow run into a single file.
+
+    This function will combine the log files from a makeflow execution into a single file.
+    It also provides the option of zipping the resulting file, to save space.
+
+    Arguments:
+    ====================
+    work_dir (str) -- the full path to the work directory
+    output_fn (str) -- the full path to the desired output file
+    overwrite (bool) -- option to overwrite the named output_fn if it exists. Defaults to False.
+    remove_original (bool) -- option to remove original individual logs. Defaults to True.
+    zip_file (bool) -- option to zip the resulting file. Defaults to False.
+
+    Returns:
+    ====================
+    None
+    """
+    # check to see if output file already exists
+    if os.path.exists(output_fn):
+        if overwrite:
+            print("Overwriting output file {} ".format(output_fn))
+            os.remove(output_fn)
+        else:
+            raise IOError("Error: output file {} found; set overwrite=True to overwrite".format(output_fn))
+
+    # list log files in work directory; assumes the ".log" suffix
+    files = os.listdir(work_dir)
+    log_files = [fn for fn in sorted(files) if fn[-4:] == ".log"]
+
+    # write log file
+    # echos original log filename, then adds a linebreak for separation
+    with open(output_fn, "w") as f:
+        for fn in log_files:
+            f.write(fn)
+            with open(fn, "r") as f2:
+                f.write(f2.read())
+            f.write("\n")
+
+    if remove_original:
+        for fn in log_files:
+            os.remove(fn)
+
+    if zip_file:
+        # use gzip lib to compress
+        gzip_fn = output_fn + ".gz"
+        with open(output_fn, "rb") as f_in, gzip.open(gzip_fn, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
+        # remove original file
+        os.remove(output_fn)
+
+    return
 
