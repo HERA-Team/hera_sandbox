@@ -20,7 +20,7 @@ def test_get_makeflow_ArgumentParser():
         nt.assert_true(obsid in parsed_args.files)
 
     return
-    
+
 
 def test_get_cleaner_ArgumentParser():
     # raise error for requesting unknown function
