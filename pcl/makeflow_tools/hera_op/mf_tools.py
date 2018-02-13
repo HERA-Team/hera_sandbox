@@ -15,6 +15,19 @@ from configparser import ConfigParser, ExtendedInterpolation
 def get_config_entry(config, header, item, required=True):
     '''
     Helper function to extract specific entry from config file.
+
+    Args:
+    ====================
+    config -- a ConfigParser object that has read in the config file
+    header (str) -- the entry in a config file to get the item of, e.g., 'OMNICAL'
+    item (str) -- the attribute to retreive, e.g., 'prereqs'
+    required (bool) -- whether the attribute is required or not. If required and not present,
+        an error is raised.
+
+    Returns:
+    ====================
+    entries -- a list of entries contained in the config file. If item is not present, and 
+        required is False, an empty list is returned.
     '''
     if config.has_option(header, item):
         entries = config.get(header, item).split(',')
@@ -31,6 +44,20 @@ def get_config_entry(config, header, item, required=True):
 def make_outfile_name(obsid, action, pol_list=[]):
     '''
     Make a list of unique output files names for each stage and polarization.
+
+    Args:
+    ====================
+    obsid (str) -- obsid of the file
+    action (str) -- the action corresponding to the output name
+    pol_list -- a list of strings for polarizations in files; if an empty list,
+        then all polarizations in a single file is assumed. (Default empty list)
+
+    Returns:
+    ====================
+    outfiles -- a list of files that represent output produced for `action`
+        corresponding to `obsid`. For multiple polarizations, contains one string
+        per polarization. For one or no polarizations, just a list with a single 
+        entry is returned.
     '''
     outfiles = []
     if len(pol_list) > 1:
@@ -46,6 +73,17 @@ def make_outfile_name(obsid, action, pol_list=[]):
 def prep_args(args, obsid, pol):
     '''
     Substitute the polarization string in a filename/obsid with the specified one.
+
+    Args:
+    ====================
+    args (str) -- string containing the arguments where polarization and mini-language
+        is to be substituted.
+    obsid (str) -- string of filename/obsid.
+    pol (str) -- polarization to substitute for the one found in obsid.
+
+    Returns:
+    ====================
+    output (str) -- `args` string with mini-language and polarization substitutions.
     '''
     # replace pol if present
     match = re.search(r'zen\.\d{7}\.\d{5}\.(.+)\.', obsid)
@@ -200,7 +238,8 @@ def clean_wrapper_scripts(work_dir):
 
     # remove files; assumes individual files (and not directories)
     for fn in wrapper_files:
-        os.remove(fn)
+        abspath = os.path.join(work_dir, fn)
+        os.remove(abspath)
 
     return
 
@@ -227,7 +266,8 @@ def clean_output_files(work_dir):
 
     # remove files; assumes individual files (and not directories)
     for fn in output_files:
-        os.remove(fn)
+        abspath = os.path.join(work_dir, fn)
+        os.remove(abspath)
 
     return
 
@@ -251,7 +291,9 @@ def consolidate_logs(work_dir, output_fn, overwrite=False, remove_original=True,
     ====================
     None
     """
-    # check to see if output file already exists
+    # Check to see if output file already exists.
+    # Note we need to check if this file exists, even when zip_file=True, since we use the standard
+    # file as an intermediary before zipping, then removed.
     if os.path.exists(output_fn):
         if overwrite:
             print("Overwriting output file {} ".format(output_fn))
@@ -267,14 +309,16 @@ def consolidate_logs(work_dir, output_fn, overwrite=False, remove_original=True,
     # echos original log filename, then adds a linebreak for separation
     with open(output_fn, "w") as f:
         for fn in log_files:
-            f.write(fn)
-            with open(fn, "r") as f2:
+            f.write(fn + "\n")
+            abspath = os.path.join(work_dir, fn)
+            with open(abspath, "r") as f2:
                 f.write(f2.read())
             f.write("\n")
 
     if remove_original:
         for fn in log_files:
-            os.remove(fn)
+            abspath = os.path.join(work_dir, fn)
+            os.remove(abspath)
 
     if zip_file:
         # use gzip lib to compress
