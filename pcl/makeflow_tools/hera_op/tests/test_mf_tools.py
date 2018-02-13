@@ -168,6 +168,11 @@ class TestMethods(object):
                 # also check file name
                 nt.assert_true(fn in out_lines)
 
+        # test overwriting a zip
+        mt.consolidate_logs(work_dir, output_fn, overwrite=True, remove_original=False,
+                            zip_file=True)
+        nt.assert_true(os.path.exists(output_gz))
+
         # test removing input files when a log is made
         for fn in input_files:
             abspath = os.path.join(work_dir, fn)
@@ -206,10 +211,22 @@ class TestMethods(object):
         # make sure that we raise an error if we don't pass overwrite=True
         nt.assert_raises(IOError, mt.consolidate_logs, work_dir, output_fn, overwrite=False)
 
+        # test making a zip
+        mt.consolidate_logs(work_dir, output_fn, overwrite=True, remove_original=False,
+                            zip_file=True)
+
+        # check that file exists
+        output_gz = output_fn + '.gz'
+        nt.assert_true(os.path.exists(output_gz))
+
+        # make sure we get an error if the file exists
+        nt.assert_raises(IOError, mt.consolidate_logs, work_dir, output_fn, overwrite=False,
+                         zip_file=True)
+
         # clean up after ourselves
         for fn in input_files:
             abspath = os.path.join(work_dir, fn)
             os.remove(abspath)
-        os.remove(output_fn)
+        os.remove(output_gz)
 
         return

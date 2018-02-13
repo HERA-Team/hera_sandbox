@@ -296,10 +296,19 @@ def consolidate_logs(work_dir, output_fn, overwrite=False, remove_original=True,
     # file as an intermediary before zipping, then removed.
     if os.path.exists(output_fn):
         if overwrite:
-            print("Overwriting output file {} ".format(output_fn))
+            print("Overwriting output file {}".format(output_fn))
             os.remove(output_fn)
         else:
             raise IOError("Error: output file {} found; set overwrite=True to overwrite".format(output_fn))
+    # also check for the zipped file if it exists when we specify zip_file
+    if zip_file:
+        gzip_fn = output_fn + '.gz'
+        if os.path.exists(gzip_fn):
+            if overwrite:
+                print("Overwriting output file {}".format(gzip_fn))
+                os.remove(gzip_fn)
+            else:
+                raise IOError("Error: output file {} found; set overwrite=True to overwrite".format(gzip_fn))
 
     # list log files in work directory; assumes the ".log" suffix
     files = os.listdir(work_dir)
@@ -322,7 +331,6 @@ def consolidate_logs(work_dir, output_fn, overwrite=False, remove_original=True,
 
     if zip_file:
         # use gzip lib to compress
-        gzip_fn = output_fn + ".gz"
         with open(output_fn, "rb") as f_in, gzip.open(gzip_fn, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
         # remove original file
