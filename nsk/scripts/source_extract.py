@@ -121,9 +121,12 @@ def source_extract(imfile, source, radius=1, gaussfit_mult=1.0, rms_max_r=None, 
     beam_theta -= np.pi/2
     Prot = P.dot(np.array([[np.cos(beam_theta), -np.sin(beam_theta)], [np.sin(beam_theta), np.cos(beam_theta)]]))
     gauss_cov = np.array([[gauss_fit.x_stddev.value**2, 0], [0, gauss_fit.y_stddev.value**2]])
-    model_gauss = stats.multivariate_normal.pdf(Prot, mean=np.array([0,0]), cov=gauss_cov)
-    model_gauss *= gauss_fit.amplitude.value / model_gauss.max()
-    int_gauss_flux = np.nansum(model_gauss.ravel()) / Npix_beam
+    try:
+        model_gauss = stats.multivariate_normal.pdf(Prot, mean=np.array([0,0]), cov=gauss_cov)
+        model_gauss *= gauss_fit.amplitude.value / model_gauss.max()
+        int_gauss_flux = np.nansum(model_gauss.ravel()) / Npix_beam
+    except:
+        int_gauss_flux = 0
 
     return peak, peak_err, rms, peak_gauss_flux, int_gauss_flux, freq
 

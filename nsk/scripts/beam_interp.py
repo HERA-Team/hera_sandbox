@@ -141,4 +141,5 @@ if __name__ == "__main__":
     kwargs = copy.copy(args).__dict__
     kwargs.pop("beamfile")
 
+    print args.freqs
     beam_interp(args.beamfile, **kwargs)
