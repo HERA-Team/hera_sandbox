@@ -1,6 +1,6 @@
 #
 #  cosmo_units.py
-#  
+#
 #
 #  Created by Danny Jacobs on 7/6/10.
 #  Copyright (c) 2010 __MyCompanyName__. All rights reserved.
@@ -28,16 +28,16 @@ ckm = c/1000. #km/s
 f21 = 1.421e9 #GHz
 
 def E(z):
-    return n.sqrt(O_M*(1+z)**3 + O_k*(1+z)**2 +  O_l) 
+    return n.sqrt(O_M*(1+z)**3 + O_k*(1+z)**2 +  O_l)
 
 def DM(z):
-    return ckm/Ho*integrate.quad(lambda z: 1/E(z),0,z)[0]    
+    return ckm/Ho*integrate.quad(lambda z: 1/E(z),0,z)[0]
 def DA(z):
     return DM(z)/(1+z)
 
 def r2df(r,z):
     return r*Ho*f21*E(z)/(ckm*(1+z)**2)
-    
+
 def df2r(df,z):
         return df/(Ho*f21*E(z)/(ckm*(1+z)**2))
 
@@ -51,7 +51,8 @@ def kperp2u(kperp,z):
     return kperp*DA(z)/(2*n.pi)
 
 def u2kperp(u,z):
-    return u*2*n.pi/DA(z)
+    #convert to comoving kperp, per Liu 2014a Appendix A
+    return u*2*n.pi/DM(z) 
 def r2theta(r,z):
     return r/DA(z)
 def theta2r(theta,z):
