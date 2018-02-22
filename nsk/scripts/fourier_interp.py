@@ -8,6 +8,7 @@ import numpy as np
 import os
 import sys
 import copy
+from stats import signal
 
 def ff_rfi_interp(vis, flags, kernel_width=10, kernel='tophat', axis=1, stop_tol=1e-2, maxiter=5, 
                   copy_vis=True):
