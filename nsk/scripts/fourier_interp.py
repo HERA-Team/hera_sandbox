@@ -101,7 +101,7 @@ def ff_rfi_interp(vis, flags, kernel_width=10, kernel='tophat', axis=1, stop_tol
 
 
 
-def fourier_interp(data)
+def fourier_interp(data):
     """
     fourier interpolation
 
