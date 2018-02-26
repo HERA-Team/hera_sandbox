@@ -9,11 +9,14 @@ import os
 import sys
 import copy
 from stats import signal
+from collections import OrderedDict as odict
+from hera_cal.datacontainer import DataContainer
 
-def ff_rfi_interp(vis, flags, kernel_width=10, kernel='tophat', axis=1, stop_tol=1e-2, maxiter=5, 
+
+def fourier_filter(vis, flags, kernel_width=10, kernel='tophat', axis=1, stop_tol=1e-2, maxiter=5, 
                   copy_vis=True):
     """
-    fast fourier interpolation for nulled data due to RFI flags
+    Fast fourier filtering + interpolation for flagged data.
 
     Parameters:
     -----------
@@ -101,23 +104,43 @@ def ff_rfi_interp(vis, flags, kernel_width=10, kernel='tophat', axis=1, stop_tol
     return vis, vis_hat
 
 
-
-def fourier_interp(data):
+def fourier_interp(data, flags, kernel_width=10, kernel='tophat', axis=1, stop_tol=1e-2, maxiter=5, 
+                   copy_vis=True):
     """
-    fourier interpolation
+    Fourier filtering + interpolation for flagged data
 
+    Parameters:
+    -----------
+    data : type=DataContainer, holding complex visibility data
+
+    flags : type=DataContainer, holding boolean flag arrays for data
+
+    Keyword parameters passed to fourier_filter()
+
+    Output: (interp_data, model)
+    -------
+    interp_data : type=DataContainer, holding complex visibility data with
+                  flags filled in with model
+
+    model : type=DataContainer, holding smoothed visibility model
     """
-    pass
+    # setup output data structures
+    interp_data = odict()
+    model = odict()
 
+    # iterate over keys
+    for k in data.keys():
+        # perform fourier fit
+        d_int, mdl = fourier_filter(data[k], flags[k], kernel_width=kernel_width, kernel=kernel,
+                                    axis=axis, stop_tol=stop_tol, maxiter=maxiter, copy_vis=copy_vis)
 
+        # insert into structures
+        interp_data[k] = d_int
+        model[k] = mdl
 
+    interp_data = DataContainer(interp_data)
+    model = DataContainer(model)
 
-
-
-
-
-
-
-
+    return interp_data, model
 
 
