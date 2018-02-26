@@ -329,20 +329,20 @@ if source_spectrum:
         # primary beam correction
         echo("applying primary beam correction to spectral cube", type=1)
         cmd = "pbcorr.py --beamfile {} --pol {} --time {} --ext pbcorr --lon {} --lat {} --spec_cube {} {}" \
-              "".format(beamfile, pol, utc_center, lon, lat, overwrite, source_im + ".spec*.fits")
+              "".format(beamfile, pol, utc_center, lon, lat, overwrite, source_im + ".spec????.fits")
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("pb correction exit {}".format(out))
 
         # source extraction
         echo("running source extraction on data", type=1)
         cmd = "source_extract.py --source {} --radius 1 {} --gaussfit_mult {} --ext .spectrum.tab --rms_max_r {} --rms_min_r {} {}" \
-              "".format(source, overwrite, gf_mult, rms_maxr, rms_minr, source_im + ".spec*.pbcorr.fits")
+              "".format(source, overwrite, gf_mult, rms_maxr, rms_minr, source_im + ".spec????.pbcorr.fits")
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("source extract exit {}".format(out))
 
         echo("running source extraction on model", type=1)
         cmd = "source_extract.py --source {} --radius 1 {} --gaussfit_mult {} --ext .spectrum.tab --rms_max_r {} --rms_min_r {} {}" \
-                "".format(source, overwrite, gf_mult, rms_maxr, rms_minr, model_im + ".spec*.fits")
+                "".format(source, overwrite, gf_mult, rms_maxr, rms_minr, model_im + ".spec????.fits")
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("model extract exit {}".format(out))
 
