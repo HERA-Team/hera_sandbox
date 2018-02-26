@@ -10,10 +10,10 @@ import pytz
 def RA2LST(RA, lon):
     """
     RA : float
-        right ascension (J2000) in degrees
+         right ascension (J2000) in degrees
 
     lon : float
-        longitude East of observer in degrees
+          longitude East of observer in degrees
 
     return LST_RA (LST in hours)
     """
