@@ -132,7 +132,7 @@ if run_abscal:
         # convert to uvfits
         echo("converting miriad to uvfits", type=1)
         for i, sf in enumerate(source_files):
-            cmd = "miriad_to_uvfits.py {}".format(sf)
+            cmd = "miriad_to_uvfits.py {} {}".format(overwrite, sf)
             out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
             echo("miriad_to_uvfits on {} exit {}".format(sf, out))            
         source_uvfits = map(lambda x: x+'.uvfits', source_files)
@@ -299,7 +299,7 @@ if source_spectrum:
         # convert to uvfits
         echo("converting miriad to uvfits", type=1)
         for i, sf in enumerate(source_files):
-            cmd = "miriad_to_uvfits.py {}".format(sf)
+            cmd = "miriad_to_uvfits.py {} {}".format(overwrite, sf)
             out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
             echo("miriad_to_uvfits on {} exit {}".format(sf, out))
         source_uvfits = map(lambda x: x+'.uvfits', source_files)
