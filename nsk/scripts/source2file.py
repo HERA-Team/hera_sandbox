@@ -54,23 +54,22 @@ def source2file(ra, lon=21.428305555, lat=-30.72152, duration=2.0, offset=0.0, s
     source_files = None
     source_utc_range = None
 
-    if start_jd is not None:
-        # get JD when source is at zenith
-        jd = utils.LST2JD(lst * np.pi / 12., start_jd, longitude=lon)
-        echo("JD closest to zenith (offset by {} minutes): {}".format(offset, jd), type=1, verbose=verbose)
+    # get JD when source is at zenith
+    jd = utils.LST2JD(lst * np.pi / 12., start_jd, longitude=lon)
+    echo("JD closest to zenith (offset by {} minutes): {}".format(offset, jd), type=1, verbose=verbose)
 
-        # print out UTC time
-        jd_duration = duration / (60. * 24 + 4.0)
-        time1 = Time(jd - jd_duration/2, format='jd').to_datetime()
-        time2 = Time(jd + jd_duration/2, format='jd').to_datetime()
-        time3 = Time(jd, format='jd').to_datetime()
-        utc_range = '"{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}~{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}"'\
-                    ''.format(time1.year, time1.month, time1.day, time1.hour, time1.minute, time1.second,
-                              time2.year, time2.month, time2.day, time2.hour, time2.minute, time2.second)
-        utc_center = '{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}'.format(time3.year, time3.month, time3.day,
-                                                                        time3.hour, time3.minute, time3.second)
-        echo('UTC time range of {} minutes is:\n{}\ncentered on {}'\
-             ''.format(duration, utc_range, utc_center), type=1, verbose=verbose)
+    # print out UTC time
+    jd_duration = duration / (60. * 24 + 4.0)
+    time1 = Time(jd - jd_duration/2, format='jd').to_datetime()
+    time2 = Time(jd + jd_duration/2, format='jd').to_datetime()
+    time3 = Time(jd, format='jd').to_datetime()
+    utc_range = '"{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}~{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}"'\
+                ''.format(time1.year, time1.month, time1.day, time1.hour, time1.minute, time1.second,
+                          time2.year, time2.month, time2.day, time2.hour, time2.minute, time2.second)
+    utc_center = '{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}'.format(time3.year, time3.month, time3.day,
+                                                                    time3.hour, time3.minute, time3.second)
+    echo('UTC time range of {} minutes is:\n{}\ncentered on {}'\
+         ''.format(duration, utc_range, utc_center), type=1, verbose=verbose)
 
     if jd_files is not None:
 
@@ -127,7 +126,7 @@ def source2file(ra, lon=21.428305555, lat=-30.72152, duration=2.0, offset=0.0, s
                     uvd += uv
             file_jds = np.unique(uvd.time_array)
             file_delta_jd = np.median(np.diff(file_jds))
-            file_delta_min =  file_delta_jd * (60. * 24 + 4.0)
+            file_delta_min =  file_delta_jd * (60. * 24)
             num_file_times = int(np.ceil(duration / file_delta_min))
             file_jd_indices = np.argsort(np.abs(file_jds - jd))[:num_file_times]
             file_jd1 = file_jds[file_jd_indices].min()
