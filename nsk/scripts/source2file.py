@@ -12,18 +12,18 @@ import os
 import numpy as np
 import argparse
 from astropy.time import Time
-from RA2LST import RA2LST
-import JD2LST
+from hera_cal import utils
 from pyuvdata import UVData
 import sys
+from RA2LST import RA2LST
 
 ap = argparse.ArgumentParser(description='')
 
 ap.add_argument("--ra", type=float, help="RA of the source in degrees", required=True)
 ap.add_argument("--lon", default=21.428305555, type=float, help="longitude of observer in degrees East")
+ap.add_argument("--start_jd", type=int, help="starting JD of interest")
 ap.add_argument("--duration", default=2.0, type=float, help="duration in minutes of calibrator integration")
 ap.add_argument("--offset", default=0.0, type=float, help="offset from closest approach in minutes")
-ap.add_argument("--start_jd", default=None, type=int, help="starting JD of interest")
 ap.add_argument("--jd_files", default=None, type=str, nargs='*',  help="glob-parsable search of files to isolate calibrator in.")
 ap.add_argument("--get_filetimes", default=False, action='store_true', help="open source files and get more accurate duration timerange")
 
@@ -36,12 +36,12 @@ def echo(message, type=0, verbose=True):
             print('\n{}\n{}'.format(message, '-'*70))
 
 
-def source2file(ra, lon=21.428305555, duration=2.0, offset=0.0, start_jd=None,
+def source2file(ra, lon=21.428305555, lat=-30.72152, duration=2.0, offset=0.0, start_jd=None,
                     jd_files=None, get_filetimes=False, verbose=False):
     """
     """
     # get LST of source
-    lst = RA2LST(ra, lon)
+    lst = RA2LST(ra, lon, lat, start_jd)
 
     # offset
     lst += offset / 60.
@@ -56,7 +56,7 @@ def source2file(ra, lon=21.428305555, duration=2.0, offset=0.0, start_jd=None,
 
     if start_jd is not None:
         # get JD when source is at zenith
-        jd = JD2LST.LST2JD(lst, start_jd, lon)
+        jd = utils.LST2JD(lst * np.pi / 12., start_jd, longitude=lon)
         echo("JD closest to zenith (offset by {} minutes): {}".format(offset, jd), type=1, verbose=verbose)
 
         # print out UTC time
@@ -73,9 +73,6 @@ def source2file(ra, lon=21.428305555, duration=2.0, offset=0.0, start_jd=None,
              ''.format(duration, utc_range, utc_center), type=1, verbose=verbose)
 
     if jd_files is not None:
-
-        if start_jd is None:
-            raise AttributeError("need start_jd to search files")
 
         # get files
         files = jd_files
