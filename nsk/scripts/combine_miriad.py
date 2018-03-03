@@ -26,8 +26,12 @@ if __name__ == "__main__":
     if a.fname is None:
         fname = os.path.basename(a.files[0])
         a.overwrite = True
+    else:
+        fname = a.fname
     if a.outdir is None:
         outdir = os.path.dirname(a.files[0])
+    else:
+        outdir = a.outdir
 
     out_fname = os.path.join(outdir, fname)
     if os.path.exists(out_fname) and a.overwrite is False:

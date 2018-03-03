@@ -47,7 +47,7 @@ a.add_argument('--bpoly', default=False, action='store_true', help="use BPOLY mo
 a.add_argument('--degamp', default=4, type=int, help="amplitude polynomial degree for BPOLY")
 a.add_argument('--degphase', default=1, type=int, help="phase polynomial degree for BPOLY")
 a.add_argument('--calspw', default='0:100~924', type=str, help="Calibration spectral window selection")
-a.add_argument('--smodel', default=[], type=list, help="Stokes source model as [I, Q, U, V].")
+a.add_argument('--smodel', default=[], type=float, nargs='*', help="Stokes source model as I Q U V")
 # Imaging Arguments
 a.add_argument('--image_mfs', default=False, action='store_true', help="make an MFS image across the band")
 a.add_argument('--niter', default=50, type=int, help='number of clean iterations.')
@@ -163,7 +163,7 @@ if __name__ == "__main__":
         if os.path.exists("{}.png".format(kc)):
             os.remove("{}.png".format(kc))
         gaincal(msin, caltable=kc, gaintype="K", solint='inf', refant=args.refant, minsnr=args.KGsnr, spw=args.calspw,
-                gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange, smodel=args.smodel)
+                gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange)
         plotcal(kc, xaxis='antenna', yaxis='delay', figfile='{}.png'.format(kc), showgui=False)
         gaintables.append(kc)
 
@@ -184,7 +184,7 @@ if __name__ == "__main__":
         if os.path.exists("{}.png".format(gpc)):
             os.remove("{}.png".format(gpc))
         gaincal(msin, caltable=gpc, gaintype='G', solint='inf', refant=args.refant, minsnr=args.KGsnr, calmode='p',
-                spw=args.calspw, gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange, smodel=args.smodel)
+                spw=args.calspw, gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange)
         plotcal(gpc, xaxis='antenna', yaxis='phase', figfile='{}.png'.format(gpc), showgui=False)
         gaintables.append(gpc)
 
@@ -209,7 +209,7 @@ if __name__ == "__main__":
         if os.path.exists("{}.png".format(gac)):
             os.remove("{}.png".format(gac))
         gaincal(msin, caltable=gac, gaintype='G', solint='inf', refant=args.refant, minsnr=args.Asnr, calmode='a',
-                spw=args.calspw, gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange, smodel=args.smodel)
+                spw=args.calspw, gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange)
         plotcal(gac, xaxis='antenna', yaxis='amp', figfile='{}.png'.format(gac), showgui=False)
         gaintables.append(gac)
 
