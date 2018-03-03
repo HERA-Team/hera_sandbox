@@ -1,17 +1,12 @@
 #! /usr/bin/env python
 '''Proof of concept for a fast visibility simulator that takes advantage of equal-spaced freq channels'''
-import aipy as a, numpy as n, optparse, sys
-import pylab as P
-from aipy._cephes import i0
+import aipy, numpy as np, optparse, sys
+#import pylab as P
 
 o = optparse.OptionParser()
-a.scripting.add_standard_options(o, cal=True, src=True)
-o.add_option('--nchan', dest='nchan', default=1024, type='int',
-    help='Number of channels in simulated data if no input data to mimic.  Default is 1024')
-o.add_option('--sfreq', dest='sfreq', default=.100, type='float',
-    help='Start frequency (GHz) in simulated data if no input data to mimic.  Default is 0.100')
-o.add_option('--sdf', dest='sdf', default=.100/1024, type='float',
-    help='Channel spacing (GHz) in simulated data if no input data to mimic.  Default is .100/1024')
+aipy.scripting.add_standard_options(o, cal=True)
+o.add_option('--freq', dest='freq', default=.150, type='float',
+    help='Frequency (GHz) of map.  Default is 0.15')
 o.add_option('--inttime', dest='inttime', default=10, type='float',
     help='Integration time (s) in simulated data if no input data to mimic.  Default is 10')
 o.add_option('--startjd', dest='startjd', default=2455600., type='float',
@@ -20,200 +15,54 @@ o.add_option('--endjd', dest='endjd', default=2455601., type='float',
     help='Julian Date to end observation if no input data to mimic.  Default is 2454601')
 opts,args = o.parse_args(sys.argv[1:])
 
-NCHAN = opts.nchan
-kaiser3 = lambda x: i0(n.pi * 3 * n.sqrt(1-(2*x/(NCHAN-1) - 1)**2)) / i0(n.pi * 3)
-times = n.arange(opts.startjd, opts.endjd, opts.inttime/a.const.s_per_day)
+NANT = 32
+FREQ = opts.freq
+START_JD = opts.startjd
+END_JD = opts.endjd
+INT_TIME = opts.inttime
+POL = 'yy'
 
-aa = a.cal.get_aa(opts.cal, opts.sdf, opts.sfreq, opts.nchan)
-srclist,cutoff,catalogs = a.scripting.parse_srcs(opts.src, opts.cat)
-cat = a.cal.get_catalog(opts.cal, srclist, cutoff, catalogs)
-pols = ['yy']
+times = np.arange(START_JD, END_JD, INT_TIME / aipy.const.s_per_day)
+aa = aipy.cal.get_aa(opts.cal, np.array([FREQ]))
+pols = [POL]
+aa.set_active_pol(pols[0])
 afreqs = aa.get_afreqs()
-dlys = n.fft.fftfreq(NCHAN, d=afreqs[1]-afreqs[0])
+antpos = {i:aa.get_baseline(0,i,'z').astype(np.float32) for i in xrange(NANT)}
+bls = [(i,j) for i in antpos for j in antpos if i <= j]
 
-def recenter(d, cen): return n.concatenate([d[cen:], d[:cen]])
-def sim(tau): return n.exp(-2j*n.pi*afreqs*tau)
+hpm = aipy.map.Map(fromfits=sys.argv[-1]) # Map in eq coord, one freq?
+px = np.arange(hpm.npix())
+I_s = np.sqrt(hpm[px]) # sqrt so that (AI)^2 has one factor of sky
+crd_equ = np.array(hpm.px2crd(px))
 
-w = n.fromfunction(kaiser3, (opts.nchan,))
-FOOTPRINT = 30 
-SUBSAMPLE = 64
+data = {(i,j,pol): [] for i,j in bls for pol in pols}
 
-if True: # Calculate kernel explicitly
-    _w = []
-    #for tau in n.arange(-FOOTPRINT,FOOTPRINT+1,1./SUBSAMPLE):
-    subx = []
-    for tau in n.concatenate([n.arange(0,FOOTPRINT+1./SUBSAMPLE,1./SUBSAMPLE),n.arange(-FOOTPRINT,0,1./SUBSAMPLE)]):
-        tau *= dlys[1]
-        _w.append(n.fft.ifft(w*sim(tau))[0])
-        subx.append(tau)
-    _w = n.array(_w)
-    subx = n.array(subx)
-    #P.plot(n.abs(_w))
-    #P.plot(n.angle(_w))
-    #P.show()
-else:
-    mw = w
-    if False:
-        _w = n.fft.ifft(mw)
-        subx = n.arange(0,NCHAN)
-    else:
-        _w = n.zeros(w.size * SUBSAMPLE, dtype=n.complex64)
-        _w[:w.size] = mw
-        #_w[:w.size/2] = w[w.size/2:]
-        #_w[-w.size/2:] = w[:w.size/2]
-        _w = n.fft.ifft(_w) * SUBSAMPLE
-        subx = n.arange(0,NCHAN, 1./SUBSAMPLE)
-
-taubin = 10
-tau = dlys[taubin] + dlys[1]/8
-# The default implementation
-d = sim(tau)
-_d = n.fft.ifft(d*w)
-__d = n.fft.fft(_d) / n.where(w == 0, 1, w)
-d__d = d - __d
-# A gridded implementation
-_g = n.zeros(NCHAN, dtype=n.complex64)
-taubin = n.around(tau / dlys[1])
-taures = tau / dlys[1] - taubin
-#phs = n.exp(-2j*n.pi*taures) # Account for residual phase within bin
-#_g[taubin] += phs
-print int(taures*SUBSAMPLE)
-for cnt in range(-FOOTPRINT,FOOTPRINT+1):
-    #_g[taubin+cnt] += _w[cnt]
-    _g[taubin+cnt] += _w[-cnt*SUBSAMPLE+int(n.around(taures*SUBSAMPLE))]
-__g = n.fft.fft(_g) / n.where(w == 0, 1, w)
-d__g = d - __g
-
-P.subplot(411)
-P.plot(n.abs(d), 'k-'); P.plot(d.real, 'k-.')#; P.plot(d.imag, 'k:')
-P.xlim(0,NCHAN)
-P.ylim(-1.1,1.1)
-
-P.subplot(412)
-_d /= n.abs(_d).max()
-_g /= n.abs(_g).max()
-_w /= n.abs(_w).max()#; _w = recenter(_w, -n.around(tau / dlys[1] * SUBSAMPLE))
-P.plot(dlys, n.abs(_d), 'k-'); P.plot(dlys, _d.real, 'k-.'); P.plot(dlys, _d.imag, 'k:')
-P.plot(dlys, n.abs(_g), 'r-'); P.plot(dlys, _g.real, 'r-.'); P.plot(dlys, _g.imag, 'r:')
-P.plot(subx, n.abs(_w), 'g-'); P.plot(subx, _w.real, 'g-.'); P.plot(subx, _w.imag, 'g:')
-P.xlim(0,2*taubin*dlys[1])
-
-P.subplot(413)
-P.plot(n.abs(__d), 'k-'); P.plot(__d.real, 'k-.')#; P.plot(__d.imag, 'k:')
-P.plot(n.abs(__g), 'r-'); P.plot(__g.real, 'r-.')#; P.plot(__g.imag, 'r:')
-P.xlim(0,NCHAN)
-P.ylim(-1.1,1.1)
-
-P.subplot(414)
-P.semilogy(n.abs(d__d), 'k-')
-P.semilogy(n.abs(d__g), 'r-')
-P.xlim(0,NCHAN)
-P.ylim(1e-5, 2e0)
-P.grid()
-
-P.show()
-    
-
-F = 3
-curtime = None
-L = 33
-#import capo as C; C.pfb.__set_pm__(NCHAN*F, 'kaiser3',1,1.); window = C.pfb.pm['window']
-#window = n.fromfunction(kaiser3, (NCHAN,))
-w = n.fromfunction(kaiser3, (L,))
-#w = n.ones_like(w)
-print w.sum()
-#w /= w.sum() * 8 / 1.1 * 1.02
-SUBSAMPLE = F * 10
-FOOTPRINT=10
-_w = n.zeros(w.size * SUBSAMPLE, dtype=n.complex64)
-_w[:w.size/2+1] = w[w.size/2:]
-_w[-w.size/2+1:] = w[:w.size/2]
-_w = n.fft.ifft(_w)
-norm = n.zeros(NCHAN*F, dtype=n.complex64)
-for cnt in range(-FOOTPRINT,FOOTPRINT+1):
-    norm[cnt] += _w[SUBSAMPLE*cnt]
-norm = n.fft.fft(norm)
-if False:
-    P.subplot(211)
-    P.semilogy(n.abs(_w))
-    #P.plot(_w.real)
-    #P.plot(_w.imag)
-    P.subplot(212)
-    thing = n.zeros(w.size * SUBSAMPLE, dtype=n.complex64); thing[100] = 1.
-    P.plot(n.abs(thing))
-    P.plot(n.abs(n.fft.ifft(n.fft.fft(thing) * _w)))
-    P.show()
-dlys = n.fft.fftfreq(int(NCHAN*F), d=afreqs[1]-afreqs[0])
-def mdl(uv, p, d, f):
-    global curtime, eqs
-    uvw, t, (i,j) = p
-    if i == j: return p, d, f
-    if curtime != t:
-        curtime = t
-        aa.set_jultime(t)
-        cat.compute(aa)
-        eqs = cat.get_crds('eq', ncrd=3)
-        flx = n.ones_like(cat.get_jys())
-        aa.sim_cache(eqs, flx)
-    #x,y,tau_g = aa.get_baseline(i,j, src=cat.values()[0])
-    #tau_g = 122./3
-    tau_g = 1
-    tau_e,off = n.array(aa[j]._phsoff) - n.array(aa[i]._phsoff)
-    taubin = (-tau_g + tau_e) / dlys[1]
-    tauind = n.around(taubin)
-    taubin -= tauind
-    _d = n.zeros(NCHAN*F, dtype=n.complex64)
-    phs = 1
-    #phs = -n.exp(-1j*n.pi*taubin) # Account for residual phase within bin
-    for cnt in range(-FOOTPRINT,FOOTPRINT+1):
-        _d[tauind+cnt] += phs * _w[int(SUBSAMPLE*(cnt+taubin))]
-    #_d[tauind+1] += phs
-    #_d[tauind-1] += phs
-    d = n.fft.fft(_d)
-    d /= norm
-    #d /= d.max()
-    d = n.concatenate([d[-d.size/2:],d[:d.size/2]]) 
-    #d = d[int(NCHAN*(F-1)/2):int(NCHAN*(F+1)/2)]# / partwin
-    print d.shape
-    sd = n.zeros(int(NCHAN*F), dtype=n.complex64)
-    #sd[int(NCHAN*(F-1)/2):int(NCHAN*(F+1)/2)] = aa.sim(i, j, pol=a.miriad.pol2str[uv['pol']])
-    sd[int(NCHAN*(F-1)/2):int(NCHAN*(F+1)/2)] = n.exp(-2j*n.pi*afreqs*(-tau_g)) #* window
-    #sd = n.exp(-2j*n.pi*afreqs*(-tau_g))
-    #asd = n.abs(sd)
-    #sd /= n.where(asd == 0, 1, asd)
-    _sd = n.fft.ifft(sd)
-    #sd = sd[int(NCHAN*(F-1)/2):int(NCHAN*(F+1)/2)]
-    print sd.shape
-    print tau_g + tau_e, dlys[1], (tauind, taubin), _d[tauind], _sd[tauind] / n.abs(_sd[tauind])
-    #print n.angle(sd * n.conj(d))
-    #d = n.exp(2j*n.pi*afreqs*(tau_g + tau_e))
-    P.subplot(311)
-    P.plot( n.angle(d), 'k')
-    #P.plot(afreqs, d.real, 'k')
-    #P.plot(afreqs, d.imag, 'k:')
-    P.plot( n.angle(sd), 'r')
-    #P.plot( n.angle(sd*n.conj(d)), 'g')
-    #P.plot(afreqs, sd.real, 'r')
-    #P.plot(afreqs, sd.imag, 'r:')
-    P.subplot(312)
-    P.plot(n.abs(d), 'k')
-    #P.plot(afreqs, d.real, 'k')
-    #P.plot(afreqs, d.imag, 'k:')
-    P.plot(n.abs(sd), 'r')
-    #P.plot(afreqs, sd.real, 'r')
-    #P.plot(afreqs, sd.imag, 'r:')
-    P.subplot(313)
-    #P.plot(dlys, n.abs(_d), 'k')
-    #P.plot(dlys, n.abs(_sd), 'r')
-    P.semilogy(dlys, n.abs(_d), 'k.-')
-    P.semilogy(dlys, n.abs(_sd), 'r.-')
-    #P.semilogy(dlys0, n.abs(n.fft.ifft(d)), 'g.-')
-    P.xlim(-100,100)
-    P.show()
-    if not opts.flag: f = no_flags
-    return p, n.where(f, 0, d), f
-
-
+import time
+print '# Antennas:', len(antpos)
+print '# Baselines:', len(data)
+print 'NSIDE:', hpm.nside()
+print 'Starting', time.time()
+for ti,jd in enumerate(times):
+    print ti,'/',len(times)
+    aa.set_jultime(jd)
+    tx,ty,tz = crd_top = np.dot(aa.eq2top_m, crd_equ).astype(np.float32)
+    crd_top = crd_top[:,tz > 0]
+    # XXX assuming all beams are same for now
+    A_s = aa[0].bm_response(crd_top, pol=pols[0][0]) # XXX fix pol treatment
+    # XXX deal with antenna gains/phs
+    AI_s = A_s * I_s[tz > 0]
+    AI_s.shape = (1,-1)
+    factor = np.array(-2j*np.pi*FREQ / aipy.const.c,dtype=np.complex64)
+    antvis = np.empty((len(antpos),AI_s.size), dtype=np.complex64)
+    for i in antpos: np.dot(factor*antpos[i], crd_top, out=antvis[i])
+    np.exp(antvis, out=antvis)
+    antvis *= AI_s
+    data = np.zeros((len(antpos),len(antpos)), dtype=np.complex64)
+    for i in antpos: np.dot(antvis[i:i+1].conj(), antvis[i:].T, out=data[i:i+1,i:])
+    np.conj(data, out=data)
+        
+print 'Done', time.time()
+sys.exit(0)
 
 uv = a.miriad.UV('new.uv', status='new')
 uv._wrhd('obstype','mixed-auto-cross')
@@ -231,7 +80,7 @@ uv.add_var('npol'    ,'i'); uv['npol'] = len(pols)
 uv.add_var('nspect'  ,'i'); uv['nspect'] = 1
 uv.add_var('nants'   ,'i'); uv['nants'] = len(aa)
 uv.add_var('antpos'  ,'d')
-antpos = n.array([ant.pos for ant in aa], dtype=n.double)
+antpos = np.array([ant.pos for ant in aa], dtype=n.double)
 uv['antpos'] = antpos.transpose().flatten()
 uv.add_var('sfreq'   ,'d'); uv['sfreq'] = opts.sfreq
 uv.add_var('freq'    ,'d'); uv['freq'] = opts.sfreq
