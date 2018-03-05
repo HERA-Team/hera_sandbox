@@ -73,8 +73,8 @@ Nfiles = len(xx_files)
 devnull = open(os.devnull, 'w')
 
 # open output files
-abs_out = open("abs_out.txt", 'w')
-abs_err = open("abs_err.txt", 'w')
+abs_out = open("{}/abs_out.txt".format(data_path), 'w')
+abs_err = open("{}/abs_err.txt".format(data_path), 'w')
 
 if run_abscal:
     def abscal(uv_files, pol=-5):
