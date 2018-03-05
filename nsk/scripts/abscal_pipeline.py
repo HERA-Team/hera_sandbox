@@ -94,7 +94,7 @@ if run_abscal:
 
         # make flux model
         echo("making flux model", type=1)
-        cmd = "casa --nologger --nocrashreport --nogui --agg -c {} --image --freqs 100,200,1024 --cell 60arcsec --imsize 512".format(complist)
+        cmd = "casa --nologger --nocrashreport --nogui --agg -c {} --image --freqs 100,200,1024 --cell 150arcsec --imsize 512".format(complist)
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("flux model exit {}".format(out))
 
@@ -268,7 +268,7 @@ if source_spectrum:
 
         # make flux model
         echo("making flux model", type=1)
-        cmd = "casa --nologger --nocrashreport --nogui --agg -c {} --image --freqs 100,200,1024 --cell 60arcsec --imsize 512".format(complist)
+        cmd = "casa --nologger --nocrashreport --nogui --agg -c {} --image --freqs 100,200,1024 --cell 150arcsec --imsize 512".format(complist)
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("flux model exit {}".format(out))
 
