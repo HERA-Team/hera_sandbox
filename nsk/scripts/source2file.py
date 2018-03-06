@@ -12,18 +12,18 @@ import os
 import numpy as np
 import argparse
 from astropy.time import Time
-from RA2LST import RA2LST
-import JD2LST
+from hera_cal import utils
 from pyuvdata import UVData
 import sys
+from RA2LST import RA2LST
 
 ap = argparse.ArgumentParser(description='')
 
 ap.add_argument("--ra", type=float, help="RA of the source in degrees", required=True)
 ap.add_argument("--lon", default=21.428305555, type=float, help="longitude of observer in degrees East")
+ap.add_argument("--start_jd", type=int, help="starting JD of interest")
 ap.add_argument("--duration", default=2.0, type=float, help="duration in minutes of calibrator integration")
 ap.add_argument("--offset", default=0.0, type=float, help="offset from closest approach in minutes")
-ap.add_argument("--start_jd", default=None, type=int, help="starting JD of interest")
 ap.add_argument("--jd_files", default=None, type=str, nargs='*',  help="glob-parsable search of files to isolate calibrator in.")
 ap.add_argument("--get_filetimes", default=False, action='store_true', help="open source files and get more accurate duration timerange")
 
@@ -36,12 +36,12 @@ def echo(message, type=0, verbose=True):
             print('\n{}\n{}'.format(message, '-'*70))
 
 
-def source2file(ra, lon=21.428305555, duration=2.0, offset=0.0, start_jd=None,
+def source2file(ra, lon=21.428305555, lat=-30.72152, duration=2.0, offset=0.0, start_jd=None,
                     jd_files=None, get_filetimes=False, verbose=False):
     """
     """
     # get LST of source
-    lst = RA2LST(ra, lon)
+    lst = RA2LST(ra, lon, lat, start_jd)
 
     # offset
     lst += offset / 60.
@@ -54,28 +54,24 @@ def source2file(ra, lon=21.428305555, duration=2.0, offset=0.0, start_jd=None,
     source_files = None
     source_utc_range = None
 
-    if start_jd is not None:
-        # get JD when source is at zenith
-        jd = JD2LST.LST2JD(lst, start_jd, lon)
-        echo("JD closest to zenith (offset by {} minutes): {}".format(offset, jd), type=1, verbose=verbose)
+    # get JD when source is at zenith
+    jd = utils.LST2JD(lst * np.pi / 12., start_jd, longitude=lon)
+    echo("JD closest to zenith (offset by {} minutes): {}".format(offset, jd), type=1, verbose=verbose)
 
-        # print out UTC time
-        jd_duration = duration / (60. * 24 + 4.0)
-        time1 = Time(jd - jd_duration/2, format='jd').to_datetime()
-        time2 = Time(jd + jd_duration/2, format='jd').to_datetime()
-        time3 = Time(jd, format='jd').to_datetime()
-        utc_range = '"{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}~{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}"'\
-                    ''.format(time1.year, time1.month, time1.day, time1.hour, time1.minute, time1.second,
-                              time2.year, time2.month, time2.day, time2.hour, time2.minute, time2.second)
-        utc_center = '{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}'.format(time3.year, time3.month, time3.day,
-                                                                        time3.hour, time3.minute, time3.second)
-        echo('UTC time range of {} minutes is:\n{}\ncentered on {}'\
-             ''.format(duration, utc_range, utc_center), type=1, verbose=verbose)
+    # print out UTC time
+    jd_duration = duration / (60. * 24 + 4.0)
+    time1 = Time(jd - jd_duration/2, format='jd').to_datetime()
+    time2 = Time(jd + jd_duration/2, format='jd').to_datetime()
+    time3 = Time(jd, format='jd').to_datetime()
+    utc_range = '"{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}~{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}"'\
+                ''.format(time1.year, time1.month, time1.day, time1.hour, time1.minute, time1.second,
+                          time2.year, time2.month, time2.day, time2.hour, time2.minute, time2.second)
+    utc_center = '{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}'.format(time3.year, time3.month, time3.day,
+                                                                    time3.hour, time3.minute, time3.second)
+    echo('UTC time range of {} minutes is:\n{}\ncentered on {}'\
+         ''.format(duration, utc_range, utc_center), type=1, verbose=verbose)
 
     if jd_files is not None:
-
-        if start_jd is None:
-            raise AttributeError("need start_jd to search files")
 
         # get files
         files = jd_files
@@ -130,7 +126,7 @@ def source2file(ra, lon=21.428305555, duration=2.0, offset=0.0, start_jd=None,
                     uvd += uv
             file_jds = np.unique(uvd.time_array)
             file_delta_jd = np.median(np.diff(file_jds))
-            file_delta_min =  file_delta_jd * (60. * 24 + 4.0)
+            file_delta_min =  file_delta_jd * (60. * 24)
             num_file_times = int(np.ceil(duration / file_delta_min))
             file_jd_indices = np.argsort(np.abs(file_jds - jd))[:num_file_times]
             file_jd1 = file_jds[file_jd_indices].min()

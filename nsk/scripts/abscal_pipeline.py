@@ -73,8 +73,8 @@ Nfiles = len(xx_files)
 devnull = open(os.devnull, 'w')
 
 # open output files
-abs_out = open("abs_out.txt", 'w')
-abs_err = open("abs_err.txt", 'w')
+abs_out = open("{}/abs_out.txt".format(data_path), 'w')
+abs_err = open("{}/abs_err.txt".format(data_path), 'w')
 
 if run_abscal:
     def abscal(uv_files, pol=-5):
@@ -94,7 +94,7 @@ if run_abscal:
 
         # make flux model
         echo("making flux model", type=1)
-        cmd = "casa --nologger --nocrashreport --nogui --agg -c {} --image --freqs 100,200,1024 --cell 60arcsec --imsize 512".format(complist)
+        cmd = "casa --nologger --nocrashreport --nogui --agg -c {} --image --freqs 100,200,1024 --cell 150arcsec --imsize 512".format(complist)
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("flux model exit {}".format(out))
 
@@ -268,7 +268,7 @@ if source_spectrum:
 
         # make flux model
         echo("making flux model", type=1)
-        cmd = "casa --nologger --nocrashreport --nogui --agg -c {} --image --freqs 100,200,1024 --cell 60arcsec --imsize 512".format(complist)
+        cmd = "casa --nologger --nocrashreport --nogui --agg -c {} --image --freqs 100,200,1024 --cell 150arcsec --imsize 512".format(complist)
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("flux model exit {}".format(out))
 

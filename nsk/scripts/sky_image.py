@@ -30,7 +30,7 @@ a.add_argument('--out_dir', default=None, type=str, help='output directory')
 a.add_argument("--silence", default=False, action='store_true', help="turn off output to stdout")
 a.add_argument('--source_ext', default=None, type=str, help="extension to source name in output image files")
 # Calibration Arguments
-a.add_argument("--model_im", default=None, nargs='*', type=str, help="path to model image(s), if None will look for a {source}.cl file")
+a.add_argument("--model_im", default=None, type=str, help="path to model image, if None will look for a {source}.cl file")
 a.add_argument('--refant', default=None, type=str, help='reference antenna')
 a.add_argument('--ex_ants', default=None, type=str, help='bad antennas to flag')
 a.add_argument('--rflag', default=False, action='store_true', help='run flagdata(mode=rflag)')
@@ -47,6 +47,7 @@ a.add_argument('--bpoly', default=False, action='store_true', help="use BPOLY mo
 a.add_argument('--degamp', default=4, type=int, help="amplitude polynomial degree for BPOLY")
 a.add_argument('--degphase', default=1, type=int, help="phase polynomial degree for BPOLY")
 a.add_argument('--calspw', default='0:100~924', type=str, help="Calibration spectral window selection")
+a.add_argument('--smodel', default=[], type=float, nargs='*', help="Stokes source model as I Q U V")
 # Imaging Arguments
 a.add_argument('--image_mfs', default=False, action='store_true', help="make an MFS image across the band")
 a.add_argument('--niter', default=50, type=int, help='number of clean iterations.')
@@ -126,9 +127,8 @@ if __name__ == "__main__":
             echo("...inserting {} as MODEL".format("{}.cl".format(args.source)), type=1)
             ft(msin, complist="{}.cl".format(args.source), usescratch=True)
         else:
-            for i, im in enumerate(args.model_im):
-                echo("...inserting {} as MODEL".format(im), type=1)
-                ft(msin, model=im, usescratch=True, incremental=True)
+            echo("...inserting {} as MODEL".format(args.model_im), type=1)
+            ft(msin, model=args.model_im, usescratch=True)
 
     # unflag
     if args.unflag is True:
@@ -239,7 +239,8 @@ if __name__ == "__main__":
         if os.path.exists("{}.phs.png".format(bc)):
             os.remove("{}.phs.png".format(bc))
         bandpass(vis=msin, spw="", minsnr=args.BPsnr, bandtype=Btype, degamp=args.degamp, degphase=args.degphase,
-                caltable=bc, gaintable=gaintables, solint='inf', refant=args.refant, timerange=cal_timerange, uvrange=args.uvrange)
+                caltable=bc, gaintable=gaintables, solint='inf', refant=args.refant, timerange=cal_timerange,
+                uvrange=args.uvrange, smodel=args.smodel)
         plotcal(bc, xaxis='chan', yaxis='amp', figfile="{}.amp.png".format(bc), showgui=False)
         plotcal(bc, xaxis='chan', yaxis='phase', figfile="{}.phs.png".format(bc), showgui=False)
         gaintables.append(bc)
@@ -320,9 +321,8 @@ if __name__ == "__main__":
             echo("...inserting {} as MODEL".format("{}.cl".format(args.source)), type=1)
             ft(ms_split, complist="{}.cl".format(args.source), usescratch=True)
         else:
-            for i, im in enumerate(args.model_im):
-                echo("...inserting {} as MODEL".format(im), type=1)
-                ft(ms_split, model=im, usescratch=True, incremental=True)
+            echo("...inserting {} as MODEL".format(args.model_im), type=1)
+            ft(ms_split, model=args.model_im, usescratch=True)
         split(ms_split, model_ms_split, datacolumn='model')
 
     # create mfs image
@@ -374,8 +374,7 @@ if __name__ == "__main__":
         if args.model_im is None:
             ft(ms_split, complist="{}.cl".format(args.source), usescratch=True)
         else:
-            for i, im in enumerate(args.model_im):
-                ft(ms_split, model=im, usescratch=True, incremental=True)
+            ft(ms_split, model=args.model_im, usescratch=True)
         # load visibility amplitudes
         ms.open(ms_split)
         data = ms.getdata(["amplitude", "antenna1", "antenna2", "uvdist", "axis_info", "flag", "model_amplitude"], ifraxis=True)
