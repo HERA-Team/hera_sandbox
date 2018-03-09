@@ -165,8 +165,9 @@ if run_abscal:
         amp_file = source_uvfile + '.ms.Gamp.cal.npz'
         bp_file = source_uvfile + '.ms.B.cal.npz'
         cmd = "skynpz2calfits.py --fname {} --uv_file {} --dly_file {} --phs_file {} --amp_file {} --bp_file {} " \
-              "--plot_bp --plot_phs --plot_amp --plot_dlys --bp_medfilt --medfilt_kernel 13 --bp_gp_smooth " \
-              "--bp_gp_max_dly 200 --bp_gp_thin 4 {}".format(calfits_fname, source_uvfile, dly_file, phs_file, amp_file, bp_file, overwrite)
+              "--plot_bp --plot_phs --plot_amp --plot_dlys --bp_medfilt --medfilt_kernel 13 {} " \
+              "--bp_gp_max_dly {} --bp_gp_thin 4 {}".format(calfits_fname, source_uvfile, dly_file, phs_file, amp_file, 
+                                                            bp_file, bp_gp_smooth, bp_gp_mx_dly, overwrite)
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("skynpz2calfits exit {}".format(out))
 
