@@ -98,8 +98,8 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
     Nfreqs = len(freqs)
     Nants = len(ants)
     jones = uvd.polarization_array
-    num2str = {-5: 'jxx', -6: 'jyy', -7: 'jxy', -8: 'jyx'}
-    str2num = {'jxx': -5, 'jyy': -6, 'jxy': -7, 'jyx': -8}
+    num2str = {-5: 'x', -6: 'y', -7: 'jxy', -8: 'jyx'}
+    str2num = {'x': -5, 'y': -6, 'jxy': -7, 'jyx': -8}
     pols = np.array(map(lambda j: num2str[j], jones))
 
     # construct blank gains and flags
