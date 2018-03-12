@@ -8,36 +8,16 @@ import aipy
 
 NTHREADS = 1024 # make 512 for smaller GPUs
 MAX_MEMORY = 2**29
-NANT = 8
+NANT = 32
 START_JD = 2458000
 END_JD = 2458001
-INT_TIME = 21600
+INT_TIME = 2160
 NSIDE = 512
 NPIX = 12*NSIDE**2 # this is assumed to always be bigger than NTHREADS
-#CHUNK = max(2,2**int(math.ceil(np.log2(float(NANT*NPIX) / MAX_MEMORY))))
-#CHUNK = max(4,2**int(math.ceil(np.log2(float(NANT*NPIX) / MAX_MEMORY / 2))))
-CHUNK = 4
+CHUNK = max(8,2**int(math.ceil(np.log2(float(NANT*NPIX) / MAX_MEMORY / 2))))
 NPIXC = NPIX / CHUNK
 FREQ = .150
 BEAM_PX = 63
-NBUF = CHUNK
-
-#import pycuda.elementwise as elementwise
-#class GPUArray(pycuda.gpuarray.GPUArray):
-#    def conj(self, stream=None):
-#        dtype = self.dtype
-#        if issubclass(self.dtype.type, np.complexfloating):
-#            result = self._new_like_me()
-#
-#            func = elementwise.get_conj_kernel(dtype)
-#            #func.set_block_shape(*self._block)
-#            func.prepared_async_call(self._grid, self._block, stream,
-#                    self.gpudata, result.gpudata,
-#                    self.mem_size)
-#
-#            return result
-#        else:
-#            return self
 
 gpu_template = """
 #include <cuComplex.h>
@@ -188,17 +168,14 @@ crdeq[0,0] = 1
 # Transfer of values to GPU
 texref.set_array(numpy3d_to_array(bm_tex)) # never changes, transpose happens in copy so cuda bm_tex is (BEAM_PX,BEAM_PX,NANT)
 antpos_gpu = gpuarray.to_gpu(antpos) # never changes, set to -2*pi*antpos/c
-#Isqrt_gpu = gpuarray.to_gpu(Isqrt) # never changes
 Isqrt_gpu = gpuarray.empty(shape=(1,NPIXC), dtype=np.float32)
 A_gpu = gpuarray.empty(shape=(NANT,NPIXC), dtype=np.float32) # will be set on GPU by beam_interpolate
-#crdeq_gpu = gpuarray.to_gpu(crdeq) # never changes
 crdeq_gpu = gpuarray.empty(shape=(3,NPIXC), dtype=np.float32)
 eq2top_gpu = gpuarray.to_gpu(eq2top) # sent from CPU each jd
 crdtop_gpu = gpuarray.empty(shape=(3,NPIXC), dtype=np.float32) # will be set on GPU
 tau_gpu = gpuarray.empty(shape=(NANT,NPIXC), dtype=np.float32) # will be set on GPU
-#v_gpu = gpuarray.empty(shape=(NANT,NPIXC), dtype=np.complex64) # will be set on GPU
+v_gpu = gpuarray.empty(shape=(NANT,NPIXC), dtype=np.complex64) # will be set on GPU
 #v_gpus = [gpuarray.empty(shape=(NANT,NPIXC), dtype=np.complex64) for i in xrange(CHUNK)]
-v_gpus = [gpuarray.empty(shape=(NANT,NPIXC), dtype=np.complex64) for i in xrange(NBUF)]
 #vis_gpu = gpuarray.empty(shape=(NANT,NANT), dtype=np.complex64) # will be set on GPU and returned
 
 #tau = np.zeros((NANT,NPIXC), dtype=np.float32)
@@ -224,16 +201,8 @@ print 'Starting', t_start
 print grid, block
 times = np.arange(START_JD, END_JD, INT_TIME / aipy.const.s_per_day)
 event_order = ('start','upload','eq2top','tau','interpolate','meq','vis','end')
-#events = [{e:driver.Event() for e in event_order} for i in xrange(CHUNK)]
-#streams = [driver.Stream() for i in xrange(CHUNK)]
-#for c in xrange(CHUNK):
-#    for e in events[c].values(): e.record()
-#crdeq_gpu.set_async(crdeq[:,:NPIXC]) # initial for CHUNK=1 case
-#Isqrt_gpu.set_async(Isqrt[:,:NPIXC]) # initial for CHUNK=1 case
 viss = [np.empty(shape=(NANT,NANT), dtype=np.complex64) for i in xrange(CHUNK)]
-# XXX need a separate notion of chunks of data and streams processing it
 vis_gpus = [gpuarray.empty(shape=(NANT,NANT), dtype=np.complex64) for i in xrange(CHUNK)]
-#streams = [driver.Stream() for i in xrange(3)]
 streams = [driver.Stream() for i in xrange(CHUNK)]
 for ti,jd in enumerate(times):
     print ti,'/',len(times)
@@ -264,11 +233,11 @@ for ti,jd in enumerate(times):
             beam_interpolate(crdtop_gpu, A_gpu, grid=grid, block=block, stream=stream)
             events[prev_c]['interpolate'].record(stream)
             # compute v = A * I * exp(1j*tau*freq)
-            meq(A_gpu, Isqrt_gpu, tau_gpu, np.float32(FREQ), v_gpus[prev_c%NBUF], grid=grid, block=block, stream=stream)
+            meq(A_gpu, Isqrt_gpu, tau_gpu, np.float32(FREQ), v_gpu, grid=grid, block=block, stream=stream)
             events[prev_c]['meq'].record(stream)
             # compute vis = dot(v, v.T)
             # transpose below incurs about 20% overhead
-            skcuda.cublas.cublasCgemm(h, 'c', 'n', NANT, NANT, NPIXC, 1., v_gpus[prev_c%NBUF].gpudata, NPIXC, v_gpus[prev_c%NBUF].gpudata, NPIXC, 0., vis_gpus[prev_c].gpudata, NANT)
+            skcuda.cublas.cublasCgemm(h, 'c', 'n', NANT, NANT, NPIXC, 1., v_gpu.gpudata, NPIXC, v_gpu.gpudata, NPIXC, 0., vis_gpus[prev_c].gpudata, NANT)
             events[prev_c]['vis'].record(stream)
         if c < CHUNK:
             stream = streams[c]
