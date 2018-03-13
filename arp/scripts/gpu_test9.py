@@ -6,20 +6,30 @@ import numpy as np
 import math, time
 import aipy
 
-NTHREADS = 1024 # make 512 for smaller GPUs
-MAX_MEMORY = 2**29
-NANT = 32
 START_JD = 2458000
 END_JD = 2458001
 INT_TIME = 2160
+FREQ = .150
+
+NTHREADS = 1024 # make 512 for smaller GPUs
+MAX_MEMORY = 2**29
+NANT = 32
 NSIDE = 512
 NPIX = 12*NSIDE**2 # this is assumed to always be bigger than NTHREADS
 CHUNK = max(8,2**int(math.ceil(np.log2(float(NANT*NPIX) / MAX_MEMORY / 2))))
 NPIXC = NPIX / CHUNK
-FREQ = .150
 BEAM_PX = 63
 
 gpu_template = """
+// CUDA code for interpolating antenna beams and computing "voltage" visibilities 
+// [A^1/2 * I^1/2 * exp(-2*pi*i*freq*dot(a,s)/c)]
+// === Template Parameters ===
+// "BLOCK_Y": # of sky pixels handled by one GPU block, used to size shared memory
+// "NANT"   : # of antennas to pair into visibilities
+// "NPIX"   : # of sky pixels to sum over.
+// "BEAM_PX": dimension of sampled square beam matrix to be interpolated.  
+//            Suggest using odd number.
+
 #include <cuComplex.h>
 
 // Linearly interpolate between [v0,v1] for t=[0,1]
@@ -30,58 +40,58 @@ inline float lerp(float v0, float v1, float t) {
     return fma(t, v1, fma(-t, v0, v0));
 }
 
-// Texture storing beam response on (x=sin th_x, y=sin th_y, nant) grid
-// for fast lookup from multiple threads.  Suggest setting first 2 dims of
-// bm_tex to an odd number to get pixel centered on zenith
+// 3D texture storing beam response on (x=sin th_x, y=sin th_y, nant) grid
+// for fast lookup by multiple threads.  Suggest setting first 2 dims of
+// bm_tex to an odd number to get pixel centered on zenith.  The pixels
+// on the border are centered at [-1,1] respectively.  Note that this
+// matrix appears transposed relative to the host-side matrix used to set it.
 texture<float, cudaTextureType3D, cudaReadModeElementType> bm_tex;
 
-// Shared memory for storing per-antenna results to be reused among all ants,
-// avoiding a rush on global memory.
-//__shared__ float sh_buf[%(BLOCK_Y)s,4];
+// Shared memory for storing per-antenna results to be reused among all ants
+// for "BLOCK_Y" pixels, avoiding a rush on global memory.
 __shared__ float sh_buf[%(BLOCK_Y)s*5];
 
-// Interpolate bm_tex[x,y] at top=(x,y,z) coordinates and store answer in A
+// Interpolate bm_tex[x,y] at top=(x,y,z) coordinates and store answer in "A"
 __global__ void InterpolateBeam(float *top, float *A)
 {
     const uint nant = %(NANT)s;
     const uint npix = %(NPIX)s;
     const uint ty = threadIdx.x; // switched to make first dim px
     const uint tx = threadIdx.y; // switched to make second dim ant
-    const uint col = blockIdx.x * blockDim.x + threadIdx.x;
+    const uint pix = blockIdx.x * blockDim.x + threadIdx.x;
     const uint ant = blockIdx.y * blockDim.y + threadIdx.y;
     const uint beam_px = %(BEAM_PX)s;
     float bm_x, bm_y, px, py, pz, fx, fy, top_z;
-    if (col >= npix || ant >= nant) return;
+    if (pix >= npix || ant >= nant) return;
     if (tx == 0) // buffer top_z for all threads
-        sh_buf[ty+%(BLOCK_Y)s * 4] = top[2*npix+col];
+        sh_buf[ty+%(BLOCK_Y)s * 4] = top[2*npix+pix];
     __syncthreads(); // make sure top_z exists for all threads
     top_z = sh_buf[ty+%(BLOCK_Y)s * 4];
     if (tx == 0 && top_z > 0) { // buffer x interpolation for all threads
-        bm_x = (beam_px-1) * (0.5 * top[col] + 0.5);
-        //bm_x = (beam_px) * (0.5 * top[col] + 0.5) - 0.5f;
+        bm_x = (beam_px-1) * (0.5 * top[pix] + 0.5);
+        //bm_x = (beam_px) * (0.5 * top[pix] + 0.5) - 0.5f;
         px = floorf(bm_x);   // integer position
         sh_buf[ty+%(BLOCK_Y)s * 0] = bm_x - px; // fx, fractional position
         sh_buf[ty+%(BLOCK_Y)s * 2] = px + 0.5f; // px, pixel index
     }
     if (tx == 1 && top_z > 0) { // buffer y interpolation for all threads
-        bm_y = (beam_px-1) * (0.5 * top[npix+col] + 0.5);
-        //bm_y = (beam_px) * (0.5 * top[npix+col] + 0.5) - 0.5f;
+        bm_y = (beam_px-1) * (0.5 * top[npix+pix] + 0.5);
+        //bm_y = (beam_px) * (0.5 * top[npix+pix] + 0.5) - 0.5f;
         py = floorf(bm_y);
         sh_buf[ty+%(BLOCK_Y)s * 1] = bm_y - py; // fy, fractional position
         sh_buf[ty+%(BLOCK_Y)s * 3] = py + 0.5f; // py, pixel index
     }
-    __syncthreads(); // make interpolation exists for all threads
+    __syncthreads(); // make sure interpolation exists for all threads
     if (top_z > 0) {
         fx = sh_buf[ty+%(BLOCK_Y)s * 0];
         fy = sh_buf[ty+%(BLOCK_Y)s * 1];
         px = sh_buf[ty+%(BLOCK_Y)s * 2];
         py = sh_buf[ty+%(BLOCK_Y)s * 3];
         pz = ant + 0.5f;
-        //A[ant*npix+col] = px;
-        A[ant*npix+col] = lerp(lerp(tex3D(bm_tex,px,py,pz),      tex3D(bm_tex,px+1.0f,py,pz),fx),
+        A[ant*npix+pix] = lerp(lerp(tex3D(bm_tex,px,py,pz),      tex3D(bm_tex,px+1.0f,py,pz),fx),
                lerp(tex3D(bm_tex,px,py+1.0f,pz), tex3D(bm_tex,px+1.0f,py+1.0f,pz),fx), fy);
     } else {
-        A[ant*npix+col] = 0;
+        A[ant*npix+pix] = 0;
     }
     __syncthreads(); // make sure everyone used mem before kicking out
 }
@@ -94,24 +104,24 @@ __global__ void MeasEq(float *A, float *I, float *tau, float freq, cuFloatComple
     const uint ty = threadIdx.x; // switched to make first dim px
     const uint tx = threadIdx.y; // switched to make second dim ant
     const uint row = blockIdx.y * blockDim.y + threadIdx.y; // second thread dim is ant
-    const uint col = blockIdx.x * blockDim.x + threadIdx.x; // first thread dim is px
+    const uint pix = blockIdx.x * blockDim.x + threadIdx.x; // first thread dim is px
     float amp, phs;
 
-    if (row >= nant || col >= npix) return;
+    if (row >= nant || pix >= npix) return;
     if (tx == 0)
-        sh_buf[ty] = I[col];
+        sh_buf[ty] = I[pix];
     __syncthreads(); // make sure all memory is loaded before computing
-    amp = A[row*npix + col] * sh_buf[ty];
-    phs = tau[row*npix + col] * freq;
-    v[row*npix + col] = make_cuFloatComplex(amp * cos(phs), amp * sin(phs));
+    amp = A[row*npix + pix] * sh_buf[ty];
+    phs = tau[row*npix + pix] * freq;
+    v[row*npix + pix] = make_cuFloatComplex(amp * cos(phs), amp * sin(phs));
     __syncthreads(); // make sure everyone used mem before kicking out
 }
 """
 
 def numpy3d_to_array(np_array):
-    '''Copy a 3D numpy array into a 3D pycuda array that can be used to set a texture.
-    (For some reason, gpuarrays can't be used to do that directly).  A transpose
-    happens implicitly, so the resulting array has dimensions (w,h,d).'''
+    '''Copy a 3D (d,h,w) numpy array into a 3D pycuda array that can be used 
+    to set a texture.  (For some reason, gpuarrays can't be used to do that 
+    directly).  A transpose happens implicitly; the CUDA array has dim (w,h,d).'''
     import pycuda.autoinit
     d, h, w = np_array.shape
     descr = driver.ArrayDescriptor3D()
@@ -142,7 +152,7 @@ gpu_code = gpu_template % {
         }
 gpu_module = compiler.SourceModule(gpu_code)
 beam_interpolate = gpu_module.get_function("InterpolateBeam")
-meq = gpu_module.get_function("MeasEq")
+meas_eq = gpu_module.get_function("MeasEq")
 texref = gpu_module.get_texref("bm_tex")
 h = skcuda.cublas.cublasCreate()
 
@@ -200,7 +210,7 @@ t_start = time.time()
 print 'Starting', t_start
 print grid, block
 times = np.arange(START_JD, END_JD, INT_TIME / aipy.const.s_per_day)
-event_order = ('start','upload','eq2top','tau','interpolate','meq','vis','end')
+event_order = ('start','upload','eq2top','tau','interpolate','meas_eq','vis','end')
 viss = [np.empty(shape=(NANT,NANT), dtype=np.complex64) for i in xrange(CHUNK)]
 vis_gpus = [gpuarray.empty(shape=(NANT,NANT), dtype=np.complex64) for i in xrange(CHUNK)]
 streams = [driver.Stream() for i in xrange(CHUNK)]
@@ -233,8 +243,8 @@ for ti,jd in enumerate(times):
             beam_interpolate(crdtop_gpu, A_gpu, grid=grid, block=block, stream=stream)
             events[prev_c]['interpolate'].record(stream)
             # compute v = A * I * exp(1j*tau*freq)
-            meq(A_gpu, Isqrt_gpu, tau_gpu, np.float32(FREQ), v_gpu, grid=grid, block=block, stream=stream)
-            events[prev_c]['meq'].record(stream)
+            meas_eq(A_gpu, Isqrt_gpu, tau_gpu, np.float32(FREQ), v_gpu, grid=grid, block=block, stream=stream)
+            events[prev_c]['meas_eq'].record(stream)
             # compute vis = dot(v, v.T)
             # transpose below incurs about 20% overhead
             skcuda.cublas.cublasCgemm(h, 'c', 'n', NANT, NANT, NPIXC, 1., v_gpu.gpudata, NPIXC, v_gpu.gpudata, NPIXC, 0., vis_gpus[prev_c].gpudata, NANT)
