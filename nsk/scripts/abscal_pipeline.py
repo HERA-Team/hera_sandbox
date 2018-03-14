@@ -45,6 +45,9 @@ import aplpy
 
 # default parameters
 renumber_uvfits = False
+KGsnr = 2.0
+Asnr = 2.0
+BPsnr = 2.0
 
 # import parameter file
 from abscal_params import *
@@ -161,8 +164,9 @@ if run_abscal:
         echo("absolutely calibrating", type=1)
         cmd = "casa --nologger --nocrashreport --nogui --agg -c sky_image.py " \
               "--msin {} --source {} --model_im {} --refant {} {} --imsize {} --pxsize {} --niter {} --timerange {} " \
-              "--KGcal --Acal --BPcal --image_mfs --image_model --plot_uvdist" \
-              "".format(source_uvfits, source, modelfile, refant, ex_ants, imsize, pxsize, niter, source_utc_range)
+              "--KGcal --KGsnr {} --Acal --Asnr {} --BPcal --BPsnr {} --image_mfs --image_model --plot_uvdist" \
+              "".format(source_uvfits, source, modelfile, refant, ex_ants, imsize, pxsize, niter, source_utc_range,
+                        KGsnr, Asnr, BPsnr)
         if casa_rflag:
             cmd += ' --rflag'
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
