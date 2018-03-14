@@ -28,7 +28,8 @@ a.add_argument('--source', default=None, type=str, help='source name', required=
 # IO Arguments
 a.add_argument('--out_dir', default=None, type=str, help='output directory')
 a.add_argument("--silence", default=False, action='store_true', help="turn off output to stdout")
-a.add_argument('--source_ext', default=None, type=str, help="extension to source name in output image files")
+a.add_argument('--source_ext', default=None, type=str, help="Extension to default source name in output image files")
+a.add_argument("--im_stem", default=None, type=str, help="Imagename stem for output images. Default is basename of input MS.")
 # Calibration Arguments
 a.add_argument("--model_im", default=None, type=str, help="path to model image, if None will look for a {source}.cl file")
 a.add_argument('--refant', default=None, type=str, help='reference antenna')
@@ -59,6 +60,7 @@ a.add_argument('--spec_cube', default=False, action='store_true', help="image sp
 a.add_argument('--spec_dchan', default=40, type=int, help="number of channel averaging for a single image in the spectral cube.")
 a.add_argument('--spec_start', default=100, type=int, help='starting channel for spectral cube')
 a.add_argument('--spec_end', default=924, type=int, help='ending channel for spectral cube')
+a.add_argument("--stokes", default='I', type=str, help="Stokes parameters to image.")
 # Plotting Arguments
 a.add_argument("--plot_uvdist", default=False, action='store_true', help='make a uvdist plot')
 
@@ -303,7 +305,10 @@ if __name__ == "__main__":
 
     if args.image_mfs is True or args.spec_cube is True:
         # remove paths
-        im_stem = os.path.join(out_dir, base_ms + '.' + args.source + args.source_ext)
+        if args.im_stem is None:
+            im_stem = os.path.join(out_dir, base_ms + '.' + args.source + args.source_ext)
+        else:
+            im_stem = args.im_stem
         echo("...performing clean for output files:\n{}.*".format(im_stem), type=1)
         source_files = glob.glob(im_stem+'*')
         if len(source_files) > 0:
@@ -316,7 +321,10 @@ if __name__ == "__main__":
 
     if args.image_model:
         model_ms_split = ms_split + ".model"
-        model_im_stem = os.path.join(out_dir, base_ms + '.model.' + args.source + args.source_ext)
+        if args.im_stem is None:
+            model_im_stem = os.path.join(out_dir, base_ms + '.model.' + args.source + args.source_ext)
+        else:
+            model_im_stem = args.im_stem + '.model'
         if args.model_im is None:
             echo("...inserting {} as MODEL".format("{}.cl".format(args.source)), type=1)
             ft(ms_split, complist="{}.cl".format(args.source), usescratch=True)
@@ -330,7 +338,7 @@ if __name__ == "__main__":
         echo("...running MFS clean", type=1)
         def image_mfs(msin, im_stem, timerange, cleanspw):
             clean(vis=msin, imagename=im_stem, spw=cleanspw, niter=args.niter, weighting='briggs', robust=0, imsize=[args.imsize, args.imsize],
-                  cell=['{}arcsec'.format(args.pxsize)], mode='mfs', timerange=timerange, uvrange=args.uvrange)
+                  cell=['{}arcsec'.format(args.pxsize)], mode='mfs', timerange=timerange, uvrange=args.uvrange, stokes=args.stokes)
             exportfits(imagename='{}.image'.format(im_stem), fitsimage='{}.fits'.format(im_stem))
             print("...saving {}".format('{}.fits'.format(im_stem)))
 
@@ -353,7 +361,7 @@ if __name__ == "__main__":
             for i, chan in enumerate(np.arange(args.spec_start, args.spec_end, dchan)):
                 clean(vis=msin, imagename=im_stem+'.spec{:04d}'.format(chan), niter=0, spw="0:{}~{}".format(chan, chan+dchan-1),
                         weighting='briggs', robust=0, imsize=[args.imsize, args.imsize], timerange=timerange, uvrange=args.uvrange,
-                        cell=['{}arcsec'.format(args.pxsize)], mode='mfs')#, mask='circle[[{}h{}m{}s, {}d{}m{}s ], 7deg]'.format(*(ra+dec)))
+                        cell=['{}arcsec'.format(args.pxsize)], mode='mfs', stokes=args.stokes)#, mask='circle[[{}h{}m{}s, {}d{}m{}s ], 7deg]'.format(*(ra+dec)))
                 exportfits(imagename='{}.spec{:04d}.image'.format(im_stem, chan), fitsimage='{}.spec{:04d}.fits'.format(im_stem, chan))
                 print("...saving {}".format('{}.spec{:04d}.fits'.format(im_stem, chan)))
 

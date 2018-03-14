@@ -19,12 +19,12 @@ from RA2LST import RA2LST
 
 ap = argparse.ArgumentParser(description='')
 
-ap.add_argument("--ra", type=float, help="RA of the source in degrees", required=True)
+ap.add_argument("--ra", type=float, help="RA odf the source in degrees", required=True)
 ap.add_argument("--lon", default=21.428305555, type=float, help="longitude of observer in degrees East")
 ap.add_argument("--start_jd", type=int, help="starting JD of interest")
 ap.add_argument("--duration", default=2.0, type=float, help="duration in minutes of calibrator integration")
 ap.add_argument("--offset", default=0.0, type=float, help="offset from closest approach in minutes")
-ap.add_argument("--jd_files", default=None, type=str, nargs='*',  help="glob-parsable search of files to isolate calibrator in.")
+ap.add_argument("--jd_files", default=None, type=str, nargs='*', help="glob-parsable search of files to isolate calibrator in.")
 ap.add_argument("--get_filetimes", default=False, action='store_true', help="open source files and get more accurate duration timerange")
 
 
