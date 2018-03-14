@@ -43,6 +43,9 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import PolynomialFeatures
 import aplpy
 
+# default parameters
+renumber_uvfits = False
+
 # import parameter file
 from abscal_params import *
 if overwrite:
@@ -136,6 +139,14 @@ if run_abscal:
             out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
             echo("miriad_to_uvfits on {} exit {}".format(sf, out))            
         source_uvfits = map(lambda x: x+'.uvfits', source_files)
+
+        # renumber ants
+        if renumber_uvfits:
+            echo("renumbering uvfits", type=1)
+            for i, sf in enumerate(source_uvfits):
+                cmd = "renumber_ants.py --overwrite {} {}".format(sf, sf)
+                out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
+                echo("renumber_ants on {} exit {}".format(sf, out))
 
         # combine uvfits
         if len(source_uvfits) > 1:
