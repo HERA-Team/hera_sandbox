@@ -94,7 +94,6 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
     # get freqs, times, jones
     freqs = np.unique(uvd.freq_array)
     times = np.unique(uvd.time_array)
-    Ntimes = len(times)
     Nfreqs = len(freqs)
     Nants = len(ants)
     jones = uvd.polarization_array
@@ -103,8 +102,8 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
     pols = np.array(map(lambda j: num2str[j], jones))
 
     # construct blank gains and flags
-    gains = np.ones((Nants, Nfreqs, Ntimes, 1), dtype=np.complex)
-    flags = np.zeros((Nants, Nfreqs, Ntimes, 1), dtype=np.bool)
+    gains = np.ones((Nants, Nfreqs, 1, 1), dtype=np.complex)
+    flags = np.zeros((Nants, Nfreqs, 1, 1), dtype=np.bool)
     flagged_ants = np.zeros(Nants, dtype=np.bool)
 
     # process delays if available

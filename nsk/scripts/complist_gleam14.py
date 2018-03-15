@@ -44,6 +44,10 @@ if __name__ == "__main__":
     cl.addcomponent(label="GLEAM1421-3104", flux=7.8, fluxunit="Jy", dir="14h21m55s -31d04m22s",
                     freq=ref_freq, shape="point", spectrumtype='spectral index', index=-0.9)
 
+    # gleam 1421 -3104
+    cl.addcomponent(label="GLEAM1421-3104", flux=7.8, fluxunit="Jy", dir="14h21m55.4s -31d04m22s",
+                    freq=ref_freq, shape="point", spectrumtype='spectral index', index=-0.85)
+
     # save
     if os.path.exists("gleam14.cl"):
         shutil.rmtree("gleam14.cl")
