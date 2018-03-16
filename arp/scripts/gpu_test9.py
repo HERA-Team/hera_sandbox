@@ -3,6 +3,7 @@ from pycuda import compiler, gpuarray, driver
 from skcuda.cublas import cublasCreate, cublasSetStream, cublasSgemm, cublasCgemm, cublasDestroy
 import numpy as np
 from math import ceil
+import time
 
 NTHREADS = 1024 # make 512 for smaller GPUs
 MAX_MEMORY = 2**29 # floats (4B each)
@@ -240,49 +241,95 @@ def vis_gpu(antpos, freq, eq2tops, crd_eq, I_sky, bm_cube,
     cublasDestroy(h)
     return vis
 
-NTIMES = 400
-FREQ = .150
+def vis_cpu(antpos, freq, eq2tops, crd_eq, I_sky, bm_cube,
+            real_dtype=np.float32, complex_dtype=np.complex64,
+            verbose=False):
+    nant = len(antpos)
+    ntimes = len(eq2tops)
+    npix = I_sky.size
+    bm_pix = bm_cube.shape[-1]
+    Isqrt = np.sqrt(I_sky).astype(real_dtype)
+    antpos = antpos.astype(real_dtype)
+    A_s = np.empty((nant,npix), dtype=real_dtype)
+    vis = np.empty((ntimes,nant,nant), dtype=complex_dtype)
+    tau = np.empty((nant,npix), dtype=real_dtype)
+    v = np.empty((nant,npix), dtype=complex_dtype)
+    for t,eq2top in enumerate(eq2tops.astype(real_dtype)):
+        if verbose:
+            print '%d/%d' % (t, ntimes)
+            t_start = time.time()
+        tx,ty,tz = crd_top = np.dot(eq2top, crd_eq)
+        # XXX cut in tz?
+        bmx,bmy = (bm_pix - 1) * (0.5*tx + 0.5), (bm_pix - 1) * (0.5*ty + 0.5)
+        px,py = np.floor(bmx).astype(np.int), np.floor(bmy).astype(np.int)
+        pxp1, pyp1 = (px+1).clip(0,bm_pix-1), (py+1).clip(0,bm_pix-1)
+        fx,fy = bmx-px, bmy-py
+        # Linearly interpolate between [v0,v1] for t=[0,1]
+        # v = v0 * (1-t) + v1 * t = t*v1 + (-t*v0 + v0)
+        A_s = (bm_cube[:,py  ,px] * (1-fx) + bm_cube[:,py  ,pxp1] * (fx)) * (1-fy) + \
+              (bm_cube[:,pyp1,px] * (1-fx) + bm_cube[:,pyp1,pxp1] * (fx)) * (fy)
+        A_s = np.where(tz > 0, A_s, 0)
+        np.dot(antpos, crd_top, out=tau)
+        #for i,ai in enumerate(antpos):
+        #    np.dot(ai, crd_top, out=v[i])
+        #np.exp(1j*v, out=v)
+        np.exp(1j*tau, out=v)
+        AI_s = A_s * Isqrt
+        v *= AI_s
+        for i in xrange(len(antpos)):
+            np.dot(v[i:i+1].conj(), v[i:].T, out=vis[t,i:i+1,i:])
+        if verbose:
+            print 'TOTAL:', time.time() - t_start
+            #print vis[t].conj()
+    np.conj(vis, out=vis)
+    return vis
 
-NANT = 32
-NSIDE = 512
-NPIX = 12*NSIDE**2 # this is assumed to always be bigger than NTHREADS
-CHUNK = max(8,2**int(ceil(np.log2(float(NANT*NPIX) / MAX_MEMORY / 2))))
-NPIXC = NPIX / CHUNK
-BEAM_PX = 63
+if __name__ == '__main__':
+    NTIMES = 100
+    FREQ = .150
 
-import time
-import pycuda.autoinit
-print '=== Device attributes'
-dev = pycuda.autoinit.device
-print 'Name:', dev.name()
-print 'Compute capability:', dev.compute_capability()
-print 'Concurrent Kernels:', \
-     bool(dev.get_attribute(driver.device_attribute.CONCURRENT_KERNELS))
+    NANT = 8
+    NSIDE = 512
+    NPIX = 12*NSIDE**2 # this is assumed to always be bigger than NTHREADS
+    CHUNK = max(8,2**int(ceil(np.log2(float(NANT*NPIX) / MAX_MEMORY / 2))))
+    NPIXC = NPIX / CHUNK
+    BEAM_PX = 63
 
-print '# Antennas:', NANT
-print 'NSIDE:', NSIDE
-t_start = time.time()
-print 'Starting', t_start
-#print grid, block
-# Initialization of values on CPU side
-np.random.seed(0)
-antpos = np.zeros(shape=(NANT,3), dtype=np.float32) # multiply -2pi/c into here
-antpos[:,0] = 1
-eq2top = np.array([[1.,0,0],[0,1,0],[0,0,1]])
-eq2tops = np.resize(eq2top, (NTIMES,3,3))
-#crd_eq = np.random.uniform(size=(3,NPIX)).astype(real_dtype)
-crd_eq = np.zeros(shape=(3,NPIX), dtype=np.float32)
-crd_eq[2] = 1
-#crd_eq[0,0] = -1
-crd_eq[0,0] = 1
-# note that bm_tex is transposed relative to the cuda texture buffer
-bm_cube = np.ones(shape=(NANT,BEAM_PX,BEAM_PX), dtype=np.float32) # X is 3rd dim, Y is 2nd dim
-bm_cube *= 0
-bm_cube[:,31,62] = 2
-#bm_cube[:,31,0] = 2
-I_sky = np.zeros(shape=(NPIX,), dtype=np.float32)
-I_sky[0] = 1
+    import time
+    import pycuda.autoinit
+    print '=== Device attributes'
+    dev = pycuda.autoinit.device
+    print 'Name:', dev.name()
+    print 'Compute capability:', dev.compute_capability()
+    print 'Concurrent Kernels:', \
+         bool(dev.get_attribute(driver.device_attribute.CONCURRENT_KERNELS))
 
-vis = vis_gpu(antpos, .15, eq2tops, crd_eq, I_sky, bm_cube, verbose=False)
-print np.allclose(vis, 4)
-print 'Time elapsed:', time.time() - t_start
+    print '# Antennas:', NANT
+    print 'NSIDE:', NSIDE
+    t_start = time.time()
+    print 'Starting', t_start
+    #print grid, block
+    # Initialization of values on CPU side
+    np.random.seed(0)
+    antpos = np.zeros(shape=(NANT,3), dtype=np.float32) # multiply -2pi/c into here
+    antpos[:,0] = 1
+    antpos *= -2 * np.pi / 3e1 # cm -> ns conversion
+    eq2top = np.array([[1.,0,0],[0,1,0],[0,0,1]])
+    eq2tops = np.resize(eq2top, (NTIMES,3,3))
+    #crd_eq = np.random.uniform(size=(3,NPIX)).astype(real_dtype)
+    crd_eq = np.zeros(shape=(3,NPIX), dtype=np.float32)
+    crd_eq[2] = 1
+    #crd_eq[0,0] = -1
+    crd_eq[0,0] = 1
+    # note that bm_tex is transposed relative to the cuda texture buffer
+    bm_cube = np.ones(shape=(NANT,BEAM_PX,BEAM_PX), dtype=np.float32) # X is 3rd dim, Y is 2nd dim
+    bm_cube *= 0
+    bm_cube[:,31,62] = 2
+    #bm_cube[:,31,0] = 2
+    I_sky = np.zeros(shape=(NPIX,), dtype=np.float32)
+    I_sky[0] = 1
+
+    #vis = vis_gpu(antpos, .15, eq2tops, crd_eq, I_sky, bm_cube, verbose=True)
+    vis = vis_cpu(antpos, .15, eq2tops, crd_eq, I_sky, bm_cube, verbose=True)
+    print np.allclose(vis, 4)
+    print 'Time elapsed:', time.time() - t_start
