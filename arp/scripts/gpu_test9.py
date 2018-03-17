@@ -4,6 +4,7 @@ from skcuda.cublas import cublasCreate, cublasSetStream, cublasSgemm, cublasCgem
 import numpy as np
 from math import ceil
 import time
+from scipy.interpolate import RectBivariateSpline
 
 NTHREADS = 1024 # make 512 for smaller GPUs
 MAX_MEMORY = 2**29 # floats (4B each)
@@ -254,25 +255,18 @@ def vis_cpu(antpos, freq, eq2tops, crd_eq, I_sky, bm_cube,
     vis = np.empty((ntimes,nant,nant), dtype=complex_dtype)
     tau = np.empty((nant,npix), dtype=real_dtype)
     v = np.empty((nant,npix), dtype=complex_dtype)
+    bm_pix_x = np.linspace(-1,1,bm_pix)
+    bm_pix_y = np.linspace(-1,1,bm_pix)
     for t,eq2top in enumerate(eq2tops.astype(real_dtype)):
         if verbose:
             print '%d/%d' % (t, ntimes)
             t_start = time.time()
         tx,ty,tz = crd_top = np.dot(eq2top, crd_eq)
-        # XXX cut in tz?
-        bmx,bmy = (bm_pix - 1) * (0.5*tx + 0.5), (bm_pix - 1) * (0.5*ty + 0.5)
-        px,py = np.floor(bmx).astype(np.int), np.floor(bmy).astype(np.int)
-        pxp1, pyp1 = (px+1).clip(0,bm_pix-1), (py+1).clip(0,bm_pix-1)
-        fx,fy = bmx-px, bmy-py
-        # Linearly interpolate between [v0,v1] for t=[0,1]
-        # v = v0 * (1-t) + v1 * t = t*v1 + (-t*v0 + v0)
-        A_s = (bm_cube[:,py  ,px] * (1-fx) + bm_cube[:,py  ,pxp1] * (fx)) * (1-fy) + \
-              (bm_cube[:,pyp1,px] * (1-fx) + bm_cube[:,pyp1,pxp1] * (fx)) * (fy)
+        for i in xrange(nant):
+            spline = RectBivariateSpline(bm_pix_y, bm_pix_x, bm_cube[i], kx=1, ky=1)
+            A_s[i] = spline(ty, tx, grid=False)
         A_s = np.where(tz > 0, A_s, 0)
         np.dot(antpos, crd_top, out=tau)
-        #for i,ai in enumerate(antpos):
-        #    np.dot(ai, crd_top, out=v[i])
-        #np.exp(1j*v, out=v)
         np.exp(1j*tau, out=v)
         AI_s = A_s * Isqrt
         v *= AI_s
@@ -284,25 +278,66 @@ def vis_cpu(antpos, freq, eq2tops, crd_eq, I_sky, bm_cube,
     np.conj(vis, out=vis)
     return vis
 
+def aa_to_antpos(aa):
+    nant = len(aa)
+    antpos = np.empty((nant, 3), dtype=np.float32)
+    for i in xrange(nant):
+        antpos[i] = aa.get_baseline(0,i,src='z')
+    return antpos
+
+def aa_to_bm_cube(aa, chan, pol, beam_px=63):
+    nant = len(aa)
+    assert(pol in ('x','y')) # XXX can only support single linear polarizations right now
+    bm_cube = np.empty((nant,beam_px,beam_px), dtype=np.float32) # X is 3rd dim, Y is 2nd dim
+    tx = np.linspace(-1,1,beam_px, dtype=np.float32)
+    tx = np.resize(tx, (beam_px,beam_px))
+    ty = tx.T.copy()
+    tx = tx.flatten(); ty = ty.flatten()
+    txty_sqr = tx**2 + ty**2
+    tz = np.where(txty_sqr < 1, np.sqrt(1-txty_sqr), -1)
+    top = np.array([tx,ty,tz])
+    aa.select_chans([chan])
+    for i in xrange(nant):
+        bmi = np.where(tz > 0, aa[i].bm_response(top, pol=pol), 0)
+        bm_cube[i] = np.reshape(bmi, (beam_px,beam_px))
+    return bm_cube
+
+def aa_to_eq2tops(aa, jds):
+    eq2tops = np.empty((len(jds),3,3), dtype=np.float32)
+    for i,jd in enumerate(jds):
+        aa.set_jultime(jd)
+        eq2tops[i] = aa.eq2top_m
+    return eq2tops
+    
+def hmap_to_crd_eq(h):
+    px = np.arange(h.npix())
+    crd_eq = h.px2crd(px,3).astype(np.float32)
+    return crd_eq
+
+def hmap_to_I(h):
+    return h[np.arange(h.npix())].astype(np.float32)
+
 if __name__ == '__main__':
-    NTIMES = 100
+    NTIMES = 10
     FREQ = .150
 
-    NANT = 8
+    NANT = 128
     NSIDE = 512
     NPIX = 12*NSIDE**2 # this is assumed to always be bigger than NTHREADS
     CHUNK = max(8,2**int(ceil(np.log2(float(NANT*NPIX) / MAX_MEMORY / 2))))
     NPIXC = NPIX / CHUNK
     BEAM_PX = 63
+    GPU = False
 
-    import time
-    import pycuda.autoinit
-    print '=== Device attributes'
-    dev = pycuda.autoinit.device
-    print 'Name:', dev.name()
-    print 'Compute capability:', dev.compute_capability()
-    print 'Concurrent Kernels:', \
-         bool(dev.get_attribute(driver.device_attribute.CONCURRENT_KERNELS))
+    if GPU:
+        import time
+        import pycuda.autoinit
+        print '=== Device attributes'
+        dev = pycuda.autoinit.device
+        print 'Name:', dev.name()
+        print 'Compute capability:', dev.compute_capability()
+        print 'Concurrent Kernels:', \
+             bool(dev.get_attribute(driver.device_attribute.CONCURRENT_KERNELS))
 
     print '# Antennas:', NANT
     print 'NSIDE:', NSIDE
@@ -311,8 +346,13 @@ if __name__ == '__main__':
     #print grid, block
     # Initialization of values on CPU side
     np.random.seed(0)
-    antpos = np.zeros(shape=(NANT,3), dtype=np.float32) # multiply -2pi/c into here
-    antpos[:,0] = 1
+    import aipy
+    aa = aipy.cal.get_aa('hsa7458_v001', np.array([FREQ]))
+    antpos = aa_to_antpos(aa)
+    bm_cube = aa_to_bm_cube(aa, chan=0, pol='x')
+    print bm_cube
+    #antpos = np.zeros(shape=(NANT,3), dtype=np.float32) # multiply -2pi/c into here
+    #antpos[:,0] = 1
     antpos *= -2 * np.pi / 3e1 # cm -> ns conversion
     eq2top = np.array([[1.,0,0],[0,1,0],[0,0,1]])
     eq2tops = np.resize(eq2top, (NTIMES,3,3))
@@ -322,14 +362,14 @@ if __name__ == '__main__':
     #crd_eq[0,0] = -1
     crd_eq[0,0] = 1
     # note that bm_tex is transposed relative to the cuda texture buffer
-    bm_cube = np.ones(shape=(NANT,BEAM_PX,BEAM_PX), dtype=np.float32) # X is 3rd dim, Y is 2nd dim
-    bm_cube *= 0
-    bm_cube[:,31,62] = 2
+    #bm_cube = np.ones(shape=(NANT,BEAM_PX,BEAM_PX), dtype=np.float32) # X is 3rd dim, Y is 2nd dim
+    #bm_cube *= 0
+    #bm_cube[:,31,62] = 2
     #bm_cube[:,31,0] = 2
     I_sky = np.zeros(shape=(NPIX,), dtype=np.float32)
     I_sky[0] = 1
 
-    #vis = vis_gpu(antpos, .15, eq2tops, crd_eq, I_sky, bm_cube, verbose=True)
-    vis = vis_cpu(antpos, .15, eq2tops, crd_eq, I_sky, bm_cube, verbose=True)
+    if GPU: vis = vis_gpu(antpos, .15, eq2tops, crd_eq, I_sky, bm_cube, verbose=True)
+    else: vis = vis_cpu(antpos, .15, eq2tops, crd_eq, I_sky, bm_cube, verbose=True)
     print np.allclose(vis, 4)
     print 'Time elapsed:', time.time() - t_start
