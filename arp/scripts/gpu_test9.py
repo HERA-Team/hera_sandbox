@@ -1,6 +1,8 @@
-#! /home/aparsons/miniconda3/envs/hera_ml/bin/python2.7
-from pycuda import compiler, gpuarray, driver
-from skcuda.cublas import cublasCreate, cublasSetStream, cublasSgemm, cublasCgemm, cublasDestroy
+GPU = False
+
+if GPU:
+    from pycuda import compiler, gpuarray, driver
+    from skcuda.cublas import cublasCreate, cublasSetStream, cublasSgemm, cublasCgemm, cublasDestroy
 import numpy as np
 from math import ceil
 import time
@@ -267,15 +269,19 @@ def vis_cpu(antpos, freq, eq2tops, crd_eq, I_sky, bm_cube,
             A_s[i] = spline(ty, tx, grid=False)
         A_s = np.where(tz > 0, A_s, 0)
         np.dot(antpos, crd_top, out=tau)
-        np.exp(1j*tau, out=v)
+        np.exp((1j*freq)*tau, out=v)
         AI_s = A_s * Isqrt
         v *= AI_s
         for i in xrange(len(antpos)):
+            # only compute upper triangle
             np.dot(v[i:i+1].conj(), v[i:].T, out=vis[t,i:i+1,i:])
         if verbose:
             print 'TOTAL:', time.time() - t_start
             #print vis[t].conj()
     np.conj(vis, out=vis)
+    for i in xrange(nant):
+        # fill in whole corr matrix from upper triangle
+        vis[:,i+1:,i] = vis[:,i,i+1:].conj()
     return vis
 
 def aa_to_antpos(aa, ants=None):
@@ -304,6 +310,21 @@ def aa_to_bm_cube(aa, chan, pol, ants=None, beam_px=63):
         bm_cube[i] = np.reshape(bmi, (beam_px,beam_px))
     return bm_cube
 
+def hmap_to_bm_cube(hmaps, beam_px=63):
+    nant = len(hmaps)
+    bm_cube = np.empty((nant,beam_px,beam_px), dtype=np.float32) # X is 3rd dim, Y is 2nd dim
+    tx = np.linspace(-1,1,beam_px, dtype=np.float32)
+    tx = np.resize(tx, (beam_px,beam_px))
+    ty = tx.T.copy()
+    tx = tx.flatten(); ty = ty.flatten()
+    txty_sqr = tx**2 + ty**2
+    tz = np.where(txty_sqr < 1, np.sqrt(1-txty_sqr), -1)
+    #top = np.array([tx,ty,tz])
+    for i,hi in enumerate(hmaps):
+        bmi = np.where(tz > 0, hi[tx,ty,tz], 0) / np.max(hi.map)
+        bm_cube[i] = np.reshape(bmi, (beam_px,beam_px))
+    return bm_cube
+
 def aa_to_eq2tops(aa, jds):
     eq2tops = np.empty((len(jds),3,3), dtype=np.float32)
     for i,jd in enumerate(jds):
@@ -320,34 +341,46 @@ def hmap_to_I(h):
     return h[np.arange(h.npix())].astype(np.float32)
 
 if __name__ == '__main__':
-    NTIMES = 10
-    FREQ = .150
+    #NTIMES = 10000
+    NTIMES = 200
+    NFREQS = 100
+    START_FQ, END_FQ = .1, .2
+    #START_JD, END_JD = 2458000, 2458001
+    START_JD, END_JD = 2458000.2, 2458000.8
+    freqs = np.linspace(START_FQ, END_FQ,NFREQS, endpoint=False)
+    jds = np.linspace(START_JD, END_JD, NTIMES)
+    #FREQ = .150
 
-    #NANT = 128
-    #NSIDE = 512
-    #NPIX = 12*NSIDE**2 # this is assumed to always be bigger than NTHREADS
-    #CHUNK = max(8,2**int(ceil(np.log2(float(NANT*NPIX) / MAX_MEMORY / 2))))
-    #NPIXC = NPIX / CHUNK
     BEAM_PX = 63
-    GPU = True
+    GPU = False
+    #GSM = '/home/aparsons/projects/eor/maps/lambda_haslam408_dsds_eq.fits'
+    GSM = '/Users/aparsons/projects/eor/maps/lambda_haslam408_dsds_eq.fits'
+    BM_MDL = '/Users/aparsons/projects/eor/beam/hera-cst/mdl04/X4Y2H_4900_%3d.hmap'
+    VERBOSE = False
 
-    #print grid, block
     # Initialization of values on CPU side
     np.random.seed(0)
     ants = (80, 104, 96, 64, 53, 31, 65, 88, 9, 20, 89, 43, 105, 22, 81, 10, 72, 112, 97)
+    ants = ants[:4]
     import aipy
-    aa = aipy.cal.get_aa('hsa7458_v001', np.array([FREQ]))
+    #aa = aipy.cal.get_aa('hsa7458_v001', np.array([FREQ]))
+    aa = aipy.cal.get_aa('hsa7458_v001', freqs)
     antpos = aa_to_antpos(aa, ants=ants)
-    bm_cube = aa_to_bm_cube(aa, chan=0, ants=ants, pol='x')
-    #antpos = np.zeros(shape=(NANT,3), dtype=np.float32) # multiply -2pi/c into here
-    #antpos[:,0] = 1
-    antpos *= -2 * np.pi * aipy.const.len_ns # cm -> ns conversion
-    eq2tops = aa_to_eq2tops(aa, np.linspace(2458000,2458001, NTIMES))
-    #eq2top = np.array([[1.,0,0],[0,1,0],[0,0,1]])
-    #eq2tops = np.resize(eq2top, (NTIMES,3,3))
-    hmap = aipy.healpix.HealpixMap(fromfits='/home/aparsons/projects/eor/maps/lambda_haslam408_dsds_eq.fits')
-    crd_eq = hmap_to_crd_eq(hmap)
-    I_sky = hmap_to_I(hmap)
+    antpos *= -2 * np.pi # cm -> ns conversion
+    #bm_cube = aa_to_bm_cube(aa, chan=0, ants=ants, pol='x')
+    bm_hmaps = [aipy.healpix.HealpixMap(fromfits=(BM_MDL % (int(1000*fq)))) for fq in freqs]
+    #bm_cubes = hmap_to_bm_cube([bm_hmap] * len(ants), beam_px=BEAM_PX)
+    eq2tops = aa_to_eq2tops(aa, jds)
+    hmap = aipy.healpix.HealpixMap(fromfits=GSM)
+    #crd_eq = hmap_to_crd_eq(hmap)
+    #I_sky = np.random.normal(size=hmap.npix())
+    #I_sky = hmap_to_I(hmap)
+    crd_eq = np.dot(np.linalg.inv(eq2tops[NTIMES/2]), np.array([[0.],[0],[1]], dtype=np.float32))
+    #crd_eq = np.array([[0.],[1.],[0]], dtype=np.float32)
+    #crd_eq = np.array([[0.,0],[1.,0],[0,-1]], dtype=np.float32)
+    I_sky = np.array([1.], dtype=np.float32)
+    #I_sky = np.array([1.,1], dtype=np.float32)
+
     ##crd_eq = np.random.uniform(size=(3,NPIX)).astype(real_dtype)
     #crd_eq = np.zeros(shape=(3,NPIX), dtype=np.float32)
     #crd_eq[2] = 1
@@ -362,7 +395,6 @@ if __name__ == '__main__':
     #I_sky[0] = 1
 
     if GPU:
-        import time
         import pycuda.autoinit
         print '=== Device attributes'
         dev = pycuda.autoinit.device
@@ -371,14 +403,30 @@ if __name__ == '__main__':
         print 'Concurrent Kernels:', \
              bool(dev.get_attribute(driver.device_attribute.CONCURRENT_KERNELS))
 
-    print '# Antennas:', len(antpos)
+    print 'NANT:', len(antpos)
     print 'NPIX:', I_sky.size
     print 'NTIMES:', NTIMES
-    print 'FREQ:', FREQ
+    print 'NFREQS:', NFREQS
     t_start = time.time()
     print 'Starting', t_start
 
-    if GPU: vis = vis_gpu(antpos, .15, eq2tops, crd_eq, I_sky, bm_cube, verbose=True)
-    else: vis = vis_cpu(antpos, .15, eq2tops, crd_eq, I_sky, bm_cube, verbose=True)
+    if GPU: compute_vis = vis_gpu
+    else: compute_vis = vis_cpu
+    #bm_cubes = hmap_to_bm_cube([bm_hmap] * len(ants), beam_px=BEAM_PX)
+    vis = np.array([compute_vis(antpos, fq, eq2tops, crd_eq, I_sky * (fq/.408)**-2.5, 
+                                hmap_to_bm_cube([bm_hmaps[i]] * len(ants), beam_px=BEAM_PX), 
+                                verbose=VERBOSE) 
+                    for i,fq in enumerate(freqs)])
     #print np.allclose(vis, 4)
     print 'Time elapsed:', time.time() - t_start
+    import pylab as plt, uvtools
+    #plt.plot(vis[:,0,1].real)
+    #plt.plot(vis[:,0,1].imag)
+    #plt.plot(np.abs(vis[NFREQS/2,:,0,1])**2)
+    #plt.show()
+    plt.subplot(121)
+    uvtools.plot.waterfall(vis[:,:,0,1], mode='phs')
+    plt.subplot(122)
+    uvtools.plot.waterfall(vis[:,:,0,1], mode='log', drng=4)
+    plt.show()
+    import IPython; IPython.embed()
