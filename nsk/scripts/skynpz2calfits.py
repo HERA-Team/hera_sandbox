@@ -347,7 +347,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
         flag_dict[(a, pols[0])] = flags[i, :, :, 0].T
         if flagged_ants[i]:
             flag_dict[(a, pols[0])] += True
-    uvc = hc.io.write_cal(fname, gain_dict, freqs, times, flags=flag_dict, outdir=out_dir,
+    uvc = hc.io.write_cal(fname, gain_dict, freqs, times[:1], flags=flag_dict, outdir=out_dir,
                           overwrite=overwrite, gain_convention=gain_convention)
 
     # plot dlys
