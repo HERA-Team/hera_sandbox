@@ -18,6 +18,11 @@ jsd/scripts/HexArray/Figures
 *DS_Store
 *.pdf
 .ipynb_checkpoints
+*.uv*
 *.uvc*
+*.uvA*
+*.uvX*
+*.calfits
+*.uv.tar.gz*
 .DS_Store
 *.npz

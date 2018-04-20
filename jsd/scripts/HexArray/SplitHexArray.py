@@ -8,8 +8,8 @@ import pylab
 Separation = 14.6
 hexNum = 11
 SplitCore = True
-SplitCoreOutriggers = 0
-CutDownTo = 242
+SplitCoreOutriggers = 4
+CutDownTo = 2420
 SpreadOut128 = False
 precisionFactor = 1000 
 
@@ -268,7 +268,7 @@ plt.savefig('/Users/jsdillon/Desktop/HERA_Array_Stages.pdf')
 # if __name__ == "__main__":
 #     positions,corePos = HexArray(hexNum = 11, SplitCore = True, SplitCoreOutriggers = True, CutDownTo = None, SpreadOut128 = False)
 
-if True:                
+if False:                
     import omnical.info as oi
     import omnical.arrayinfo as oai
     redundantInfo = oi.RedundantInfo()
@@ -287,7 +287,7 @@ if True:
     plt.colorbar()
     plt.title('Antenna Relative Gain Errors')
 #%%
-if True:
+if False:
     import omnical.info as oi
     import omnical.arrayinfo as oai
     corePos = positions[0:nCore,:] 
