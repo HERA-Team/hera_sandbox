@@ -36,6 +36,18 @@ if __name__ == "__main__":
     cl.addcomponent(label="GLEAM1422-2727", flux=19.7, fluxunit="Jy", dir="14h22m49.4s -27d27m55s",
                     freq=ref_freq, shape="point", spectrumtype='spectral index', index=-0.99)
 
+    # gleam 1442 -2637
+    cl.addcomponent(label="GLEAM1442-2637", flux=9.6, fluxunit="Jy", dir="14h42m02s -26d37m12s",
+                    freq=ref_freq, shape="point", spectrumtype='spectral index', index=-0.84)
+
+    # gleam 1421 -3104
+    cl.addcomponent(label="GLEAM1421-3104", flux=7.8, fluxunit="Jy", dir="14h21m55s -31d04m22s",
+                    freq=ref_freq, shape="point", spectrumtype='spectral index', index=-0.9)
+
+    # gleam 1421 -3104
+    cl.addcomponent(label="GLEAM1421-3104", flux=7.8, fluxunit="Jy", dir="14h21m55.4s -31d04m22s",
+                    freq=ref_freq, shape="point", spectrumtype='spectral index', index=-0.85)
+
     # save
     if os.path.exists("gleam14.cl"):
         shutil.rmtree("gleam14.cl")
@@ -48,7 +60,7 @@ if __name__ == "__main__":
             Nfreqs = 1
             freqs = np.array([151.0])
         else:
-            freqs = np.linspace(*np.array(a.freqs.split(',')).astype(np.float))
+            freqs = np.linspace(*np.array(a.freqs.split(',')).astype(np.float), endpoint=True)
             Nfreqs = len(freqs)
 
         # setup image

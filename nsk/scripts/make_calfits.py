@@ -69,5 +69,6 @@ def make_calfits(fname, data_array, freq_array, time_array, jones_array, ants, f
     for p in params:
         uvc.__setattr__(p, locals()[p])
 
+    uvc.set_redundant()
     uvc.write_calfits(fname, clobber=clobber)
 

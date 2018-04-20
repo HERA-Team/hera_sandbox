@@ -41,10 +41,20 @@ def repeat_visibilities(uvdata_obj, noise_array=False):
                if np.logical_and(ij not in flat_red, ij[::-1] not in flat_red)]
     full_observation = uvdata_obj.select(ant_pairs_nums=non_red, inplace=False)
     # These parameters should be the same for all redundant groups
+    print len(uv_ij), len(non_red), len(reds)
     nfreqs = full_observation.Nfreqs
     ntimes = full_observation.Ntimes
-
-    for cnt, ij in enumerate(uv_ij):
+    # check if multiple baseline in the same redudnant group
+    groups = [[cnt1,cnt2] for cnt2,ij in enumerate(uv_ij)
+              for cnt1, group in enumerate(reds)
+              if np.logical_or(ij in group, ij[::-1] in group)]
+    groups = np.array(groups)
+    _, gp_inds = np.unique(groups[:,0], return_index=True)
+    uv_inds = groups[:,1][gp_inds]
+    red_uv = np.take(uv_ij, uv_inds, axis=0).tolist()
+    red_uv = [tuple(ij) for ij in red_uv]
+    #from IPython import embed; embed()
+    for cnt, ij in enumerate(red_uv):
         for j in xrange(len(reds)):
             if not np.logical_or(ij in reds[j], ij[::-1] in reds[j]):
                 continue
@@ -94,10 +104,13 @@ def repeat_visibilities(uvdata_obj, noise_array=False):
                 red_group.Nants_data = len(np.unique(ant_num_array))
                 red_group.Nblts = nbls * ntimes
                 red_group.Nbls = nbls
-                full_observation.__add__(red_group, inplace=True,
-                                         check_extra=True,
-                                         run_check_acceptability=True,
-                                         run_check=True)
+                try:
+                    full_observation.__add__(red_group, inplace=True,
+                                             check_extra=True,
+                                             run_check_acceptability=True,
+                                             run_check=True)
+                except:
+                    import ipdb; ipdb.set_trace()
     return full_observation
 
 

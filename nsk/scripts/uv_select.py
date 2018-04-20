@@ -77,7 +77,6 @@ for i, f in enumerate(a.files):
     # select times
     if a.time_thin is not None:
         uvd.select(times=times[::a.time_thin])
-        uvd.integration_time = np.median(np.diff(np.unique(uvd.time_array))) * 24 * 3600
 
     # write
     print "saving {}".format(fout)

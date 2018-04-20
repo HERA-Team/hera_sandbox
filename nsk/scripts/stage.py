@@ -44,7 +44,10 @@ if __name__ == "__main__":
                 shutil.rmtree(fnew)
             else:
                 print("copying {}".format(fnew))
-            shutil.copytree(f, fnew)
+            if os.path.isdir(f):
+                shutil.copytree(f, fnew)
+            elif os.path.isfile(f):
+                shutil.copyfile(f, fnew)
             os.chmod(fnew, 0744)
 
     # search herastore01-1

@@ -51,7 +51,7 @@ if __name__ == "__main__":
             Nfreqs = 1
             freqs = np.array([154.0])
         else:
-            freqs = np.linspace(*np.array(a.freqs.split(',')).astype(np.float))
+            freqs = np.linspace(*np.array(a.freqs.split(',')).astype(np.float), endpoint=True)
             Nfreqs = len(freqs)
 
         # setup image
