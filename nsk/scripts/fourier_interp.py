@@ -86,9 +86,9 @@ def fourier_filter(vis, flags, kernel_width=10, kernel='tophat', axis=1, stop_to
     flags[:, -edge_cut:] = False
 
     # iterate over stopping tolerance
-    med_residual = 100.0
+    max_residual = 100.0
     niters = 0
-    while med_residual > stop_tol:
+    while max_residual > stop_tol:
         # FFT w/ window along axis
         vis_fft = np.fft.fft(vis, axis=axis)
 
@@ -99,7 +99,7 @@ def fourier_filter(vis, flags, kernel_width=10, kernel='tophat', axis=1, stop_to
         vis_hat = np.fft.ifft(vis_fft, axis=axis)
 
         # estimate residuals
-        med_residual = np.median(np.abs(np.abs(vis[flags]) - np.abs(vis_hat[flags])))
+        max_residual = np.max(np.abs(vis[flags] - vis_hat[flags]))
 
         # fill in RFI flags
         vis[flags] = vis_hat[flags]
