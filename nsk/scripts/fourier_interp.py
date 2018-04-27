@@ -8,7 +8,7 @@ import numpy as np
 import os
 import sys
 import copy
-from stats import signal
+from scipy import signal
 from collections import OrderedDict as odict
 from hera_cal.datacontainer import DataContainer
 
