@@ -105,7 +105,7 @@ def fourier_filter(vis, flags, kernel_width=10, kernel='tophat', axis=1, stop_to
         vis[flags] = vis_hat[flags]
 
         # break reached stopping tol
-        if med_residual <= stop_tol or niters >= maxiter:
+        if max_residual <= stop_tol or niters >= maxiter:
             break
 
         niters += 1
