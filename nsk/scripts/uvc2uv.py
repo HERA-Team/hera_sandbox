@@ -54,7 +54,10 @@ def uvc2uv(uvcfile, calfile, outdir=None, overwrite=False):
             uvc_antsort.append(antenna_numbers.tolist().index(a))
     uvc_ants = uvc_ants[uvc_antsort]
     Nants_data = len(uvc_ants)
-    uvc_ant_diameters = uvc.antenna_diameters[uvc_antcut][uvc_antsort]
+    if uvc.antenna_diameters is not None:
+        uvc_ant_diameters = uvc.antenna_diameters[uvc_antcut][uvc_antsort]
+    else:
+        uvc_ant_diameters = np.ones_like(uvc_antcut, np.float)
 
     # get antenna positions from calfile
     aa = aipy.cal.get_aa(calfile, np.array([0.15]))
