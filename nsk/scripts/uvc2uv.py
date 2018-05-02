@@ -23,8 +23,9 @@ args.add_argument("files", type=str, nargs='*', help='path to *.uvc files to con
 args.add_argument("--calfile", type=str, help="path to calfile stem found in user's PATH")
 args.add_argument("--outdir", default=None, type=str, help="output directory")
 args.add_argument("--overwrite", default=False, action='store_true', help="overwrite output files")
+args.add_argument("--name_prefix", default="HH", help="prefix to antenna number for antenna name")
 
-def uvc2uv(uvcfile, calfile, outdir=None, overwrite=False):
+def uvc2uv(uvcfile, calfile, outdir=None, overwrite=False, name_prefix="HH"):
     """
     """
     # check output
@@ -65,10 +66,8 @@ def uvc2uv(uvcfile, calfile, outdir=None, overwrite=False):
     cf_ants = info.subsetant
     cf_antpos = info.antloc
 
-    # check matching
-    leftover_ants = set(cf_ants) ^ set(uvc_ants)
-    if len(leftover_ants) > 0:
-        raise AttributeError("...cf_ants doesn't match uvc_ants for {}".format(uvcfile))
+    # check ants in uvc are at least in cf
+    assert len(set(uvc_ants) - set(cf_ants)) == 0, "ants {} found in data but not calfile".format(set(uvc_ants) - set(cf_ants))
 
     # reorder cf_ants to match uvc_ants
     cf_antsort = [cf_ants.tolist().index(a) for a in uvc_ants]
@@ -82,7 +81,7 @@ def uvc2uv(uvcfile, calfile, outdir=None, overwrite=False):
     uvc.Nants_data = Nants_data
     uvc.Nants_telescope = Nants_data
     uvc.antenna_numbers = cf_ants
-    uvc.antenna_names = map(lambda a: "HH{}".format(a), cf_ants)
+    uvc.antenna_names = map(lambda a: "{}{}".format(name_prefix, a), cf_ants)
     uvc.antenna_positions = ECEF_antpos
     uvc.antenna_diameters = uvc_ant_diameters
 
