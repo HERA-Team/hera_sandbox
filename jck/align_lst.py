@@ -268,13 +268,13 @@ class LST_Alignment(object):
         datelist = reversed(self.date_set)
         print(datelist)
         prev_date = None
-        for i, date in enumerate(self.date_set):
+        for i, date in enumerate(reversed(self.date_set)):
 
             if i == 0:
                 offset_array[i] = 0
             else:
                 date_delta = int(prev_date) - int(date)
-                offset_array[i] = offset_array[i-1] - -22 * date_delta
+                offset_array[i] = offset_array[i-1] - 22 * date_delta
                 
             prev_date = date
         offset_array = numpy.flipud(offset_array)
