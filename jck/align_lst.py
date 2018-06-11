@@ -218,6 +218,7 @@ class LST_Binner(object):
                 self.flag_array[lst,i,:,:] = flags_at_lst
                 self.triad_array = self.closure_dict[date][lst_index]['triads']
 
+        print(self.outlst_array)
         if average == True:
             self.averaged_data_array = self.__average_circular(self.data_array,1)
 
@@ -444,9 +445,14 @@ class LST_Alignment(object):
             
             lst_array[i] = numpy.roll(lst_array[i], offset_array[i]) #Bit of a hatchet job...
             
-            
-        print(lst_array)
-        print(numpy.shape(lst_array))
+
+
+        # Because of the fact HERA only observes for part of the day, we end up with some records
+        # eventually "drifting" out of our aligned LST window. As we roll the array to do the
+        # alignment we can mask off these loose ends. 
+        lst_array = numpy.ma.masked_array(lst_array)
+        unaligned_index = numpy.shape(lst_array)[1] + offset_array[0]
+        lst_array[:,unaligned_index:] = numpy.ma.masked
 
         return lst_array
 
