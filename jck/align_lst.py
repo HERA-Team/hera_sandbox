@@ -74,7 +74,7 @@ class LST_Binner(object):
                  closure_dict,
                  lst_start = 0,
                  lst_range = 15,
-                 triad_no = 26,
+                 triad_no = 45,
                  channels = 1024):
         """
         Instantiates the LST_Binner class which takes a numpy array of aligned LST's and
@@ -434,9 +434,10 @@ class LST_Alignment(object):
                 offset_array[i] = 0
             else:
                 date_delta = int(prev_date) - int(date)
-                offset_array[i] = offset_array[i-1] - 22 * date_delta
+                offset_array[i] = offset_array[i-1] - (self.delta_ind - self.delta_rem)  * date_delta
                 
             prev_date = date
+        offset_array = numpy.rint(offset_array)
         offset_array = numpy.flipud(offset_array)
         offset_array = offset_array.astype(int)
         print offset_array
@@ -567,7 +568,7 @@ class Julian_Parse(object):
                 if file.split('.')[1] == datestamp:
                     file_dict[datestamp].append(file)
             file_dict[datestamp] = sorted(file_dict[datestamp]) #Holy shit this just works? How awesome is that.
-        print(file_dict)
+        #print(file_dict)
         return(file_dict)
         
     # This builds a dictionary of all unique datestamps and their .npz files.
@@ -636,8 +637,8 @@ def main():
         if file.endswith(".npz"):
             files.append(file)
 
-    for file in files:
-        print(file.split('.')[1])
+    #for file in files:
+    #    print(file.split('.')[1])
 
     # Instantiate Julian_Parse class, and get files/dates
     parser = Julian_Parse(files)
