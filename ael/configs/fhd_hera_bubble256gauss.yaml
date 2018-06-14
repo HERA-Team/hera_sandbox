@@ -1,0 +1,21 @@
+
+data:
+    root:       /users/alanman/fhd_out/fhd_hera_bubble_gauss_mwabeam_hera_256_freqfix/
+    subdirs:
+        - MIRIAD
+    template:   hera19_8hrs_uncomp_10MHz_000_*[0-9]   # Ends with a number
+    antpos_file: hera19_layout.npz
+    antnum_select: [80,104,96,64,53,31,65,88,9,20,89,43,105,22,81,10,72,112,97]   # Select these antennas
+    convert_jy_to_mk: True
+
+pspec:
+    output:             hera_fhd_red.hdf5
+    overwrite:          True
+    weight:             identity
+    norm:               I
+    taper:              none
+    groupname:          eor_bubble_nside256_sig2
+    little_h:           False
+    exclude_auto_bls:   True
+    exclude_permutations:   True
+
