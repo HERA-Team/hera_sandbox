@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 #SBATCH -J hera_pspec
-#SBATCH --mem=5G
+#SBATCH --mem=100G
 #SBATCH -t 3:00:00
 #SBATCH -n 4
 #SBATCH --mail-type=FAIL     
@@ -76,10 +76,14 @@ log("Found %d files." % len(files))
 log("Loading data files...")
 t0 = time.time()
 
+files.sort()
+
 # Load all miriad datafiles into UVData objects
 dsets = []
 data = None
+count = 0
 for f in files:
+    print count, f
     _d = uv.UVData()
     _d.read_miriad(f)
 #    _d.polarization_array = uv.utils.polnum2str(_d.polarization_array)
@@ -88,6 +92,7 @@ for f in files:
     _d.object_name = 'Zenith'
     if data is None: data = _d
     else: data += _d
+    count+=1
 #    dsets.append(_d)
 log("Loaded data in %1.1f sec." % (time.time() - t0), lvl=1)
 
@@ -214,7 +219,7 @@ ds = hp.PSpecData(dsets=[data, data], wgts=[None, None], beam=beam)
 
 ps_store = hp.PSpecContainer(pspec_cfg['output'], mode='rw')
 
-
+print bls1
 ps_ii = ds.pspec(bls1, bls2, (0,0), ("pI","pI"),
                       input_data_weight=pspec_cfg['weight'],
                       norm=pspec_cfg['norm'], 
