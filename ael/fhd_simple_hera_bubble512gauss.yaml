@@ -1,0 +1,12 @@
+
+data:
+    root:       /users/alanman/fhd_out/fhd_hera_bubble_gauss_hera_512_freqfix
+    subdirs:
+        - MIRIAD
+    template:   hera_24hour_00[0-9]_*[0-9]   # Ends with a number
+    convert_jy_to_mk: True
+
+pspec:
+    output:             hera_3bl_fhd_red.hdf5
+    overwrite:          True
+    baseline:  "(0,1)"
