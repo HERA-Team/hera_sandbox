@@ -1,69 +1,45 @@
-
-# coding: utf-8
-
-# In[ ]:
-
-
 """This script will convert N MIRIAD data files into N hdf5 files."""
-# Python Standard Library Packages
 import os
-import glob
+from glob import glob
 import argparse
-
-# Community Developed Packages
 import numpy as np
-
-# HERA Collaboration Packages
 from pyuvdata import UVData
 
-
-# In[ ]:
-
-
 parser = argparse.ArgumentParser()
-parser.add_argument("-d",
-    "--day",
-    help="Designate the night of IDR2.1 observation to be analyzed.",
+parser.add_argument(
+    '-f',
+    '--files',
+    help='Designate the MIRIAD files to be converted, one by one, to hdf5 files.',
     required=True)
-parser.add_argument("-e",
-    "--ext",
-    help="Designate the file extension of the files to be analyzed.",
+parser.add_argument(
+    '-d',
+    '--day',
+    help='Designate which JD the MIRIAD files come from.',
+    required=True)
+parser.add_argument(
+    '-e',
+    '--ext',
+    help='Designate which file extension (i.e., uvOCRS) the designated MIRIAD files are.',
+    required=True)
+parser.add_argument(
+    '-s',
+    '--savepath',
+    help='Designate the path where the new hdf5 files will be saved.',
     required=True)
 args = parser.parse_args()
-DAY = args.day
-EXT = args.ext
 
+files = np.array(sorted(glob(args.files)))
+day = args.day
+ext = args.ext
+savepath = os.path.join(args.savepath, '{day}/zen_{day}_1time_1pol_HH_{ext}_hdf5'.format(day=day, day=day, ext=ext))
+os.system('mkdir -p {}'.format(savepath))
 
-# In[ ]:
-
-
-# DAY = '2458111'
-# EXT = 'uvOCRSD'
-
-
-# In[ ]:
-
-
-# Path to MIRIAD files
-IDR2_1 = '/lustre/aoc/projects/hera/H1C_IDR2/IDR2_1/{}'.format(DAY)
-
-# Retrieves MIRIAD files
-FILE_SKELETON = '*{}*{}'.format(DAY, EXT)
-FILE_SKELETON = os.path.join(IDR2_1, FILE_SKELETON)
-MIRIAD_DFILES = np.array(sorted(glob.glob(FILE_SKELETON)))
-
-# Saves new hdf5 files
-SAVE_PATH = '/lustre/aoc/projects/hera/afortino/{}/zen_{}_1time_1pol_HH_{}_hdf5/'.format(DAY, DAY, EXT)
-os.system('mkdir -p {}'.format(SAVE_PATH))
-
-
-# In[ ]:
-
-
-for dfile in MIRIAD_DFILES:
-    print 'Reading: {}'.format(dfile)
+for dfile in files:
     hdf5 = os.path.join(SAVE_PATH, os.path.basename(dfile)) + '.hdf5'
     uvd = UVData()
-    uvd.read_miriad(dfile, ant_str='cross')
-    uvd.write_uvh5(hdf5, clobber=True)
 
+    print 'Reading: {}'.format(dfile)
+    uvd.read_miriad(dfile, ant_str='cross')
+
+    print 'Writing: {}'.format(hdf5)
+    uvd.write_uvh5(hdf5, clobber=True)
