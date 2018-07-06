@@ -10,6 +10,7 @@ parser.add_argument(
     '-f',
     '--files',
     help='Designate the MIRIAD files to be converted, one by one, to hdf5 files.',
+    nargs=1,
     required=True)
 parser.add_argument(
     '-d',
