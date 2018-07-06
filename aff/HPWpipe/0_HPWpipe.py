@@ -31,7 +31,7 @@ args = parser.parse_args()
 files = np.array(sorted(glob(args.files)))
 day = args.day
 ext = args.ext
-savepath = os.path.join(args.savepath, '{day}/zen_{day}_1time_1pol_HH_{ext}_hdf5'.format(day=day, day=day, ext=ext))
+savepath = os.path.join(args.savepath, '{day}/zen_{day}_1time_1pol_HH_{ext}_hdf5'.format(day=day, ext=ext))
 os.system('mkdir -p {}'.format(savepath))
 
 for dfile in files:
