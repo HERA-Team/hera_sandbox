@@ -32,8 +32,8 @@ rms_maxr            = 4
 rms_minr            = 1
 
 ## set field ##
-field = 'gleam04'
-source = 'gleam0444'
+field = 'gleam02'
+source = 'gleam02'
 
 ## set calibration parameters ##
 ex_ants = '--ex_ants 0,2,11,14,50,98'

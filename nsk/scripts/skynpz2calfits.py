@@ -21,7 +21,7 @@ import os
 import scipy.signal as signal
 from sklearn import gaussian_process as gp
 import copy
-from make_calfits import make_calfits
+import hera_cal as hc
 
 a = argparse.ArgumentParser(description="Turn CASA calibration solutions in {}.npz files from sky_image.py script into .calfits files")
 
@@ -74,6 +74,8 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
                    bp_broad_flags=False, medfilt_flag=False, bp_gp_smooth=False, bp_gp_max_dly=500.0, bp_gp_nrestart=1, bp_gp_thin=2,
                    plot_amp=False, gain_amp_antavg=False, verbose=True):
     """
+    Convert *.npz output from sky_image.py into single-pol calfits file.
+    uv_file must be single-pol.
 
     """
     # get out_dir
@@ -90,16 +92,18 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
     ants = list(ants)
 
     # get freqs, times, jones
-    freqs = uvd.freq_array.squeeze()
-    times = uvd.time_array.reshape(uvd.Ntimes, uvd.Nbls)[:, 0]
-    Ntimes = len(times)
+    freqs = np.unique(uvd.freq_array)
+    times = np.unique(uvd.time_array)
     Nfreqs = len(freqs)
     Nants = len(ants)
     jones = uvd.polarization_array
+    num2str = {-5: 'x', -6: 'y', -7: 'jxy', -8: 'jyx'}
+    str2num = {'x': -5, 'y': -6, 'jxy': -7, 'jyx': -8}
+    pols = np.array(map(lambda j: num2str[j], jones))
 
     # construct blank gains and flags
-    gains = np.ones((Nants, Nfreqs, Ntimes, 1), dtype=np.complex)
-    flags = np.zeros((Nants, Nfreqs, Ntimes, 1), dtype=np.bool)
+    gains = np.ones((Nants, Nfreqs, 1, 1), dtype=np.complex)
+    flags = np.zeros((Nants, Nfreqs, 1, 1), dtype=np.bool)
     flagged_ants = np.zeros(Nants, dtype=np.bool)
 
     # process delays if available
@@ -336,10 +340,15 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
         fname += ".calfits"
 
     # make into calfits
-    fname = os.path.join(out_dir, fname)
-    echo("...writing to calfits {}".format(fname), verbose=verbose, type=1)
-    make_calfits(fname, gains, freqs, times, jones, ants, flag_array=flags,
-                 clobber=overwrite, gain_convention=gain_convention)
+    gain_dict = {}
+    flag_dict = {}
+    for i, a in enumerate(ants):
+        gain_dict[(a, pols[0])] = gains[i, :, :, 0].T
+        flag_dict[(a, pols[0])] = flags[i, :, :, 0].T
+        if flagged_ants[i]:
+            flag_dict[(a, pols[0])] += True
+    uvc = hc.io.write_cal(fname, gain_dict, freqs, times[:1], flags=flag_dict, outdir=out_dir,
+                          overwrite=overwrite, gain_convention=gain_convention)
 
     # plot dlys
     if plot_dlys:

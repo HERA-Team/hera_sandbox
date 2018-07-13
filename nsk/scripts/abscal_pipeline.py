@@ -43,6 +43,12 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import PolynomialFeatures
 import aplpy
 
+# default parameters
+renumber_uvfits = False
+KGsnr = 2.0
+Asnr = 2.0
+BPsnr = 2.0
+
 # import parameter file
 from abscal_params import *
 if overwrite:
@@ -73,8 +79,8 @@ Nfiles = len(xx_files)
 devnull = open(os.devnull, 'w')
 
 # open output files
-abs_out = open("abs_out.txt", 'w')
-abs_err = open("abs_err.txt", 'w')
+abs_out = open("{}/abs_out.txt".format(data_path), 'w')
+abs_err = open("{}/abs_err.txt".format(data_path), 'w')
 
 if run_abscal:
     def abscal(uv_files, pol=-5):
@@ -94,7 +100,7 @@ if run_abscal:
 
         # make flux model
         echo("making flux model", type=1)
-        cmd = "casa --nologger --nocrashreport --nogui --agg -c {} --image --freqs 100,200,1024 --cell 60arcsec --imsize 512".format(complist)
+        cmd = "casa --nologger --nocrashreport --nogui --agg -c {} --image --freqs 100,200,1024 --cell 150arcsec --imsize 512".format(complist)
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("flux model exit {}".format(out))
 
@@ -132,10 +138,18 @@ if run_abscal:
         # convert to uvfits
         echo("converting miriad to uvfits", type=1)
         for i, sf in enumerate(source_files):
-            cmd = "miriad_to_uvfits.py {}".format(sf)
+            cmd = "miriad_to_uvfits.py {} {}".format(overwrite, sf)
             out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
             echo("miriad_to_uvfits on {} exit {}".format(sf, out))            
         source_uvfits = map(lambda x: x+'.uvfits', source_files)
+
+        # renumber ants
+        if renumber_uvfits:
+            echo("renumbering uvfits", type=1)
+            for i, sf in enumerate(source_uvfits):
+                cmd = "renumber_ants.py --overwrite {} {}".format(sf, sf)
+                out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
+                echo("renumber_ants on {} exit {}".format(sf, out))
 
         # combine uvfits
         if len(source_uvfits) > 1:
@@ -150,8 +164,9 @@ if run_abscal:
         echo("absolutely calibrating", type=1)
         cmd = "casa --nologger --nocrashreport --nogui --agg -c sky_image.py " \
               "--msin {} --source {} --model_im {} --refant {} {} --imsize {} --pxsize {} --niter {} --timerange {} " \
-              "--KGcal --Acal --BPcal --image_mfs --image_model --plot_uvdist" \
-              "".format(source_uvfits, source, modelfile, refant, ex_ants, imsize, pxsize, niter, source_utc_range)
+              "--KGcal --KGsnr {} --Acal --Asnr {} --BPcal --BPsnr {} --image_mfs --image_model --plot_uvdist" \
+              "".format(source_uvfits, source, modelfile, refant, ex_ants, imsize, pxsize, niter, source_utc_range,
+                        KGsnr, Asnr, BPsnr)
         if casa_rflag:
             cmd += ' --rflag'
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
@@ -165,8 +180,9 @@ if run_abscal:
         amp_file = source_uvfile + '.ms.Gamp.cal.npz'
         bp_file = source_uvfile + '.ms.B.cal.npz'
         cmd = "skynpz2calfits.py --fname {} --uv_file {} --dly_file {} --phs_file {} --amp_file {} --bp_file {} " \
-              "--plot_bp --plot_phs --plot_amp --plot_dlys --bp_medfilt --medfilt_kernel 13 --bp_gp_smooth " \
-              "--bp_gp_max_dly 200 --bp_gp_thin 4 {}".format(calfits_fname, source_uvfile, dly_file, phs_file, amp_file, bp_file, overwrite)
+              "--plot_bp --plot_phs --plot_amp --plot_dlys --bp_medfilt --medfilt_kernel 13 {} " \
+              "--bp_gp_max_dly {} --bp_gp_thin 4 {}".format(calfits_fname, source_uvfile, dly_file, phs_file, amp_file, 
+                                                            bp_file, bp_gp_smooth, bp_gp_mx_dly, overwrite)
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("skynpz2calfits exit {}".format(out))
 
@@ -220,7 +236,7 @@ if run_abscal:
         f4.colorbar.set_axis_label_text("Jy/beam")
         f4.set_title("Model MFS Image")
 
-        fig.savefig("{}_{}_MFS.png".format(source, polstr), dpi=150, bbox_inches='tight')
+        fig.savefig("{}/{}_{}_MFS.png".format(data_path, source, polstr), dpi=150, bbox_inches='tight')
         plt.close()
 
         return calfits_fname
@@ -268,24 +284,17 @@ if source_spectrum:
 
         # make flux model
         echo("making flux model", type=1)
-        cmd = "casa --nologger --nocrashreport --nogui --agg -c {} --image --freqs 100,200,1024 --cell 60arcsec --imsize 512".format(complist)
+        cmd = "casa --nologger --nocrashreport --nogui --agg -c {} --image --freqs 100,200,1024 --cell 150arcsec --imsize 512".format(complist)
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("flux model exit {}".format(out))
-
-        # apply PB correction to flux model
-        echo("applying PB to flux model")
-        cmd = "pbcorr.py --beamfile {} --outdir ./ --pol {} --time {} --ext pbcorr --lon {} --lat {} {} --multiply {}.cl.fits"\
-              "".format(beamfile, pol, utc_center, lon, lat, overwrite, field)
-        out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
-        echo("flux model PB corr exit {}".format(out))
 
         # import to CASA image
         echo("importing model file to CASA image format")
         cmd = '''casa --nologger --nocrashreport --nogui --agg -c ''' \
-              '''"importfits('{}.cl.pbcorr.fits', '{}.cl.pbcorr.image', overwrite=True)"'''.format(field, field)
+              '''"importfits('{}.cl.fits', '{}.cl.image', overwrite=True)"'''.format(field, field)
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("flux model CASA import exit {}".format(out))
-        modelfile = field + '.cl.pbcorr.image'
+        modelfile = field + '.cl.image'
 
         if spec_rfi_flag:
             echo("RFI flagging data", type=1)
@@ -306,7 +315,7 @@ if source_spectrum:
         # convert to uvfits
         echo("converting miriad to uvfits", type=1)
         for i, sf in enumerate(source_files):
-            cmd = "miriad_to_uvfits.py {}".format(sf)
+            cmd = "miriad_to_uvfits.py {} {}".format(overwrite, sf)
             out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
             echo("miriad_to_uvfits on {} exit {}".format(sf, out))
         source_uvfits = map(lambda x: x+'.uvfits', source_files)
@@ -336,20 +345,20 @@ if source_spectrum:
         # primary beam correction
         echo("applying primary beam correction to spectral cube", type=1)
         cmd = "pbcorr.py --beamfile {} --pol {} --time {} --ext pbcorr --lon {} --lat {} --spec_cube {} {}" \
-              "".format(beamfile, pol, utc_center, lon, lat, overwrite, source_im + ".spec*.fits")
+              "".format(beamfile, pol, utc_center, lon, lat, overwrite, source_im + ".spec????.fits")
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("pb correction exit {}".format(out))
 
         # source extraction
         echo("running source extraction on data", type=1)
         cmd = "source_extract.py --source {} --radius 1 {} --gaussfit_mult {} --ext .spectrum.tab --rms_max_r {} --rms_min_r {} {}" \
-              "".format(source, overwrite, gf_mult, rms_maxr, rms_minr, source_im + ".spec*.pbcorr.fits")
+              "".format(source, overwrite, gf_mult, rms_maxr, rms_minr, source_im + ".spec????.pbcorr.fits")
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("source extract exit {}".format(out))
 
         echo("running source extraction on model", type=1)
         cmd = "source_extract.py --source {} --radius 1 {} --gaussfit_mult {} --ext .spectrum.tab --rms_max_r {} --rms_min_r {} {}" \
-                "".format(source, overwrite, gf_mult, rms_maxr, rms_minr, model_im + ".spec*.fits")
+                "".format(source, overwrite, gf_mult, rms_maxr, rms_minr, model_im + ".spec????.fits")
         out = subprocess.call(cmd, shell=True, stdout=abs_out, stderr=abs_err)
         echo("model extract exit {}".format(out))
 
@@ -388,7 +397,7 @@ if source_spectrum:
         ax.legend([p0, p1, p2], ["Recovered Data Flux", "Recovered Model Flux", "Recovered Model Flux Fit"], fontsize=20)
         ax.set_ylim(0, np.max(np.concatenate([source_model_flux, source_flux, source_model_flux_fit])*1.8))
 
-        fig.savefig("{}_{}_spec.png".format(source, polstr), dpi=150, bbox_inches='tight')
+        fig.savefig("{}/{}_{}_spec.png".format(data_path, source, polstr), dpi=150, bbox_inches='tight')
         echo("saving {}_{}_spec.png".format(source, polstr))
         plt.close()
 

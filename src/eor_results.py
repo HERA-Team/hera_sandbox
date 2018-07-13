@@ -5,6 +5,7 @@ import glob
 import ipdb
 import matplotlib.pyplot as p
 import numpy as np
+import itertools
 # from twentyonecmfast_tools import load_andre_models, all_and
 
 #measurements
@@ -22,7 +23,7 @@ def MWA_128_beardsley_2016_all(pol='EW'):
     outputs results[z] = n.array([k,Delta^2,2-sigma upper, 2-sigma lower])
     '''
     from astropy.table import Table
-    DATA = Table.read(os.path.dirname(__file__)+'/data/MWA_128T_Beardlsey_2016.txt',format='ascii')
+    DATA = Table.read(os.path.dirname(__file__)+'/data/MWA_128T_Beardsley_2016.txt',format='ascii')
     results = {}
     for rec in DATA:
         if rec['pol']!=pol:continue
@@ -198,6 +199,7 @@ def z_slice(redshift,pspec_data):
     zs = n.array(pspec_data.keys())
     closest_z = zs[n.abs(zs-redshift).argmin()]
     return closest_z, pspec_data[closest_z]
+
 def min_limit(pspec_data,krange=None):
     #for each redshift, find the min UL,
     #return a pspec_data
@@ -208,8 +210,21 @@ def min_limit(pspec_data,krange=None):
         else:
             k = pspec_data[z][:,0]
             p = pspec_data[z][:,2] #the upper limits
+            p = np.ma.masked_array(p,mask=[False for x in p], shrink=False)
             pspec_in_k_range = np.ma.masked_where(np.logical_or(k<krange[0],k>krange[1]),p)
-            min_pspec_index = pspec_in_k_range.argmin()
+            if len(pspec_in_k_range) ==1:
+                pspec_in_k_range.mask = [pspec_in_k_range.mask]
+            try:
+                if all(pspec_in_k_range.mask):
+                    if all(k < krange[0]):
+                        min_pspec_index = len(k) - 1
+                    elif all(k > krange[1]):
+                        min_pspec_index = 0
+                else:
+                    min_pspec_index = pspec_in_k_range.argmin()
+            except:
+                from IPython import embed
+                embed()
         outdata[z] = pspec_data[z][min_pspec_index]
     return outdata
 
@@ -523,29 +538,42 @@ def get_k3pk_from_npz(files=None, verbose=False):
     return z, kmags, k3Pk, k3err
 
 formats = {'GMRT_2014_all':
-            dict(fmt='p', ecolor='gray',
-                color='gray', uplims=True,
+            dict(fmt='p', ecolor='C5',
+                color='C5', uplims=True,
                 label='Paciga, 2013'),
             'MWA_32T_all':
             dict(fmt='r*', uplims=True,
                 label='Dillon, 2014'),
             'MWA_128_all':
-            dict(fmt='y*', uplims=True, alpha=.5,
+            dict(fmt='y*', uplims=True,
                 label='Dillon, 2015'),
             'MWA_128_beardsley_2016_all':
             dict(fmt='g*', uplims=True,
                 label='Beardsley, 2016'),
             'PAPER_32_all':
-            dict(fmt='md', uplims=True,
+            dict(fmt='d',color='purple',alpha=.3, uplims=True,
                 label='Jacobs, 2015'),
             'PAPER_64_all':
-            dict(fmt='bs', uplims=True,
-                label='Ali, 2015'),
+            dict(fmt='d',color='grey', alpha=.3,
+                 uplims=True,
+                 label='Ali, 2015'),
             'LOFAR_Patil_2017':
-            dict(fmt='b.',uplims=True,
+            dict(fmt='bh',uplims=True,
                 label='Patil, 2017')
             dict(fmt='0.5.',uplims=True,
                 label='Parsons 2015')
+            }
+krange_table = {'GMRT_2014_all': dict(krange=[.1,.5]),
+            'MWA_32T_all': dict(krange=None),
+            'MWA_128_all': dict(krange=None),
+            'MWA_128_beardsley_2016_all':
+            dict(krange=None),
+            'PAPER_32_all':
+            dict(krange=[.1,.6]),
+            'PAPER_64_all':
+            dict(krange=[.1,.6]),
+            'LOFAR_Patil_2017':
+            dict(krange=None)
             }
 def plot_lowest_limits(files=None,title='',published = None,
             krange=None,models=True,verbose=False,capsize=3.5,figsize=(10,5),**kwargs):
@@ -559,16 +587,19 @@ def plot_lowest_limits(files=None,title='',published = None,
     capsize: defines the size of the upper limits caps.
     verbose: print info while plotting
     """
+    if krange:
+        print krange
     if published is None:
-        published = [GMRT_2014_all,MWA_32T_all,MWA_128_all,
-                    MWA_128_beardsley_2016_all,LOFAR_Patil_2017,PAPER_64_all]
+        published = [MWA_32T_all,MWA_128_all,MWA_128_beardsley_2016_all,
+                     GMRT_2014_all,LOFAR_Patil_2017,PAPER_64_all]
     fig = p.figure(figsize=figsize)
     ax = fig.add_subplot(111)
     for result in published:
+        print result.__name__
         data = result()
         for z in data:
             print z,data[z].shape
-        min_data  = min_limit(data,krange=krange)
+        min_data  = min_limit(data,**krange_table[result.__name__])
         redshifts = min_data.keys()
         #select off the UPPER LIMIT, regardless of whether it is or not.
         min_limits = np.array([min_data[z][2] for z in redshifts])
@@ -583,7 +614,7 @@ def plot_lowest_limits(files=None,title='',published = None,
         redshifts = min_data.keys()
         min_limits = np.array([min_data[z][2] for z in redshifts])
         ax.errorbar(redshifts,min_limits,min_limits/1.5,capsize=capsize,
-            label=title,uplims=True,fmt='ko')
+            label=title,uplims=True,fmt='kd')
 
     ax.set_yscale('log')
     ax.set_ylabel('$\Delta^{2} (mK)^{2}$')
@@ -609,22 +640,47 @@ def plot_lowest_limits(files=None,title='',published = None,
                                         parm_array[:, 3] == alphaX,
                                         parm_array[:, 4] == Mmin]
                                         ))
-                    ax.plot(parm_array[_slice, 0],
-                            delta2_array[_slice, k_index], '-k',
-                            label='Fiducal 21cmFAST model')
+
+                    if len(_slice)==0:continue
+                    if alphaX==0:
+                        label='Cold Reionization'
+                        ls = ':k'
+                        fig.text(.65, .5, label, fontsize=10)
+                    else:
+                        label = "Fiducial 21cmFAST model"
+                        ls = '-k'
+                        fig.text(.65, .35, label, fontsize=10)
+                    ax.plot(parm_array[_slice,0],
+                            delta2_array[_slice,k_index], ls)#,label=label)
+                #    ax.plot(parm_array[_slice, 0],
+                #            delta2_array[_slice, k_index], '-k',
+                #            label='Fiducal 21cmFAST model')
         ax.set_xlim(xlim)  # reset to the data xlimits
 
     handles, labels = ax.get_legend_handles_labels()
     handles = [h[0] if cnt > 0 else h for cnt, h in enumerate(handles)]
     num_hands = len(handles)
-    handles.insert(num_hands, handles.pop(0))
-    labels.insert(num_hands, labels.pop(0))
+    # this array split makes it so that all MWA is on one line of the 
+    # figure caption it looks a little weird as code but it's a hack
+    # for now to get it look pretty
+    handles = np.array_split(handles, 2)
+    labels = np.array_split(labels, 2)
+    handles = list(itertools.chain.from_iterable(itertools.izip_longest(*handles)))
+    labels = list(itertools.chain.from_iterable(itertools.izip_longest(*labels)))
+    #handles.insert(num_hands, handles.pop(-1))
+    #labels.insert(num_hands, labels.pop(-1))
+    ymax=[np.max(np.abs(_da)) for lines in ax.get_lines() for _da in lines.get_ydata() ]
+    ymax = np.max(ymax)
+    yticks = np.power(10, np.arange(0, np.log10(ymax)+1))
+    ax.set_yticks(yticks)
     box = ax.get_position()
     ax.set_position([box.x0, box.height * .2 + box.y0,
                      box.width, box.height*.8])
     # fig.subplots_adjust(bottom=.275,top=.8)
     ax.legend(handles, labels, loc='lower center',
-              bbox_to_anchor=(.5, -.425), ncol=3, **kwargs)
+               bbox_to_anchor=(.5, -.425), ncol=3, **kwargs)
+    #ax.legend(handles, labels, loc='lower center',
+    #          bbox_to_anchor=(.5, -.425), ncol=3, **kwargs)
     # ax.legend(loc='bottom',ncol=3)
     return fig
 
