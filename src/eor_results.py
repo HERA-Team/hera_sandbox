@@ -544,6 +544,8 @@ formats = {'GMRT_2014_all':
             'LOFAR_Patil_2017':
             dict(fmt='b.',uplims=True,
                 label='Patil, 2017')
+            dict(fmt='0.5.',uplims=True,
+                label='Parsons 2015')
             }
 def plot_lowest_limits(files=None,title='',published = None,
             krange=None,models=True,verbose=False,capsize=3.5,figsize=(10,5),**kwargs):
