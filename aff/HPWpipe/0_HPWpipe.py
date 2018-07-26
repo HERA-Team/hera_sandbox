@@ -4,7 +4,7 @@
 # In[ ]:
 
 
-"""This script will convert N MIRIAD data files into N hdf5 files."""
+"""This script will convert MIRIAD data files into an equal number of hdf5 files."""
 import os
 import argparse
 import numpy as np
