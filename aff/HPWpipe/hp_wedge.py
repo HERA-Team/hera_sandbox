@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[ ]:
+# In[1]:
 
 
 import os
@@ -13,8 +13,8 @@ import numpy as np
 import astropy.units as u
 import astropy.constants as c
 import astropy.coordinates as aco
-import matplotlib
-matplotlib.use('Agg')
+# import matplotlib
+# matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import hera_pspec as hp
@@ -22,7 +22,7 @@ from hera_pspec.data import DATA_PATH
 from pyuvdata import UVData
 
 
-# In[ ]:
+# In[2]:
 
 
 parser = argparse.ArgumentParser()
@@ -42,34 +42,55 @@ parser.add_argument(
 parser.add_argument(
     '-C',
     '--freq_chans',
-    help='Designate which frequency channels that will be analyzed (e.g.: "580 680".',
+    help='Designate which frequency channels that will be analyzed (e.g.: "580 680").',
     type=int,
     nargs=2,
     required=True)
-# args = parser.parse_args(
-#     "-F /lustre/aoc/projects/hera/H1C_IDR2/IDR2_1/2458098/zen.2458111.?????.xx.HH.uvh5.OCRS \
-#     -L 5.0 6.0 \
-#     -C 580 680".split())
-args = parser.parse_args()
+parser.add_argument(
+    '-X',
+    '--xants',
+    help='Input a comma delimitted list of antenna numbers that should be excluded from \
+    analysis for the chosen data files (e.g.: "0,50,98").')
 
 
 # In[ ]:
 
 
-# The next line is for running as .py, the one after is for running as jupyter notebook
-dfiles = np.array(sorted(args.files))
-# dfiles = sorted(glob.glob(args.files[0]))
+"""Uncomment this code when running as .py"""
+# args = parser.parse_args()
+# dfiles = np.array(sorted(args.files))
+
+
+# In[3]:
+
+
+"""Uncomment this code when running as .ipynb"""
+args = parser.parse_args(
+    "-F /lustre/aoc/projects/hera/H1C_IDR2/IDR2_1/2458111/zen.2458111.?????.xx.HH.uvh5.OCRS \
+    -L 5.0 6.0 \
+    -C 580 680 \
+    -X 0,136,50".split())
+dfiles = sorted(glob.glob(args.files[0]))
+
+
+# In[4]:
+
+
 LSTrange = args.LSTrange
 freq_chans = np.arange(args.freq_chans[0], args.freq_chans[-1] + 1)
+if args.xants is not None:
+    xants = sorted([int(xant) for xant in args.xants.split(',')])
+else:
+    xants = []
 
 
-# In[ ]:
+# In[5]:
 
 
-# %%time
 uvd = UVData()
 files = []
 times = []
+lsts = []
 for dfile in dfiles:
     uvd.read_uvh5(dfile, read_data=False)
     LSTrads = np.unique(uvd.lst_array * u.rad)
@@ -80,12 +101,12 @@ for dfile in dfiles:
         JDtimes = np.take(np.unique(uvd.time_array), LSTindices)
         files.append(dfile)
         times.append(JDtimes.tolist())
+        lsts.append(LSThours.tolist())
 
 
-# In[ ]:
+# In[6]:
 
 
-# %%time
 uvd = UVData()
 uvd.read_uvh5(
     files[0],
@@ -102,10 +123,21 @@ for file, time in zip(files[1:], times[1:]):
     uvd += uvdi
 
 
+# In[13]:
+
+
+np.unique(aco.Angle(uvd.lst_array*u.rad).hour)
+
+
+# In[24]:
+
+
+uvd.extra_keywords.keys()
+
+
 # In[ ]:
 
 
-# %%time
 # Apply flags
 uvd.data_array *= np.logical_not(uvd.flag_array)
 
@@ -130,7 +162,6 @@ ds.dsets[1].vis_units = 'mK'
 # In[ ]:
 
 
-# %%time
 # Phase data (What does this do?)
 ds.rephase_to_dset(0)
 
@@ -138,7 +169,6 @@ ds.rephase_to_dset(0)
 # In[ ]:
 
 
-# %%time
 # Categorize baselines into physical separation length
 BIN_WIDTH = 0.3
 NORM_BINS = np.arange(0.0, 10000.0, BIN_WIDTH)
@@ -167,7 +197,6 @@ norms = sorted(reds.keys())
 # In[ ]:
 
 
-# %%time
 # Initialize UVPspec objects for each baseline bin
 uvps = [] 
 for norm in norms:
@@ -185,7 +214,6 @@ for norm in norms:
 # In[ ]:
 
 
-# %%time
 # Average each UVPspec object in time and baseline bin and fold into wedge
 for uvp, norm in zip(uvps, norms):
     blpairs = [[(bl, bl) for bl in reds[norm]]]
@@ -233,18 +261,18 @@ for i, (uvp, norm, pspec) in enumerate(zip(uvps, norms, wedge)):
         lw=1,
         label='{norm}m ({ants} ants)'.format(norm=norm, ants=len(reds[norm])))
 
-#     noise = uvp.generate_noise_spectra(0, 'xx', Tsys)
-#     noise = noise[noise.keys()[0]]
-#     noise = np.insert(noise, 0, noise[0, 0], axis=1)
-#     noise = noise.reshape(len(kparas))
-#     noise = np.log10(noise)
-#     plt.plot(
-#         kparas,
-#         noise,
-#         c=cmap(i),
-#         ls='--',
-#         lw=1,
-#         label='{norm}m {Tsys}K'.format(norm=norm, Tsys=Tsys))
+    noise = uvp.generate_noise_spectra(0, 'xx', Tsys)
+    noise = noise[noise.keys()[0]]
+    noise = np.insert(noise, 0, noise[0, 0], axis=1)
+    noise = noise.reshape(len(kparas))
+    noise = np.log10(noise)
+    plt.plot(
+        kparas,
+        noise,
+        c=cmap(i),
+        ls='--',
+        lw=1,
+        label='{norm}m {Tsys}K'.format(norm=norm, Tsys=Tsys))
     
     
 plt.legend(loc='upper right', ncol=3)
@@ -254,14 +282,15 @@ plt.xlim((0, UVP.get_kparas(0)[-1]))
 plt.xlabel(r"$k_{\parallel}\ [\rm\ Mpc^{-1}\ h]$", size=20)
 
 # y-axis
-# plt.ylim((0, 20))
+plt.ylim((8, 15))
 plt.ylabel(r"$P(k)\ \rm [\log_{10}({mK^2\ Mpc^3\ h^{-3}})]$", size=20)
 
 # Titles
-plt.title("pol: xx; Bandwidth: {BW}; Central Frequency: {CF}".format(
+plt.title("XX")
+plt.suptitle("Bandwidth: {BW}\nCentral Frequency: {CF}\nExcluded Antennae: {XANTS}".format(
     BW=np.round(BANDWIDTH, 2),
-    CF=np.round(CENTRAL_FREQ, 1)))
-plt.suptitle(os.path.basename(files[0]) + "\nto\n" + os.path.basename(files[-1]))
+    CF=np.round(CENTRAL_FREQ, 1),
+    XANTS=', '.join([str(xant) for xant in xants])))
 
 # Save and show the plot with a grid
 plt.grid()
