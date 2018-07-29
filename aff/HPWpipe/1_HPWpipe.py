@@ -4,13 +4,18 @@
 # In[ ]:
 
 
-"""This script will convert N*4 uvf5 files into 4 hdf5 files that each represent N files of one polarization."""
+"""This script will concatenate uvf5 files in time based on certain parameters."""
+# Python Standard Library Packages
 import os
-from glob import glob
+import glob
 import argparse
+
+# Community Developed Packages
 import numpy as np
 import astropy.units as u
 import astropy.coordinates as aco
+
+# HERA Collaboration Packages
 from pyuvdata import UVData
 
 
@@ -18,12 +23,6 @@ from pyuvdata import UVData
 
 
 parser = argparse.ArgumentParser()
-
-
-# In[ ]:
-
-
-"""Arguments that determine which files from the directory are grabbed."""
 parser.add_argument(
     '-F',
     '--files',
@@ -33,7 +32,7 @@ parser.add_argument(
 parser.add_argument(
     '-P',
     '--pols',
-    help='Designate which polarizations to analyze.',
+    help='Designate which polarizations to analyze (e.g.: "xx xy yx yy").',
     nargs='*',
     required=True)
 parser.add_argument(
@@ -46,24 +45,11 @@ parser.add_argument(
     '--ext',
     help='Designate which file extension (i.e., uvOCRS) the designated hdf5 files are.',
     required=True)
-
-
-# In[ ]:
-
-
-"""Arguments that determine what data from the files are used."""
 parser.add_argument(
     '-L',
-    '--LSTrange',
+    '--LSTrng',
     help='Designate which LST in hours that will be analyzed (e.g.: "6.0 7.0").',
     type=float,
-    nargs=2,
-    required=True)
-parser.add_argument(
-    '-R',
-    '--FREQrange',
-    help='Designate which frequency channels that will be analyzed (e.g.: "580 680").',
-    type=int,
     nargs=2,
     required=True)
 parser.add_argument(
@@ -73,11 +59,6 @@ parser.add_argument(
     type=int,
     nargs='*',
     default=list())
-
-
-# In[ ]:
-
-
 parser.add_argument(
     '-S',
     '--savepath',
@@ -103,82 +84,71 @@ files = np.array(sorted(args.files))
 #     -D 2458098 \
 #     -E OCRS \
 #     -L 5.0 6.0 \
-#     -R 530 730 \
 #     -X 0 136 50 2 \
 #     -S /lustre/aoc/projects/hera/afortino/H1C_IDR2_1/".split())
-# files = sorted(glob(args.files[0]))
+# files = sorted(glob.glob(args.files[0]))
 
 
 # In[ ]:
 
 
-POLS = sorted(args.pols)
-DAY = args.day
-EXT = args.ext
-LSTrange = args.LSTrange
-FREQchans = np.arange(args.FREQrange[0], args.FREQrange[-1] + 1)
-XANTS = sorted(args.xants)
-SAVEPATH = os.path.join(args.savepath, '{EXT}/{DAY}/FREQchans_{FREQ0}_to_{FREQf}/LSThours_{LST0}_to_{LSTf}'.format(
-    DAY=DAY,
-    LST0=LSTrange[0],
-    LSTf=LSTrange[-1],
-    FREQ0=FREQchans[0],
-    FREQf=FREQchans[-1],
-    EXT=EXT))
-os.system('mkdir -p {}'.format(SAVEPATH))
-print 'Saving files to:\n{}'.format(SAVEPATH)
-print 'Polarizations: {}'.format(POLS)
-print 'Extension: {}'.format(EXT)
-print 'LST Range: Hour {} to Hour {} '.format(LSTrange[0], LSTrange[-1])
-print 'Frequency Channels Range : Channel {} to Channel {}'.format(FREQchans[0], FREQchans[-1])
-print 'Excluded Antennae: {}'.format(XANTS)
+"""Formatting command line arguments:"""
+pols = sorted(args.pols)
+day = args.day
+ext = args.ext
+LSTrng = args.LSTrng
+xants = sorted(args.xants)
+savepath = os.path.join(args.savepath, '{ext}/{day}/LSThrs_{LST0}_to_{LSTf}'.format(
+    ext=ext,
+    day=day,
+    LST0=LSTrng[0],
+    LSTf=LSTrng[-1]))
+os.system('mkdir -p {}'.format(savepath))
+print 'Saving files to:\n{}'.format(savepath)
+print 'Polarizations: {}'.format(pols)
+print 'Extension: {}'.format(ext)
+print 'LST Range: Hour {} to Hour {} '.format(LSTrng[0], LSTrng[-1])
+print 'Excluded Antennae: {}'.format(xants)
 
 
 # In[ ]:
 
 
-pol_files = {pol: sorted([file for file in files if pol in file]) for pol in POLS}
-
-
-# In[ ]:
-
-
-print 'Looping through each polarization...'
+"""Looping through each polarization, finding correct files based on given LST range:"""
+pol_files = {pol: sorted([file for file in files if pol in file]) for pol in pols}
 for pol, dfiles in pol_files.items():
     print pol
     
-    print 'Finding the correct files based on the provided LST range...'
+    # Finding the correct files based on the provided LST range
     uvd = UVData()
     files = []
     times = []
     for dfile in dfiles:
         uvd.read_uvh5(dfile, read_data=False)
         LSTrads = np.unique(uvd.lst_array * u.rad)
-        LSThours = aco.Angle(LSTrads).hour
-        LSTindices = np.where(np.logical_and(LSThours >= LSTrange[0], LSThours <= LSTrange[-1]))[0]
+        LSThrs = aco.Angle(LSTrads).hour
+        LSTindices = np.where(np.logical_and(LSThrs >= LSTrng[0], LSThrs <= LSTrng[-1]))[0]
 
         if LSTindices.size > 0:
             JDtimes = np.take(np.unique(uvd.time_array), LSTindices)
             files.append(dfile)
             times.append(JDtimes.tolist())
 
-    print 'Loading in the correct data based on the provided LST range...'
+    # Loading in the correct data based on the provided LST range
     uvd = UVData()
     uvd.read_uvh5(
         files[0],
         ant_str='cross',
-        freq_chans=FREQchans,
         times=times[0])
     for file, time in zip(files[1:], times[1:]):
         uvdi = UVData()
         uvdi.read_uvh5(
             file, 
             ant_str='cross',
-            freq_chans=FREQchans,
             times=time)
         uvd += uvdi
 
-    print 'Making new metadata...'
+    # Making new metadata
     UVD0 = UVData()
     UVDf = UVData()
     UVD0.read_uvh5(files[0], read_data=False)
@@ -191,24 +161,23 @@ for pol, dfiles in pol_files.items():
     JDtf = '{:.5f}'.format(JDtf).split('.')[-1]
     numfiles = len(files)
 
-    print 'Saving new metadata...'
+    # Saving new metadata
     uvd.extra_keywords['JDt0'] = JDt0
     uvd.extra_keywords['JDtf'] = JDtf
     uvd.extra_keywords['JD'] = JD
     uvd.extra_keywords['numfiles'] = numfiles
-    uvd.extra_keywords['EXT'] = EXT
-    uvd.extra_keywords['FREQchans'] = FREQchans
-    uvd.extra_keywords['LSTrange'] = LSTrange
-    uvd.extra_keywords['XANTS'] = XANTS
+    uvd.extra_keywords['ext'] = ext
+    uvd.extra_keywords['LSTrng'] = LSTrng
+    uvd.extra_keywords['xants'] = xants
     
-    print 'Naming new UVdata object...'
+    # Naming new UVdata object
     hdf5 = 'zen.{JD}.{JDt0}_{JDtf}.{pol}.HH.hdf5.{ext}'.format(
         JD=JD,
         JDt0=JDt0,
         JDtf=JDtf,
         pol=pol,
-        ext=EXT)
-    hdf5 = os.path.join(SAVEPATH, hdf5)
+        ext=ext)
+    hdf5 = os.path.join(savepath, hdf5)
     print 'Writing:'
     print hdf5
     uvd.write_uvh5(hdf5, clobber=True)
