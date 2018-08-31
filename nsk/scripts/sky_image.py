@@ -61,6 +61,9 @@ a.add_argument('--spec_dchan', default=40, type=int, help="number of channel ave
 a.add_argument('--spec_start', default=100, type=int, help='starting channel for spectral cube')
 a.add_argument('--spec_end', default=924, type=int, help='ending channel for spectral cube')
 a.add_argument("--stokes", default='I', type=str, help="Stokes parameters to image.")
+a.add_argument("--mask", default=None, type=str, help="CASA region string to use as mask in CLEANing. Ex: 'circle[[1h55m0s,-30d40m0s],10deg]'")
+a.add_argument("--weighting", default='briggs', type=str, help="Visibility weighting when imaging.")
+a.add_argument("--robust", default=0, type=float, help="Robust parameter when briggs weighting.")
 # Plotting Arguments
 a.add_argument("--plot_uvdist", default=False, action='store_true', help='make a uvdist plot')
 
@@ -373,8 +376,9 @@ if __name__ == "__main__":
     if args.image_mfs:
         echo("...running MFS clean", type=1)
         def image_mfs(msin, im_stem, timerange, cleanspw):
-            clean(vis=msin, imagename=im_stem, spw=cleanspw, niter=args.niter, weighting='briggs', robust=0, imsize=[args.imsize, args.imsize],
-                  cell=['{}arcsec'.format(args.pxsize)], mode='mfs', timerange=timerange, uvrange=args.uvrange, stokes=args.stokes)
+            clean(vis=msin, imagename=im_stem, spw=cleanspw, niter=args.niter, weighting=args.weighting, robust=args.robust, imsize=args.imsize,
+                  cell=['{}arcsec'.format(args.pxsize)], mode='mfs', timerange=timerange, uvrange=args.uvrange, stokes=args.stokes,
+                  mask=args.mask)
             exportfits(imagename='{}.image'.format(im_stem), fitsimage='{}.fits'.format(im_stem))
             print("...saving {}".format('{}.fits'.format(im_stem)))
 
@@ -396,8 +400,8 @@ if __name__ == "__main__":
             dchan = args.spec_dchan
             for i, chan in enumerate(np.arange(args.spec_start, args.spec_end, dchan)):
                 clean(vis=msin, imagename=im_stem+'.spec{:04d}'.format(chan), niter=0, spw="0:{}~{}".format(chan, chan+dchan-1),
-                        weighting='briggs', robust=0, imsize=[args.imsize, args.imsize], timerange=timerange, uvrange=args.uvrange,
-                        cell=['{}arcsec'.format(args.pxsize)], mode='mfs', stokes=args.stokes)#, mask='circle[[{}h{}m{}s, {}d{}m{}s ], 7deg]'.format(*(ra+dec)))
+                        weighting=args.weighting, robust=args.robust, imsize=args.imsize, timerange=timerange, uvrange=args.uvrange,
+                        cell=['{}arcsec'.format(args.pxsize)], mode='mfs', stokes=args.stokes, mask=args.mask)
                 exportfits(imagename='{}.spec{:04d}.image'.format(im_stem, chan), fitsimage='{}.spec{:04d}.fits'.format(im_stem, chan))
                 print("...saving {}".format('{}.spec{:04d}.fits'.format(im_stem, chan)))
 
