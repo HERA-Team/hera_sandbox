@@ -42,6 +42,7 @@ a.add_argument('--Acal', default=False, action='store_true', help='perform G (am
 a.add_argument("--Asnr", default=2.0, type=float, help="G-amplitude calibration Signal-to-Noise cut")
 a.add_argument('--BPcal', default=False, action='store_true', help='perform BandPass calibration (phs & amp)')
 a.add_argument("--BPsnr", default=2.0, type=float, help="bandpass calibration Signal-to-Noise cut")
+a.add_argument("--BPsolnorm", default=False, action='store_true', help="Normalize freq average of bandpass solution amplitude to 1.0.")
 a.add_argument('--uvrange', default="", type=str, help="uvrange in meters (baseline length) to use in calibration and imaging")
 a.add_argument('--timerange', default=[""], type=str, nargs='*', help="calibration and clean timerange(s)")
 a.add_argument('--bpoly', default=False, action='store_true', help="use BPOLY mode in bandpass")
@@ -91,8 +92,9 @@ if __name__ == "__main__":
     # configure refant
     if args.refant is None and (args.KGcal is True or args.Acal is True or args.BPcal is True):
         raise AttributeError("if calibrating, refant needs to be specified")
-    refants = args.refant.split(',')
-    refants = ["HH" + ra for ra in refants]
+    if args.refant is not None:
+        refants = args.refant.split(',')
+        refants = ["HH" + ra for ra in refants]
 
     # get phase center
     ra, dec = np.loadtxt('{}.loc'.format(args.source), dtype=str)
@@ -278,7 +280,7 @@ if __name__ == "__main__":
             os.remove("{}.phs.png".format(bc))
         bandpass(vis=msin, spw="", minsnr=args.BPsnr, bandtype=Btype, degamp=args.degamp, degphase=args.degphase,
                 caltable=bc, gaintable=gaintables, solint='inf', refant=args.refant, timerange=cal_timerange,
-                uvrange=args.uvrange, smodel=args.smodel)
+                uvrange=args.uvrange, smodel=args.smodel, solnorm=args.BPsolnorm)
         plotcal(bc, xaxis='chan', yaxis='amp', figfile="{}.amp.png".format(bc), showgui=False)
         plotcal(bc, xaxis='chan', yaxis='phase', figfile="{}.phs.png".format(bc), showgui=False)
         gaintables.append(bc)
@@ -382,7 +384,6 @@ if __name__ == "__main__":
             exportfits(imagename='{}.image'.format(im_stem), fitsimage='{}.fits'.format(im_stem))
             print("...saving {}".format('{}.fits'.format(im_stem)))
 
-    
         for i, tr in enumerate(args.timerange):
             if i == 0:
                 image_mfs(ms_split, im_stem, tr, args.cleanspw)
@@ -399,7 +400,7 @@ if __name__ == "__main__":
         def spec_cube(msin, im_stem, timerange):
             dchan = args.spec_dchan
             for i, chan in enumerate(np.arange(args.spec_start, args.spec_end, dchan)):
-                clean(vis=msin, imagename=im_stem+'.spec{:04d}'.format(chan), niter=0, spw="0:{}~{}".format(chan, chan+dchan-1),
+                clean(vis=msin, imagename=im_stem+'.spec{:04d}'.format(chan), niter=args.niter, spw="0:{}~{}".format(chan, chan+dchan-1),
                         weighting=args.weighting, robust=args.robust, imsize=args.imsize, timerange=timerange, uvrange=args.uvrange,
                         cell=['{}arcsec'.format(args.pxsize)], mode='mfs', stokes=args.stokes, mask=args.mask)
                 exportfits(imagename='{}.spec{:04d}.image'.format(im_stem, chan), fitsimage='{}.spec{:04d}.fits'.format(im_stem, chan))
