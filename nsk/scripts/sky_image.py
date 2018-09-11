@@ -32,7 +32,7 @@ a.add_argument('--source_ext', default=None, type=str, help="Extension to defaul
 a.add_argument("--im_stem", default=None, type=str, help="Imagename stem for output images. Default is basename of input MS.")
 # Calibration Arguments
 a.add_argument("--model_im", default=None, type=str, help="path to model image, if None will look for a {source}.cl file")
-a.add_argument('--refant', default=None, type=str, help='reference antenna')
+a.add_argument('--refant', default=None, type=str, help='Reference antenna, or comma-delimited list of ref ants for backup.')
 a.add_argument('--ex_ants', default=None, type=str, help='bad antennas to flag')
 a.add_argument('--rflag', default=False, action='store_true', help='run flagdata(mode=rflag)')
 a.add_argument('--unflag', default=False, action='store_true', help='start by unflagging data')
@@ -42,6 +42,7 @@ a.add_argument('--Acal', default=False, action='store_true', help='perform G (am
 a.add_argument("--Asnr", default=2.0, type=float, help="G-amplitude calibration Signal-to-Noise cut")
 a.add_argument('--BPcal', default=False, action='store_true', help='perform BandPass calibration (phs & amp)')
 a.add_argument("--BPsnr", default=2.0, type=float, help="bandpass calibration Signal-to-Noise cut")
+a.add_argument("--BPsolnorm", default=False, action='store_true', help="Normalize freq average of bandpass solution amplitude to 1.0.")
 a.add_argument('--uvrange', default="", type=str, help="uvrange in meters (baseline length) to use in calibration and imaging")
 a.add_argument('--timerange', default=[""], type=str, nargs='*', help="calibration and clean timerange(s)")
 a.add_argument('--bpoly', default=False, action='store_true', help="use BPOLY mode in bandpass")
@@ -61,6 +62,9 @@ a.add_argument('--spec_dchan', default=40, type=int, help="number of channel ave
 a.add_argument('--spec_start', default=100, type=int, help='starting channel for spectral cube')
 a.add_argument('--spec_end', default=924, type=int, help='ending channel for spectral cube')
 a.add_argument("--stokes", default='I', type=str, help="Stokes parameters to image.")
+a.add_argument("--mask", default=None, type=str, help="CASA region string to use as mask in CLEANing. Ex: 'circle[[1h55m0s,-30d40m0s],10deg]'")
+a.add_argument("--weighting", default='briggs', type=str, help="Visibility weighting when imaging.")
+a.add_argument("--robust", default=0, type=float, help="Robust parameter when briggs weighting.")
 # Plotting Arguments
 a.add_argument("--plot_uvdist", default=False, action='store_true', help='make a uvdist plot')
 
@@ -88,7 +92,9 @@ if __name__ == "__main__":
     # configure refant
     if args.refant is None and (args.KGcal is True or args.Acal is True or args.BPcal is True):
         raise AttributeError("if calibrating, refant needs to be specified")
-    args.refant = "HH" + str(args.refant)
+    if args.refant is not None:
+        refants = args.refant.split(',')
+        refants = ["HH" + ra for ra in refants]
 
     # get phase center
     ra, dec = np.loadtxt('{}.loc'.format(args.source), dtype=str)
@@ -164,11 +170,40 @@ if __name__ == "__main__":
             shutil.rmtree(kc)
         if os.path.exists("{}.png".format(kc)):
             os.remove("{}.png".format(kc))
-        gaincal(msin, caltable=kc, gaintype="K", solint='inf', refant=args.refant, minsnr=args.KGsnr, spw=args.calspw,
-                gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange)
-        plotcal(kc, xaxis='antenna', yaxis='delay', figfile='{}.png'.format(kc), showgui=False)
-        gaintables.append(kc)
+        # iterate calibration over refants
+        for ra in refants:
+            gaincal(msin, caltable=kc+'_{}'.format(ra), gaintype="K", solint='inf', refant=ra, minsnr=args.KGsnr,
+                    spw=args.calspw, gaintable=gaintables, timerange=cal_timerange, uvrange=args.uvrange)
+        # merge delay solutions
+        kc_files = sorted(glob.glob("{}_*".format(kc)))
+        for i, kcf in enumerate(kc_files):
+            tb.open(kcf)
+            if i == 0:
+                delays = tb.getcol('FPARAM')
+                delay_ants = tb.getcol('ANTENNA1')
+                delay_flags = tb.getcol('FLAG')
+                delay_wgts = (~delay_flags).astype(np.float)
+            else:
+                dlys = tb.getcol('FPARAM')
+                dly_ants = tb.getcol('ANTENNA1')
+                flgs = tb.getcol('FLAG')
+                wgts = (~flgs).astype(np.float)
 
+                delays = (delays*delay_wgts + dlys*wgts) / (delay_wgts + wgts).clip(1e-10, np.inf)
+                delay_flags = delay_flags * flgs
+                delay_wgts = (~delay_flags).astype(np.float)
+            tb.close()
+        shutil.copytree(kc_files[0], kc)
+        tb.open(kc, nomodify=False)
+        tb.putcol("FPARAM", delays)
+        tb.putcol("FLAG", delay_flags)
+        tb.close()
+        for kcf in kc_files:
+            shutil.rmtree(kcf)
+        # plot cal
+        plotcal(kc, xaxis='antenna', yaxis='delay', figfile='{}.png'.format(kc), showgui=False)
+        # append to gaintables
+        gaintables.append(kc)
         # write delays as npz file
         tb.open(kc)
         delays = tb.getcol('FPARAM')[0, 0]
@@ -176,6 +211,7 @@ if __name__ == "__main__":
         delay_flags = tb.getcol('FLAG')[0, 0]
         tb.close()
         np.savez("{}.npz".format(kc), delay_ants=delay_ants, delays=delays, delay_flags=delay_flags)
+        echo("...Solved for {} antenna delays".format(np.sum(~delay_flags)))
         echo("...Saving delays to {}.npz".format(kc))
         echo("...Saving plotcal to {}.png".format(kc))
 
@@ -197,6 +233,7 @@ if __name__ == "__main__":
         phase_flags = tb.getcol('FLAG')[0, 0]
         tb.close()
         np.savez("{}.npz".format(gpc), phase_ants=phase_ants, phases=phases, phase_flags=phase_flags)
+        echo("...Solved for {} antenna phases".format(np.sum(~phase_flags)))
         echo("...Saving phases to {}.npz".format(gpc))
         echo("...Saving plotcal to {}.png".format(gpc))
 
@@ -222,6 +259,7 @@ if __name__ == "__main__":
         amp_flags = tb.getcol('FLAG')[0, 0]
         tb.close()
         np.savez("{}.npz".format(gac), amp_ants=amp_ants, amps=amps, amp_flags=amp_flags)
+        echo("...Solved for {} antenna amps".format(np.sum(~amp_flags)))
         echo("...Saving amps to {}.npz".format(gac))
         echo('...Saving G amp plotcal to {}.png'.format(gac))
 
@@ -242,7 +280,7 @@ if __name__ == "__main__":
             os.remove("{}.phs.png".format(bc))
         bandpass(vis=msin, spw="", minsnr=args.BPsnr, bandtype=Btype, degamp=args.degamp, degphase=args.degphase,
                 caltable=bc, gaintable=gaintables, solint='inf', refant=args.refant, timerange=cal_timerange,
-                uvrange=args.uvrange, smodel=args.smodel)
+                uvrange=args.uvrange, smodel=args.smodel, solnorm=args.BPsolnorm)
         plotcal(bc, xaxis='chan', yaxis='amp', figfile="{}.amp.png".format(bc), showgui=False)
         plotcal(bc, xaxis='chan', yaxis='phase', figfile="{}.phs.png".format(bc), showgui=False)
         gaintables.append(bc)
@@ -261,6 +299,7 @@ if __name__ == "__main__":
             tb.close()
             # write to file
             np.savez("{}.npz".format(bc), bp=bp, bp_ants=bp_ants, bp_flags=bp_flags, bp_freqs=bp_freqs)
+            echo("...Solved for {} antenna bandpasses".format(np.sum(~bp_flags)))
             echo("...Saving bandpass to {}.npz".format(bc))
             echo("...Saving amp plotcal to {}.amp.png".format(bc))
             echo("...Saving phs plotcal to {}.phs.png".format(bc))
@@ -287,6 +326,8 @@ if __name__ == "__main__":
         # apply calibration gaintables
         echo("...applying gaintables: \n {}".format('\n'.join(gaintables)), type=1)
         applycal(msin, gaintable=gaintables)
+
+        # split MS
         ms_split = os.path.join(out_dir, "{}.split".format(base_ms))
         files = glob.glob("{}*".format(ms_split))
         for f in files:
@@ -337,12 +378,12 @@ if __name__ == "__main__":
     if args.image_mfs:
         echo("...running MFS clean", type=1)
         def image_mfs(msin, im_stem, timerange, cleanspw):
-            clean(vis=msin, imagename=im_stem, spw=cleanspw, niter=args.niter, weighting='briggs', robust=0, imsize=[args.imsize, args.imsize],
-                  cell=['{}arcsec'.format(args.pxsize)], mode='mfs', timerange=timerange, uvrange=args.uvrange, stokes=args.stokes)
+            clean(vis=msin, imagename=im_stem, spw=cleanspw, niter=args.niter, weighting=args.weighting, robust=args.robust, imsize=args.imsize,
+                  cell=['{}arcsec'.format(args.pxsize)], mode='mfs', timerange=timerange, uvrange=args.uvrange, stokes=args.stokes,
+                  mask=args.mask)
             exportfits(imagename='{}.image'.format(im_stem), fitsimage='{}.fits'.format(im_stem))
             print("...saving {}".format('{}.fits'.format(im_stem)))
 
-    
         for i, tr in enumerate(args.timerange):
             if i == 0:
                 image_mfs(ms_split, im_stem, tr, args.cleanspw)
@@ -359,9 +400,9 @@ if __name__ == "__main__":
         def spec_cube(msin, im_stem, timerange):
             dchan = args.spec_dchan
             for i, chan in enumerate(np.arange(args.spec_start, args.spec_end, dchan)):
-                clean(vis=msin, imagename=im_stem+'.spec{:04d}'.format(chan), niter=0, spw="0:{}~{}".format(chan, chan+dchan-1),
-                        weighting='briggs', robust=0, imsize=[args.imsize, args.imsize], timerange=timerange, uvrange=args.uvrange,
-                        cell=['{}arcsec'.format(args.pxsize)], mode='mfs', stokes=args.stokes)#, mask='circle[[{}h{}m{}s, {}d{}m{}s ], 7deg]'.format(*(ra+dec)))
+                clean(vis=msin, imagename=im_stem+'.spec{:04d}'.format(chan), niter=args.niter, spw="0:{}~{}".format(chan, chan+dchan-1),
+                        weighting=args.weighting, robust=args.robust, imsize=args.imsize, timerange=timerange, uvrange=args.uvrange,
+                        cell=['{}arcsec'.format(args.pxsize)], mode='mfs', stokes=args.stokes, mask=args.mask)
                 exportfits(imagename='{}.spec{:04d}.image'.format(im_stem, chan), fitsimage='{}.spec{:04d}.fits'.format(im_stem, chan))
                 print("...saving {}".format('{}.spec{:04d}.fits'.format(im_stem, chan)))
 

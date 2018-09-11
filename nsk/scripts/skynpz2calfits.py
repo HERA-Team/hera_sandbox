@@ -6,10 +6,14 @@ skynpz2calfits.py
 convert sky_image.py calibration
 solution output in .npz format
 (originally from CASA .cal/ tables)
-into pyuvdata .calfits format
+into pyuvdata .calfits format.
+
+These gains should be applied to
+visibility data using
+hera_cal.apply_cal.apply_cal.
 
 Nicholas Kern
-Dec. 2017
+August. 2018
 """
 import matplotlib
 matplotlib.use('agg')
@@ -76,7 +80,6 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
     """
     Convert *.npz output from sky_image.py into single-pol calfits file.
     uv_file must be single-pol.
-
     """
     # get out_dir
     if out_dir is None:
@@ -343,7 +346,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
     gain_dict = {}
     flag_dict = {}
     for i, a in enumerate(ants):
-        gain_dict[(a, pols[0])] = gains[i, :, :, 0].T
+        gain_dict[(a, pols[0])] = gains[i, :, :, 0].T.conj()
         flag_dict[(a, pols[0])] = flags[i, :, :, 0].T
         if flagged_ants[i]:
             flag_dict[(a, pols[0])] += True

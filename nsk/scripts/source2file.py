@@ -6,7 +6,6 @@ source2file.py
 Given a calibrator source,
 output the files that contain
 when it is closest to zenith
-
 """
 import os
 import numpy as np
@@ -132,15 +131,19 @@ def source2file(ra, lon=21.428305555, lat=-30.72152, duration=2.0, offset=0.0, s
             file_jd1 = file_jds[file_jd_indices].min()
             file_jd2 = file_jds[file_jd_indices].max()
 
-            time1 = Time(file_jd1, format='jd').to_datetime()
-            time2 = Time(file_jd2, format='jd').to_datetime()
+            time1 = Time(file_jd1, format='jd', scale='utc').to_datetime()
+            time2 = Time(file_jd2, format='jd', scale='utc').to_datetime()
+            time3 = Time(file_jd1 + jd_duration/2.0, format='jd', scale='utc').to_datetime()
 
             source_utc_range = '"{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}~{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}"'\
                                ''.format(time1.year, time1.month, time1.day, time1.hour, time1.minute, time1.second,
                                          time2.year, time2.month, time2.day, time2.hour, time2.minute, time2.second)
+            source_utc_center = '{:04d}/{:02d}/{:02d}/{:02d}:{:02d}:{:02d}'.format(time3.year, time3.month, time3.day,
+                                                                            time3.hour, time3.minute, time3.second)
 
-            echo('UTC time range of source in files above over {} minutes is:\n{}'\
-                 ''.format(duration, source_utc_range), type=1, verbose=verbose) 
+            echo('UTC time range of source in files above over {} minutes is:\n{}\ncentered on {} = {}'\
+                 ''.format(duration, source_utc_range, source_utc_center, file_jd1 + jd_duration/2.0),
+                 type=1, verbose=verbose) 
 
     return (lst, jd, utc_range, utc_center, source_files, source_utc_range)
 

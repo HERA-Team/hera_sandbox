@@ -27,6 +27,7 @@ import pytz
 import datetime
 import ephem
 from scipy import interpolate
+from astropy.time import Time
 
 
 args = argparse.ArgumentParser(description="Primary beam correction on FITS image files, given primary beam model")
@@ -37,7 +38,7 @@ args.add_argument("fitsfiles", type=str, nargs='*', help='path of image FITS fil
 args.add_argument("--multiply", default=False, action='store_true', help='multiply data by primary beam, rather than divide')
 args.add_argument("--lon", default=21.42830, type=float, help="longitude of observer in degrees east")
 args.add_argument("--lat", default=-30.72152, type=float, help="latitude of observer in degrees north")
-args.add_argument("--time", type=str, help='time of image observation in UTC "{yr}/{mon}/{day} {hr}:{min}:{sec}" format')
+args.add_argument("--time", type=float, help='time of middle of observation in Julian Date')
 
 # HEALpix Beam args
 args.add_argument("--beamfile", type=str, help="path to primary beam healpix map in pyuvdata.UVBeam format")
@@ -82,7 +83,7 @@ if __name__ == "__main__":
         if a.pol not in uvb.polarization_array:
             raise AttributeError("{} not in {} file polarizations {}".format(a.pol, a.beamfile, uvb.polarization_array))
         pol_ind = np.where(uvb.polarization_array == a.pol)[0][0]
-        beam_maps = uvb.data_array[0, 0, pol_ind, :, :]
+        beam_maps = np.abs(uvb.data_array[0, 0, pol_ind, :, :])
         beam_freqs = uvb.freq_array.squeeze() / 1e6
         Nbeam_freqs = len(beam_freqs)
         beam_nside = healpy.npix2nside(beam_maps.shape[1])
@@ -93,7 +94,7 @@ if __name__ == "__main__":
             theta = copy.copy(theta) * np.pi / 180.0
             phi = copy.copy(phi) * np.pi / 180.0
             shape = theta.shape
-            beam_interp = map(lambda m: healpy.get_interp_val(m, theta.ravel(), phi.ravel(), lonlat=False).reshape(shape), beam_maps)
+            beam_interp = [healpy.get_interp_val(m, theta.ravel(), phi.ravel(), lonlat=False).reshape(shape) for m in beam_maps]
             return np.array(beam_interp)
 
     # construct pb
@@ -157,7 +158,7 @@ if __name__ == "__main__":
         observer = ephem.Observer()
         observer.lat = a.lat * np.pi / 180
         observer.lon = a.lon * np.pi / 180
-        observer.date = a.time
+        observer.date = Time(a.time, format='jd', scale='utc').datetime
 
         # pointing direction
         point_ra, point_dec = np.array(observer.radec_of(0, np.pi/2)) * 180 / np.pi
