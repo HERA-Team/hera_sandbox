@@ -43,7 +43,6 @@ def main(ap):
     # start with unity gains
     gains = np.ones((Nants, Nfreqs, 1, Njones), dtype=np.complex)
     flags = np.zeros((Nants, Nfreqs, 1, Njones), dtype=np.bool)
-    flagged_ants = np.zeros(Nants, dtype=np.bool)
 
     # read in K-gain file
     kfile = args.kcal
@@ -54,13 +53,15 @@ def main(ap):
         delay_flags = f["/Data/delay_flags"].value.T
     # convert from ns -> s
     delays *= 1e-9
+
     # reorder antennas
     delays = np.array(map(lambda a: delays[delay_ants.index(a), :] if a in delay_ants else 0., ants))
     delay_flags = np.array(map(lambda a: delay_flags[delay_ants.index(a), :] if a in delay_ants else True, ants))
 
     # convert delays into complex gains; freqs has units of Hz
     delay_gains = np.exp(2j * np.pi * np.einsum('a,bc->bac', freqs, delays))[:, :, np.newaxis, :]
-    delay_gain_flags = delay_flags[:, np.newaxis, np.newaxis, :]
+    delay_gain_flags = delay_flags[:, np.newaxis, :]
+    delay_gain_flags = np.repeat(delay_gain_flags, Nfreqs, axis=1)[:, :, np.newaxis, :]
 
     # multiply into gains
     gains *= delay_gains
@@ -75,6 +76,7 @@ def main(ap):
         bp_ants = f["/Data/bp_ants"].value.tolist()
         bp_freqs = f["/Data/bp_freqs"].value
         bp_flags = np.swapaxes(f["/Data/bp_flags"].value, 0, 2)
+
     # get number of frequencies
     bp_Nfreqs = len(bp_freqs)
     # reorder antennas
@@ -113,7 +115,7 @@ def main(ap):
 
     # make the gains and flags the right number of time samples
     gains = np.repeat(gains, Ntimes, axis=2)
-    flags = np.repeat(gains, Ntimes, axis=2)
+    flags = np.repeat(flags, Ntimes, axis=2)
 
     # make into calfits
     fname = args.fname
@@ -126,11 +128,8 @@ def main(ap):
     flag_dict = {}
     for i, ant in enumerate(ants):
         for j, pol in enumerate(jones_array):
-            gain_dict[(a, pol)] = gains[i, :, :, j].T.conj()
-            flag_dict[(a, pol)] = gains[i, :, :, j].T
-            if flagged_ants[i]:
-                flag_dict[(a, pol)] += True
-    print("Saving {}...".format(fname))
+            gain_dict[(ant, pol)] = gains[i, :, :, j].T.conj()
+            flag_dict[(ant, pol)] = flags[i, :, :, j].T
     uvc = hera_cal.io.write_cal(fname, gain_dict, freqs, times, flags=flag_dict,
                                 overwrite=overwrite, gain_convention=gain_convention)
 
