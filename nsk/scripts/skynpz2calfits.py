@@ -3,7 +3,7 @@
 skynpz2calfits.py
 ---------------
 
-convert sky_image.py calibration
+convert sky_cal.py calibration
 solution output in .npz format
 (originally from CASA .cal/ tables)
 into pyuvdata .calfits format.
@@ -19,6 +19,7 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 from pyuvdata import UVCal, UVData
+import pyuvdata.utils as uvutils
 import numpy as np
 import argparse
 import os
@@ -26,6 +27,7 @@ import scipy.signal as signal
 from sklearn import gaussian_process as gp
 import copy
 import hera_cal as hc
+import copy
 
 a = argparse.ArgumentParser(description="Turn CASA calibration solutions in {}.npz files from sky_image.py script into .calfits files")
 
@@ -78,8 +80,8 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
                    bp_broad_flags=False, medfilt_flag=False, bp_gp_smooth=False, bp_gp_max_dly=500.0, bp_gp_nrestart=1, bp_gp_thin=2,
                    plot_amp=False, gain_amp_antavg=False, verbose=True):
     """
-    Convert *.npz output from sky_image.py into single-pol calfits file.
-    uv_file must be single-pol.
+    Convert *.npz output from sky_image.py into single or multi-pol calfits file.
+    Currently only supports data and gain solutions with a single spectral window.
     """
     # get out_dir
     if out_dir is None:
@@ -99,47 +101,46 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
     times = np.unique(uvd.time_array)
     Nfreqs = len(freqs)
     Nants = len(ants)
-    jones = uvd.polarization_array
-    num2str = {-5: 'x', -6: 'y', -7: 'jxy', -8: 'jyx'}
-    str2num = {'x': -5, 'y': -6, 'jxy': -7, 'jyx': -8}
-    pols = np.array(map(lambda j: num2str[j], jones))
+    pols = uvd.polarization_array
+    jones = np.array([uvutils.jnum2str(p) for p in pols])
+    Njones = len(jones)
 
     # construct blank gains and flags
-    gains = np.ones((Nants, Nfreqs, 1, 1), dtype=np.complex)
-    flags = np.zeros((Nants, Nfreqs, 1, 1), dtype=np.bool)
+    gains = np.ones((Nants, Nfreqs, 1, Njones), dtype=np.complex)
+    flags = np.zeros((Nants, Nfreqs, 1, Njones), dtype=np.bool)
     flagged_ants = np.zeros(Nants, dtype=np.bool)
 
     # process delays if available
     if dly_files is not None:
         echo("...processing delays", verbose=verbose, type=1)
-        delays = np.zeros_like(ants, dtype=np.float)
-        delay_flags = np.zeros_like(ants, dtype=np.bool)
+        delays = np.zeros((Nants, Njones), dtype=np.float)
+        delay_flags = np.zeros((Nants, Njones), dtype=np.bool)
         for dly_file in dly_files:
             echo("...processing {}".format(dly_file))
             # get CASA delays and antennas
             dly_data = np.load(dly_file)
             dly_ants = dly_data['delay_ants']
-            dlys = dly_data['delays']
-            dly_flags = dly_data['delay_flags']
+            dlys = dly_data['delays'][:Njones, :]
+            dly_flags = dly_data['delay_flags'][:Njones, :]
             dly_ants = dly_ants.tolist()
             dlys *= 1e-9
             # reorder antennas to be consistant w/ ants array
-            dlys = np.array(map(lambda a: dlys[dly_ants.index(a)] if a in dly_ants else 0.0, ants))
-            dly_flags = np.array(map(lambda a: dly_flags[dly_ants.index(a)] if a in dly_ants else True, ants))
+            dlys = np.array([dlys[:, dly_ants.index(a)] if a in dly_ants else 0.0 for a in ants])
+            dly_flags = np.array([dly_flags[:, dly_ants.index(a)] if a in dly_ants else True for a in ants])
             # keep only limited information
             if TTonly:
-                echo("...keeping only TT component of delays", verbose=verbose)
+                echo("...keeping only TT component of delays")
                 A = np.vstack([antpos[:, 0], antpos[:, 1]]).T
                 fit = np.linalg.pinv(A.T.dot(A)).dot(A.T).dot(dlys)
                 dlys = A.dot(fit)
             # add to delay array
             delays += dlys
             delay_flags += dly_flags
-            flagged_ants += dly_flags
+            flagged_ants += np.min(dly_flags, axis=1)  # only a flagged ant if all pols are flagged
 
         # turn into complex gains
-        dly_gains = np.exp(2j*np.pi*(freqs-freqs.min())*delays.reshape(-1, 1))[:, :, np.newaxis, np.newaxis]
-        dly_gain_flags = delay_flags[:, np.newaxis, np.newaxis, np.newaxis]
+        dly_gains = np.exp(2j*np.pi*(freqs-freqs.min())[None, :, None, None] * delays[:, None, None, :])
+        dly_gain_flags = delay_flags[:, None, None]
 
         # multiply into gains
         gains *= dly_gains
@@ -150,55 +151,53 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
     # process overall phase if available
     if phs_files is not None:
         echo("...processing gain phase", verbose=verbose, type=1)
-        phases = np.zeros_like(ants, dtype=np.float)
-        phase_flags = np.zeros_like(ants, dtype=np.bool)
+        phases = np.zeros((Nants, Njones), dtype=np.float)
+        phase_flags = np.zeros((Nants, Njones), dtype=np.bool)
         for phs_file in phs_files:
             echo("...processing {}".format(phs_file))
             # get phase antennas and phases
             phs_data = np.load(phs_file)
             phs_ants = phs_data['phase_ants']
-            phs = phs_data['phases']
-            phs_flags = phs_data['phase_flags']
+            phs = phs_data['phases'][:Njones, :]
+            phs_flags = phs_data['phase_flags'][:Njones, :]
             phs_ants = phs_ants.tolist()
             # reorder to match ants
-            phs = np.array([phs[phs_ants.index(a)] if a in phs_ants else 0.0 for a in ants])
-            phs_flags = np.array(map(lambda a: phs_flags[phs_ants.index(a)] if a in phs_ants else True, ants))
+            phs = np.array([phs[:, phs_ants.index(a)] if a in phs_ants else 0.0 for a in ants])
+            phs_flags = np.array([phs_flags[:, phs_ants.index(a)] if a in phs_ants else True for a in ants])
             # add to phases
             phases += phs
             phase_flags += phs_flags
-            flagged_ants += phs_flags
+            flagged_ants += np.min(phs_flags, axis=1)
 
         # construct gains
         phase_gains = np.exp(1j * phases)
-        phase_gains = phase_gains[:, np.newaxis, np.newaxis, np.newaxis]
-        phase_gain_flags = phase_flags[:, np.newaxis, np.newaxis, np.newaxis]
 
         # mult into gains
-        gains *= phase_gains
+        gains *= phase_gains[:, None, None]
 
         # add into flags
-        flags += phase_gain_flags
+        flags += phase_flags[:, None, None]
 
     # process overall amplitude if available
     if amp_files is not None:
         echo("...processing gain amp", verbose=verbose, type=1)
-        amplitudes = np.ones_like(ants, dtype=np.float)
-        amplitude_flags = np.zeros_like(ants, dtype=np.bool)
+        amplitudes = np.ones((Nants, Njones), dtype=np.float)
+        amplitude_flags = np.zeros((Nants, Njones), dtype=np.bool)
         for amp_file in amp_files:
             echo("...processing {}".format(amp_file))
             # get amp antenna and amps
             amp_data = np.load(amp_file)
             amp_ants = amp_data['amp_ants']
-            amps = amp_data['amps']
-            amp_flags = amp_data['amp_flags']
+            amps = amp_data['amps'][:Njones, :]
+            amp_flags = amp_data['amp_flags'][:Njones, :]
             amp_ants = amp_ants.tolist()
             # reorder to match ants
-            amps = np.array([amps[amp_ants.index(a)] if a in amp_ants else 1.0 for a in ants])
-            amp_flags = np.array(map(lambda a: amp_flags[amp_ants.index(a)] if a in amp_ants else True, ants))
+            amps = np.array([amps[:, amp_ants.index(a)] if a in amp_ants else 1.0 for a in ants])
+            amp_flags = np.array([amp_flags[:, amp_ants.index(a)] if a in amp_ants else True for a in ants])
             # add to amplitudes
             amplitudes *= amps
             amplitude_flags += amp_flags
-            flagged_ants += amp_flags
+            flagged_ants += np.min(amp_flags, axis=1)
 
         # average across ants if desired
         if gain_amp_antavg:
@@ -206,16 +205,11 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
             avg_amp = np.median(amplitudes[~amplitude_flags])
             amplitudes *= avg_amp / amplitudes
 
-        # construct gains
-        amplitude_gains = amplitudes
-        amplitude_gains = amplitude_gains[:, np.newaxis, np.newaxis, np.newaxis]
-        amplitude_flags = amplitude_flags[:, np.newaxis, np.newaxis, np.newaxis]
-
         # mult into gains
-        gains *= amplitude_gains
+        gains *= amplitudes[:, None, None, :]
 
         # add into flags
-        flags += amplitude_flags
+        flags += amplitude_flags[:, None, None, :]
 
     # process bandpass if available
     if bp_files is not None:
@@ -226,19 +220,19 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
             bp_data = np.load(bp_file)
             bp_freqs = bp_data['bp_freqs']
             bp_Nfreqs = len(bp_freqs)
-            bandp_gains = bp_data['bp']
-            bandp_flags = bp_data['bp_flags']
+            bandp_gains = bp_data['bp'][:Njones, :, :]
+            bandp_flags = bp_data['bp_flags'][:Njones, :, :]
             bp_ants = bp_data['bp_ants'].tolist()
             # reorder to match ants
-            bandp_gains = np.array([bandp_gains[:, bp_ants.index(a)].squeeze() if a in bp_ants else np.ones((bp_Nfreqs), dtype=np.complex) for a in ants])
-            bandp_flags = np.array([bandp_flags[:, bp_ants.index(a)].squeeze() if a in bp_ants else np.ones((bp_Nfreqs), dtype=np.bool) for a in ants])
+            bandp_gains = np.array([bandp_gains[:, :, bp_ants.index(a)].T if a in bp_ants else np.ones((bp_Nfreqs), dtype=np.complex) for a in ants])
+            bandp_flags = np.array([bandp_flags[:, :, bp_ants.index(a)].T if a in bp_ants else np.ones((bp_Nfreqs), dtype=np.bool) for a in ants])
             # broadcast flags to all antennas at freq channels that satisfy bp_flag_frac
             flag_broadcast = (np.sum(bandp_flags, axis=0) / float(bandp_flags.shape[0])) > bp_flag_frac
             if bp_broad_flags:
-                bandp_flags += np.repeat(flag_broadcast.reshape(1, -1).astype(np.bool), Nants, 0)
+                bandp_flags += np.repeat(flag_broadcast[None, :, :].astype(np.bool), Nants, 0)
             # configure gains and flags shapes
-            bandp_gains = bandp_gains[:, :, np.newaxis, np.newaxis]
-            bandp_flags = bandp_flags[:, :, np.newaxis, np.newaxis]
+            bandp_gains = bandp_gains[:, :, None]
+            bandp_flags = bandp_flags[:, :, None]
             if ii == 0:
                 bp_gains = bandp_gains
                 bp_flags = bandp_flags
@@ -256,11 +250,10 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
                 # get residual and MAD from unfiltered and filtered data
                 residual = (np.abs(bp_gains) - np.abs(bp_gains_medfilt))
                 residual[bp_flags] *= np.nan
-                residual = residual.squeeze()
-                resid_std = np.nanmedian(np.abs(residual - np.nanmedian(residual, axis=1)[:, np.newaxis]), axis=1) * 1.5
+                resid_std = np.nanmedian(np.abs(residual - np.nanmedian(residual, axis=1, keepdims=True)), axis=1, keepdims=True) * 1.5
                 # identify outliers as greater than 10-sigma
                 bad = np.array([np.abs(residual[i]) > resid_std[i]*10 for i in range(residual.shape[0])])
-                bp_flags += bad[:, :, np.newaxis, np.newaxis]
+                bp_flags += bad
 
             if bp_medfilt:
                 echo("...bandpass is the median filtered bandpass")
@@ -269,7 +262,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
         # average amplitude across antenna if desired
         if bp_amp_antavg:
             echo("...averaging bandpass amplitude across antennas", verbose=verbose)
-            amp_avg = np.nanmedian(np.abs(bp_gains), axis=0).reshape(1, -1, 1, 1)
+            amp_avg = np.nanmedian(np.abs(bp_gains), axis=0, keepdims=True)
             bp_gains *= amp_avg / np.abs(bp_gains)
 
         # smooth bandpass w/ gaussian process if desired
@@ -285,40 +278,53 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
             # iterate over antennas
             for i, a in enumerate(ants):
                 if i % 10 == 0: echo("{}/{} ants".format(i, len(ants)), verbose=verbose)
-                # skip flagged ants
-                if np.min(bp_flags[i, :]):
-                    bp_gains_real.append(np.ones_like(X.squeeze()))
-                    bp_gains_imag.append(np.zeros_like(X.squeeze()))
-                    continue
-                GP = gp.GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=bp_gp_nrestart)
-                xdata = X[~bp_flags[i].squeeze(), :][::bp_gp_thin]
-                yreal = bp_gains[i].squeeze()[~bp_flags[i].squeeze()][::bp_gp_thin].real
-                yimag = bp_gains[i].squeeze()[~bp_flags[i].squeeze()][::bp_gp_thin].imag
-                ydata = np.vstack([yreal, yimag]).T
-                ydata_med = np.median(ydata, axis=0)
-                ydata -= ydata_med
-                GP.fit(xdata, ydata)
-                ypred = GP.predict(X) + ydata_med
-                bp_gains_real.append(ypred[:, 0])
-                bp_gains_imag.append(ypred[:, 1])
+                ant_gain_real = []
+                ant_gain_imag = []
+                for j, p in enumerate(jones):
+                    # skip flagged ants
+                    if np.min(bp_flags[i, :, :, j]):
+                        ant_gain_real.append(np.ones_like(X.squeeze()))
+                        ant_gain_imag.append(np.zeros_like(X.squeeze()))
+                        continue
+                    # Setup Gaussian Process Regressor
+                    GP = gp.GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=bp_gp_nrestart)
+                    # Get unflagged frequencies X and Y data for this ant-pol
+                    unflagged = ~bp_flags[i, :, 0, j]
+                    xdata = X[unflagged][::bp_gp_thin]
+                    yreal = bp_gains[i, unflagged, 0, j][::bp_gp_thin].real
+                    yimag = bp_gains[i, unflagged, 0, j][::bp_gp_thin].imag
+                    # predict real and imag separately for this ant-pol
+                    ydata = np.vstack([yreal, yimag]).T
+                    # subtract median of ydata before regression, then add it back in
+                    ydata_med = np.median(ydata, axis=0)
+                    ydata -= ydata_med
+                    # fit for GP covariance
+                    GP.fit(xdata, ydata)
+                    # make predictions across full freq band and then add ymedian back in
+                    ypred = GP.predict(X) + ydata_med
+                    # append
+                    ant_gain_real.append(ypred[:, 0])
+                    ant_gain_imag.append(ypred[:, 1])
+                # append
+                bp_gains_real.append(ant_gain_real)
+                bp_gains_imag.append(ant_gain_imag)
             # reconstruct bp gains
-            bp_gains = (np.array(bp_gains_real) + 1j*np.array(bp_gains_imag))[:, :, np.newaxis, np.newaxis]
+            bp_gains_real = np.moveaxis(bp_gains_real, 1, 2)[:, :, None, :]
+            bp_gains_imag = np.moveaxis(bp_gains_imag, 1, 2)[:, :, None, :]
+            bp_gains = bp_gains_real.astype(np.complex) + 1j*bp_gains_imag
 
         # take only tip-tilt if desired
         if bp_TTonly:
+            raise NotImplementedError("bp_TTonly not fully implemented...")
             echo("...distilling bandpass to only tip-tilt phase", verbose=verbose)
             # get bandpass phase array
-            bp_phs = np.angle(bp_gains).reshape(Nants, bp_Nfreqs)
+            bp_phs = np.angle(bp_gains)
             # form least squares estimate of phase slopes along X and Y
             A = np.vstack([antpos[:, 0], antpos[:, 1]]).T
-            fit = np.linalg.pinv(A.T.dot(A)).dot(A.T).dot(bp_phs)
-            # median filter
-            fit = signal.medfilt(fit, kernel_size=(1, 11))
-            # smooth across frequency via FFT
-            window = signal.windows.gaussian(fit.shape[1], fit.shape[1]/50.0)
-            fit_smooth = signal.fftconvolve(fit, window.reshape(1, -1), mode='same') / np.sum(window)
+            projection = np.linalg.pinv(A.T.dot(A)).dot(A.T)
+            fit = np.einsum("ij,jklm", projection, bp_phs)
             # make prediction to get tip-tilt estimates
-            bp_TT_phs = A.dot(fit_smooth).reshape(Nants, bp_Nfreqs, 1, 1)
+            bp_TT_phs = np.einsum("ji,iklm", A, fit)
             # update bandpass gains
             bp_gains *= np.exp(1j*bp_TT_phs - 1j*np.angle(bp_gains))
 
@@ -332,119 +338,139 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
             bp_gains /= np.exp(1j*np.angle(bp_gains))
 
         # mult into gains
-        bp_freq_select = np.array([np.argmin(np.abs(freqs-x)) for x in bp_freqs])
-        gains[:, bp_freq_select, :, :] *= bp_gains
-        flags[:, bp_freq_select, :, :] += bp_flags
-        bp_flagged_ants = np.min(bp_flags, axis=1).squeeze()
+        bp_gains[bp_flags] = 0.0
+        gains *= bp_gains
+        flags += bp_flags
+        bp_flagged_ants = np.min(bp_flags, axis=(1, 2, 3))
         flagged_ants += bp_flagged_ants
 
     # check filename
     if fname.split('.')[-1] != "calfits":
         fname += ".calfits"
 
-    # make into calfits
+    # make dictionaries
     gain_dict = {}
     flag_dict = {}
     for i, a in enumerate(ants):
-        gain_dict[(a, pols[0])] = gains[i, :, :, 0].T.conj()
-        flag_dict[(a, pols[0])] = flags[i, :, :, 0].T
-        if flagged_ants[i]:
-            flag_dict[(a, pols[0])] += True
+        for j, p in enumerate(jones):
+            gain_dict[(a, p)] = gains[i, :, :, j].T.conj()
+            flag_dict[(a, p)] = flags[i, :, :, j].T
+            if flagged_ants[i]:
+                flag_dict[(a, p)] += True
+
+    # write to calfits
     uvc = hc.io.write_cal(fname, gain_dict, freqs, times[:1], flags=flag_dict, outdir=out_dir,
                           overwrite=overwrite, gain_convention=gain_convention)
 
     # plot dlys
     if plot_dlys:
-        fig, ax = plt.subplots(1, figsize=(8,6))
-        ax.grid(True)
-        dly_max = np.max(np.abs(delays*1e9))
-        dly_min = -dly_max
-        for i, a in enumerate(ants):
-            if flagged_ants[i] == True:
-                continue
-            cax = ax.scatter(antpos[i, 0], antpos[i, 1], c=delays[i]*1e9, s=200, cmap='coolwarm', vmin=dly_min, vmax=dly_max)
-            ax.text(antpos[i,0]+1, antpos[i,1]+2, str(a), fontsize=12)
-        cbar = fig.colorbar(cax)
-        cbar.set_label("delay [nanosec]", size=16)
-        ax.set_xlabel("X [meters]", fontsize=14)
-        ax.set_ylabel("Y [meters]", fontsize=14)
-        ax.set_title("delay solutions for {}".format(os.path.basename(dly_files[0])), fontsize=10)
-        fig.savefig(dly_files[0]+'.png', dpi=100, bbox_inches='tight', pad=0.05)
-        plt.close()
+        fig, axes = plt.subplots(Njones, figsize=(8,6))
+        if Njones == 1:
+            axes = [axes]
+        for i, j in enumerate(jones):
+            ax = axes[i]
+            ax.grid(True)
+            dly_max = np.max(np.abs(delays[:, i]*1e9))
+            dly_min = -dly_max
+            for k, a in enumerate(ants):
+                if flagged_ants[k] == True:
+                    continue
+                cax = ax.scatter(antpos[k, 0], antpos[k, 1], c=delays[k, i]*1e9, s=200, cmap='coolwarm', vmin=dly_min, vmax=dly_max)
+                ax.text(antpos[k, 0] + 1, antpos[k, 1] + 2, str(a), fontsize=12)
+            cbar = fig.colorbar(cax, ax=ax)
+            cbar.set_label("delay [nanosec]", size=16)
+            ax.set_xlabel("X [meters]", fontsize=14)
+            ax.set_ylabel("Y [meters]", fontsize=14)
+            ax.set_title("{} Delay solutions for {}".format(j, os.path.basename(dly_files[0])), fontsize=10)
+            fig.savefig(dly_files[0]+'.png', dpi=100, bbox_inches='tight', pad=0.05)
+            plt.close()
 
     # plot phs
     if plot_phs:
-        fig, ax = plt.subplots(1, figsize=(8,6))
-        ax.grid(True)
-        phs_max = np.pi
-        phs_min = -np.pi
-        for i, a in enumerate(ants):
-            if flagged_ants[i] == True:
-                continue
-            cax = ax.scatter(antpos[i, 0], antpos[i, 1], c=phases[i], s=200, cmap='viridis', vmin=phs_min, vmax=phs_max)
-            ax.text(antpos[i,0]+1, antpos[i,1]+2, str(a), fontsize=12) 
-        cbar = fig.colorbar(cax)
-        cbar.set_label("phase [radians]", size=16)
-        ax.set_xlabel("X [meters]", fontsize=14)
-        ax.set_ylabel("Y [meters]", fontsize=14)
-        ax.set_title("phase solutions for {}".format(os.path.basename(phs_files[0])), fontsize=10)
-        fig.savefig(phs_files[0]+'.png', dpi=100, bbox_inches='tight', pad=0.05)
-        plt.close()
+        fig, axes = plt.subplots(Njones, figsize=(8,6))
+        if Njones == 1:
+            axes = [axes]
+        for i, j in enumerate(jones):
+            ax = axes[i]
+            ax.grid(True)
+            phs_max = np.pi
+            phs_min = -np.pi
+            for k, a in enumerate(ants):
+                if flagged_ants[k] == True:
+                    continue
+                cax = ax.scatter(antpos[k, 0], antpos[k, 1], c=phases[k, i], s=200, cmap='viridis', vmin=phs_min, vmax=phs_max)
+                ax.text(antpos[k, 0] + 1, antpos[k, 1] + 2, str(a), fontsize=12) 
+            cbar = fig.colorbar(cax, ax=ax)
+            cbar.set_label("phase [radians]", size=16)
+            ax.set_xlabel("X [meters]", fontsize=14)
+            ax.set_ylabel("Y [meters]", fontsize=14)
+            ax.set_title("{} Phase solutions for {}".format(j, os.path.basename(phs_files[0])), fontsize=10)
+            fig.savefig(phs_files[0]+'.png', dpi=100, bbox_inches='tight', pad=0.05)
+            plt.close()
 
     # plot amp
     if plot_amp:
-        fig, ax = plt.subplots(1, figsize=(8,6))
-        ax.grid(True)
-        amp_med = np.nanmedian(amplitudes[~amplitude_flags.squeeze()])
-        amp_std = np.std(amplitudes[~amplitude_flags.squeeze()])
-        amp_max = amp_med + amp_std * 2
-        amp_min = amp_med - amp_std * 2
-        for i, a in enumerate(ants):
-            if flagged_ants[i] == True:
-                continue
-            cax = ax.scatter(antpos[i, 0], antpos[i, 1], c=amplitudes[i], s=200, cmap='rainbow', vmin=amp_min, vmax=amp_max)
-            ax.text(antpos[i,0]+1, antpos[i,1]+2, str(a))
-        cbar = fig.colorbar(cax)
-        cbar.set_label("amplitude", size=16)
-        ax.set_xlabel("X [meters]", fontsize=14)
-        ax.set_ylabel("Y [meters]", fontsize=14)
-        ax.set_title("amplitude solutions for {}".format(os.path.basename(amp_files[0])), fontsize=10)
+        fig, axes = plt.subplots(Njones, figsize=(8,6))
+        if Njones == 1:
+            axes = [axes]
+        for i, j in enumerate(jones):
+            ax = axes[i]
+            ax.grid(True)
+            amp_med = np.nanmedian(amplitudes[~amplitude_flags[:, i], i])
+            amp_std = np.std(amplitudes[~amplitude_flags[:, i], i])
+            amp_max = amp_med + amp_std * 2
+            amp_min = amp_med - amp_std * 2
+            for k, a in enumerate(ants):
+                if flagged_ants[k] == True:
+                    continue
+                cax = ax.scatter(antpos[k, 0], antpos[k, 1], c=amplitudes[k, i], s=200, cmap='rainbow', vmin=amp_min, vmax=amp_max)
+                ax.text(antpos[k, 0] + 1, antpos[k, 1] + 2, str(a))
+            cbar = fig.colorbar(cax, ax=ax)
+            cbar.set_label("amplitude", size=16)
+            ax.set_xlabel("X [meters]", fontsize=14)
+            ax.set_ylabel("Y [meters]", fontsize=14)
+            ax.set_title("{} amplitude solutions for {}".format(j, os.path.basename(amp_files[0])), fontsize=10)
         fig.savefig(amp_files[0]+'.png', dpi=100, bbox_inches='tight', pad=0.05)
         plt.close()
 
     # plot bandpass
     if plot_bp:
-        fig, axes = plt.subplots(2, 1, figsize=(12,6))
-        fig.subplots_adjust(hspace=0.3)
-        # amplitude
-        ax = axes[0]
-        ax.grid(True)
-        bp_gains[bp_flags] *= np.nan
-        pls = []
-        bp_ant_select = []
-        ant_sort = np.argsort(ants)
-        for i, a in enumerate(np.array(ants)[ant_sort]):
-            if flagged_ants[ant_sort][i] == True:
-                continue
-            p, = ax.plot(bp_freqs / 1e6, np.abs(bp_gains).squeeze()[ants.index(a)], marker='.', ls='')
-            pls.append(p)
-        ax.set_xlabel("Frequency [MHz]", fontsize=12)
-        ax.set_ylabel("Amplitude", fontsize=12)
-        ax.set_title("bandpass for {}".format(bp_file), fontsize=10)
-        # phase
-        ax = axes[1]
-        ax.grid(True)
-        plot_ants = []
-        for i, a in enumerate(np.array(ants)[ant_sort]):
-            if flagged_ants[ant_sort][i] == True:
-                continue
-            plot_ants.append(a)
-            ax.plot(bp_freqs / 1e6, np.angle(bp_gains).squeeze()[ants.index(a)], marker='.', ls='')
-        ax.set_xlabel("Frequency [MHz]", fontsize=12)
-        ax.set_ylabel("Phase [radians]", fontsize=12)
-        lax = fig.add_axes([1.01, 0.1, 0.05, 0.8])
-        lax.axis('off')
-        lax.legend(pls, plot_ants, ncol=2)
+        g = copy.deepcopy(gains)
+        fig, axes = plt.subplots(2, Njones, figsize=(12,6))
+        if Njones == 1:
+            axes.resize(2, 1)
+        for i, j in enumerate(jones):
+            axs = axes[:, i]
+            fig.subplots_adjust(hspace=0.3)
+            # amplitude
+            ax = axs[0]
+            ax.grid(True)
+            g[flags] *= np.nan
+            pls = []
+            bp_ant_select = []
+            ant_sort = np.argsort(ants)
+            for k, a in enumerate(np.array(ants)[ant_sort]):
+                if flagged_ants[ant_sort][k] == True:
+                    continue
+                p, = ax.plot(freqs / 1e6, np.abs(g)[ants.index(a), :, 0, i], marker='.', ls='')
+                pls.append(p)
+            ax.set_xlabel("Frequency [MHz]", fontsize=12)
+            ax.set_ylabel("Amplitude", fontsize=12)
+            ax.set_title("{} Bandpass for {}".format(j, bp_file), fontsize=10)
+            # phase
+            ax = axs[1]
+            ax.grid(True)
+            plot_ants = []
+            for k, a in enumerate(np.array(ants)[ant_sort]):
+                if flagged_ants[ant_sort][k] == True:
+                    continue
+                plot_ants.append(a)
+                ax.plot(freqs / 1e6, np.angle(g)[ants.index(a), :, 0, i], marker='.', ls='')
+            ax.set_xlabel("Frequency [MHz]", fontsize=12)
+            ax.set_ylabel("Phase [radians]", fontsize=12)
+            lax = fig.add_axes([1.01, 0.1, 0.05, 0.8])
+            lax.axis('off')
+            lax.legend(pls, plot_ants, ncol=2)
         fig.savefig(bp_file+'.png', dpi=100, bbox_inches='tight', pad=0.05)
         plt.close()
 
