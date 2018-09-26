@@ -20,6 +20,8 @@ a = argparse.ArgumentParser(description="Get FITS image statistics around source
 
 a.add_argument("files", type=str, nargs='*', help="filename(s) or glob-parseable string of filename(s)")
 a.add_argument("--source", type=str, help="source name, with a <source>.loc file in working directory")
+a.add_argument("--output_fname", default=None, type=str, help="Output filename of spectrum data.")
+a.add_argument("--pol_ind", default=0, type=int, help="Polarization index to extract. Default: 0")
 a.add_argument("--radius", type=float, default=2, help="radius in degrees around estimated source position to get source peak")
 a.add_argument("--rms_max_r", type=float, default=None, help="max radius in degrees around source to make rms calculation")
 a.add_argument("--rms_min_r", type=float, default=None, help="min radius in degrees around source to make rms calculation")
@@ -28,14 +30,13 @@ a.add_argument("--ext", type=str, default=".spectrum.tab", help='extension strin
 a.add_argument("--overwrite", default=False, action='store_true', help='overwite output')
 a.add_argument("--gaussfit_mult", default=1.0, type=float, help="gaussian fit mask area is gaussfit_mult * synthesized_beam")
 
-def source_extract(imfile, source, radius=1, gaussfit_mult=1.0, rms_max_r=None, rms_min_r=None, **kwargs):
+def source_extract(imfile, source, output_fname=None, radius=1, gaussfit_mult=1.0, rms_max_r=None, rms_min_r=None, pol_ind=0, **kwargs):
 
     # open fits file
     hdu = fits.open(imfile)
 
-    # get header and data
+    # get header
     head = hdu[0].header
-    data = hdu[0].data.squeeze()
 
     # determine if freq precedes stokes in header
     if head['CTYPE3'] == 'FREQ':
@@ -44,6 +45,12 @@ def source_extract(imfile, source, radius=1, gaussfit_mult=1.0, rms_max_r=None, 
     else:
         freq_ax = 4
         stok_ax = 3
+
+    # get data
+    if stok_ax == 3:
+        data = hdu[0].data[0, pol_ind, :, :]
+    elif stok_ax == 4:
+        data = hdu[0].data[pol_ind, 0, :, :]
 
     # get axes info
     npix1 = head["NAXIS1"]
@@ -141,7 +148,10 @@ if __name__ == "__main__":
     # get filename
     if args.outdir is None:
         args.outdir = os.path.dirname(os.path.commonprefix(files))
-    output_fname = os.path.join(args.outdir, os.path.basename(os.path.splitext(os.path.commonprefix(files))[0] + args.ext))
+    if args.output_fname is None:
+        output_fname = os.path.join(args.outdir, os.path.basename(os.path.splitext(os.path.commonprefix(files))[0] + args.ext))
+    else:
+        output_fname = args.output_fname
     if os.path.exists(output_fname) and args.overwrite is False:
         raise IOError("file {} exists, not overwriting".format(output_fname))
 
