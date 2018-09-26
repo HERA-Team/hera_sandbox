@@ -42,7 +42,7 @@ args.add_argument("--time", type=float, help='time of middle of observation in J
 
 # HEALpix Beam args
 args.add_argument("--beamfile", type=str, help="path to primary beam healpix map in pyuvdata.UVBeam format")
-args.add_argument("--pol", type=int, default=-5, help="polarization of healpix maps to use for beam models")
+args.add_argument("--pol", type=int, default=-5, help="Polarization integer of healpix maps to use for beam models.")
 
 # Gaussian Beam args
 args.add_argument("--ew_sig", type=float, default=None, nargs='*',
@@ -53,7 +53,7 @@ args.add_argument("--gauss_freqs", type=float, default=None, nargs='*',
                   help="if no healpix map provided, array of frequencies (Hz) matching length of ew_sig and ns_sig")
 
 # IO args
-args.add_argument("--ext", type=str, default="pbcorr", help='extension for output file')
+args.add_argument("--ext", type=str, default="pbcorr", help='Extension prefix for output file.')
 args.add_argument("--outdir", type=str, default=None, help="output directory, default is path to fitsfile")
 args.add_argument("--overwrite", default=False, action='store_true', help='overwrite output files')
 args.add_argument("--silence", default=False, action='store_true', help='silence output to stdout')
@@ -126,7 +126,7 @@ if __name__ == "__main__":
 
         output_fname = os.path.basename(ffile)
         output_fname = os.path.splitext(output_fname)
-        output_fname = os.path.join(output_dir, output_fname[0] + '.{}'.format(a.ext) + output_fname[1])
+        output_fname = os.path.join(output_dir, output_fname[0] + '.{}.{}'.format(a.ext, 'corr') + output_fname[1])
 
         # check for overwrite
         if os.path.exists(output_fname) and a.overwrite is False:
@@ -206,10 +206,15 @@ if __name__ == "__main__":
             echo("...dividing PB into image")
             data_pbcorr = data / pb_interp
 
+        # change polarization to interpolated beam pol
+        head["CRVAL{}".format(stok_ax)] = a.pol
+
         echo("...saving {}".format(output_fname))
         fits.writeto(output_fname, data_pbcorr, head, overwrite=True)
 
-        output_pb = '.'.join(output_fname.split('.')[:-2]) + '.pb.' + output_fname.split('.')[-1]
+        output_pb = os.path.basename(ffile)
+        output_pb = os.path.splitext(output_pb)
+        output_pb = os.path.join(output_dir, output_pb[0] + '.{}.{}'.format(a.ext, 'pb') + output_pb[1])
         echo("...saving {}".format(output_pb))
         fits.writeto(output_pb, pb_interp, head, overwrite=True)
 
