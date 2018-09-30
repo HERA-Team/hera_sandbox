@@ -26,6 +26,7 @@ args.add_argument("--cell", default='200arcsec', type=str, help="Image pixel siz
 args.add_argument("--imsize", default=512, type=int, help="Image side-length in pixels.")
 args.add_argument("--gleamfile", default="gleam.fits", type=str, help="Path to GLEAM point source catalogue FITS file [http://cdsarc.u-strasbg.fr/viz-bin/Cat?VIII/100].")
 args.add_argument("--overwrite", default=False, action='store_true', help="Overwrite output gleam.cl and gleam.im files.")
+args.add_argument("--use_peak", default=False, action='store_true', help='Use peak flux rather than integrated flux in model.')
 
 if __name__ == "__main__":
     a = args.parse_args()
@@ -51,6 +52,12 @@ if __name__ == "__main__":
     data_ra = data["RAJ2000"].copy()
     data_dec = data["DEJ2000"].copy()
 
+    # get fluxes
+    if args.use_peak:
+        fluxes = data['Fp151']
+    else:
+        fluxes = data['Fint151']
+
     # correct for wrapping RA
     if a.point_ra < a.radius:
         data_ra[data_ra > a.point_ra + a.radius] -= 360.0
@@ -60,16 +67,16 @@ if __name__ == "__main__":
     # select sources
     ra_dist = np.abs(data_ra - a.point_ra)
     dec_dist = np.abs(data_dec - a.point_dec)
-    select = np.where((ra_dist <= a.radius) & (dec_dist <= a.radius) & (data['Fint151'] >= a.min_flux))[0]
+    select = np.where((ra_dist <= a.radius) & (dec_dist <= a.radius) & (fluxes >= a.min_flux))[0]
     if len(select) == 0:
         raise ValueError("No sources found given RA, Dec and min_flux selections.")
     else:
         print("...including {} sources".format(len(select)))
 
     # iterate over sources and add to complist
-    select = select[np.argsort(data['Fint151'][select])[::-1]]
+    select = select[np.argsort(fluxes[select])[::-1]]
     for s in select:
-        flux = data['Fint151'][s]
+        flux = fluxes[s]
         spix = data['alpha'][s]
         s_ra, s_dec = data['RAJ2000'][s], data['DEJ2000'][s]
         if np.isnan(spix):
