@@ -53,7 +53,7 @@ if __name__ == "__main__":
     data_dec = data["DEJ2000"].copy()
 
     # get fluxes
-    if args.use_peak:
+    if a.use_peak:
         fluxes = data['Fp151']
     else:
         fluxes = data['Fint151']
