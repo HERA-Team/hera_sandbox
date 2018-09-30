@@ -1,0 +1,126 @@
+"""
+complist_gleam.py
+-----------------
+
+Script for making a low-frequency
+CASA component list and/or FITS image
+given the GLEAM point source catalogue.
+"""
+import os
+import numpy as np
+import argparse
+import shutil
+import sys
+import pyfits
+
+args = argparse.ArgumentParser(description="Run with casa as: casa -c complist_gleam.py <args>")
+args.add_argument("-c", type=str, help="Name of this script")
+args.add_argument("--point_ra", type=float, help="Pointing RA in degrees 0 < ra < 360.")
+args.add_argument("--point_dec", type=float, help="Pointing Dec in degrees -90 < dec < 90.")
+args.add_argument("--radius", type=float, default=5.0, help="Radius in degrees around pointing to get GLEAM sources.")
+args.add_argument("--min_flux", default=0.0, type=float, help="Minimum integrated flux at 151 MHz of sources to include in model.")
+args.add_argument("--fill_spix", default=-1.0, type=float, help="If spectral index doesn't exist for a source, use this.")
+args.add_argument("--image", default=False, action='store_true', help='Make a FITS image of model')
+args.add_argument("--freqs", default=None, type=str, help="Comma-separated values [MHz] for input into np.linspace({},{},{})")
+args.add_argument("--cell", default='200arcsec', type=str, help="Image pixel size in arcsec")
+args.add_argument("--imsize", default=512, type=int, help="Image side-length in pixels.")
+args.add_argument("--gleamfile", default="gleam.fits", type=str, help="Path to GLEAM point source catalogue FITS file [http://cdsarc.u-strasbg.fr/viz-bin/Cat?VIII/100].")
+args.add_argument("--overwrite", default=False, action='store_true', help="Overwrite output gleam.cl and gleam.im files.")
+
+if __name__ == "__main__":
+    a = args.parse_args()
+
+    # set pointing direction
+    def deg2eq(ra, dec):
+        _ra = ra / 15.0
+        ra_h = int(np.floor(_ra))
+        ra_m = int(np.floor((_ra - ra_h) * 60))
+        ra_s = int(np.around(((_ra - ra_h) * 60 - ra_m) * 60))
+        dec_d = int(np.floor(np.abs(dec)) * dec / np.abs(dec))
+        dec_m = int(np.floor(np.abs(dec - dec_d) * 60.))
+        dec_s = int(np.abs(dec - dec_d) * 3600 - dec_m * 60)
+        direction = "{:02d}h{:02d}m{:02.0f}s {:03d}d{:02d}m{:02.0f}s".format(ra_h, ra_m, ra_s, dec_d, dec_m, dec_s)
+        return direction
+
+    direction = "J2000 {}".format(deg2eq(a.point_ra, a.point_dec))
+    ref_freq = "151MHz"
+
+    # Select all sources around pointing
+    hdu = pyfits.open(a.gleamfile)
+    data = hdu[1].data
+    data_ra = data["RAJ2000"].copy()
+    data_dec = data["DEJ2000"].copy()
+
+    # correct for wrapping RA
+    if a.point_ra < a.radius:
+        data_ra[data_ra > a.point_ra + a.radius] -= 360.0
+    elif np.abs(360.0 - a.point_ra) < a.radius:
+        data_ra[data_ra < 360.0 - a.point_ra] += 360.0
+
+    # select sources
+    ra_dist = np.abs(data_ra - a.point_ra)
+    dec_dist = np.abs(data_dec - a.point_dec)
+    select = np.where((ra_dist <= a.radius) & (dec_dist <= a.radius) & (data['Fint151'] >= a.min_flux))[0]
+    if len(select) == 0:
+        raise ValueError("No sources found given RA, Dec and min_flux selections.")
+    else:
+        print("...including {} sources".format(len(select)))
+
+    # iterate over sources and add to complist
+    select = select[np.argsort(data['Fint151'][select])[::-1]]
+    for s in select:
+        flux = data['Fint151'][s]
+        spix = data['alpha'][s]
+        s_ra, s_dec = data['RAJ2000'][s], data['DEJ2000'][s]
+        if np.isnan(spix):
+            spix = a.fill_spix
+        s_dir = deg2eq(s_ra, s_dec)
+        cl.addcomponent(label="GLEAM {}".format(s_dir), flux=flux, fluxunit="Jy", 
+                        dir="J2000 {}".format(s_dir), freq=ref_freq, shape='point',
+                        spectrumtype='spectral index', index=spix)
+
+    # save
+    if os.path.exists("gleam.cl") and not a.overwrite:
+        print("gleam.cl already exists, not writing...")
+    else:
+        if os.path.exists("gleam.cl"):
+            shutil.rmtree("gleam.cl")
+        cl.rename("gleam.cl")
+
+    # make image
+    if a.image:
+        if os.path.exists("gleam.cl.image") and not a.overwrite:
+            print("gleam.cl.image already exists, not writing...")
+        else:
+            # get frequencies
+            if a.freqs is None:
+                Nfreqs = 1
+                freqs = np.array([151.0])
+            else:
+                freqs = np.linspace(*np.array(a.freqs.split(',')).astype(np.float), endpoint=False)
+                Nfreqs = len(freqs)
+
+            # setup image
+            print("...saving gleam.cl.image")
+            ia.fromshape("gleam.cl.image", [a.imsize, a.imsize, 1, Nfreqs], overwrite=True)
+            cs = ia.coordsys()
+            cs.setunits(['rad','rad','','Hz'])
+
+            # set pixel properties
+            cell_rad = qa.convert(qa.quantity(a.cell),"rad")['value']
+            cs.setincrement([-cell_rad, cell_rad], type='direction')
+            cs.setreferencevalue([qa.convert(direction.split()[1],'rad')['value'], qa.convert(direction.split()[2],'rad')['value']], type="direction")
+
+            # set freq properties
+            qa_freqs = qa.quantity(freqs, 'MHz')
+            cs.setspectral(frequencies=qa_freqs)
+     
+            # set flux properties, make image, export to fits
+            ia.setcoordsys(cs.torecord())
+            ia.setbrightnessunit("Jy/pixel")
+            ia.modify(cl.torecord(), subtract=False)
+            print("...saving gleam.cl.fits")
+            exportfits(imagename="gleam.cl.image", fitsimage="gleam.cl.fits", overwrite=True, stokeslast=False)
+
+    cl.close()
+

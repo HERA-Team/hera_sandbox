@@ -96,7 +96,7 @@ def source_extract(imfile, source, output_fname=None, radius=1, gaussfit_mult=1.
     peak_err = rms / np.sqrt(Npix_beam / 2.0)
 
     # get frequency of image
-    freq = head["CRVAL3"]
+    freq = head["CRVAL{}".format(freq_ax)]
 
     ## fit a 2D gaussian and get integrated and peak flux statistics ##
     # recenter R array by peak flux point and get thata T array

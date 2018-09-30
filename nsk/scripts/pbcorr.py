@@ -172,7 +172,7 @@ if __name__ == "__main__":
         lon = lon.reshape(npix2, npix1)
         lat = lat.reshape(npix2, npix1)
         theta = np.sqrt( (lon - point_ra)**2 + (lat - point_dec)**2 )
-        phi = np.arctan2((lat-point_dec), (lon-point_ra)) + np.pi
+        phi = (np.arctan2((lat-point_dec), (lon-point_ra)) + np.pi) * 180 / np.pi
 
         # get data frequencies
         if freq_ax == 3:
