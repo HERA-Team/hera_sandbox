@@ -299,4 +299,7 @@ if __name__ == "__main__":
 
         plot_uvdist(amps, "uvdist")
 
+    # close processes
+    if args.multiprocess:
+        pool.close()
 
