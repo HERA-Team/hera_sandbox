@@ -18,8 +18,8 @@ args.add_argument("-c", type=str, help="Name of this script")
 args.add_argument("--point_ra", type=float, help="Pointing RA in degrees 0 < ra < 360.")
 args.add_argument("--point_dec", type=float, help="Pointing Dec in degrees -90 < dec < 90.")
 args.add_argument("--radius", type=float, default=5.0, help="Radius in degrees around pointing to get GLEAM sources.")
-args.add_argument("--min_flux", default=0.0, type=float, help="Minimum integrated flux at 151 MHz of sources to include in model.")
-args.add_argument("--fill_spix", default=None, type=float, help="If spectral index doesn't exist for a source, use this.")
+args.add_argument("--min_flux", default=0.0, type=float, help="Minimum flux at 151 MHz of sources to include in model.")
+args.add_argument("--fill_spix", default=None, type=float, help="If spectral index doesn't exist for a source, use this. Default is to omit source.")
 args.add_argument("--image", default=False, action='store_true', help='Make a FITS image of model')
 args.add_argument("--freqs", default=None, type=str, help="Comma-separated values [MHz] for input into np.linspace({},{},{})")
 args.add_argument("--cell", default='200arcsec', type=str, help="Image pixel size in arcsec")
@@ -27,7 +27,6 @@ args.add_argument("--imsize", default=512, type=int, help="Image side-length in 
 args.add_argument("--gleamfile", default="gleam.fits", type=str, help="Path to GLEAM point source catalogue FITS file [http://cdsarc.u-strasbg.fr/viz-bin/Cat?VIII/100].")
 args.add_argument("--overwrite", default=False, action='store_true', help="Overwrite output gleam.cl and gleam.im files.")
 args.add_argument("--use_peak", default=False, action='store_true', help='Use peak flux rather than integrated flux in model.')
-
 
 if __name__ == "__main__":
     a = args.parse_args()

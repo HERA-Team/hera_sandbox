@@ -11,20 +11,18 @@ import os
 import numpy as np
 import argparse
 from astropy.time import Time
-from hera_cal import utils
 from pyuvdata import UVData
 import sys
-from hera_cal.utils import LST2JD
-from RA2Time import RA2Time
+import coord_convs as cc
 
 ap = argparse.ArgumentParser(description='')
 
-ap.add_argument("--ra", type=float, help="RA odf the source in degrees", required=True)
-ap.add_argument("--lon", default=21.428305555, type=float, help="longitude of observer in degrees East")
+ap.add_argument("--ra", type=float, help="RA of the source in degrees (J2000)", required=True)
+ap.add_argument("--lon", default=21.428305555, type=float, help="longitude of observer on Earth in degrees East")
 ap.add_argument("--start_jd", type=int, help="starting JD of interest")
 ap.add_argument("--duration", default=2.0, type=float, help="duration in minutes of calibrator integration")
 ap.add_argument("--offset", default=0.0, type=float, help="offset from closest approach in minutes")
-ap.add_argument("--jd_files", default=None, type=str, nargs='*', help="glob-parsable search of files to isolate calibrator in.")
+ap.add_argument("--jd_files", default=None, type=str, nargs='*', help="glob-parsable search of files to isolate calibrator within.")
 ap.add_argument("--get_filetimes", default=False, action='store_true', help="open source files and get more accurate duration timerange")
 
 
@@ -42,7 +40,7 @@ def source2file(ra, lon=21.428305555, lat=-30.72152, duration=2.0, offset=0.0, s
     """
     # get LST of source
     # LEGACY: lst = RA2LST(ra, lon, lat, start_jd)
-    lst = RA2Time(ra, start_jd, longitude=lon, latitude=lat, return_lst=True) * 12 / np.pi
+    lst = cc.RA2Time(ra, start_jd, longitude=lon, latitude=lat, return_lst=True) * 12.0 / np.pi
 
     # offset
     lst += offset / 60.
@@ -56,7 +54,7 @@ def source2file(ra, lon=21.428305555, lat=-30.72152, duration=2.0, offset=0.0, s
     source_utc_range = None
 
     # get JD when source is at zenith
-    jd = LST2JD(lst * np.pi / 12., start_jd, longitude=lon)
+    jd = cc.LST2JD(lst * np.pi / 12., start_jd, longitude=lon)
     echo("JD closest to zenith (offset by {} minutes): {}".format(offset, jd), type=1, verbose=verbose)
 
     # print out UTC time

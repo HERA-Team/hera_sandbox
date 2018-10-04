@@ -162,7 +162,7 @@ def source_extract(imfile, source=None, radius=1, gaussfit_mult=1.0,
         wcs = WCS(head, naxis=2)
         fig = plt.figure(figsize=(14, 5))
         fig.subplots_adjust(wspace=0.2)
-        fig.suptitle("Source {} from {}".format(source, imfile), fontsize=10)
+        fig.suptitle("Source {} from {}\n{:.2f} MHz".format(source, imfile, freq/1e6), fontsize=10)
 
         # make 3D plot
         if mplot:
@@ -175,7 +175,8 @@ def source_extract(imfile, source=None, radius=1, gaussfit_mult=1.0,
         # plot cut-out
         ax = fig.add_subplot(132, projection=wcs)
         cax = ax.imshow(data, origin='lower', cmap='magma')
-        ax.contour(model_gauss, origin='lower', cmap='YlGnBu', levels=np.linspace(0, 1, 4, endpoint=False) * np.nanmax(m))
+        ax.contour(fit_mask, origin='lower', colors='lime', levels=[0.5])
+        ax.contour(model_gauss, origin='lower', colors='snow', levels=np.array([0.5, 0.9]) * np.nanmax(m))
         ax.grid(color='w')
         cbar = fig.colorbar(cax, ax=ax)
         [tl.set_size(8) for tl in cbar.ax.yaxis.get_ticklabels()]
@@ -189,7 +190,10 @@ def source_extract(imfile, source=None, radius=1, gaussfit_mult=1.0,
 
         # plot residual
         ax = fig.add_subplot(133, projection=wcs)
-        cax = ax.imshow(data-model_gauss, origin='lower', cmap='magma')
+        resid = data - model_gauss
+        vlim = np.abs(resid[fit_mask]).max()
+        cax = ax.imshow(resid, origin='lower', cmap='magma', vmin=-vlim, vmax=vlim)
+        ax.contour(fit_mask, origin='lower', colors='lime', levels=[0.5])
         ax.grid(color='w')
         ax.set_xlabel('Right Ascension', fontsize=12)
         cbar = fig.colorbar(cax, ax=ax)
