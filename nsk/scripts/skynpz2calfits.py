@@ -53,6 +53,7 @@ a.add_argument("--noBPamp", default=False, action='store_true', help="set BP amp
 a.add_argument("--noBPphase", default=False, action='store_true', help="set BP phase solutions to zero.")
 a.add_argument('--bp_medfilt', default=False, action='store_true', help="median filter bandpass solutions")
 a.add_argument('--medfilt_flag', default=False, action='store_true', help='use median filter to flag bad BP solutions in frequency')
+a.add_argument("--medfilt_flag_cut", default=10, type=float, help="If medfilt_flag: number of sigmas to flag channels of medfiltered residual.")
 a.add_argument('--medfilt_kernel', default=7, type=int, help="kernel size (channels) for BP median filter")
 a.add_argument('--bp_amp_antavg', default=False, action='store_true', help="average bandpass amplitudes across antennas")
 a.add_argument('--bp_TTonly', default=False, action='store_true', help="use only tip-tilt phase mode in bandpass solution")
@@ -60,7 +61,8 @@ a.add_argument('--plot_bp', default=False, action='store_true', help="plot final
 a.add_argument('--bp_gp_smooth', default=False, action='store_true', help='smooth bandpass w/ gaussian process. Recommended to precede w/ bp_medfilt.')
 a.add_argument('--bp_gp_max_dly', default=200.0, type=float, help="maximum delay in nanosec allowed for gaussian process fit")
 a.add_argument('--bp_gp_nrestart', default=1, type=int, help='number of restarts for GP hyperparameter gradient descent.')
-a.add_argument('--bp_gp_thin', default=2, type=int, help="thinning factor for freq bins in GP smooth fit")
+a.add_argument('--bp_gp_thin', default=1, type=int, help="thinning factor for freq bins in GP smooth fit")
+a.add_argument("--bp_gp_optimizer", default=None, type=str, help="Optimizer to use in GP kernel solution. Pass None for no optimization.")
 # Misc
 a.add_argument("--out_dir", default=None, type=str, help="output directory for calfits file. Default is working directory path")
 a.add_argument("--overwrite", default=False, action="store_true", help="overwrite output calfits file if it exists")
@@ -78,7 +80,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
                    TTonly=True, plot_dlys=False, plot_phs=False, gain_convention='multiply', plot_bp=False, noBPphase=False,
                    noBPamp=False, bp_TTonly=False, bp_medfilt=False, medfilt_kernel=5, bp_amp_antavg=False, bp_flag_frac=0.3,
                    bp_broad_flags=False, medfilt_flag=False, bp_gp_smooth=False, bp_gp_max_dly=500.0, bp_gp_nrestart=1, bp_gp_thin=2,
-                   plot_amp=False, gain_amp_antavg=False, verbose=True):
+                   plot_amp=False, gain_amp_antavg=False, verbose=True, bp_gp_optimizer=None, medfilt_flag_cut=10):
     """
     Convert *.npz output from sky_image.py into single or multi-pol calfits file.
     Currently only supports data and gain solutions with a single spectral window.
@@ -224,7 +226,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
             bandp_flags = bp_data['bp_flags'][:Njones, :, :]
             bp_ants = bp_data['bp_ants'].tolist()
             # reorder to match ants
-            bandp_gains = np.array([bandp_gains[:, :, bp_ants.index(a)].T if a in bp_ants else np.ones((bp_Nfreqs), dtype=np.complex) for a in ants])
+            bandp_gains = np.array([bandp_gains[:, :, bp_ants.index(a)].T if a in bp_ants else np.zeros((bp_Nfreqs), dtype=np.complex) for a in ants])
             bandp_flags = np.array([bandp_flags[:, :, bp_ants.index(a)].T if a in bp_ants else np.ones((bp_Nfreqs), dtype=np.bool) for a in ants])
             # broadcast flags to all antennas at freq channels that satisfy bp_flag_frac
             flag_broadcast = (np.sum(bandp_flags, axis=0) / float(bandp_flags.shape[0])) > bp_flag_frac
@@ -240,6 +242,9 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
                 bp_gains *= bandp_gains
                 bp_flags += bandp_flags
 
+        # set flagged pixels to zero in bandpass
+        bp_gains[bp_flags] = 0.0
+
         # median filter if desired
         if bp_medfilt or medfilt_flag:
             echo("...median filtering", verbose=verbose)
@@ -252,7 +257,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
                 residual[bp_flags] *= np.nan
                 resid_std = np.nanmedian(np.abs(residual - np.nanmedian(residual, axis=1, keepdims=True)), axis=1, keepdims=True) * 1.5
                 # identify outliers as greater than 10-sigma
-                bad = np.array([np.abs(residual[i]) > resid_std[i]*10 for i in range(residual.shape[0])])
+                bad = np.array([np.abs(residual[i]) > resid_std[i]*medfilt_flag_cut for i in range(residual.shape[0])])
                 bp_flags += bad
 
             if bp_medfilt:
@@ -269,7 +274,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
         if bp_gp_smooth:
             echo("...smoothing with gaussian process", verbose=verbose)
             freq_lambda = 1. / (bp_gp_max_dly*1e-3) # MHz
-            kernel = 1**2 * gp.kernels.RBF(freq_lambda + 10, (freq_lambda, 200.0)) + gp.kernels.WhiteKernel(1e-4, (1e-8, 1e0))
+            kernel = 1**2 * gp.kernels.RBF(freq_lambda, (freq_lambda, 200.0)) + gp.kernels.WhiteKernel(1e-4, (1e-8, 1e0))
 
             # configure data
             X = bp_freqs / 1e6
@@ -283,11 +288,11 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
                 for j, p in enumerate(jones):
                     # skip flagged ants
                     if np.min(bp_flags[i, :, :, j]):
-                        ant_gain_real.append(np.ones_like(X.squeeze()))
+                        ant_gain_real.append(np.zeros_like(X.squeeze()))
                         ant_gain_imag.append(np.zeros_like(X.squeeze()))
                         continue
                     # Setup Gaussian Process Regressor
-                    GP = gp.GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=bp_gp_nrestart)
+                    GP = gp.GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=bp_gp_nrestart, optimizer=bp_gp_optimizer)
                     # Get unflagged frequencies X and Y data for this ant-pol
                     unflagged = ~bp_flags[i, :, 0, j]
                     xdata = X[unflagged][::bp_gp_thin]
@@ -297,11 +302,11 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
                     ydata = np.vstack([yreal, yimag]).T
                     # subtract median of ydata before regression, then add it back in
                     ydata_med = np.median(ydata, axis=0)
-                    ydata -= ydata_med
+                    #ydata -= ydata_med
                     # fit for GP covariance
                     GP.fit(xdata, ydata)
                     # make predictions across full freq band and then add ymedian back in
-                    ypred = GP.predict(X) + ydata_med
+                    ypred = GP.predict(X) #+ ydata_med
                     # append
                     ant_gain_real.append(ypred[:, 0])
                     ant_gain_imag.append(ypred[:, 1])
@@ -338,7 +343,6 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
             bp_gains /= np.exp(1j*np.angle(bp_gains))
 
         # mult into gains
-        bp_gains[bp_flags] = 0.0
         gains *= bp_gains
         flags += bp_flags
         bp_flagged_ants = np.min(bp_flags, axis=(1, 2, 3))
@@ -360,7 +364,7 @@ def skynpz2calfits(fname, uv_file, dly_files=None, amp_files=None, bp_files=None
 
     # write to calfits
     uvc = hc.io.write_cal(fname, gain_dict, freqs, times[:1], flags=flag_dict, outdir=out_dir,
-                          overwrite=overwrite, gain_convention=gain_convention)
+                          overwrite=overwrite, gain_convention=gain_convention, zero_check=False)
 
     # plot dlys
     if plot_dlys:

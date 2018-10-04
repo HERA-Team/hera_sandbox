@@ -15,6 +15,16 @@ import shutil
 import glob
 import numpy as np
 import scipy.stats as stats
+import matplotlib.pyplot as plt
+from astropy.wcs import WCS
+
+try:
+    from mpl_toolkits.mplot3d import Axes3D
+    mplot = True
+except:
+    print("Could not import mpl_toolkits.mplot3d")
+    mplot = False
+
 
 a = argparse.ArgumentParser(description="Get FITS image statistics around source at center of image")
 
@@ -22,15 +32,17 @@ a.add_argument("files", type=str, nargs='*', help="filename(s) or glob-parseable
 a.add_argument("--source", type=str, help="source name, with a <source>.loc file in working directory")
 a.add_argument("--output_fname", default=None, type=str, help="Output filename of spectrum data.")
 a.add_argument("--pol_ind", default=0, type=int, help="Polarization index to extract. Default: 0")
-a.add_argument("--radius", type=float, default=2, help="radius in degrees around estimated source position to get source peak")
+a.add_argument("--radius", type=float, default=1, help="radius in degrees around estimated source position to get source peak")
 a.add_argument("--rms_max_r", type=float, default=None, help="max radius in degrees around source to make rms calculation")
 a.add_argument("--rms_min_r", type=float, default=None, help="min radius in degrees around source to make rms calculation")
 a.add_argument("--outdir", type=str, default=None, help="output directory")
 a.add_argument("--ext", type=str, default=".spectrum.tab", help='extension string for spectrum file')
 a.add_argument("--overwrite", default=False, action='store_true', help='overwite output')
 a.add_argument("--gaussfit_mult", default=1.0, type=float, help="gaussian fit mask area is gaussfit_mult * synthesized_beam")
+a.add_argument("--plot_fit", default=False, action='store_true', help="Make postage stamp images of the Gaussian fit performance.")
 
-def source_extract(imfile, source, output_fname=None, radius=1, gaussfit_mult=1.0, rms_max_r=None, rms_min_r=None, pol_ind=0, **kwargs):
+def source_extract(imfile, source=None, radius=1, gaussfit_mult=1.0,
+                   rms_max_r=None, rms_min_r=None, pol_ind=0, plot_fit=False, **kwargs):
 
     # open fits file
     hdu = fits.open(imfile)
@@ -71,6 +83,8 @@ def source_extract(imfile, source, output_fname=None, radius=1, gaussfit_mult=1.
     RA, DEC = np.meshgrid(ra_axis, dec_axis)
 
     # get source coordinates
+    if source is None:
+        raise ValueError("Must specify a source with a <source>.loc file in working dir.")
     ra, dec = np.loadtxt('{}.loc'.format(source), dtype=str)
     ra, dec = map(float, ra.split(':')), map(float,dec.split(':'))
     ra = (ra[0] + ra[1]/60. + ra[2]/3600.) * 15
@@ -83,7 +97,7 @@ def source_extract(imfile, source, output_fname=None, radius=1, gaussfit_mult=1.
     select = R < radius
 
     # get peak brightness within pixel radius
-    peak = np.max(data[select])
+    peak = np.nanmax(data[select])
 
     # get rms outside of pixel radius
     if rms_max_r is not None and rms_max_r is not None:
@@ -113,12 +127,12 @@ def source_extract(imfile, source, output_fname=None, radius=1, gaussfit_mult=1.
     ecc = head["BMAJ"] / head["BMIN"]
     beam_theta = head["BPA"] * np.pi / 180 + np.pi/2
     EMAJ = R * np.sqrt(np.cos(T+beam_theta)**2 + ecc**2 * np.sin(T+beam_theta)**2)
-    fit_mask = EMAJ < (head["BMAJ"] / 2 * gaussfit_mult)
+    fit_mask = EMAJ < (head["BMAJ"] / 2. * gaussfit_mult)
     masked_data = data.copy()
     masked_data[~fit_mask] = 0.0
 
     # fit 2d gaussian
-    gauss_init = mod.functional_models.Gaussian2D(peak, ra, dec, x_stddev=head["BMAJ"]/2, y_stddev=head["BMIN"]/2) 
+    gauss_init = mod.functional_models.Gaussian2D(peak, peak_ra, peak_dec, x_stddev=head["BMAJ"]/2., y_stddev=head["BMIN"]/2.) 
     fitter = mod.fitting.LevMarLSQFitter()
     gauss_fit = fitter(gauss_init, RA[fit_mask], DEC[fit_mask], data[fit_mask])
 
@@ -133,7 +147,62 @@ def source_extract(imfile, source, output_fname=None, radius=1, gaussfit_mult=1.
         model_gauss *= gauss_fit.amplitude.value / model_gauss.max()
         int_gauss_flux = np.nansum(model_gauss.ravel()) / Npix_beam
     except:
+        model_gauss = np.zeros_like(data)
         int_gauss_flux = 0
+
+    # plot
+    if plot_fit:
+        # get postage cutout
+        ra_select = np.where(np.abs(ra_axis-ra)<radius)[0]
+        dec_select = np.where(np.abs(dec_axis-dec)<radius)[0]
+        d = data[ra_select[0]:ra_select[-1]+1, dec_select[0]:dec_select[-1]+1]
+        m = model_gauss[ra_select[0]:ra_select[-1]+1, dec_select[0]:dec_select[-1]+1]
+
+        # setup wcs and figure
+        wcs = WCS(head, naxis=2)
+        fig = plt.figure(figsize=(14, 5))
+        fig.subplots_adjust(wspace=0.2)
+        fig.suptitle("Source {} from {}".format(source, imfile), fontsize=10)
+
+        # make 3D plot
+        if mplot:
+            ax = fig.add_subplot(131, projection='3d')
+            ax.axis('off')
+            x, y = np.meshgrid(ra_select, dec_select)
+            ax.plot_wireframe(x, y, m, color='steelblue', lw=2, rcount=20, ccount=20, alpha=0.75)
+            ax.plot_surface(x, y, d, rcount=40, ccount=40, cmap='magma', alpha=0.5)
+
+        # plot cut-out
+        ax = fig.add_subplot(132, projection=wcs)
+        cax = ax.imshow(data, origin='lower', cmap='magma')
+        ax.contour(model_gauss, origin='lower', cmap='YlGnBu', levels=np.linspace(0, 1, 4, endpoint=False) * np.nanmax(m))
+        ax.grid(color='w')
+        cbar = fig.colorbar(cax, ax=ax)
+        [tl.set_size(8) for tl in cbar.ax.yaxis.get_ticklabels()]
+        [tl.set_size(10) for tl in ax.get_xticklabels()]
+        [tl.set_size(10) for tl in ax.get_yticklabels()]
+        ax.set_xlim(ra_select[0], ra_select[-1]+1)
+        ax.set_ylim(dec_select[0], dec_select[-1]+1)
+        ax.set_xlabel('Right Ascension', fontsize=12)
+        ax.set_ylabel('Declination', fontsize=12)
+        ax.set_title("Source Flux and Gaussian Fit", fontsize=10)
+
+        # plot residual
+        ax = fig.add_subplot(133, projection=wcs)
+        cax = ax.imshow(data-model_gauss, origin='lower', cmap='magma')
+        ax.grid(color='w')
+        ax.set_xlabel('Right Ascension', fontsize=12)
+        cbar = fig.colorbar(cax, ax=ax)
+        cbar.set_label(head['BUNIT'], fontsize=10)
+        [tl.set_size(8) for tl in cbar.ax.yaxis.get_ticklabels()]
+        [tl.set_size(10) for tl in ax.get_xticklabels()]
+        [tl.set_size(10) for tl in ax.get_yticklabels()]
+        ax.set_xlim(ra_select[0], ra_select[-1]+1)
+        ax.set_ylim(dec_select[0], dec_select[-1]+1)
+        ax.set_title("Residual", fontsize=10)
+
+        fig.savefig('{}.{}.png'.format(os.path.splitext(imfile)[0], source))
+        plt.close()
 
     return peak, peak_err, rms, peak_gauss_flux, int_gauss_flux, freq
 
@@ -161,6 +230,7 @@ if __name__ == "__main__":
     peak_gauss_flux = []
     int_gauss_flux = []
     freqs = []
+
     for i, fname in enumerate(files):
         output = source_extract(fname, **vars(args))
         peak_flux.append(output[0])

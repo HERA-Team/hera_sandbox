@@ -14,7 +14,8 @@ from astropy.time import Time
 from hera_cal import utils
 from pyuvdata import UVData
 import sys
-from RA2LST import RA2LST
+from hera_cal.utils import LST2JD
+from RA2Time import RA2Time
 
 ap = argparse.ArgumentParser(description='')
 
@@ -40,7 +41,8 @@ def source2file(ra, lon=21.428305555, lat=-30.72152, duration=2.0, offset=0.0, s
     """
     """
     # get LST of source
-    lst = RA2LST(ra, lon, lat, start_jd)
+    # LEGACY: lst = RA2LST(ra, lon, lat, start_jd)
+    lst = RA2Time(ra, start_jd, longitude=lon, latitude=lat, return_lst=True) * 12 / np.pi
 
     # offset
     lst += offset / 60.
@@ -54,7 +56,7 @@ def source2file(ra, lon=21.428305555, lat=-30.72152, duration=2.0, offset=0.0, s
     source_utc_range = None
 
     # get JD when source is at zenith
-    jd = utils.LST2JD(lst * np.pi / 12., start_jd, longitude=lon)
+    jd = LST2JD(lst * np.pi / 12., start_jd, longitude=lon)
     echo("JD closest to zenith (offset by {} minutes): {}".format(offset, jd), type=1, verbose=verbose)
 
     # print out UTC time

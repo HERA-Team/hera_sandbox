@@ -36,6 +36,7 @@ a.add_argument('--source_ext', default=None, type=str, help="Extension to defaul
 a.add_argument("--im_stem", default=None, type=str, help="Imagename stem for output images. Default is basename of input MS.")
 a.add_argument("--logfile", default="output.log", type=str, help="Logging file.")
 # Imaging Arguments
+a.add_argument("--model", default=None, type=str, help="Path to model image or component list with *.cl suffix to insert into MODEL column.")
 a.add_argument('--image_mfs', default=False, action='store_true', help="make an MFS image across the selected band")
 a.add_argument('--niter', default=[0], type=int, nargs='*', help='Number of clean iterations. Can be a list of niter for each mask provided.')
 a.add_argument('--pxsize', default=300, type=int, help='pixel (cell) scale in arcseconds')
@@ -62,6 +63,8 @@ a.add_argument("--multiscale", default=0, type=int, nargs='*', help="Multiscales
 a.add_argument("--negcomponent", default=-1, type=int, help="Number of negative components to stop at if multiscale CLEANing.")
 a.add_argument("--multiprocess", default=False, action='store_true', help="Try to multiprocess certain parts of the pipeline. Currently mp enabled portions are: spectral cube imaging.")
 a.add_argument("--Nproc", default=4, type=int, help="Number of processing to spawn in pooling.")
+a.add_argument("--use_scratch", default=False, action='store_true', help="When CLEANing, store FT of model components in MODEL column of MS.")
+a.add_argument("--uvsub", default=False, action='store_true', help="Before imaging, subtract MODEL column from CORRECTED_DATA column if it exists (or DATA column otherwise).")
 # Plotting Arguments
 a.add_argument("--plot_uvdist", default=False, action='store_true', help='make a uvdist plot')
 
@@ -108,7 +111,8 @@ def image_mfs(d):
             log("...cleaning {} for {} iters with mask '{}'".format(d['msin'], n, m))
             clean(vis=d['msin'], imagename=d['im_stem'], spw=d['spw'], niter=n, weighting=d['weighting'], robust=d['robust'], imsize=d['imsize'],
                   cell='{}arcsec'.format(d['pxsize']), mode='mfs', timerange=d['timerange'], uvrange=d['uvrange'], stokes=d['stokes'],
-                  mask=m, psfmode=d['psfmode'], threshold=d['threshold'], multiscale=d['multiscale'], negcomponent=d['negcomponent'])
+                  mask=m, psfmode=d['psfmode'], threshold=d['threshold'], multiscale=d['multiscale'], negcomponent=d['negcomponent'],
+                  usescratch=d['use_scratch'])
         log("...saving {}".format('{}.image'.format(d['im_stem'])))
         if d['export_fits']:
             exportfits(imagename='{}.image'.format(d['im_stem']), fitsimage='{}.image.fits'.format(d['im_stem']), stokeslast=False)
@@ -120,6 +124,8 @@ def image_mfs(d):
 if __name__ == "__main__":
     # parse args
     args = a.parse_args()
+
+    msin = args.msin
 
     # get vars
     if args.source_ext is None:
@@ -136,6 +142,15 @@ if __name__ == "__main__":
     else:
         M = map
 
+    # Insert a model if desired (only relevant if asking for uvsub as well)
+    if args.model is not None:
+        if os.path.splitext(args.model)[1] == '.cl':
+            log("...inserting component list {} as MODEL".format(args.model), type=1)
+            ft(msin, complist=args.model, usescratch=True)
+        else:
+            log("...inserting image {} as MODEL".format(args.model), type=1)
+            ft(msin, model=args.model, usescratch=True)
+
     # get phase center
     if args.source is not None:
         ra, dec = np.loadtxt('{}.loc'.format(args.source), dtype=str)
@@ -144,8 +159,6 @@ if __name__ == "__main__":
     else:
         args.source = ''
         fixdir = None
-
-    msin = args.msin
 
     # get paths
     base_ms = os.path.basename(msin)
@@ -212,6 +225,10 @@ if __name__ == "__main__":
                         shutil.rmtree(sf)
                     except OSError:
                         os.remove(sf)
+
+    # uvsub if desired
+    if args.uvsub:
+        uvsub(msin)
 
     # create mfs image
     if args.image_mfs:

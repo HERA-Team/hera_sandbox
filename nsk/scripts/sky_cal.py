@@ -28,8 +28,9 @@ a.add_argument('--msin', default=None, type=str, help='path to a CASA measuremen
 a.add_argument('--source', default=None, type=str, help='Name of the main source in the field.')
 a.add_argument('--out_dir', default=None, type=str, help='output directory')
 a.add_argument("--silence", default=False, action='store_true', help="turn off output to stdout")
+a.add_argument("--gain_ext", default='', type=str, help="Extension for output gain tables, after the msin stem but before the *.cal suffix.")
 # Calibration Arguments
-a.add_argument("--model", default=None, type=str, help="Path to model image or component list with *.cl suffix.")
+a.add_argument("--model", default=None, type=str, help="Path to model image or component list with *.cl suffix to insert into MODEL column.")
 a.add_argument('--refant', default=None, type=str, help='Reference antenna, or comma-delimited list of ref ants for backup.')
 a.add_argument('--ex_ants', default=None, type=str, help='bad antennas to flag')
 a.add_argument('--rflag', default=False, action='store_true', help='run flagdata(mode=rflag)')
@@ -52,7 +53,7 @@ a.add_argument("--split_cal", default=False, action='store_true', help="Split co
 a.add_argument("--cal_ext", default="split", type=str, help="Suffix of calibrated MS to split from input data.")
 a.add_argument("--split_model", default=False, action='store_true', help="If True, split model column from input data and append model_ext")
 a.add_argument("--model_ext", default="model", type=str, help="Suffix of model column in MS to split from input data.")
-
+a.add_argument("--gaintables", default=[], type=str, nargs='*', help="Input gain tables to apply on-the-fly before starting calibration.")
 
 def echo(message, type=0):
     if verbose:
@@ -60,7 +61,6 @@ def echo(message, type=0):
             print(message)
         elif type == 1:
             print("\n" + message + "\n" + "-"*40)
-
 
 if __name__ == "__main__":
     # parse args
@@ -111,8 +111,9 @@ if __name__ == "__main__":
         echo("{}".format(msin))
 
     # rephase to source
-    echo("...fix vis to {}".format(fixdir), type=1)
-    fixvis(msin, msin, phasecenter=fixdir)
+    if args.source is not None:
+        echo("...fix vis to {}".format(fixdir), type=1)
+        fixvis(msin, msin, phasecenter=fixdir)
 
     # insert source model
     if args.KGcal is True or args.Acal is True or args.BPcal is True:
@@ -146,11 +147,18 @@ if __name__ == "__main__":
         echo("...rfi flagging", type=1)
         flagdata(msin, mode='rflag')
 
+    def make_cal(cal):
+        if args.gain_ext != '':
+            c = os.path.join(out_dir, '.'.join([base_ms, args.gain_ext, '{}.cal'.format(cal)]))
+        else:
+            c = os.path.join(out_dir, '.'.join([base_ms, '{}.cal'.format(cal)]))
+        return c
+
     def KGCAL(msin, gaintables=[]):
         ## perform per-antenna delay and phase calibration ##
-        # setup calibration tables     
-        kc = os.path.join(out_dir, base_ms+'.{}.cal'.format('K'))
-        gpc = os.path.join(out_dir, base_ms+'.{}.cal'.format('Gphs'))
+        # setup calibration tables    
+        kc = make_cal('K')
+        gpc = make_cal('Gphs') 
 
         # perform initial K calibration (per-antenna delay)
         echo("...performing K gaincal", type=1)
@@ -230,7 +238,8 @@ if __name__ == "__main__":
     def ACAL(msin, gaintables=[]):
         # gaincal G amplitude
         echo("...performing G gaincal for amplitude", type=1)
-        gac = msin+'.{}.cal'.format('Gamp')
+        gac = make_cal("Gamp")
+
         if os.path.exists(gac):
             shutil.rmtree(gac)
         if os.path.exists("{}.png".format(gac)):
@@ -256,7 +265,8 @@ if __name__ == "__main__":
     def BPCAL(msin, gaintables=[]):
         # calibrated bandpass
         echo("...performing B bandpass cal", type=1)
-        bc = msin+'.{}.cal'.format('B')
+        bc = make_cal("B")
+
         Btype = "B"
         if args.bpoly:
             Btype="BPOLY"
@@ -296,22 +306,22 @@ if __name__ == "__main__":
 
         return gaintables
 
-    if (args.KGcal is True or args.Acal is True or args.BPcal is True):
-        ## Begin Calibration ##
-        # init cal_timerange
-        cal_timerange = ','.join(args.timerange)
-        # run through various calibration options
-        gaintables = []
-        if args.KGcal:
-            gaintables = KGCAL(msin, gaintables)
+    ## Begin Calibration ##
+    # init cal_timerange
+    cal_timerange = ','.join(args.timerange)
+    # run through various calibration options
+    gaintables = args.gaintables
+    if args.KGcal:
+        gaintables = KGCAL(msin, gaintables)
 
-        if args.Acal:
-            gaintables = ACAL(msin, gaintables)
+    if args.Acal:
+        gaintables = ACAL(msin, gaintables)
 
-        if args.BPcal:
-            gaintables = BPCAL(msin, gaintables)
+    if args.BPcal:
+        gaintables = BPCAL(msin, gaintables)
 
-        # apply calibration gaintables
+    # apply calibration gaintables
+    if len(gaintables) > 0:
         echo("...applying gaintables: \n {}".format('\n'.join(gaintables)), type=1)
         applycal(msin, gaintable=gaintables)
 
@@ -329,7 +339,6 @@ if __name__ == "__main__":
 
             echo("...splitting CORRECTED of {} into {}".format(msin, ms_split))
             split(msin, ms_split, datacolumn="corrected")
-
     else:
         echo("...no calibration performed", type=1)
 

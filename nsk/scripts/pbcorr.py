@@ -9,7 +9,8 @@ primary beam healpix model,
 or frequency dependent Gaussians.
 
 Nick Kern
-December, 2017
+October, 2018
+nkern@berkeley.edu
 """
 import numpy as np
 import astropy.io.fits as fits
@@ -28,6 +29,8 @@ import datetime
 import ephem
 from scipy import interpolate
 from astropy.time import Time
+from astropy import coordinates as crd
+from astropy import units as u
 
 
 args = argparse.ArgumentParser(description="Primary beam correction on FITS image files, given primary beam model")
@@ -42,7 +45,7 @@ args.add_argument("--time", type=float, help='time of middle of observation in J
 
 # HEALpix Beam args
 args.add_argument("--beamfile", type=str, help="path to primary beam healpix map in pyuvdata.UVBeam format")
-args.add_argument("--pol", type=int, default=-5, help="Polarization integer of healpix maps to use for beam models.")
+args.add_argument("--pols", type=int, nargs='*', default=None, help="Polarization integer of healpix maps to use for beam models. Default is to use polarization in fits HEADER.")
 
 # Gaussian Beam args
 args.add_argument("--ew_sig", type=float, default=None, nargs='*',
@@ -53,7 +56,7 @@ args.add_argument("--gauss_freqs", type=float, default=None, nargs='*',
                   help="if no healpix map provided, array of frequencies (Hz) matching length of ew_sig and ns_sig")
 
 # IO args
-args.add_argument("--ext", type=str, default="pbcorr", help='Extension prefix for output file.')
+args.add_argument("--ext", type=str, default="", help='Extension prefix for output file.')
 args.add_argument("--outdir", type=str, default=None, help="output directory, default is path to fitsfile")
 args.add_argument("--overwrite", default=False, action='store_true', help='overwrite output files')
 args.add_argument("--silence", default=False, action='store_true', help='silence output to stdout')
@@ -65,7 +68,6 @@ def echo(message, type=0):
             print(message)
         elif type == 1:
             print('\n{}\n{}'.format(message, '-'*40))
-
 
 if __name__ == "__main__":
 
@@ -80,13 +82,10 @@ if __name__ == "__main__":
         uvb = UVBeam()
         uvb.read_beamfits(a.beamfile)
         # get beam models and beam parameters
-        if a.pol not in uvb.polarization_array:
-            raise AttributeError("{} not in {} file polarizations {}".format(a.pol, a.beamfile, uvb.polarization_array))
-        pol_ind = np.where(uvb.polarization_array == a.pol)[0][0]
-        beam_maps = np.abs(uvb.data_array[0, 0, pol_ind, :, :])
+        beam_maps = np.abs(uvb.data_array[0, 0, :, :, :])
         beam_freqs = uvb.freq_array.squeeze() / 1e6
         Nbeam_freqs = len(beam_freqs)
-        beam_nside = healpy.npix2nside(beam_maps.shape[1])
+        beam_nside = healpy.npix2nside(beam_maps.shape[2])
 
         # construct beam interpolation function
         def beam_interp_func(theta, phi):
@@ -94,7 +93,8 @@ if __name__ == "__main__":
             theta = copy.copy(theta) * np.pi / 180.0
             phi = copy.copy(phi) * np.pi / 180.0
             shape = theta.shape
-            beam_interp = [healpy.get_interp_val(m, theta.ravel(), phi.ravel(), lonlat=False).reshape(shape) for m in beam_maps]
+            # loop over freq, then pol
+            beam_interp = [[healpy.get_interp_val(m, theta.ravel(), phi.ravel(), lonlat=False).reshape(shape) for m in maps] for maps in beam_maps]
             return np.array(beam_interp)
 
     # construct pb
@@ -126,7 +126,11 @@ if __name__ == "__main__":
 
         output_fname = os.path.basename(ffile)
         output_fname = os.path.splitext(output_fname)
-        output_fname = os.path.join(output_dir, output_fname[0] + '.{}.{}'.format(a.ext, 'corr') + output_fname[1])
+        if a.ext is not None:
+            output_fname = output_fname[0] + '.pbcorr{}'.format(a.ext) + output_fname[1]
+        else:
+            output_fname = output_fname[0] + '.pbcorr' + output_fname[1]
+        output_fname = os.path.join(output_dir, output_fname)
 
         # check for overwrite
         if os.path.exists(output_fname) and a.overwrite is False:
@@ -154,6 +158,21 @@ if __name__ == "__main__":
         nstok = head["NAXIS{}".format(stok_ax)]
         nfreq = head["NAXIS{}".format(freq_ax)]
 
+        # get polarization info
+        pol_arr = np.asarray(head["CRVAL{}".format(stok_ax)] + np.arange(nstok) * head["CDELT{}".format(stok_ax)], dtype=np.int)
+
+        # replace with forced polarization if provided
+        if a.pols is not None:
+            pol_arr = np.asarray(a.pols, dtype=np.int)
+
+        # set beam maps
+        beam_pols = uvb.polarization_array.tolist()
+        beam_maps = np.array([beam_maps[beam_pols.index(p)] for p in pol_arr])
+
+        # make sure required pols exist in maps
+        if not np.all([p in uvb.polarization_array for p in pol_arr]):
+            raise ValueError("Required polarizationns {} not found in Beam polarization array".format(pol_arr))
+
         # get observer coordinates
         observer = ephem.Observer()
         observer.lat = a.lat * np.pi / 180
@@ -166,13 +185,19 @@ if __name__ == "__main__":
         # get WCS
         w = wcs.WCS(ffile)
 
-        # get pixel coordinates
+        # convert pixel to equatorial coordinates
         lon_arr, lat_arr = np.meshgrid(np.arange(npix1), np.arange(npix2))
         lon, lat, s, f = w.all_pix2world(lon_arr.ravel(), lat_arr.ravel(), 0, 0, 0)
         lon = lon.reshape(npix2, npix1)
         lat = lat.reshape(npix2, npix1)
-        theta = np.sqrt( (lon - point_ra)**2 + (lat - point_dec)**2 )
-        phi = (np.arctan2((lat-point_dec), (lon-point_ra)) + np.pi) * 180 / np.pi
+
+        # convert from equatorial to spherical coordinates
+        loc = crd.EarthLocation(lat=a.lat*u.degree, lon=a.lon*u.degree)
+        time = Time(a.time, format='jd', scale='utc')
+        equatorial = crd.SkyCoord(ra=lon*u.degree, dec=lat*u.degree, frame='fk5', location=loc, obstime=time)
+        altaz = equatorial.transform_to('altaz')
+        theta = np.abs(altaz.alt.value - 90.0)
+        phi = altaz.az.value
 
         # get data frequencies
         if freq_ax == 3:
@@ -189,14 +214,11 @@ if __name__ == "__main__":
         # interpolate primary beam onto data frequencies
         echo("...interpolating PB")
         pb_shape = (pb.shape[1], pb.shape[2])
-        pb_interp = interpolate.interp1d(beam_freqs, pb.reshape(pb.shape[0], -1).T, fill_value='extrapolate')(data_freqs)
-        pb_interp = (pb_interp.T).reshape((Ndata_freqs,) + pb_shape)
+        pb_interp = interpolate.interp1d(beam_freqs, pb, axis=1, kind='linear', fill_value='extrapolate')(data_freqs)
 
         # data shape is [naxis4, naxis3, naxis2, naxis1]
-        if freq_ax == 3:
-            pb_interp = pb_interp[np.newaxis]
-        else:
-            pb_interp = pb_interp[:, np.newaxis]
+        if freq_ax == 4:
+            pb_interp = np.moveaxis(pb_interp, 0, 1)
 
         # divide or multiply by primary beam
         if a.multiply is True:
@@ -206,15 +228,15 @@ if __name__ == "__main__":
             echo("...dividing PB into image")
             data_pbcorr = data / pb_interp
 
-        # change polarization to interpolated beam pol
-        head["CRVAL{}".format(stok_ax)] = a.pol
+        # change polarization to interpolated beam pols
+        head["CRVAL{}".format(stok_ax)] = pol_arr[0]
+        head["CDELT{}".format(stok_ax)] = np.diff(pol_arr)[0]
+        head["NAXIS{}".format(stok_ax)] = len(pol_arr)
 
         echo("...saving {}".format(output_fname))
         fits.writeto(output_fname, data_pbcorr, head, overwrite=True)
 
-        output_pb = os.path.basename(ffile)
-        output_pb = os.path.splitext(output_pb)
-        output_pb = os.path.join(output_dir, output_pb[0] + '.{}.{}'.format(a.ext, 'pb') + output_pb[1])
+        output_pb = output_fname.replace(".pbcorr.", ".pb.")
         echo("...saving {}".format(output_pb))
         fits.writeto(output_pb, pb_interp, head, overwrite=True)
 
