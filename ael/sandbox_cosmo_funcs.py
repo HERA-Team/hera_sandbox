@@ -65,6 +65,8 @@ def check_file_exists_and_increment(filepath):
 def save_results(save_dict, data_cfg, out_cfg):
     version = data_cfg['root'].split('/')[-1]
     if 'version' in out_cfg: version = out_cfg['version']
+    version += '_'+str(out_cfg['Nbls'])+"Nbls"
+    if out_cfg['average_baselines']: version += '-avg'
     if out_cfg['random_vis']: version += "_random_vis"
     if out_cfg['zero']: version += "_zero-means"
     if out_cfg['part']: version += "_part_avg"
