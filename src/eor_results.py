@@ -592,6 +592,8 @@ formats = {'GMRT_2014_all':
             'LOFAR_Patil_2017':
             dict(fmt='bh',uplims=True,
                 label='Patil, 2017')
+            dict(fmt='0.5.',uplims=True,
+                label='Parsons 2015')
             }
 krange_table = {'GMRT_2014_all': dict(krange=[.1,.5]),
             'MWA_32T_all': dict(krange=None),

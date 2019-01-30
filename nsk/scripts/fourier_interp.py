@@ -8,13 +8,13 @@ import numpy as np
 import os
 import sys
 import copy
-from stats import signal
+from scipy import signal
 from collections import OrderedDict as odict
 from hera_cal.datacontainer import DataContainer
 
 
 def fourier_filter(vis, flags, kernel_width=10, kernel='tophat', axis=1, stop_tol=1e-2, maxiter=5, 
-                  copy_vis=True):
+                  copy_vis=True, edge_cut=0):
     """
     Fast fourier filtering + interpolation for flagged data.
 
@@ -37,6 +37,8 @@ def fourier_filter(vis, flags, kernel_width=10, kernel='tophat', axis=1, stop_to
 
     copy_vis : type=boolean, if True, make a copy of vis so as not to overwrite input reference
 
+    edge_cut : type=int, number of channels to ignore on either side of band edge
+
     Output: (vis, vis_hat)
     -------
     vis : type=complex ndarray, holding visibility data with RFI flags filled-in
@@ -46,6 +48,7 @@ def fourier_filter(vis, flags, kernel_width=10, kernel='tophat', axis=1, stop_to
     # copy
     if copy_vis:
         vis = copy.copy(vis)
+        flags = copy.copy(flags)
 
     # get vis shape
     Ntimes = vis.shape[0]
@@ -76,10 +79,16 @@ def fourier_filter(vis, flags, kernel_width=10, kernel='tophat', axis=1, stop_to
     # null flagged pixels
     vis[flags] *= 0
 
+    # null band edges
+    vis[:, :edge_cut] *= 0.0
+    vis[:, -edge_cut:] *= 0.0
+    flags[:, :edge_cut] = False
+    flags[:, -edge_cut:] = False
+
     # iterate over stopping tolerance
-    med_residual = 100.0
+    max_residual = 100.0
     niters = 0
-    while med_residual > stop_tol:
+    while max_residual > stop_tol:
         # FFT w/ window along axis
         vis_fft = np.fft.fft(vis, axis=axis)
 
@@ -90,13 +99,13 @@ def fourier_filter(vis, flags, kernel_width=10, kernel='tophat', axis=1, stop_to
         vis_hat = np.fft.ifft(vis_fft, axis=axis)
 
         # estimate residuals
-        med_residual = np.median(np.abs(np.abs(vis[flags]) - np.abs(vis_hat[flags])))
+        max_residual = np.max(np.abs(vis[flags] - vis_hat[flags]))
 
         # fill in RFI flags
         vis[flags] = vis_hat[flags]
 
         # break reached stopping tol
-        if med_residual <= stop_tol or niters >= maxiter:
+        if max_residual <= stop_tol or niters >= maxiter:
             break
 
         niters += 1
