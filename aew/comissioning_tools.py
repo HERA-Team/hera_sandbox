@@ -556,12 +556,14 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
         y = fringe_rates
         taper = signal.windows.get_window(taper, ntimes)
         taper /= np.sqrt(np.mean(taper**2.))
+        taper = np.array([taper for m in range(nfreq)]).T
         output = fft.fftshift(fft.ifft(fft.fftshift(taper * output,axes=[0]),axis=0),axes=[0])
     else:
         y = np.unique(data.lst_array) * 24. / 2. / np.pi
     if freq_domain == 'delay':
         x = delays
         taper = signal.windows.get_window(taper, nfreq)
+        taper = np.array([taper for m in range(ntimes)])
         taper /= np.sqrt(np.mean(taper**2.))
         output = fft.fftshift(fft.ifft(fft.fftshift(output * taper,axes=[1]),axis=1),axes=[1])
     else:
