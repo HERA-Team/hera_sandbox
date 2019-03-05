@@ -529,12 +529,12 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
         resid[tnum,:] = linear_filter(freqs,darray[tnum,:],wghts[tnum,:],patch_c = delay_center,
                                      patch_w = delay_max, filter_factor = tol, weights = 'WTL',
                                      renormalize = False, zero_flags = zero_flags,
-                                     output_domain = 'frequency',taper = taper)
+                                     taper = taper)
 
         resid_d[tnum,:] = linear_filter(freqs,darray_d[tnum,:],wghts[tnum,:],patch_c = delay_center,
                                      patch_w = delay_max, filter_factor = tol, weights = 'WTL',
                                      renormalize = False, zero_flags = zero_flags,
-                                     output_domain = 'frequency',taper = taper)
+                                     taper = taper)
 
 
     if fringe_rate_filter:
@@ -542,11 +542,11 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
             resid[:,cnum] = linear_filter(times,resid[:,cnum],wghts[tnum,:],patch_c = [0.],
                                      patch_w = [max_fringe_rate], filter_factor = tol, weights = 'WTL',
                                      renormalize = False, zero_flags = zero_flags,
-                                     output_domain = 'frequency',taper = taper)
+                                     taper = taper)
             resid_d[:,cnum] = linear_filter(times,resid_d[:,cnum],wghts[tnum,:],patch_c = delay_center,
                              patch_w = delay_max, filter_factor = tol, weights = 'WTL',
                              renormalize = False, zero_flags = zero_flags,
-                             output_domain = 'frequency',taper = taper)
+                             taper = taper)
     output = resid
     output_d = resid_d
 
