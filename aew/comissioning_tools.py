@@ -573,7 +573,7 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
 def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe_rate_max = .2e-3, delay_max = 300e-9, delay_center = 0.,
                            lst_min = None, lst_max = None, taper = 'boxcar', freq_domain = 'delay', zero_flags = True,
                            tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear',
-                           add_clean_components = True, avg_coherent = True, sq_units = True cache = WMAT_CACHE):
+                           add_clean_components = True, avg_coherent = True, sq_units = True, cache = WMAT_CACHE):
     '''
     delay filter data and compute average.
     data, pyuvdata data set
