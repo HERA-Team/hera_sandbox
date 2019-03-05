@@ -409,6 +409,8 @@ def filter_data_clean(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
 
 
 WMAT_CACHE = {}
+def clear_cache():
+    WMAT_CACHE = {}
 def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 1e-3,weights='I',
                   renormalize=True,zero_flags=True,taper='boxcar'):
     '''
@@ -539,12 +541,12 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
 
     if fringe_rate_filter:
         for cnum in range(nfreq):
-            resid[:,cnum] = linear_filter(times,resid[:,cnum],wghts[tnum,:],patch_c = [0.],
+            resid[:,cnum] = linear_filter(times,resid[:,cnum],wghts[:,cnum],patch_c = [0.],
                                      patch_w = [max_fringe_rate], filter_factor = tol, weights = 'WTL',
                                      renormalize = False, zero_flags = zero_flags,
                                      taper = taper)
-            resid_d[:,cnum] = linear_filter(times,resid_d[:,cnum],wghts[tnum,:],patch_c = delay_center,
-                             patch_w = delay_max, filter_factor = tol, weights = 'WTL',
+            resid_d[:,cnum] = linear_filter(times,resid_d[:,cnum],wghts[:,cnum],patch_c = [0.],
+                             patch_w = [max_fringe_rate], filter_factor = tol, weights = 'WTL',
                              renormalize = False, zero_flags = zero_flags,
                              taper = taper)
     output = resid
