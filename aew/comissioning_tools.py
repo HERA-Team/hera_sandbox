@@ -410,7 +410,7 @@ def filter_data_clean(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
 
 WMAT_CACHE = {}
 def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 1e-3,weights='I',
-                  renormalize=True,zero_flags=True,output_domain='delay',taper='boxcar'):
+                  renormalize=True,zero_flags=True,taper='boxcar'):
     '''
     a linear delay filter that suppresses modes within the wedge by a factor of filter_factor.
     freqs, nchan vector of frequencies
@@ -427,7 +427,7 @@ def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 
     #print(nf)
     taper=signal.windows.get_window(taper,nf)
     taper/=np.sqrt((taper*taper).mean())
-    taper = fft.fftshift(taper0)
+    taper = fft.fftshift(taper)
 
     if weights=='I':
         wmat = np.identity(nf)
@@ -456,8 +456,7 @@ def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 
     #output = fft.fft(np.dot(wmat,output * taper))
     output = np.dot(wmat,output)
     output = fft.ifft(output * taper)
-    if output_domain=='frequency':
-        output = fft.fft(output)/taper
+    output = fft.fft(output)/taper
 
     return output
 
