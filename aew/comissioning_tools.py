@@ -417,6 +417,10 @@ def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 
     ydata, nchan vector of complex data
     flags, nchan bool vector of flags
     '''
+    if isinstance(patch_c, float):
+        patch_c = [patch_c]
+    if isinstance(patch_w, float):
+        patch_w = [patch_w]
     nf = len(freqs)
     #print(nf)
     taper=signal.windows.get_window(taper,nf)
@@ -439,7 +443,7 @@ def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 
             for pc,pw in zip(patch_c, patch_w):
                 cmat_fg += np.sinc(2.*(fx-fy) * pw) * np.exp(2j*np.pi*(fx-fy) * pc)
             cmat = cmat_fg+np.identity(len(freqs))*filter_factor
-            #print(flags.shape)
+
             if zero_flags:
                 cmat[:,flags]=0.
                 cmat[flags,:]=0.
@@ -456,7 +460,7 @@ def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 
     if output_domain=='frequency':
         output = fft.fft(output)/taper
 
-    return output,mmat_inv
+    return output
 
 
 def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
@@ -495,7 +499,8 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
 
     times = 3600.*24.*np.unique(data.time_array)
     fringe_rates = fft.fftshift(fft.fftfreq(len(times),times[1]-times[0]))
-
+    ntimes = len(times)
+    nfreq = len(freqs)
     #select baselines
     selection = data._key2inds((ant1, ant2))
     if len(selection[0])==0:
@@ -514,9 +519,6 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
     if flag_across_time:
         for fnum in range(len(freqs)):
             wghts[:,fnum] = np.any(wghts[:,fnum])
-    wghts = np.invert(wghts).astype(float)
-
-
 
     if not isinstance(delay_max,list):
         delay_widths = [delay_max]
@@ -524,13 +526,14 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
         delay_centers = [delay_center]
     resid = np.zeros_like(darray)
     resid_d = np.zeros_like(darray_d)
+
     for tnum in range(ntimes):
-        resid[tnum,:] = linear_filter(freqs,darray[tnum,:],flags[tnum,:],patch_c = delay_center,
+        resid[tnum,:] = linear_filter(freqs,darray[tnum,:],wghts[tnum,:],patch_c = delay_center,
                                      patch_w = delay_max, filter_factor = tol, weights = 'WTL',
                                      renormalize = False, zero_flags = zero_flags,
                                      output_domain = 'frequency',taper = taper)
 
-        resid_d[tnum,:] = linear_filter(freqs,darray_d[tnum,:],flags[tnum,:],patch_c = delay_center,
+        resid_d[tnum,:] = linear_filter(freqs,darray_d[tnum,:],wghts[tnum,:],patch_c = delay_center,
                                      patch_w = delay_max, filter_factor = tol, weights = 'WTL',
                                      renormalize = False, zero_flags = zero_flags,
                                      output_domain = 'frequency',taper = taper)
@@ -538,11 +541,11 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
 
     if fringe_rate_filter:
         for cnum in range(nfreq):
-            resid[:,cnum] = linear_filter(times,resid[:,cnum],flags[tnum,:],patch_c = [0.],
+            resid[:,cnum] = linear_filter(times,resid[:,cnum],wghts[tnum,:],patch_c = [0.],
                                      patch_w = [max_fringe_rate], filter_factor = tol, weights = 'WTL',
                                      renormalize = False, zero_flags = zero_flags,
                                      output_domain = 'frequency',taper = taper)
-            resid_d[:,cnum] = linear_filter(times,resid_d[:,cnum],flags[tnum,:],patch_c = delay_center,
+            resid_d[:,cnum] = linear_filter(times,resid_d[:,cnum],wghts[tnum,:],patch_c = delay_center,
                              patch_w = delay_max, filter_factor = tol, weights = 'WTL',
                              renormalize = False, zero_flags = zero_flags,
                              output_domain = 'frequency',taper = taper)
@@ -551,29 +554,26 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
 
     if time_domain == 'fringe-rate':
         y = fringe_rates
-        output = fft.fftshift(fft.ifft(fft.fftshift(output,axes=[0]),axis=0),axes=[0])
+        taper = signal.windows.get_window(taper, ntimes)
+        taper /= np.sqrt(np.mean(taper**2.))
+        output = fft.fftshift(fft.ifft(fft.fftshift(taper * output,axes=[0]),axis=0),axes=[0])
     else:
         y = np.unique(data.lst_array) * 24. / 2. / np.pi
     if freq_domain == 'delay':
         x = delays
-        output = fft.fftshift(fft.ifft(fft.fftshift(output,axes=[1]),axis=1),axes=[1])
+        taper = signal.windows.get_window(taper, nfreq)
+        taper /= np.sqrt(np.mean(taper**2.))
+        output = fft.fftshift(fft.ifft(fft.fftshift(output * taper,axes=[1]),axis=1),axes=[1])
     else:
         x = freqs
     xg,yg = np.meshgrid(x,y)
     return xg,yg,output,output_d
 
 
-data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
-                     fringe_rate_max = .2e-3, delay_max = 600e-9, delay_center = 0.,
-                     lst_min = None,lst_max=None,taper='boxcar',
-                     freq_domain = 'delay', zero_flags = True,
-                     time_domain = 'time',tol=1e-7,
-                     flag_across_time = True,
-                     fringe_rate_filter = False
-
-def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe_rate_max = .2e-3, delay_max = 600e-9, delay_center = 0.,
+def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe_rate_max = .2e-3, delay_max = 300e-9, delay_center = 0.,
                            lst_min = None, lst_max = None, taper = 'boxcar', freq_domain = 'delay', zero_flags = True,
-                           tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear', add_clean_components = True):
+                           tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear',
+                           add_clean_components = True, avg_coherent = True, sq_units = True):
     '''
     delay filter data and compute average.
     data, pyuvdata data set
@@ -598,6 +598,8 @@ def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe
     add_clean_components, if True, add 1d clean components back to clean residual. This will do nothing if filter_method is 'linear'.
     avg_coherent, if True, average data coherently.
                   if False, average data incoherently.
+    sq_units: if True, take abs square of data
+              if False, take square root of data
     '''
     if filter_method == 'linear':
         xg, yg, darray, darray_d = filter_data_linear(data = data ,data_d = data_d,corrkey = corrkey, fmin = fmin, fmax = fmax,
@@ -620,24 +622,24 @@ def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe
         raise ValueError("Failed to specify a valid filtering method. Valid options are 'clean' and 'linear'")
     #split data into even and odd sets.
 
-    darray_even = (darray + d_array_d) / 2.
-    darray_odd = (darray - d_array_d) / 2.
+    darray_even = (darray + darray_d) / 2.
+    darray_odd = (darray - darray_d) / 2.
     darray_d_even =  darray_d[::2]
     darray_d_odd = darray_d[1::2]
 
     if avg_coherent:
-        d_array_even = np.mean(darray_even, axis = 0)
-        d_array_odd = np.mean(darray_odd, axis = 0)
+        darray_even = np.mean(darray_even, axis = 0)
+        darray_odd = np.mean(darray_odd, axis = 0)
 
-        d_array_d_even = np.mean(darray_d_even, axis = 0)
-        d_array_d_odd = np.mean(darray_d_odd, axis = 0)
+        darray_d_even = np.mean(darray_d_even, axis = 0)
+        darray_d_odd = np.mean(darray_d_odd, axis = 0)
 
-    d_array_d = d_array_d_even * np.conj(darray_d_odd ) / 4.
-    darray = d_array_even * np.conj(darray_odd)
+    darray_d = darray_d_even * np.conj(darray_d_odd ) / 4.
+    darray = darray_even * np.conj(darray_odd)
 
     if not avg_coherent:
         darray = np.mean(darray, axis = 0)
-        d_array_d = np.mean(d_array_d, axis = 0) * np.sqrt(2.)
+        darray_d = np.mean(darray_d, axis = 0) * np.sqrt(2.)
 
     if not sq_units:
         darray = sqrt_abs(darray)
