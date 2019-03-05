@@ -411,8 +411,9 @@ def filter_data_clean(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
 WMAT_CACHE = {}
 def clear_cache():
     WMAT_CACHE = {}
+    
 def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 1e-3,weights='I',
-                  renormalize=True,zero_flags=True,taper='boxcar'):
+                  renormalize=True,zero_flags=True,taper='boxcar',cache = WMAT_CACHE):
     '''
     a linear delay filter that suppresses modes within the wedge by a factor of filter_factor.
     freqs, nchan vector of frequencies
@@ -429,7 +430,6 @@ def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 
     #print(nf)
     taper=signal.windows.get_window(taper,nf)
     taper/=np.sqrt((taper*taper).mean())
-    taper = fft.fftshift(taper)
 
     if weights=='I':
         wmat = np.identity(nf)
@@ -439,7 +439,7 @@ def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 
     elif weights == 'WTL':
         wkey = (nf,freqs[1]-freqs[0],filter_factor,zero_flags)+tuple(np.where(flags)[0])\
         + tuple(patch_c) + tuple(patch_w)
-        if not wkey in WMAT_CACHE:
+        if not wkey in cache:
             fx,fy=np.meshgrid(freqs,freqs)
             cmat_fg = np.zeros_like(fx).astype(complex)
             for pc,pw in zip(patch_c, patch_w):
@@ -451,14 +451,14 @@ def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 
                 cmat[flags,:]=0.
             #print(np.linalg.cond(cmat))
             wmat = np.linalg.pinv(cmat)*filter_factor
-            WMAT_CACHE[wkey]=wmat
+            cache[wkey]=wmat
         else:
-            wmat = WMAT_CACHE[wkey]
+            wmat = cache[wkey]
     output = ydata
     #output = fft.fft(np.dot(wmat,output * taper))
     output = np.dot(wmat,output)
-    output = fft.ifft(output * taper)
-    output = fft.fft(output)/taper
+    #output = fft.ifft(output * taper)
+    #output = fft.fft(output)/taper
 
     return output
 
