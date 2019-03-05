@@ -427,10 +427,8 @@ def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 
     #print(nf)
     taper=signal.windows.get_window(taper,nf)
     taper/=np.sqrt((taper*taper).mean())
-    #taper = np.diag(taper)
-    taper_mat = np.diag(taper)
-    #print(nf)
-    #print(len(np.where(flags)[0]))
+    taper = fft.fftshift(taper0)
+
     if weights=='I':
         wmat = np.identity(nf)
         if zero_flags:
