@@ -2,7 +2,6 @@ import numpy as np
 from pyuvdata import UVData
 from hera_qm import xrfi
 import matplotlib.pyplot as plt
-%matplotlib inline
 import glob as glob
 import re
 import aipy
@@ -94,6 +93,12 @@ def gen_window(window, N, alpha=0.5, edgecut_low=0, edgecut_hi=0, **kwargs):
             raise ValueError("Didn't recognize window {}".format(window))
 
     return w
+
+def sqrt_abs(x):
+    '''
+    sqrut of absolute value of x
+    '''
+    return np.sqrt(np.abs(x))
 
 
 def high_pass_fourier_filter(data, wgts, filter_size, real_delta, clean2d=False, tol=1e-9, window='none',
@@ -556,3 +561,86 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
         x = freqs
     xg,yg = np.meshgrid(x,y)
     return xg,yg,output,output_d
+
+
+data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
+                     fringe_rate_max = .2e-3, delay_max = 600e-9, delay_center = 0.,
+                     lst_min = None,lst_max=None,taper='boxcar',
+                     freq_domain = 'delay', zero_flags = True,
+                     time_domain = 'time',tol=1e-7,
+                     flag_across_time = True,
+                     fringe_rate_filter = False
+
+def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe_rate_max = .2e-3, delay_max = 600e-9, delay_center = 0.,
+                           lst_min = None, lst_max = None, taper = 'boxcar', freq_domain = 'delay', zero_flags = True,
+                           tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear', add_clean_components = True):
+    '''
+    delay filter data and compute average.
+    data, pyuvdata data set
+    data_d, pyuvdata diffed data set
+    corrkey, 3-tuple or list (ant0, ant1, pol num)
+    fmin, minimum frequency (Hz)
+    fmax, maximum frequency (Hz)
+    fringe_rate_max, filter all fringe-rates below this value (Hz)
+    delay_max, filter all delays within this value's distance to delay_center (sec),
+               can be provided as a list of floats to filter multiple delay windows.
+    delay_center, filter all delays within delay_max of this delay. Can be provided as a list of floats to filter multiple dleay windows.
+    lst_min, minimum lst to fringe-rate filter and average over.
+    lst_max, maximum lst to fringe-rate filter and average over.
+    taper, tapering function to apply during fft.
+    freq_domain, output domain in frequency ("delay" or "frequency")
+    zero_flags, if True, set data at flagged channels to zero before performing Fourier filter. If False, do not set flagged channels to zero
+                and allow whatever is in these channels to be part of the data.
+    tol, depth to clean too.
+    flag_across_time, if True, flags at each frequency are the union of flags at that frequency across all times.
+    fringe_rate_filter, if True, filter fringe rates with abs value below fringe_rate_max.
+    filter_method, if 'linear', use linear WTL filter. if 'clean' perform 1d clean. This applies to both frequency and time domains.
+    add_clean_components, if True, add 1d clean components back to clean residual. This will do nothing if filter_method is 'linear'.
+    avg_coherent, if True, average data coherently.
+                  if False, average data incoherently.
+    '''
+    if filter_method == 'linear':
+        xg, yg, darray, darray_d = filter_data_linear(data = data ,data_d = data_d,corrkey = corrkey, fmin = fmin, fmax = fmax,
+                             fringe_rate_max = fringe_rate_max, delay_max = delay_max, delay_center = delay_center,
+                             lst_min = lst_min, lst_max=lst_max, taper=taper,
+                             freq_domain = freq_domain, zero_flags = zero_flags,
+                             time_domain = "time",tol=tol,
+                             flag_across_time = flag_across_time,
+                             fringe_rate_filter = fringe_rate_filter)
+
+    elif filter_method == 'clean':
+        xg, yg, darray, darray_d = filter_data_clean(data = data,data_d = data_d,corrkey = corrkey,fmin = fmin, fmax = fmax,
+                             fringe_rate_max = fringe_rate_max, delay_max = delay_max,
+                             lst_min = lst_min,lst_max=lst_max,taper=taper,filt2d_mode='rect',
+                             add_clean_components=add_clean_components,freq_domain = freq_domain,
+                             time_domain = "time",tol=tol,bad_wghts=False,
+                             flag_across_time = flag_across_time,bad_resid=False,
+                             fringe_rate_filter = fringe_rate_filter,acr=False)
+    else:
+        raise ValueError("Failed to specify a valid filtering method. Valid options are 'clean' and 'linear'")
+    #split data into even and odd sets.
+
+    darray_even = (darray + d_array_d) / 2.
+    darray_odd = (darray - d_array_d) / 2.
+    darray_d_even =  darray_d[::2]
+    darray_d_odd = darray_d[1::2]
+
+    if avg_coherent:
+        d_array_even = np.mean(darray_even, axis = 0)
+        d_array_odd = np.mean(darray_odd, axis = 0)
+
+        d_array_d_even = np.mean(darray_d_even, axis = 0)
+        d_array_d_odd = np.mean(darray_d_odd, axis = 0)
+
+    d_array_d = d_array_d_even * np.conj(darray_d_odd ) / 4.
+    darray = d_array_even * np.conj(darray_odd)
+
+    if not avg_coherent:
+        darray = np.mean(darray, axis = 0)
+        d_array_d = np.mean(d_array_d, axis = 0) * np.sqrt(2.)
+
+    if not sq_units:
+        darray = sqrt_abs(darray)
+        darray_d = sqrt_abs(darray_d)
+
+    return xg[0,:], darray, darray_d
