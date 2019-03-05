@@ -417,6 +417,8 @@ def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 
     ydata, nchan vector of complex data
     flags, nchan bool vector of flags
     '''
+    if filter_factor == 0:
+        weights = 'I'
     if isinstance(patch_c, float):
         patch_c = [patch_c]
     if isinstance(patch_w, float):
@@ -456,7 +458,6 @@ def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 
     #output = fft.fft(np.dot(wmat,output * taper))
     output = np.dot(wmat,output)
     output = fft.ifft(output * taper)
-    delays = np.arange(-nf/2,nf/2)*(freqs[1]-freqs[0])
     if output_domain=='frequency':
         output = fft.fft(output)/taper
 
