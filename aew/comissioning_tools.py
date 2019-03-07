@@ -777,7 +777,8 @@ def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe
 
 
 def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', ylim = [None, None],
-                                xlim = [None,None],logscale = True):
+                                xlim = [None,None],logscale = True, legend_font_size = 14,
+                                label_font_size = 14, tick_font_size = 14):
     '''
     plot_dict_list: a list of dictionaries specifying the plotting parameters of each line.
     each dictionary must have the following:
@@ -821,6 +822,7 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
     ylim_in = copy.copy(ylim)
     xlim = copy.copy(xlim)
     ylim = copy.copy(ylim)
+
     if ylim_in[1] is None:
         ylim[1] = -9e99
     if ylim_in[0] is None:
@@ -879,18 +881,18 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
         ylim[1] = 10.**np.ceil(np.log10(ylim[1])) * 10.
         ylim[0] = 10.**np.floor(np.log10(ylim[0])) / 10.
 
-        if xlim_in[0] is None:
+        if xlim_in[1] is None:
             if x.max() > xlim[1]:
                 xlim[1] = x.max()
-        if xlim_in[1] is None:
-            if x.min() < ylim[0]:
+        if xlim_in[0] is None:
+            if x.min() < xlim[0]:
                 xlim[0] = x.min()
 
 
-    print(x.max())
-    print(x.min())
-    print(xlim)
-    print(ylim)
+    #print(x.max())
+    #print(x.min())
+    #print(xlim)
+    #print(ylim)
     plt.xlim(xlim)
     plt.ylim(ylim)
     if logscale:
@@ -919,17 +921,18 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
                 ktick = '%.2f'%(kpara)
                 ax2ticks.append(ktick)
             ax2.set_xticklabels(ax2ticks)
-            ax2.set_xlabel('$k_\\parallel$ ($h$Mpc$^{-1}$)')
+            ax2.set_xlabel('$k_\\parallel$ ($h$Mpc$^{-1}$)', fontsize = label_font_size)
             plt.sca(ax1)
-        ax1.set_xlabel('$\\tau_d$ (ns)')
+        ax1.set_xlabel('$\\tau_d$ (ns)', fontsize = label_font_size)
         if sq_units:
-            plt.ylabel('|$\\widetilde{V}(\\tau)|^2$')
+            plt.ylabel('|$\\widetilde{V}(\\tau)|^2$', fontsize = label_font_size)
         else:
-            plt.ylabel('|$\\widetilde{V}(\\tau)|$')
+            plt.ylabel('|$\\widetilde{V}(\\tau)|$', fontsize = label_font_size)
 
     else:
-        plt.xlabel('$\\nu$ (MHz)')
+        plt.xlabel('$\\nu$ (MHz)', fontsize = label_font_size)
         if sq_units:
-            plt.ylabel('|$V(\\nu)|^2$')
+            plt.ylabel('|$V(\\nu)|^2$', fontsize = label_font_size)
         else:
-            plt.ylabel('|$V(\\nu)|$')
+            plt.ylabel('|$V(\\nu)|$', fontsize = label_font_size)
+    plt.tick_params(labelsize = tick_font_size)
