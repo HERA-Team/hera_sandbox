@@ -599,7 +599,7 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
     return xg,yg,output,output_d
 
 
-def integrate_LST(data, data_d, corrkey, xvals,  fmin = 45e6, fmax=85e6, fringe_rate_max = .2e-3,
+def integrate_LST(data, data_d, corrkey,  fmin = 45e6, fmax=85e6, fringe_rate_max = .2e-3,
               delay_max = 300e-9, delay_center = 0., lst_min = None, lst_max = None, taper = 'boxcar',
               freq_domain = 'delay', zero_flags = True,
               tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear',
@@ -610,7 +610,6 @@ def integrate_LST(data, data_d, corrkey, xvals,  fmin = 45e6, fmax=85e6, fringe_
         data, pyuvdata object representing data
         data_d, pyuvdata object storing diffed data
         corrkey, key selecting baseline (ant0, ant1, pol)
-        xvals, list of x-values to integrate on.
         fmin, minimum frequency
         fmax, maximum frequency
         fringe_rate_max, maximum fringe rate to filter below
@@ -620,8 +619,73 @@ def integrate_LST(data, data_d, corrkey, xvals,  fmin = 45e6, fmax=85e6, fringe_
                              does nothing if filtering is 'linear'.
         avg_coherent, boolean, if True integrate coherently.
         sq_units, if True, use square units (product of even/odd data FT).
-        cache, dictionary containing filtering matrices. 
+        cache, dictionary containing filtering matrices.
     '''
+    if filter_method == 'linear':
+        xg, yg, darray, darray_d = filter_data_linear(data = data ,data_d = data_d,corrkey = corrkey, fmin = fmin, fmax = fmax,
+                             fringe_rate_max = fringe_rate_max, delay_max = delay_max, delay_center = delay_center,
+                             lst_min = lst_min, lst_max=lst_max, taper=taper,
+                             freq_domain = freq_domain, zero_flags = zero_flags,
+                             time_domain = "time",tol=tol,
+                             flag_across_time = flag_across_time,
+                             fringe_rate_filter = fringe_rate_filter)
+
+    elif filter_method == 'clean':
+        xg, yg, darray, darray_d = filter_data_clean(data = data,data_d = data_d,corrkey = corrkey,fmin = fmin, fmax = fmax,
+                             fringe_rate_max = fringe_rate_max, delay_max = delay_max,
+                             lst_min = lst_min,lst_max=lst_max,taper=taper,filt2d_mode='rect',
+                             add_clean_components=add_clean_components,freq_domain = freq_domain,
+                             time_domain = "time",tol=tol,bad_wghts=False,
+                             flag_across_time = flag_across_time,bad_resid=False,
+                             fringe_rate_filter = fringe_rate_filter,acr=False)
+    else:
+        raise ValueError("Failed to specify a valid filtering method. Valid options are 'clean' and 'linear'")
+    #split data into even and odd sets.
+
+    darray_even = (darray + darray_d) / 2.
+    darray_odd = (darray - darray_d) / 2.
+    darray_d_even =  darray_d[::2]
+    darray_d_odd = darray_d[1::2]
+
+    trace_o = np.zeros((darray.shape[0]/2, darray.shape[1]), dtype=complex)
+    trace_e = np.zeros_like(trace_o)
+    trace_e_d = np.zeros_like(trace_e)
+    trace_o_d = np.zeros_like(trace_e)
+
+    times = np.unique(times.time_array)
+    ntimes = len(times)
+    norm_vec = np.arange(1, ntimes/2)
+
+    if avg_coherent:
+        trace_e[0] = np.sum(darray_even[:2], axis = 0)
+        trace_o[0] = np.sum(darray_odd[:2], axis = 0)
+        trace_e_d[0] = np.sum(darray_d_even[:2], axis=0)
+        trace_o_d[0] = np.sum(d_array_d_odd[:2], axis=0)
+        for tind in range(1,ntimes/2):
+            trace_e[tind] = trace_e[tind-1] + np.sum(darray_e[tind*2:(tind+1)*2], axis=0)
+            trace_o[tind] = trace_o[tind-1] + np.sum(darray_o[tind*2:(tind+1)*2], axis=0)
+            trace_e_d[tind] = trace_e_d[tind-1] + darray_d_even[tind]
+            trace_o_d[tind] = trace_o_d[tind-1] + darray_d_odd[tind]
+        trace = norm_vec ** -2. * trace_e * np.conj(trace_o) / 2.
+        trace_d = norm_vec ** -2. * trace_e_d * np.conj(trac_o_d) / 4.
+
+    else:
+        trace[0] = np.sum(darray_even[:2] * np.conj(darray_odd[:2]) , axis = 0)
+        trace_d[0] = darray_d_even[0] * np.conj(darray_d_odd[0])
+        for tind in range(1, ntimes/2):
+            trace[tind] = trace[tind-1] + np.sum(darray_even[tind*2:2*(tind+1)]\
+            * np.conj(darray_odd[tind*2:(tind+1)*2]), axis = 0)
+            trace_d[tind] = trace_d[tind-1] + darray_d_even[tind]\
+            * np.conj(darray_d_odd[tind])
+
+        trace = norm_vec ** -2. * trace / 2.
+        trace_d = norm_vec ** -2. * trace_d / 2. / np.sqrt(2.)
+
+    t = times[::2]
+    x = xg[0,:]
+
+    return t, x, trace, trace_d
+
 def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe_rate_max = .2e-3, delay_max = 300e-9, delay_center = 0.,
                            lst_min = None, lst_max = None, taper = 'boxcar', freq_domain = 'delay', zero_flags = True,
                            tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear',
