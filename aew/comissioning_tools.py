@@ -726,7 +726,7 @@ def integrate_LST(data, data_d, corrkey,  fmin = 45e6, fmax=85e6, fringe_rate_ma
 
 def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe_rate_max = .2e-3, delay_max = 300e-9, delay_center = 0.,
                            lst_min = None, lst_max = None, taper = 'boxcar', freq_domain = 'delay', zero_flags = True, normalize_average = False,
-                           tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear',
+                           tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear', negative_vals = False,
                            add_clean_components = True, show_legend = True, avg_coherent = True, sq_units = True, cache = WMAT_CACHE):
     '''
     delay filter data and compute average.
@@ -799,16 +799,16 @@ def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe
         darray_d = np.mean(darray_d, axis = 0) * np.sqrt(2.)
 
     if not sq_units:
-        darray = sqrt_abs(darray)
-        darray_d = sqrt_abs(darray_d)
+        darray = sqrt_abs(darray,negatives = negative_vals)
+        darray_d = sqrt_abs(darray_d, negatives = negative_vals)
 
     return xg[0,:], darray, darray_d
 
 
 def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', ylim = [None, None],
-                                xlim = [None,None],logscale = True, legend_font_size = 14,
+                                xlim = [None,None],logscale = True, legend_font_size = 14, show_signal = True, show_diff = True,
                                 label_font_size = 14, tick_font_size = 14, legend_loc = 'lower center',
-                                legend_ncol = None, legend_bbox = [0.5, 0.], show_legend = True):
+                                legend_ncol = None, legend_bbox = [0.5, 0.], show_legend = True, negative_vals = False):
     '''
     plot_dict_list: a list of dictionaries specifying the plotting parameters of each line.
     each dictionary must have the following:
@@ -840,7 +840,8 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
         SHOW_FILTER, if True, show vertical lines at filter edges.
         TOL, tolerance to clean/filter too.
         TAPER, string giving taper for FT.
-
+    show_signal, if True, plot signal data
+    show_diff, if True, plot diff data.
     freq_domain, string, specify if output is in "frequency" or "delay" domain.
     ylim, 2-tuple with upper and lower bounds on plot. If bound is None, will be rounded
           to nearest order of magnitude.
@@ -848,7 +849,7 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
     sq_units, if True, show the square of the delay-transform. If false, show the
              square root of the absoute value.
     logscale, if True, y-axis is logarithmically scaled.
-
+    negative_vals, if True, let negative numbers be negative.
 
     Returns:
         lines, labels, figure handle, axis handle.
@@ -886,17 +887,31 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
                                 add_clean_components = pd['ADD_CLEAN_MODEL'],
                                 avg_coherent = pd['AVG_COHERENT'],
                                 normalize_average = pd['NORMALIZE_AVERAGE'],
-                                sq_units = sq_units, cache = pd['CACHE'])
+                                sq_units = sq_units, cache = pd['CACHE'], negative_vals = negative_vals)
 
         if freq_domain == 'delay':
             x *= 1e9
         elif freq_domain == 'frequency':
             x *= 1e-6
-        lines.append(plt.plot(x,np.abs(y),lw=pd['LINEWIDTH'],
+        if negative_vals:
+            y = np.real(y)
+            yd = np.real(yd)
+        else:
+            y = np.abs(y)
+            yd = np.abs(yd)
+        if show_signal:
+            lines.append(plt.plot(x,y,lw=pd['LINEWIDTH'],
                               color=pd['COLOR'],
                               ls=pd['LINESTYLE'])[0])
-        plt.plot(x,np.abs(yd),lw=1,ls=pd['LINESTYLE'],
-                 color=pd['COLOR'])
+            if show_diff:
+                plt.plot(x,yd,lw=1,ls=pd['LINESTYLE'],
+                     color=pd['COLOR'])
+
+
+        elif show_diff:
+            lines.append(plt.plot(x,yd,lw=1,ls=pd['LINESTYLE'],
+                 color=pd['COLOR'])[0])
+
         labels.append(pd['LABEL'])
         if pd['SHOW_HORIZON'] and freq_domain == 'delay':
             hzn = get_horizon(pd['DATA'],(pd['CORRKEY'][0],pd['CORRKEY'][1]))
