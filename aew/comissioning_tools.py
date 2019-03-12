@@ -310,13 +310,15 @@ def down_select_data(data,fmin=45e6,fmax=85e6,lst_min=None,lst_max=None):
     data = data.select(freq_chans=select_channels,times = times_select,inplace=False)
     return data
 
-def get_corr_data(data,corrkey):
+def get_corr_data(data,corrkey, f_threshold = None, t_threshold = None):
     '''
     retrieve data and flags from uv data for a single polarization
     and antenna pair.
     Args:
         data, pyuvdata object
         corrkey, 3-tuple (ant0, ant1, pol)
+        t_threshold, optional float , if fraction of flagged channels at single time is a above this, flag entire time.
+        f_threshold, optional float, if fraction of flagged channels at a single freq is above this, flag entire freq at all times.
     Returns:
         ntimes x nfreq array of bools, ntimes x nfreq array of complex128
         first array is flags, second array is visibility.
@@ -336,8 +338,19 @@ def get_corr_data(data,corrkey):
         raise ValueError("Correlation between antennas %d x %d not present in data.")
 
 
+
     darray = data.data_array[selection,:,:,pol].squeeze()
     wghts = data.flag_array[selection,:,:,pol].squeeze()
+
+    if not t_threshold is None:
+        for tnum in range(len(times)):
+            if float(len(wghts[tnum,wghts[tnum, :]]))/len(wghts[tnum, :]) >= t_threshold:
+                wghts[tnum,:] = True #flag entire time
+
+    if not f_threshold isNone:
+        for cnum in range(len(freqs)):
+            if float(len(wghts[wghts[:, cnum],cnum]))/len(wghts[:, cnum]) >= f_threshold:
+                wghts[:, cnum] = True #flag entire channel
 
     return wghts, darray
 
@@ -406,9 +419,9 @@ def filter_data_clean(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
         raise ValueError("Invalid Tolerance of 0. Provided!")
 
     if normalize_average:
-        data_d.data_array = data_d.data_array\
+        data_d.data_array = 2. * data_d.data_array\
          / np.mean(np.abs(data.data_array[np.invert(data.flag_array)]))
-        data.data_array = data.data_array\
+        data.data_array = 2. * data.data_array\
          / np.mean(np.abs(data.data_array[np.invert(data.flag_array)]))
 
     freqs = data.freq_array.squeeze()
@@ -491,7 +504,7 @@ def clear_cache():
     WMAT_CACHE = {}
 
 def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 1e-3,weights='I',
-                  renormalize=True,zero_flags=True,taper='boxcar',cache = WMAT_CACHE):
+                  renormalize=True,zero_flags=True,taper='boxcar',cache = WMAT_CACHE, cmax = 1e16):
     '''
     a linear delay filter that suppresses modes within the wedge by a factor of filter_factor.
     freqs, nchan vector of frequencies
@@ -505,7 +518,6 @@ def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 
     if isinstance(patch_w, float):
         patch_w = [patch_w]
     nf = len(freqs)
-    #print(nf)
     taper=signal.windows.get_window(taper,nf)
     taper/=np.sqrt((taper*taper).mean())
 
@@ -527,7 +539,6 @@ def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 
             if zero_flags:
                 cmat[:,flags]=0.
                 cmat[flags,:]=0.
-            #print(np.linalg.cond(cmat))
             wmat = np.linalg.pinv(cmat)*filter_factor
             cache[wkey]=wmat
         else:
@@ -576,9 +587,9 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
     data_d = down_select_data(data_d,fmin,fmax,lst_min,lst_max)
 
     if normalize_average:
-        data_d.data_array = data_d.data_array\
+        data_d.data_array = 2. * data_d.data_array\
          / np.mean(np.abs(data.data_array[np.invert(data.flag_array)]))
-        data.data_array = data.data_array\
+        data.data_array = 2. * data.data_array\
          / np.mean(np.abs(data.data_array[np.invert(data.flag_array)]))
 
     freqs = data.freq_array.squeeze()
@@ -786,8 +797,6 @@ def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe
     t_threshold, if fraction of flagged channels at single time is a above this, flag entire time.
     f_threshold, if fraction of flagged channels at a single freq is above this, flag entire freq at all times.
     '''
-    print(f_threshold)
-    print(t_threshold)
     if filter_method == 'linear':
         xg, yg, darray, darray_d = filter_data_linear(data = data ,data_d = data_d,corrkey = corrkey, fmin = fmin, fmax = fmax,
                              fringe_rate_max = fringe_rate_max, delay_max = delay_max, delay_center = delay_center,
@@ -837,7 +846,8 @@ def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe
 
 def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', ylim = [None, None],
                                 xlim = [None,None],logscale = True, legend_font_size = 14, show_signal = True, show_diff = True,
-                                label_font_size = 14, tick_font_size = 14, legend_loc = 'lower center',
+                                label_font_size = 14, tick_font_size = 14, legend_loc = 'lower center', title = None,
+                                title_font_size = 18, title_y = 1.1,
                                 legend_ncol = None, legend_bbox = [0.5, 0.], show_legend = True, negative_vals = False):
     '''
     plot_dict_list: a list of dictionaries specifying the plotting parameters of each line.
@@ -882,7 +892,9 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
              square root of the absoute value.
     logscale, if True, y-axis is logarithmically scaled.
     negative_vals, if True, let negative numbers be negative.
-
+    title, string for plot title
+    title_font_size, float, font size of title
+    title_y, float, y location of title.
 
     Returns:
         lines, labels, figure handle, axis handle.
@@ -975,12 +987,6 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
         if xlim_in[0] is None:
             if x.min() < xlim[0]:
                 xlim[0] = x.min()
-        #print(ylim_in)
-        #print(ylim)
-    #print(x.max())
-    #print(x.min())
-    #print(xlim)
-    #print(ylim)
 
     if logscale:
         plt.yscale('log')
@@ -1002,7 +1008,6 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
             ax2.set_xlim(ax1.get_xlim())
             ax2ticks = []
             for tick in ax1.get_xticks():
-                #print(tick)
                 kpara = tick * 2. * np.pi / y0 /1e9
                 ktick = '%.2f'%(kpara)
                 ax2ticks.append(ktick)
@@ -1029,4 +1034,6 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
     if show_legend:
         plt.gcf().legend(lines, labels, loc=legend_loc, ncol = legend_ncol,
                         fontsize=legend_font_size, bbox_to_anchor=legend_bbox)
+    if not title is None:
+        plt.title(title,fontsize = title_font_size, y = title_y)
     return lines, labels, plt.gcf(), plt.gca()
