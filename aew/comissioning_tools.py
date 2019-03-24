@@ -27,14 +27,14 @@ from warnings import warn
 from scipy.optimize import leastsq, lsq_linear
 import multiprocessing
 NCPU = multiprocessing.cpu_count()
-
+from aipy.deconv import clean
 try:
     from joblib import Parallel, delayed
     PARALLELIZED = True
 except:
     PARALLELIZED = False
     print('Parallelization not supported. Install joblib to enable parallelization.')
-
+PARALLELIZED = False #Turn on false for now. This isn't working for aipy clean :(
 '''
 The following methods are modified versions of the ones appearing in uvtools.
 '''
@@ -223,14 +223,15 @@ def high_pass_fourier_filter(data, wgts, filter_size, real_delta, clean2d=False,
                         _d_res[i] = _d[i]
                         info.append({'skipped': True})
                     else:
-                        _cl, info_here = aipy.deconv.clean(_d[i], _w[i], area=area, tol=tol, stop_if_div=False, maxiter=maxiter, gain=gain)
+                        _cl, info_here = clean(_d[i], _w[i], area=area, tol=tol, stop_if_div=False, maxiter=maxiter, gain=gain)
                         _d_cl[i] = _cl
                         _d_res[i] = info_here['res']
                         del info_here['res']
                         info.append(info_here)
             else:
                 print('Parallelized!')
-                parallel_out = Parallel(n_jobs=NCPU)(delayed(aipy.deconv.clean)(_d[i], _w[i], area=area, tol=tol,
+                nfreq = data.shape[0]
+                parallel_out = Parallel(n_jobs=NCPU)(delayed(clean)(_d[i], _w[i], area=area, tol=tol,
                  stop_if_div=False, maxiter=maxiter, gain=gain) for i in range(data.shape[0]))
                 for i in range(data.shape[0]):
                      _cl, info_here = parallel_out[i]
