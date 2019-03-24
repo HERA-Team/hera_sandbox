@@ -230,7 +230,7 @@ def high_pass_fourier_filter(data, wgts, filter_size, real_delta, clean2d=False,
                         info.append(info_here)
             else:
                 print('Parallelized!')
-                parallel_out = Parallel(n_jobs=NCPU)(delayed(aipy.deconv.clean)(_d[i], _w[i], area=are, tol=tol,
+                parallel_out = Parallel(n_jobs=NCPU)(delayed(aipy.deconv.clean)(_d[i], _w[i], area=area, tol=tol,
                  stop_if_div=False, maxiter=maxiter, gain=gain) for i in range(data.shape[0]))
                 for i in range(data.shape[0]):
                      _cl, info_here = parallel_out[i]
