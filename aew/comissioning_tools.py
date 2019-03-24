@@ -25,6 +25,15 @@ from uvtools import dspec
 from scipy.signal import windows
 from warnings import warn
 from scipy.optimize import leastsq, lsq_linear
+import multiprocessing
+NCPU = multiprocessing.cpu_count()
+
+try:
+    from joblib import Parallel, delayed
+    PARALLELIZED = True
+except:
+    PARALLELIZED = False
+    print('Parallelization not supported. Install joblib to enable parallelization.')
 
 '''
 The following methods are modified versions of the ones appearing in uvtools.
@@ -207,17 +216,28 @@ def high_pass_fourier_filter(data, wgts, filter_size, real_delta, clean2d=False,
             info = []
             _d_cl = np.empty_like(data)
             _d_res = np.empty_like(data)
-            for i in range(data.shape[0]):
-                if _w[i, 0] < skip_wgt:
-                    _d_cl[i] = 0  # skip highly flagged (slow) integrations
-                    _d_res[i] = _d[i]
-                    info.append({'skipped': True})
-                else:
-                    _cl, info_here = aipy.deconv.clean(_d[i], _w[i], area=area, tol=tol, stop_if_div=False, maxiter=maxiter, gain=gain)
-                    _d_cl[i] = _cl
-                    _d_res[i] = info_here['res']
-                    del info_here['res']
-                    info.append(info_here)
+            if not PARALLELIZED:
+                for i in range(data.shape[0]):
+                    if _w[i, 0] < skip_wgt:
+                        _d_cl[i] = 0  # skip highly flagged (slow) integrations
+                        _d_res[i] = _d[i]
+                        info.append({'skipped': True})
+                    else:
+                        _cl, info_here = aipy.deconv.clean(_d[i], _w[i], area=area, tol=tol, stop_if_div=False, maxiter=maxiter, gain=gain)
+                        _d_cl[i] = _cl
+                        _d_res[i] = info_here['res']
+                        del info_here['res']
+                        info.append(info_here)
+            else:
+                print('Parallelized!')
+                 parallel_out = Parallel(n_jobs=NCPU)(delayed(aipy.deconv_clean)(_d[i], _w[i], area=are, tol=tol,
+                 stop_if_div=False, maxiter=maxiter, gain=gain) for i in range(data.shape[0]))
+                 for i in range(data.shape[0]):
+                     _cl, info_here = parallel_out[i]
+                     _d_cl[i] = _cl
+                     _d_res[i] = info_here['res']
+                     del info_here['res']
+                     info.append(info_here)
 
     # 2D clean on 2D data
     else:
@@ -697,30 +717,51 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6, norm_zero_d
     resid_d = np.zeros_like(darray_d)
 
 
+    if not PARALLELIZED:
+        for tnum in range(ntimes):
+            if not np.all(wghts[tnum,:]):
+                resid[tnum,:] = linear_filter(freqs,darray[tnum,:],wghts[tnum,:],patch_c = delay_center,
+                                             patch_w = delay_max, filter_factor = tol, weights = 'WTL',
+                                             renormalize = False, zero_flags = zero_flags,
+                                             taper = taper, fourier_taper = fourier_taper)
 
-    for tnum in range(ntimes):
-        if not np.all(wghts[tnum,:]):
-            resid[tnum,:] = linear_filter(freqs,darray[tnum,:],wghts[tnum,:],patch_c = delay_center,
-                                         patch_w = delay_max, filter_factor = tol, weights = 'WTL',
-                                         renormalize = False, zero_flags = zero_flags,
-                                         taper = taper, fourier_taper = fourier_taper)
+                resid_d[tnum,:] = linear_filter(freqs,darray_d[tnum,:],wghts[tnum,:],patch_c = delay_center,
+                                             patch_w = delay_max, filter_factor = tol, weights = 'WTL',
+                                             renormalize = False, zero_flags = zero_flags,
+                                             taper = taper, fourier_taper = fourier_taper)
+    else:
+        print('Parallelized!')
+        resid = np.asarray(Parallel(n_jobs = NCPU)(delayed(linear_filter)(freqs,darray[tnum,:],wghts[tnum,:],patch_c = delay_center,
+                                     patch_w = delay_max, filter_factor = tol, weights = 'WTL',
+                                     renormalize = False, zero_flags = zero_flags,
+                                     taper = taper, fourier_taper = fourier_taper) for tnum in range(ntimes)))
 
-            resid_d[tnum,:] = linear_filter(freqs,darray_d[tnum,:],wghts[tnum,:],patch_c = delay_center,
-                                         patch_w = delay_max, filter_factor = tol, weights = 'WTL',
-                                         renormalize = False, zero_flags = zero_flags,
-                                         taper = taper, fourier_taper = fourier_taper)
-
-
+        resid_d = np.asarray(Parallel(n_jobs = NCPU)(delayed(linear_filter)(freqs,darray_d[tnum,:],wghts[tnum,:],patch_c = delay_center,
+                                     patch_w = delay_max, filter_factor = tol, weights = 'WTL',
+                                     renormalize = False, zero_flags = zero_flags,
+                                     taper = taper, fourier_taper = fourier_taper) for tnum in range(ntimes)))
     if fringe_rate_filter:
-        for cnum in range(nfreq):
-            resid[:,cnum] = linear_filter(times,resid[:,cnum],wghts[:,cnum],patch_c = [0.],
+        if not PARALLELIZED:
+            for cnum in range(nfreq):
+                resid[:,cnum] = linear_filter(times,resid[:,cnum],wghts[:,cnum],patch_c = [0.],
+                                         patch_w = [max_fringe_rate], filter_factor = tol, weights = 'WTL',
+                                         renormalize = False, zero_flags = zero_flags,
+                                         taper = taper, fourier_taper = fourier_taper)
+                resid_d[:,cnum] = linear_filter(times,resid_d[:,cnum],wghts[:,cnum],patch_c = [0.],
+                                 patch_w = [max_fringe_rate], filter_factor = tol, weights = 'WTL',
+                                 renormalize = False, zero_flags = zero_flags,
+                                 taper = taper, fourier_taper = fourier_taper)
+        else:
+            print('Parallelized!')
+            resid  = np.asarray(Parallel(n_jobs=NCPU)(delayed(linear_filter)(times,resid[:,cnum],wghts[:,cnum],patch_c = [0.],
                                      patch_w = [max_fringe_rate], filter_factor = tol, weights = 'WTL',
                                      renormalize = False, zero_flags = zero_flags,
-                                     taper = taper, fourier_taper = fourier_taper)
-            resid_d[:,cnum] = linear_filter(times,resid_d[:,cnum],wghts[:,cnum],patch_c = [0.],
-                             patch_w = [max_fringe_rate], filter_factor = tol, weights = 'WTL',
-                             renormalize = False, zero_flags = zero_flags,
-                             taper = taper, fourier_taper = fourier_taper)
+                                     taper = taper, fourier_taper = fourier_taper) for cnum in range(nfreq)))
+            resid_d  = np.asarray(Parallel(n_jobs=NCPU)(delayed(linear_filter)(times,resid_d[:,cnum],wghts[:,cnum],patch_c = [0.],
+                                     patch_w = [max_fringe_rate], filter_factor = tol, weights = 'WTL',
+                                     renormalize = False, zero_flags = zero_flags,
+                                     taper = taper, fourier_taper = fourier_taper) for cnum in range(nfreq)))
+
     output = resid
     output_d = resid_d
 
