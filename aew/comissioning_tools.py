@@ -438,6 +438,8 @@ def filter_data_clean(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
                 flag entire time.
     f_threshold, if fraction of flagged channels at a single freq is above this,
                 flag entire freq at all times.
+    manual_flags, list of 2-tuples with centers and widths of flagging windows.
+    manual_override_flags, flags in manual_flags override pre-existing flags.
     extra_chan_flags, list of ints containing channel numbers to entirely flag.
     norm_zero_delay, normalize by zero delay component independently for each time.
     '''
@@ -457,6 +459,8 @@ def filter_data_clean(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
     wghts,darray = get_corr_data(data, corrkey)
     _, darray_d = get_corr_data(data_d, corrkey)
 
+    if manual_override_flags:
+        wghts[:] = False
 
     if flag_across_time:
         for fnum in range(len(freqs)):
@@ -472,6 +476,10 @@ def filter_data_clean(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
 
     for cnum in extra_chan_flags:
         wghts[:, cnum] = True
+
+    for fc,fw in manual_flags:
+        flag_temp = np.abs(freqs-fc) <= fw
+        wghts[:,flag_temp] = True
 
     if normalize_average:
         #factor of 2 because data array is even + odd
@@ -603,6 +611,7 @@ def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 
     #output = fft.ifft(output * taper)
     #output = fft.fft(output)/taper
     if not fourier_taper is None:
+        #print('Tapering in Fouier Domain!')
         #taper regions outside of filter region.
         nf_filtered = int(2 * patch_w[0] * (freqs[-1] - freqs[0]))
 
@@ -625,7 +634,8 @@ def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 
 def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6, norm_zero_delay = False,
                      fringe_rate_max = .2e-3, delay_max = 600e-9, delay_center = 0.,
                      lst_min = None,lst_max=None,taper='boxcar', extra_chan_flags = [],
-                     freq_domain = 'delay', zero_flags = True, f_threshold = 0.1,
+                     freq_domain = 'delay', zero_flags = True, f_threshold = 0.1, manual_flags = [],
+                     manual_override_flags = False,
                      time_domain = 'time',tol=1e-7, t_threshold = 0.1, fourier_taper = None,
                      flag_across_time = True, normalize_average = False, positive_delay_only = False,
                      fringe_rate_filter = False, cache = WMAT_CACHE):
@@ -651,6 +661,8 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6, norm_zero_d
     normalize_average, if True, normalize data and diff data by average.
     t_threshold, if fraction of flagged channels at single time is a above this, flag entire time.
     f_threshold, if fraction of flagged channels at a single freq is above this, flag entire freq at all times.
+    manual_flags, list of 2-tuples with centers and widths of flagging windows.
+    manual_override_flags, flags in manual_flags override pre-existing flags.
     extra_chan_flags, list of ints containing channel numbers to entirely flag.
     fourier_taper, taper unfiltered boxcars in fourier domain (to get rid of residual side-lobes).
                    WARNING: This will help get rid of side-lobes of high domain contamination but
@@ -676,6 +688,9 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6, norm_zero_d
     wghts,darray = get_corr_data(data, corrkey)
     _, darray_d = get_corr_data(data_d, corrkey)
 
+    if manual_override_flags:
+        wghts[:] = False
+
     if flag_across_time:
         for fnum in range(len(freqs)):
             wghts[:,fnum] = np.any(wghts[:,fnum])
@@ -690,6 +705,11 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6, norm_zero_d
 
     for cnum in extra_chan_flags:
         wghts[:, cnum] = True
+
+    for fc,fw in manual_flags:
+        flag_temp = np.abs(freqs-fc) <= fw
+        wghts[:,flag_temp] = True
+
 
     if normalize_average:
         #factor of 2 because data array is even + odd
@@ -891,7 +911,8 @@ def integrate_LST(data, data_d, corrkey,  fmin = 45e6, fmax=85e6, fringe_rate_ma
 
 def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe_rate_max = .2e-3, delay_max = 300e-9, delay_center = 0.,
                            lst_min = None, lst_max = None, taper = 'boxcar', freq_domain = 'delay', zero_flags = True, normalize_average = False,
-                           tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear', negative_vals = False,
+                           tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear', negative_vals = False,manual_flags = [],
+                           manual_override_flags = False,
                            add_clean_components = True, show_legend = True, avg_coherent = True, sq_units = True, cache = WMAT_CACHE, norm_zero_delay = False,
                            t_threshold = 0.1, f_threshold = 0.1, fourier_taper = None, extra_chan_flags = [], positive_delay_only = False):
     '''
@@ -922,6 +943,8 @@ def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe
                   if False, average data incoherently.
     sq_units: if True, take abs square of data
               if False, take square root of data
+    manual_flags, list of 2-tuples with centers and widths of flagging windows.
+    manual_override_flags, flags in manual_flags override pre-existing flags.
     cache: dictionary storing linear filter matrices. Ignored if filter_method = 'clean'
     t_threshold, if fraction of flagged channels at single time is a above this, flag entire time.
     f_threshold, if fraction of flagged channels at a single freq is above this, flag entire freq at all times.
@@ -934,6 +957,7 @@ def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe
         xg, yg, darray, darray_d = filter_data_linear(data = data ,data_d = data_d,corrkey = corrkey, fmin = fmin, fmax = fmax,
                              fringe_rate_max = fringe_rate_max, delay_max = delay_max, delay_center = delay_center,
                              lst_min = lst_min, lst_max=lst_max, taper=taper, normalize_average = normalize_average,
+                             manual_override_flags = manual_override_flags, manual_flags = manual_flags,
                              freq_domain = freq_domain, zero_flags = zero_flags, fourier_taper = fourier_taper,
                              time_domain = "time",tol=tol, t_threshold = t_threshold, extra_chan_flags = extra_chan_flags,
                              flag_across_time = flag_across_time, f_threshold = f_threshold, norm_zero_delay = norm_zero_delay,
@@ -944,6 +968,7 @@ def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe
                              fringe_rate_max = fringe_rate_max, delay_max = delay_max, norm_zero_delay = norm_zero_delay,
                              lst_min = lst_min,lst_max=lst_max,taper=taper,filt2d_mode='rect', extra_chan_flags = extra_chan_flags,
                              add_clean_components=add_clean_components,freq_domain = freq_domain,
+                             manual_override_flags = manual_override_flags, manual_flags = manual_flags,
                              time_domain = "time",tol=tol,bad_wghts=False,normalize_average = normalize_average,
                              flag_across_time = flag_across_time,bad_resid=False, t_threshold = t_threshold,
                              fringe_rate_filter = fringe_rate_filter,acr=False, f_threshold = f_threshold, positive_delay_only = positive_delay_only)
@@ -1012,6 +1037,8 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
         SHOW_FILTER, if True, show vertical lines at filter edges.
         TOL, tolerance to clean/filter too.
         TAPER, string giving taper for FT.
+        MANUAL_OVERRIDE_FLAGS,flags in manual_flags override pre-existing flags.
+        MANUAL_FLAGS,list of 2-tuples with centers and widths of flagging windows.
         NORMALIZE_ZERO_DELAY, if true, normalize each time separately to zero delay value.
         T_THRESHOLD, if fraction of flagged channels at single time is a above this, flag entire time.
         F_THRESHOLD, if fraction of flagged channels at a single freq is above this, flag entire freq at all times.
@@ -1064,9 +1091,9 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
                                 taper = pd['TAPER'], freq_domain = freq_domain,
                                 zero_flags = pd['ZERO_FLAGS'], tol = pd['TOL'],
                                 flag_across_time = pd['FLAG_ACROSS_TIME'],
-                                fringe_rate_filter = pd['FRINGE_RATE_FILTER'],
+                                fringe_rate_filter = pd['FRINGE_RATE_FILTER'], manual_flags = pd['MANUAL_FLAGS'],
                                 filter_method = pd['FILTER_METHOD'], norm_zero_delay = pd['NORMALIZE_ZERO_DELAY'],
-                                add_clean_components = pd['ADD_CLEAN_MODEL'],
+                                add_clean_components = pd['ADD_CLEAN_MODEL'], manual_override_flags = pd['MANUAL_OVERRIDE_FLAGS'],
                                 avg_coherent = pd['AVG_COHERENT'], positive_delay_only = positive_delay_only,
                                 f_threshold = pd['F_THRESHOLD'], fourier_taper = pd['FOURIER_TAPER'],
                                 t_threshold = pd['T_THRESHOLD'], extra_chan_flags = pd['CHANNEL_FLAGS'],
@@ -1115,8 +1142,14 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
             plt.axvline(-hzn*1e9, ls = pd['LINESTYLE'], color = [.5,.5,.5])
 
         if pd['SHOW_FILTER'] and freq_domain == 'delay':
-            plt.axvline(pd['DELAY_WIDTHS']*1e9, ls = '-.', color = [.75,.75,.75])
-            plt.axvline(-pd['DELAY_WIDTHS']*1e9, ls = '-.', color = [.75, .75, .75])
+            if isinstance(pd['DELAY_WIDTHS'],float):
+                plt.axvline(pd['DELAY_WIDTHS']*1e9, ls = '-.', color = [.75,.75,.75])
+                plt.axvline(-pd['DELAY_WIDTHS']*1e9, ls = '-.', color = [.75, .75, .75])
+            else:
+                for dc,dw in zip(pd['DELAY_CENTERS'],pd['DELAY_WIDTHS']):
+                    plt.axvline((dc+dw)*1e9, ls = '-.', color = [.75,.75,.75])
+                    plt.axvline((dc-dw)*1e9, ls = '-.', color = [.75,.75,.75])
+
 
 
         if ylim_in[0] is None:
@@ -1148,7 +1181,6 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
             z0 = 1420.41e6/f0 - -1.
             y0 = 3e5/100. * (1.+z0)**2. / np.sqrt(.7 + .3 * (1.+z0)**3.) / 1420.41e6
             ax1.set_xlim(xlim)
-            plt.grid()
             delay_step = pd['DELAY_STEP']
             if not delay_step is None:
                 ax1.set_xticks(np.arange(xlim[0],xlim[1]+delay_step,delay_step))
@@ -1191,6 +1223,7 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
     #    plt.gca().set_yticklabels([])
     #    plt.gca().set_xlabel('')
     #    plt.gca().set_ylabel('')
+    plt.grid()
     return lines, labels, plt.gcf(), plt.gca()
 
 
@@ -1234,6 +1267,8 @@ def time_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', 
         T_THRESHOLD, if fraction of flagged channels at single time is a above this, flag entire time.
         F_THRESHOLD, if fraction of flagged channels at a single freq is above this, flag entire freq at all times.
         NORMALIZE_ZERO_DELAY, if true, normalize each time separately to zero delay value.
+        MANUAL_OVERRIDE_FLAGS,flags in manual_flags override pre-existing flags.
+        MANUAL_FLAGS,list of 2-tuples with centers and widths of flagging windows.
 
     show_signal, if True, plot signal data
     show_diff, if True, plot diff data.
@@ -1279,8 +1314,8 @@ def time_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', 
                                     fmax = pd['FMAX'], fringe_rate_max = pd['FRINGE_RATE_MAX'],
                                     delay_max=pd['DELAY_WIDTHS'], delay_center = pd['DELAY_CENTERS'],
                                     lst_min = pd['LST_MIN'], lst_max = pd['LST_MAX'],
-                                    taper = pd['TAPER'], freq_domain = freq_domain,
-                                    zero_flags = pd['ZERO_FLAGS'], tol = pd['TOL'],
+                                    taper = pd['TAPER'], freq_domain = freq_domain,manual_override_flags = pd['MANUAL_OVERRIDE_FLAGS'],
+                                    zero_flags = pd['ZERO_FLAGS'], tol = pd['TOL'], manual_flags = pd['MANUAL_FLAGS'],
                                     flag_across_time = pd['FLAG_ACROSS_TIME'], positive_delay_only = positive_delay_only,
                                     fringe_rate_filter = pd['FRINGE_RATE_FILTER'], norm_zero_delay = pd['NORMALIZE_ZERO_DELAY'],
                                     f_threshold = pd['F_THRESHOLD'], extra_chan_flags = pd['CHANNEL_FLAGS'],
@@ -1295,8 +1330,8 @@ def time_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', 
                                     lst_min = pd['LST_MIN'], lst_max = pd['LST_MAX'],
                                     taper = pd['TAPER'], freq_domain = freq_domain,
                                     zero_flags = pd['ZERO_FLAGS'], tol = pd['TOL'],
-                                    flag_across_time = pd['FLAG_ACROSS_TIME'],
-                                    fringe_rate_filter = pd['FRINGE_RATE_FILTER'],
+                                    flag_across_time = pd['FLAG_ACROSS_TIME'], manual_flags = pd['MANUAL_FLAGS'],
+                                    fringe_rate_filter = pd['FRINGE_RATE_FILTER'], manual_override_flags = pd['MANUAL_OVERRIDE_FLAGS'],
                                     add_clean_components = pd['ADD_CLEAN_MODEL'], norm_zero_delay = pd['NORMALIZE_ZERO_DELAY'],
                                     f_threshold = pd['F_THRESHOLD'], positive_delay_only = positive_delay_only,
                                     t_threshold = pd['T_THRESHOLD'], extra_chan_flags = pd['CHANNEL_FLAGS'],
