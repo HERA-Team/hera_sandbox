@@ -405,7 +405,7 @@ def get_horizon(data, corrkey):
 
 
 
-def filter_data_clean(data,data_d,corrkey,fmin = 45e6, fmax = 85e6,
+def filter_data_clean(data,data_d,corrkey,fmin = 45e6, fmax = 85e6, manual_flags = [], manual_override_flags = False,
                      fringe_rate_max = .2e-3, delay_max = 600e-9, normalize_average = False,
                      lst_min = None,lst_max=None,taper='boxcar',filt2d_mode='rect',
                      add_clean_components=True,freq_domain = 'delay', extra_chan_flags = [],
@@ -815,7 +815,7 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6, norm_zero_d
     xg,yg = np.meshgrid(x,y)
     return xg,yg,output,output_d
 
-def integrate_LST(data, data_d, corrkey,  fmin = 45e6, fmax=85e6, fringe_rate_max = .2e-3,
+def integrate_LST(data, data_d, corrkey,  fmin = 45e6, fmax=85e6, fringe_rate_max = .2e-3, bad_resid = False, bad_wghts = False,
               delay_max = 300e-9, delay_center = 0., lst_min = None, lst_max = None, taper = 'boxcar',
               freq_domain = 'delay', zero_flags = True, normalize_average = False,f_threshold = 0.1, t_threshold = 0.1,
               tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear', fourier_taper = None,
@@ -849,7 +849,7 @@ def integrate_LST(data, data_d, corrkey,  fmin = 45e6, fmax=85e6, fringe_rate_ma
                              fringe_rate_max = fringe_rate_max, delay_max = delay_max, delay_center = delay_center,
                              lst_min = lst_min, lst_max=lst_max, taper=taper, fourier_taper = fourier_taper,
                              freq_domain = freq_domain, zero_flags = zero_flags, norm_zero_delay = norm_zero_delay,
-                             time_domain = "time",tol=tol,f_threshold = f_threshold,
+                             time_domain = "time",tol=tol,f_threshold = f_threshold, bad_resid = bad_resid, bad_wghts = bad_wghts,
                              flag_across_time = flag_across_time,t_threshold = t_threshold,
                              fringe_rate_filter = fringe_rate_filter)
 
@@ -857,8 +857,8 @@ def integrate_LST(data, data_d, corrkey,  fmin = 45e6, fmax=85e6, fringe_rate_ma
         xg, yg, darray, darray_d = filter_data_clean(data = data,data_d = data_d,corrkey = corrkey,fmin = fmin, fmax = fmax,
                              fringe_rate_max = fringe_rate_max, delay_max = delay_max, norm_zero_delay = norm_zero_delay,
                              lst_min = lst_min,lst_max=lst_max,taper=taper,filt2d_mode='rect',
-                             add_clean_components=add_clean_components,freq_domain = freq_domain,
-                             time_domain = "time",tol=tol,bad_wghts=False, f_threshold = f_threshold,
+                             add_clean_components=add_clean_components,freq_domain = freq_domain, bad_resid = bad_resid, bad_wghts = bad_wghts,
+                             time_domain = "time",tol=tol, f_threshold = f_threshold,
                              flag_across_time = flag_across_time,bad_resid=False, t_threshold = t_threshold,
                              fringe_rate_filter = fringe_rate_filter,acr=False)
     else:
@@ -952,6 +952,8 @@ def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe
                    WARNING: This will help get rid of side-lobes of high domain contamination but
                    will mask low-delay structures!
     norm_zero_delay, if true, normalize each delay by zero delay.
+    bad_resid, if True use aipy resid style
+    bad_wghts, if True, add blackmanharris to cleaning kernel.
     '''
     if filter_method == 'linear':
         xg, yg, darray, darray_d = filter_data_linear(data = data ,data_d = data_d,corrkey = corrkey, fmin = fmin, fmax = fmax,
@@ -969,8 +971,8 @@ def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe
                              lst_min = lst_min,lst_max=lst_max,taper=taper,filt2d_mode='rect', extra_chan_flags = extra_chan_flags,
                              add_clean_components=add_clean_components,freq_domain = freq_domain,
                              manual_override_flags = manual_override_flags, manual_flags = manual_flags,
-                             time_domain = "time",tol=tol,bad_wghts=False,normalize_average = normalize_average,
-                             flag_across_time = flag_across_time,bad_resid=False, t_threshold = t_threshold,
+                             time_domain = "time",tol=tol,bad_wghts=bad_wghts,normalize_average = normalize_average,
+                             flag_across_time = flag_across_time,bad_resid=bad_resid, t_threshold = t_threshold,
                              fringe_rate_filter = fringe_rate_filter,acr=False, f_threshold = f_threshold, positive_delay_only = positive_delay_only)
     else:
         raise ValueError("Failed to specify a valid filtering method. Valid options are 'clean' and 'linear'")
@@ -1001,7 +1003,7 @@ def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe
 
     return xg[0,:], darray, darray_d
 
-def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', ylim = [None, None],
+def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', ylim = [None, None],show_k=False,delay_step=None,
                                 xlim = [None,None],logscale = True, legend_font_size = 14, show_signal = True, show_diff = True,
                                 label_font_size = 14, tick_font_size = 14, legend_loc = 'lower center', title = None,
                                 title_font_size = 18, title_y = 1.1, no_labels = False, freq_units = 'MHz', positive_delay_only = False,
@@ -1045,6 +1047,8 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
         FOURIER_TAPER, taper unfiltered boxcars in fourier domain (to get rid of residual side-lobes).
                        WARNING: This will help get rid of side-lobes of high domain contamination but
                        will mask low-delay structures!
+        BAD_RESID: use aipy residual (which I think is bad -- subjective nomenclature)
+        BAD_WGHTS: use clean kernel that includes tapering function.
     show_signal, if True, plot signal data
     show_diff, if True, plot diff data.
     freq_domain, string, specify if output is in "frequency" or "delay" domain.
@@ -1090,7 +1094,7 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
                                 lst_min = pd['LST_MIN'], lst_max = pd['LST_MAX'],
                                 taper = pd['TAPER'], freq_domain = freq_domain,
                                 zero_flags = pd['ZERO_FLAGS'], tol = pd['TOL'],
-                                flag_across_time = pd['FLAG_ACROSS_TIME'],
+                                flag_across_time = pd['FLAG_ACROSS_TIME'], bad_wghts = pd['BAD_WGHTS'], bad_resid = pd['BAD_RESID'],
                                 fringe_rate_filter = pd['FRINGE_RATE_FILTER'], manual_flags = pd['MANUAL_FLAGS'],
                                 filter_method = pd['FILTER_METHOD'], norm_zero_delay = pd['NORMALIZE_ZERO_DELAY'],
                                 add_clean_components = pd['ADD_CLEAN_MODEL'], manual_override_flags = pd['MANUAL_OVERRIDE_FLAGS'],
@@ -1173,21 +1177,22 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
     if logscale:
         plt.yscale('log')
 
+    plt.gca().set_xlim(xlim)
+    plt.gca().set_ylim(ylim)
     if freq_domain == 'delay':
         ax1=plt.gca()
-        if pd['SHOW_K'] and not no_labels:
+        if show_k and not no_labels:
             #plot k-parallel axis above plot if we are in the delay domain.
             f0 = (pd['FMIN'] + pd['FMAX'])/2.
             z0 = 1420.41e6/f0 - -1.
             y0 = 3e5/100. * (1.+z0)**2. / np.sqrt(.7 + .3 * (1.+z0)**3.) / 1420.41e6
-            ax1.set_xlim(xlim)
-            delay_step = pd['DELAY_STEP']
-            if not delay_step is None:
+            #delay_step = pd['DELAY_STEP']
+            if not (delay_step is None):
                 ax1.set_xticks(np.arange(xlim[0],xlim[1]+delay_step,delay_step))
 
             ax2 = plt.gca().twiny()
-            ax2.set_xticks(ax1.get_xticks())
             ax2.set_xlim(ax1.get_xlim())
+            ax2.set_xticks(ax1.get_xticks())
             ax2ticks = []
             for tick in ax1.get_xticks():
                 kpara = tick * 2. * np.pi / y0 /1e9
@@ -1209,8 +1214,6 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
         else:
             plt.ylabel('|$V(\\nu)|$', fontsize = label_font_size)
     plt.tick_params(labelsize = tick_font_size)
-    plt.xlim(xlim)
-    plt.ylim(ylim)
     if legend_ncol is None:
         legend_ncol = len(lines)
     if show_legend:
@@ -1269,7 +1272,8 @@ def time_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', 
         NORMALIZE_ZERO_DELAY, if true, normalize each time separately to zero delay value.
         MANUAL_OVERRIDE_FLAGS,flags in manual_flags override pre-existing flags.
         MANUAL_FLAGS,list of 2-tuples with centers and widths of flagging windows.
-
+        BAD_RESID: use aipy residual (which I think is bad -- subjective nomenclature)
+        BAD_WGHTS: use clean kernel that includes tapering function.
     show_signal, if True, plot signal data
     show_diff, if True, plot diff data.
     freq_domain, string, specify if output is in "frequency" or "delay" domain.
@@ -1323,13 +1327,13 @@ def time_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', 
                                     normalize_average = pd['NORMALIZE_AVERAGE'],
                                     cache = pd['CACHE'])
         elif pd['FILTER_METHOD'] == 'clean':
-            xg, yg, y, yd = filter_data_linear(data = pd['DATA'], data_d = pd['DATA_DIFF'],
+            xg, yg, y, yd = filter_data_clean(data = pd['DATA'], data_d = pd['DATA_DIFF'],
                                     corrkey = pd['CORRKEY'], fmin = pd['FMIN'],
                                     fmax = pd['FMAX'], fringe_rate_max = pd['FRINGE_RATE_MAX'],
                                     delay_max=pd['DELAY_WIDTHS'], delay_center = pd['DELAY_CENTERS'],
                                     lst_min = pd['LST_MIN'], lst_max = pd['LST_MAX'],
-                                    taper = pd['TAPER'], freq_domain = freq_domain,
-                                    zero_flags = pd['ZERO_FLAGS'], tol = pd['TOL'],
+                                    taper = pd['TAPER'], freq_domain = freq_domain, bad_wghts = pd['BAD_WGHTS'],
+                                    zero_flags = pd['ZERO_FLAGS'], tol = pd['TOL'], bad_resid = pd['BAD_RESID'],
                                     flag_across_time = pd['FLAG_ACROSS_TIME'], manual_flags = pd['MANUAL_FLAGS'],
                                     fringe_rate_filter = pd['FRINGE_RATE_FILTER'], manual_override_flags = pd['MANUAL_OVERRIDE_FLAGS'],
                                     add_clean_components = pd['ADD_CLEAN_MODEL'], norm_zero_delay = pd['NORMALIZE_ZERO_DELAY'],
