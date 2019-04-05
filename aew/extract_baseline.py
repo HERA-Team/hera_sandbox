@@ -36,7 +36,7 @@ files = list(np.array(files)[np.argsort(jds)])
 
 files_diff = []
 for jd in jds:
-    files_diff.append(glob.glob('2458465/*%s*.HH.diff.uvh5'%str(jd))[0])
+    files_diff.append(glob.glob('%s/*%s*.HH.diff.uvh5'%str(ddir,jd))[0])
 
 uvd = UVData()
 uvd.read_uvh5(files,bls = [(ant1,ant2)],freq_chans = np.arange(chmin,chmax).astype(int))

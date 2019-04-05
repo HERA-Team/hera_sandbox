@@ -859,7 +859,7 @@ def integrate_LST(data, data_d, corrkey,  fmin = 45e6, fmax=85e6, fringe_rate_ma
                              lst_min = lst_min,lst_max=lst_max,taper=taper,filt2d_mode='rect',
                              add_clean_components=add_clean_components,freq_domain = freq_domain, bad_resid = bad_resid, bad_wghts = bad_wghts,
                              time_domain = "time",tol=tol, f_threshold = f_threshold,
-                             flag_across_time = flag_across_time,bad_resid=False, t_threshold = t_threshold,
+                             flag_across_time = flag_across_time, t_threshold = t_threshold,
                              fringe_rate_filter = fringe_rate_filter,acr=False)
     else:
         raise ValueError("Failed to specify a valid filtering method. Valid options are 'clean' and 'linear'")
