@@ -114,7 +114,29 @@ def sqrt_abs(x, negatives = False):
         output[negative_vals] = -output[negative_vals]
     return output
 
+def generate_sum_diff(uvd):
+    '''
+    Generate the sum and difference data from a single pyuvdat object.
+    Args:
+        uvd, pyuvdata object.
+    Returns:
+        uvd_sum, pyuvdata object: uvd_sum is the sum of even and odd time steps.
+        uvd_diff, pyuvdata object: uvd_diff is the diff of even and odd time steps.
+    '''
+    times = np.unique(uvd.time_array)
+    if np.mod(len(times),2) == 1:
+        uvd = uvd.select(times = times[:-1],inplace=False)
+        times = times[:-1]
 
+    even_times = times[::2]
+    odd_times = times[1::2]
+    uvd_even = uvd.select(times = even_times,inplace=False)
+    uvd_odd = uvd.select(times = odd_times,inplace=False)
+    uvd_diff = copy.deepcopy(uvd_even)
+    uvd_sum = copy.deepcopy(uvd_even)
+    uvd_diff.data_array = uvd_even.data_array - uvd_odd.data_array
+    uvd_sum.data_array = uvd_odd .data_array + uvd_even.data_array
+    return uvd_sum, uvd_diff
 
 
 def high_pass_fourier_filter(data, wgts, filter_size, real_delta, clean2d=False, tol=1e-9, window='none',
@@ -405,7 +427,7 @@ def get_horizon(data, corrkey):
 
 
 
-def filter_data_clean(data,data_d,corrkey,fmin = 45e6, fmax = 85e6, manual_flags = [], manual_override_flags = False,
+def filter_data_clean(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, manual_flags = [], manual_override_flags = False,
                      fringe_rate_max = .2e-3, delay_max = 600e-9, normalize_average = False,
                      lst_min = None,lst_max=None,taper='boxcar',filt2d_mode='rect',
                      add_clean_components=True,freq_domain = 'delay', extra_chan_flags = [],
@@ -443,6 +465,9 @@ def filter_data_clean(data,data_d,corrkey,fmin = 45e6, fmax = 85e6, manual_flags
     extra_chan_flags, list of ints containing channel numbers to entirely flag.
     norm_zero_delay, normalize by zero delay component independently for each time.
     '''
+    if data_d is None:
+        data, data_d = generate_sum_diff(data)
+
     data = down_select_data(data,fmin,fmax,lst_min,lst_max)
     data_d = down_select_data(data_d,fmin,fmax,lst_min,lst_max)
 
@@ -631,7 +656,7 @@ def linear_filter(freqs,ydata,flags,patch_c = [], patch_w = [], filter_factor = 
     return output
 
 
-def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6, norm_zero_delay = False,
+def filter_data_linear(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, norm_zero_delay = False,
                      fringe_rate_max = .2e-3, delay_max = 600e-9, delay_center = 0.,
                      lst_min = None,lst_max=None,taper='boxcar', extra_chan_flags = [],
                      freq_domain = 'delay', zero_flags = True, f_threshold = 0.1, manual_flags = [],
@@ -641,7 +666,7 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6, norm_zero_d
                      fringe_rate_filter = False, cache = WMAT_CACHE):
     '''
     data, pyuvdata object storing summed measurement
-    data_d, pyuvdata object storing differential measurement
+    data_d, pyuvdata object storing differential measurement, if None, generate diffed data and summed data automatically
     corrkey, tuple for correlation (ant1,ant2,pol)
     fmin, minimum frequency (Hz), float
     fmax, maximum frequency (Hz), float
@@ -673,6 +698,8 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6, norm_zero_d
         xg,yg,output,output_d
 
     '''
+    if data_d is None:
+        data, data_d = generate_sum_diff(data)
 
     data = down_select_data(data,fmin,fmax,lst_min,lst_max)
     data_d = down_select_data(data_d,fmin,fmax,lst_min,lst_max)
@@ -815,7 +842,7 @@ def filter_data_linear(data,data_d,corrkey,fmin = 45e6, fmax = 85e6, norm_zero_d
     xg,yg = np.meshgrid(x,y)
     return xg,yg,output,output_d
 
-def integrate_LST(data, data_d, corrkey,  fmin = 45e6, fmax=85e6, fringe_rate_max = .2e-3, bad_resid = False, bad_wghts = False,
+def integrate_LST(corrkey, data, data_d = None, fmin = 45e6, fmax=85e6, fringe_rate_max = .2e-3, bad_resid = False, bad_wghts = False,
               delay_max = 300e-9, delay_center = 0., lst_min = None, lst_max = None, taper = 'boxcar',
               freq_domain = 'delay', zero_flags = True, normalize_average = False,f_threshold = 0.1, t_threshold = 0.1,
               tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear', fourier_taper = None,
@@ -824,7 +851,7 @@ def integrate_LST(data, data_d, corrkey,  fmin = 45e6, fmax=85e6, fringe_rate_ma
     integrate data over LST from a single baseline.
     Args:
         data, pyuvdata object representing data
-        data_d, pyuvdata object storing diffed data
+        data_d, pyuvdata object storing diffed data, if None, generate automatically
         corrkey, key selecting baseline (ant0, ant1, pol)
         fmin, minimum frequency
         fmax, maximum frequency
@@ -844,6 +871,10 @@ def integrate_LST(data, data_d, corrkey,  fmin = 45e6, fmax=85e6, fringe_rate_ma
                        will mask low-delay structures!
         norm_zero_delay, if True, normalize each time by zero delay.
     '''
+    if data_d is None:
+        data, data_d = generate_sum_diff(data)
+
+
     if filter_method == 'linear':
         xg, yg, darray, darray_d = filter_data_linear(data = data ,data_d = data_d,corrkey = corrkey, fmin = fmin, fmax = fmax,
                              fringe_rate_max = fringe_rate_max, delay_max = delay_max, delay_center = delay_center,
@@ -909,7 +940,7 @@ def integrate_LST(data, data_d, corrkey,  fmin = 45e6, fmax=85e6, fringe_rate_ma
 
     return t, x, trace, trace_d
 
-def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe_rate_max = .2e-3, delay_max = 300e-9, delay_center = 0.,
+def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6, fringe_rate_max = .2e-3, delay_max = 300e-9, delay_center = 0.,
                            lst_min = None, lst_max = None, taper = 'boxcar', freq_domain = 'delay', zero_flags = True, normalize_average = False,
                            tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear', negative_vals = False,manual_flags = [],
                            manual_override_flags = False,
@@ -918,7 +949,7 @@ def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe
     '''
     delay filter data and compute average.
     data, pyuvdata data set
-    data_d, pyuvdata diffed data set
+    data_d, pyuvdata diffed data set, if None, generate automatically
     corrkey, 3-tuple or list (ant0, ant1, pol num)
     fmin, minimum frequency (Hz)
     fmax, maximum frequency (Hz)
@@ -955,6 +986,9 @@ def filter_and_average_abs(data, data_d, corrkey, fmin=45e6, fmax = 85e6, fringe
     bad_resid, if True use aipy resid style
     bad_wghts, if True, add blackmanharris to cleaning kernel.
     '''
+    if data_d is None:
+        data, data_d = generate_sum_diff(data)
+
     if filter_method == 'linear':
         xg, yg, darray, darray_d = filter_data_linear(data = data ,data_d = data_d,corrkey = corrkey, fmin = fmin, fmax = fmax,
                              fringe_rate_max = fringe_rate_max, delay_max = delay_max, delay_center = delay_center,
