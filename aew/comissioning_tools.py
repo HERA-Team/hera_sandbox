@@ -943,9 +943,9 @@ def integrate_LST(corrkey, data, data_d = None, fmin = 45e6, fmax=85e6, fringe_r
 def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6, fringe_rate_max = .2e-3, delay_max = 300e-9, delay_center = 0.,
                            lst_min = None, lst_max = None, taper = 'boxcar', freq_domain = 'delay', zero_flags = True, normalize_average = False,
                            tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear', negative_vals = False,manual_flags = [],
-                           manual_override_flags = False,
-                           add_clean_components = True, show_legend = True, avg_coherent = True, sq_units = True, cache = WMAT_CACHE, norm_zero_delay = False,
-                           t_threshold = 0.1, f_threshold = 0.1, fourier_taper = None, extra_chan_flags = [], positive_delay_only = False):
+                           manual_override_flags = False, add_clean_components = True, show_legend = True, avg_coherent = True,
+                           sq_units = True, cache = WMAT_CACHE, norm_zero_delay = False, t_threshold = 0.1, f_threshold = 0.1,
+                           fourier_taper = None, extra_chan_flags = [], positive_delay_only = False, bad_wghts = False, bad_resid=False):
     '''
     delay filter data and compute average.
     data, pyuvdata data set
