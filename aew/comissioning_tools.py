@@ -139,7 +139,7 @@ def generate_sum_diff(uvd):
     return uvd_sum, uvd_diff
 
 
-def high_pass_fourier_filter(data, wgts, filter_size, real_delta, clean2d=False, tol=1e-9, window='none',
+def clean_filter(data, wgts, clean_area_centers,clean_area_widths, real_delta, fringe_rate_width = None, clean2d=False, tol=1e-9, window='none',
                              skip_wgt=0.1, maxiter=100, gain=0.1, filt2d_mode='rect', alpha=0.5,
                              edgecut_low=0, edgecut_hi=0, add_clean_residual=False,bad_resid = False, bad_wghts = False):
     '''Apply a highpass fourier filter to data. Uses aipy.deconv.clean. Default is a 1D clean
@@ -149,12 +149,10 @@ def high_pass_fourier_filter(data, wgts, filter_size, real_delta, clean2d=False,
             (Unlike previous versions, it is NOT assumed that weights have already been multiplied
             into the data.)
         wgts: real numpy array of linear multiplicative weights with the same shape as the data.
-        filter_size: the half-width (i.e. the width of the positive part) of the region in fourier
-            space, symmetric about 0, that is filtered out. In units of 1/[real_delta].
-            Alternatively, can be fed as len-2 tuple specifying the absolute value of the negative
-            and positive bound of the filter in fourier space respectively.
-            Example: (20, 40) --> (-20 < tau < 40)
-         real_delta: the bin width in real space of the dimension to be filtered.
+        area_centers: a list of centers for clean windows in units of 1/(real_delta units)
+        area_widths: a list of widths of clean windows in units of 1/(real_delta units)
+        real_delta: the bin width in real space of the dimension to be filtered.
+        fringe_rate_width: the width of the fringe rate filter in units of 1/(real delta units)
             If 2D cleaning, then real_delta must also be a len-2 list.
         clean2d : bool, if True perform 2D clean, else perform a 1D clean on last axis.
         tol: CLEAN algorithm convergence tolerance (see aipy.deconv.clean)
@@ -222,10 +220,15 @@ def high_pass_fourier_filter(data, wgts, filter_size, real_delta, clean2d=False,
             _w = np.fft.ifft(wgts, axis=-1)
 
         # calculate area array
-        area = np.ones(data.shape[-1], dtype=np.int)
-        uthresh, lthresh = calc_width(filter_size, real_delta, data.shape[-1])
-        area[uthresh:lthresh] = 0
+        delays = fft.fftfreq(data.shape[-1],real_delta)
+        #print(delays)
+        area = np.zeros(data.shape[-1],dtype=np.int)
+        for dc,dw in zip(clean_area_centers, clean_area_widths):
+            #print(dc,dw)
+            area[np.abs(delays-dc) <= dw] = 1
 
+        #print('clean area?')
+        #print(area)
         # run clean
         if dndim == 1:
             # For 1D data array run once
@@ -275,12 +278,14 @@ def high_pass_fourier_filter(data, wgts, filter_size, real_delta, clean2d=False,
             _w = np.fft.ifft2(wgts, axes=(0, 1))
 
         # calculate area array
-        a1 = np.ones(data.shape[0], dtype=np.int)
-        uthresh, lthresh = calc_width(filter_size[0], real_delta[0], data.shape[0])
-        a1[uthresh:lthresh] = 0
-        a2 = np.ones(data.shape[1], dtype=np.int)
-        uthresh, lthresh = calc_width(filter_size[1], real_delta[1], data.shape[1])
-        a2[uthresh:lthresh] = 0
+
+        delays = fft.fftfreq(data.shape[-1],real_delta[-1])
+        a2 = np.zeros(data.shape[-1],dtype=np.int)
+        for dc,dw in zip(clean_area_centers, clean_area_widths):
+            a2[np.abs(delays-dc) <= dw] = 1
+        times = fft.fftfreq(data.shape[0],real_delta[0])
+        a1 = np.zeros(data.shape[-2],dtype=np.int)
+        a1[np.abs(times)<=fringe_rate_width] = 1
         area = np.outer(a1, a2)
 
         # check for filt2d_mode
@@ -428,7 +433,7 @@ def get_horizon(data, corrkey):
 
 
 def filter_data_clean(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, manual_flags = [], manual_override_flags = False,
-                     fringe_rate_max = .2e-3, delay_max = 600e-9, normalize_average = False,
+                     fringe_rate_max = .2e-3, area_centers = [0.], area_widths = [600e-9], normalize_average = False,
                      lst_min = None,lst_max=None,taper='boxcar',filt2d_mode='rect',
                      add_clean_components=True,freq_domain = 'delay', extra_chan_flags = [],
                      time_domain = 'time',tol=1e-7,bad_wghts=False, f_threshold = 0.1,
@@ -441,7 +446,8 @@ def filter_data_clean(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, manua
     fmin, minimum frequency (Hz), float
     fmax, maximum frequency (Hz), float
     fringe_rate_max, maximum fringe_rate to clean (Hz), float, default = .2e-3 sec
-    delay_max, maximum delay to clean (sec), float, default = 600e-9 sec
+    area_widths, a list of half widths for cleaning windows.
+    area_centers, a list of delays around which cleaning will center.
     lst_min, minimum lst to run waterfall from -- !!BREAKS IF DATA CROSSES 0 LST!!
     lst_max, maximum lst to run waterfall from -- !!BREAKS IF DATA CROSSES 0 LST!!
     taper, string, Fourier window function.
@@ -525,27 +531,30 @@ def filter_data_clean(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, manua
 
     wghts = np.invert(wghts).astype(float)
 
+    if isinstance(area_widths,float):
+        area_widths = [area_widths]
+    if isinstance(area_centers,float):
+        area_centers = [area_centers]
+
+
     if fringe_rate_filter:
         delta_bin = [times[1]-times[0],freqs[1]-freqs[0]]
-        filter_size = [fringe_rate_max,delay_max]
-        model,resid,info = high_pass_fourier_filter(darray,wghts,filter_size,
-                                                          delta_bin,tol=tol,add_clean_residual=acr,
+        model,resid,info = clean_filter(darray,wghts,area_centers,area_widths,delta_bin,fringe_rate_width = max_fringe_rate,
+                                                          tol=tol,add_clean_residual=acr,
                                                           clean2d=True,window=taper,filt2d_mode=filt2d_mode,
                                                           bad_resid=bad_resid,bad_wghts=bad_wghts)
-        model_d,resid_d,info_d = high_pass_fourier_filter(darray_d,wghts,filter_size,
-                                                          delta_bin,tol=tol,add_clean_residual=acr,
+        model_d,resid_d,info_d = clean_filter(darray_d,wghts,area_centers, area_widths,  delta_bin, fringe_rate_width = max_fringe_rate,
+                                                          tol=tol,add_clean_residual=acr,
                                                           clean2d=True,window=taper,bad_wghts=bad_wghts,
                                                           filt2d_mode=filt2d_mode,bad_resid=bad_resid)
     else:
         delta_bin = freqs[1]-freqs[0]
-        filter_size = delay_max
-
-        model,resid,info = high_pass_fourier_filter(darray,wghts,filter_size,
+        model,resid,info = clean_filter(darray,wghts,area_centers, area_widths,
                                                           delta_bin,add_clean_residual=acr,
                                                           bad_wghts = bad_wghts,
                                                           tol=tol,window=taper,bad_resid=bad_resid)
 
-        model_d,resid_d,info_d = high_pass_fourier_filter(darray_d,wghts,filter_size,
+        model_d,resid_d,info_d = clean_filter(darray_d,wghts,area_centers, area_widths,
                                                                 delta_bin,add_clean_residual=acr,
                                                                 bad_wghts = bad_wghts,
                                                                 tol=tol,window=taper,bad_resid=bad_resid)
@@ -886,7 +895,7 @@ def integrate_LST(corrkey, data, data_d = None, fmin = 45e6, fmax=85e6, fringe_r
 
     elif filter_method == 'clean':
         xg, yg, darray, darray_d = filter_data_clean(data = data,data_d = data_d,corrkey = corrkey,fmin = fmin, fmax = fmax,
-                             fringe_rate_max = fringe_rate_max, delay_max = delay_max, norm_zero_delay = norm_zero_delay,
+                             fringe_rate_max = fringe_rate_max, area_widths = delay_max, area_centers = delay_center, norm_zero_delay = norm_zero_delay,
                              lst_min = lst_min,lst_max=lst_max,taper=taper,filt2d_mode='rect',
                              add_clean_components=add_clean_components,freq_domain = freq_domain, bad_resid = bad_resid, bad_wghts = bad_wghts,
                              time_domain = "time",tol=tol, f_threshold = f_threshold,
@@ -1001,7 +1010,7 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
 
     elif filter_method == 'clean':
         xg, yg, darray, darray_d = filter_data_clean(data = data,data_d = data_d,corrkey = corrkey,fmin = fmin, fmax = fmax,
-                             fringe_rate_max = fringe_rate_max, delay_max = delay_max, norm_zero_delay = norm_zero_delay,
+                             fringe_rate_max = fringe_rate_max, area_widths = delay_max, area_centers = delay_center, norm_zero_delay = norm_zero_delay,
                              lst_min = lst_min,lst_max=lst_max,taper=taper,filt2d_mode='rect', extra_chan_flags = extra_chan_flags,
                              add_clean_components=add_clean_components,freq_domain = freq_domain,
                              manual_override_flags = manual_override_flags, manual_flags = manual_flags,
@@ -1039,7 +1048,7 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
 
 def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', ylim = [None, None],show_k=False,delay_step=None,
                                 xlim = [None,None],logscale = True, legend_font_size = 14, show_signal = True, show_diff = True,
-                                label_font_size = 14, tick_font_size = 14, legend_loc = 'lower center', title = None,
+                                label_font_size = 14, tick_font_size = 14, legend_loc = 'lower center', title = None,alpha=1.,alpha_diff = .25,
                                 title_font_size = 18, title_y = 1.1, no_labels = False, freq_units = 'MHz', positive_delay_only = False,
                                 legend_ncol = None, legend_bbox = [0.5, 0.], show_legend = True, negative_vals = False):
     '''
@@ -1163,10 +1172,10 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
         if show_signal:
             lines.append(plt.plot(x,y,lw=pd['LINEWIDTH'],
                               color=pd['COLOR'],
-                              ls=pd['LINESTYLE'])[0])
+                              ls=pd['LINESTYLE'],alpha=alpha)[0])
             if show_diff:
                 plt.plot(x,yd,lw=1,ls=pd['LINESTYLE'],
-                     color=pd['COLOR'])
+                     color=pd['COLOR'],alpha=alpha_diff)
 
 
         elif show_diff:
