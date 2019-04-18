@@ -9,31 +9,43 @@ Given a list of observations
 ----------------------------------------------------
 '''
 
-import numpy
+import numpy as np
 from hera_qm import xrfi
 from pyuvdata import UVData
 import argparse
 import os
+import re
+import glob
+import shutil
 cwd = os.getcwd()
 
 parser = argparse.ArgumentParser(description='Generate rfi flagged autocorrelations using all available data at each time.')
 parser.add_argument('-d','--directory',dest='directory')
 #parser.add_argument('-f','--filelist',dest='filelist')
-parser.add_argument('-c','--chunks',dest='chunks',default=1)
+parser.add_argument('-c','--chunk_size',dest='chunk_size',default=1)
 parser.add_argument('--outputdir',dest='outputdir',default=cwd)
 parser.add_argument('--tempdir','--temp',dest='tempdir',default=cwd)
 parser.add_argument('--output','-o',dest='output')
+parser.add_argument('--freq_threshold','-f',dest='freq_threshold',default=0.5)
+parser.add_argument('--time_threshold','-t',dest='time_threshold',default=0.05)
+parser.add_argument('--clobber',dest='clobber',default=True)
+parser.add_argument('--cleanup',dest='cleanup',default=True)
 parser = parser.parse_args()
 #user can specify a list of files or
 #assert not and(parser.filelist, parser.directory)
 
-chunk_size = parser.chunks
+chunk_size =int(parser.chunk_size)
 dir = parser.directory
 tempdir = parser.tempdir
-outdir = parser.outputdir
+outputdir = parser.outputdir
 output = parser.output
-
-file_list = glob.glob(dir+'/*.HH.uvh5')
+freq_threshold = float(parser.freq_threshold)
+time_threshold = float(parser.time_threshold)
+clobber = bool(parser.clobber)
+cleanup=bool(parser.cleanup)
+print(freq_threshold)
+print(time_threshold)
+files = glob.glob(dir+'/*.HH.uvh5')
 jds = []
 for fname in files:
     fname_jd = fname.split('/')[-1]
@@ -47,45 +59,56 @@ files = list(np.array(files)[np.argsort(jds)])
 files_diff = []
 for jd in jds:
     files_diff.append(glob.glob(dir+'/*%s*.HH.diff.uvh5'%str(jd))[0])
-chunks = int(len(files)/chunk_size)
-file_chunks = [files[cnum*chunk_size:(cnum+1)*chunk_size] for cnum in range(chunks)]
-file_chunks_diff = [files_diff[cnum*chunk_size:(cnum+1)*chunk_size] for cnum in range(chunks)]
-jd_chunks = [jds[cnum*chunk_size:(cnum+1)*chunk_size] for cnum in range(chunks)]
+chunks = int(len(files)/chunk_size) + 1
+file_chunks = [files[cnum*chunk_size:(cnum+1)*chunk_size] for cnum in range(chunks-1)]
+file_chunks_diff = [files_diff[cnum*chunk_size:(cnum+1)*chunk_size] for cnum in range(chunks-1)]
+jd_chunks = [jds[cnum*chunk_size:(cnum+1)*chunk_size] for cnum in range(chunks-1)]
 
+file_chunks = file_chunks + [files[chunk_size*(chunks-1):]]
+file_chunks_diff = file_chunks_diff + [files_diff[chunk_size*(chunks-1):]]
+jd_chunks = jd_chunks + [jds[chunk_size*(chunks-1):]]
+print(chunks)
+print(file_chunks)
+print(file_chunks_diff)
+print(jd_chunks)
 chunk_files = []
 chunk_files_diff = []
 
-for chunk,chunk_d in zip(file_chunks,file_chunks_diff):
+for cnum,chunk,chunk_d in zip(range(chunks),file_chunks,file_chunks_diff):
     uv = UVData()
     uv.read(chunk)
     uvd = UVData()
     uvd.read(chunk_d)
     # first round of flagging
     uvf_m, uvf_f = xrfi.xrfi_pipe(uv)
+    #print(uvf_f.flag_array.shape)
     # apply first round
-    xrfi.flag_apply(uvf_f, uv, keep_existing=True, force_pol=True)
+    xrfi.flag_apply(uvf_f, uv, keep_existing=True,force_pol=True)
+    print(float(len(uv.flag_array[uv.flag_array]))/len(uv.flag_array.flatten()))
     # Second round
     uvf_m2, uvf_f2 = xrfi.xrfi_pipe(uv, alg='detrend_meanfilt')
     # Threshold
     uvf_temp = uvf_f2.copy()
     uvf_temp.to_metric(convert_wgts=True)
     uvf_final = xrfi.flag(uvf_temp, nsig_p=1.0, nsig_f=freq_threshold, nsig_t=time_threshold)
-    xrfi.flag_apply(uvf_final,uv)
-    xrfi.flag_apply(uvf_final,uvd)
-    uv.select(bls = [(a,a) for a in np.unique(uvf_final.antenna1_array)], inplace=True)
-    uvd.select(bls = [(a,a) for a in np.unique(uvf_final.antenna1_array)], inplace=True)
-    chunk_files.append(tempdir+'/temp.%d.HH'%chunk)
-    chunk_files_diff.append(tempdir+'/temp.diff.%d.HH'%chunk)
-    uv.write_miriad([-1])
-    uvd.write_miriad(chunk_files_diff[-1])
+    xrfi.flag_apply(uvf_final,uv,force_pol=True)
+    xrfi.flag_apply(uvf_final,uvd,force_pol=True)
+    print(float(len(uv.flag_array[uv.flag_array]))/len(uv.flag_array.flatten()))
+    uv.select(bls = [(a,a) for a in np.unique(uv.ant_1_array)], inplace=True)
+    uvd.select(bls = [(a,a) for a in np.unique(uv.ant_1_array)], inplace=True)
+    chunk_files.append(tempdir+'/temp.%d.HH'%cnum)
+    chunk_files_diff.append(tempdir+'/temp.diff.%d.HH'%cnum)
+    uv.write_miriad(str(chunk_files[-1]),clobber=True)
+    uvd.write_miriad(str(chunk_files_diff[-1]),clobber=True)
 
 uv = UVData()
 uvd = UVData()
 uv.read(chunk_files)
 uvd.read(chunk_files_diff)
-uv.write_miriad(outputdir+output+'.HH')
-uv.write_miriad(outputdir+output+'.diff.HH')
+uv.write_miriad(outputdir+'/'+output+'.HH',clobber = clobber)
+uvd.write_miriad(outputdir+'/'+output+'.diff.HH',clobber = clobber)
 #clean up temp files
-for temp,temp_d in zip(chunk_files,chunk_files_diff):
-    os.rmdir(temp)
-    os.rmdir(temp_d)
+if cleanup:
+    for temp,temp_d in zip(chunk_files,chunk_files_diff):
+        shutil.rmtree(temp)
+        shutil.rmtree(temp_d)
