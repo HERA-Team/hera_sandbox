@@ -23,7 +23,7 @@ parser.add_argument('-c','--chunks',dest='chunks',default=1)
 parser.add_argument('--outputdir',dest='outputdir',default=cwd)
 parser.add_argument('--tempdir','--temp',dest='tempdir',default=cwd)
 parser.add_argument('--output','-o',dest='output')
-parser.parse_args()
+parser = parser.parse_args()
 #user can specify a list of files or
 #assert not and(parser.filelist, parser.directory)
 
