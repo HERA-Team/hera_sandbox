@@ -29,7 +29,7 @@ parser = parser.parse_args()
 
 chunk_size = parser.chunks
 dir = parser.directory
-tempdir = parser.temp
+tempdir = parser.tempdir
 outdir = parser.outputdir
 output = parser.output
 
