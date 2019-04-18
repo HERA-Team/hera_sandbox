@@ -21,7 +21,7 @@ parser.add_argument('-d','--directory',dest='directory')
 #parser.add_argument('-f','--filelist',dest='filelist')
 parser.add_argument('-c','--chunks',dest='chunks',default=1)
 parser.add_argument('--outputdir',dest='outputdir',default=cwd)
-parser.add_argumetn('--tempdir','--temp',dest='tempdir',default=cwd)
+parser.add_argument('--tempdir','--temp',dest='tempdir',default=cwd)
 parser.add_argument('--output','-o',dest='output')
 parser.parse_args()
 #user can specify a list of files or
