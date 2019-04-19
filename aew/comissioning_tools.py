@@ -1249,17 +1249,13 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
         dclist = pd['DELAY_CENTERS']
         dwlist = pd['DELAY_WIDTHS']
 
-        if not isinstance(dclist, list):
+        if not isinstance(dclist[0], list):
             dclist = [dclist]
-        if not isinstance(dwlist, list):
+        if not isinstance(dwlist[0], list):
             dwlist = [dwlist]
 
 
-        if pd['SHOW_FILTER'] and freq_domain == 'delay':
-            if isinstance(pd['DELAY_WIDTHS'],float):
-                pd['DELAY_WIDTHS'] = [pd['DELAY_WIDTHS']]
-            if isinstance(pd['DELAY_CENTERS'],float):
-                pd['DELAY_CENTERS'] = [pd['DELAY_CENTERS']]
+        if pd['SHOW_FILTER'] and freq_domain == 'delay':    
             for dcl,dwl in zip(dclist,dwlist):
                 for dc,dw in zip(dcl,dwl):
                     plt.fill_between(np.array([dc-dw,dc+dw])*1e9,[ylim[0],ylim[0]],[ylim[1],ylim[1]],color=pd['COLOR'],alpha=.1)
@@ -1438,7 +1434,8 @@ def time_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', 
                                     normalize_average = pd['NORMALIZE_AVERAGE'],
                                     cache = pd['CACHE'])
 
-
+        #print(y)
+        #print(yd)
         if negative_vals:
             y = np.real(y)
             yd = np.real(yd)

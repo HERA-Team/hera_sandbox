@@ -30,6 +30,8 @@ parser.add_argument('--freq_threshold','-f',dest='freq_threshold',default=0.5)
 parser.add_argument('--time_threshold','-t',dest='time_threshold',default=0.05)
 parser.add_argument('--clobber',dest='clobber',default=True)
 parser.add_argument('--cleanup',dest='cleanup',default=True)
+parser.add_argument('--fmin','-l',dest='fmin',default=None)
+parser.add_argument('--fmax','-u',dest='fmax',default=None)
 parser = parser.parse_args()
 #user can specify a list of files or
 #assert not and(parser.filelist, parser.directory)
@@ -43,6 +45,12 @@ freq_threshold = float(parser.freq_threshold)
 time_threshold = float(parser.time_threshold)
 clobber = bool(parser.clobber)
 cleanup=bool(parser.cleanup)
+
+if not parser.fmin is None:
+    fmin = float(parser.fmin)
+if not parser.fmax is None:
+    fmax = float(parser.fmax)
+
 print(freq_threshold)
 print(time_threshold)
 files = glob.glob(dir+'/*.HH.uvh5')
@@ -76,14 +84,25 @@ chunk_files_diff = []
 
 for cnum,chunk,chunk_d in zip(range(chunks),file_chunks,file_chunks_diff):
     uv = UVData()
-    uv.read(chunk)
+    uv.read_uvh5(chunk)
     uvd = UVData()
-    uvd.read(chunk_d)
+    uvd.read_uvh5(chunk_d)
+    if fmin is None:
+        fmin = np.min(uv.freq_array)
+    if fmax is None:
+        fmax = np.min(uv.freq_array)
+
+    freq_select = np.logical_and(uv.freq_array[0]<=fmax, uv.freq_array[0]>=fmin)
+    nf = len(freq_select)
+
+    uv.select(frequencies=uv.freq_array[0][freq_select])
+    uvd.select(frequencies=uvd.freq_array[0][freq_select])
+
     # first round of flagging
     uvf_m, uvf_f = xrfi.xrfi_pipe(uv)
     #print(uvf_f.flag_array.shape)
     # apply first round
-    xrfi.flag_apply(uvf_f, uv, keep_existing=True,force_pol=True)
+    xrfi.flag_apply(uvf_f, uv, keep_existing=False,force_pol=True)
     print(float(len(uv.flag_array[uv.flag_array]))/len(uv.flag_array.flatten()))
     # Second round
     uvf_m2, uvf_f2 = xrfi.xrfi_pipe(uv, alg='detrend_meanfilt')
@@ -94,21 +113,21 @@ for cnum,chunk,chunk_d in zip(range(chunks),file_chunks,file_chunks_diff):
     xrfi.flag_apply(uvf_final,uv,force_pol=True)
     xrfi.flag_apply(uvf_final,uvd,force_pol=True)
     print(float(len(uv.flag_array[uv.flag_array]))/len(uv.flag_array.flatten()))
-    uv.select(bls = [(a,a) for a in np.unique(uv.ant_1_array)], inplace=True)
-    uvd.select(bls = [(a,a) for a in np.unique(uv.ant_1_array)], inplace=True)
-    chunk_files.append(tempdir+'/temp.%d.HH'%cnum)
-    chunk_files_diff.append(tempdir+'/temp.diff.%d.HH'%cnum)
-    uv.write_miriad(str(chunk_files[-1]),clobber=True)
-    uvd.write_miriad(str(chunk_files_diff[-1]),clobber=True)
+    uv.select(bls = [(a,a) for a in np.unique(uv.ant_1_array)])
+    uvd.select(bls = [(a,a) for a in np.unique(uv.ant_1_array)])
+    chunk_files.append(tempdir+'/%s.%d.HH.temp.uvh5'%(output,cnum))
+    chunk_files_diff.append(tempdir+'/%s.diff.%d.HH.temp.uvh5'%(output,cnum))
+    uv.write_uvh5(str(chunk_files[-1]),clobber=True)
+    uvd.write_uvh5(str(chunk_files_diff[-1]),clobber=True)
 
 uv = UVData()
 uvd = UVData()
 uv.read(chunk_files)
 uvd.read(chunk_files_diff)
-uv.write_miriad(outputdir+'/'+output+'.HH',clobber = clobber)
-uvd.write_miriad(outputdir+'/'+output+'.diff.HH',clobber = clobber)
+uv.write_uvh5(outputdir+'/'+output+'.uvh5',clobber = clobber)
+uvd.write_uvh5(outputdir+'/'+output+'.diff.uvh5',clobber = clobber)
 #clean up temp files
 if cleanup:
     for temp,temp_d in zip(chunk_files,chunk_files_diff):
-        shutil.rmtree(temp)
-        shutil.rmtree(temp_d)
+        os.remove(temp)
+        os.remove(temp_d)
