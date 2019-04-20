@@ -48,8 +48,12 @@ cleanup=bool(parser.cleanup)
 
 if not parser.fmin is None:
     fmin = float(parser.fmin)
+else:
+    fmin = parser.fmin
 if not parser.fmax is None:
     fmax = float(parser.fmax)
+else:
+    fmax = parser.fmax
 
 print(freq_threshold)
 print(time_threshold)
