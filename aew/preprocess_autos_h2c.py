@@ -94,7 +94,7 @@ for cnum,chunk,chunk_d in zip(range(chunks),file_chunks,file_chunks_diff):
     if fmin is None:
         fmin = np.min(uv.freq_array)
     if fmax is None:
-        fmax = np.min(uv.freq_array)
+        fmax = np.max(uv.freq_array)
 
     freq_select = np.logical_and(uv.freq_array[0]<=fmax, uv.freq_array[0]>=fmin)
     nf = len(freq_select)
