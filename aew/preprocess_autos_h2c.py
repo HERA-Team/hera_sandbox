@@ -101,7 +101,8 @@ for cnum,chunk,chunk_d in zip(range(chunks),file_chunks,file_chunks_diff):
 
     uv.select(frequencies=uv.freq_array[0][freq_select])
     uvd.select(frequencies=uvd.freq_array[0][freq_select])
-
+    print('fmax=%e'%uv.freq_array.max())
+    print('fmin=%e'%uv.freq_array.min())
     # first round of flagging
     uvf_m, uvf_f = xrfi.xrfi_pipe(uv)
     #print(uvf_f.flag_array.shape)
