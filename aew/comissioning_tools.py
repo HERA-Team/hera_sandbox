@@ -356,7 +356,8 @@ def down_select_data(data,fmin=45e6,fmax=85e6,lst_min=None,lst_max=None):
     data = data.select(freq_chans=select_channels,times = times_select,inplace=False)
     return data
 
-def get_corr_data(data,corrkey, f_threshold = None, t_threshold = None, percentile_flags = False, flag_percentiles = [2,98] ):
+def get_corr_data(data,corrkey, f_threshold = None, t_threshold = None,return_xy = False,
+percentile_flags = False, flag_percentiles = [2,98], f_int = [None,None], lst_int=[None,None] ):
     '''
     retrieve data and flags from uv data for a single polarization
     and antenna pair.
@@ -365,6 +366,8 @@ def get_corr_data(data,corrkey, f_threshold = None, t_threshold = None, percenti
         corrkey, 3-tuple (ant0, ant1, pol)
         t_threshold, optional float , if fraction of flagged channels at single time is a above this, flag entire time.
         f_threshold, optional float, if fraction of flagged channels at a single freq is above this, flag entire freq at all times.
+        f_int, 2-list of frequency bounds to select
+        lst_int, 2-list of lst intervals to select
     Returns:
         ntimes x nfreq array of bools, ntimes x nfreq array of complex128
         first array is flags, second array is visibility.
@@ -384,29 +387,48 @@ def get_corr_data(data,corrkey, f_threshold = None, t_threshold = None, percenti
         raise ValueError("Correlation between antennas %d x %d not present in data.")
 
 
-
     darray = data.data_array[selection,:,:,pol].squeeze()
     wghts = data.flag_array[selection,:,:,pol].squeeze()
 
+    if f_int[0] is None:
+        f_int[0] = data.freq_array.min()
+    if f_int[1] is None:
+        f_int[1] = data.freq_array.max()
+    if lst_int[0] is None:
+        lst_int[0] = data.lst_array.min()
+    if lst_int[1] is None:
+        lst_int[1] = data.lst_array.max()
 
+    lsts = np.unique(data.lst_array)
+    fqs = data.freq_array.squeeze()
 
+    lst_select = np.logical_and(lsts>=lst_int[0], lsts<= lst_int[1])
+    fqs_select = np.logical_and(fqs>=f_int[0], fqs<= f_int[1])
+    lsts = lsts[lst_select]
+    fqs = fqs[fqs_select]
+    wghts, darray = wghts[:,fqs_select][lst_select,:], darray[:,fqs_select][lst_select,:]
+    print(len(lsts))
     if not t_threshold is None:
-        for tnum in range(len(times)):
+        for tnum in range(len(lsts)):
             if float(len(wghts[tnum,wghts[tnum, :]]))/len(wghts[tnum, :]) >= t_threshold:
                 wghts[tnum,:] = True #flag entire time
 
     if not f_threshold is None:
-        for cnum in range(len(freqs)):
+        for cnum in range(len(fqs)):
             if float(len(wghts[wghts[:, cnum],cnum]))/len(wghts[:, cnum]) >= f_threshold:
                 wghts[:, cnum] = True #flag entire channel
 
 #perform percentile flagging.
     if percentile_flags:
-
         percentiles = np.percentile(np.abs(darray)[np.invert(wghts)],flag_percentiles)
         wghts[np.logical_or(np.abs(darray)<=percentiles[0],np.abs(darray)>=percentiles[1])] = True
 
-    return wghts, darray
+
+
+    if not return_xy:
+        return wghts,darray
+    else:
+        return lsts, fqs,wghts, darray
 
 def get_horizon(data, corrkey):
     '''
@@ -496,6 +518,10 @@ def filter_data_clean(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, manua
     if flag_across_time:
         for fnum in range(len(freqs)):
             wghts[:,fnum] = np.any(wghts[:,fnum])
+
+    print(times.shape)
+    print(wghts.shape)
+    print(wghts.shape)
 
     for tnum in range(len(times)):
         if float(len(wghts[tnum,wghts[tnum, :]]))/len(wghts[tnum, :]) >= t_threshold:
@@ -1255,7 +1281,7 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
             dwlist = [dwlist]
 
 
-        if pd['SHOW_FILTER'] and freq_domain == 'delay':    
+        if pd['SHOW_FILTER'] and freq_domain == 'delay':
             for dcl,dwl in zip(dclist,dwlist):
                 for dc,dw in zip(dcl,dwl):
                     plt.fill_between(np.array([dc-dw,dc+dw])*1e9,[ylim[0],ylim[0]],[ylim[1],ylim[1]],color=pd['COLOR'],alpha=.1)

@@ -32,6 +32,7 @@ parser.add_argument('--clobber',dest='clobber',default=True)
 parser.add_argument('--cleanup',dest='cleanup',default=True)
 parser.add_argument('--fmin','-l',dest='fmin',default=None)
 parser.add_argument('--fmax','-u',dest='fmax',default=None)
+parser.add_argument('--onlyautoflags','-a',dest='onlyautoflags',default=False)
 parser = parser.parse_args()
 #user can specify a list of files or
 #assert not and(parser.filelist, parser.directory)
@@ -45,6 +46,7 @@ freq_threshold = float(parser.freq_threshold)
 time_threshold = float(parser.time_threshold)
 clobber = bool(parser.clobber)
 cleanup=bool(parser.cleanup)
+onlyautoflags = bool(parser.onlyautoflags)
 
 if not parser.fmin is None:
     fmin = float(parser.fmin)
@@ -103,6 +105,10 @@ for cnum,chunk,chunk_d in zip(range(chunks),file_chunks,file_chunks_diff):
     uvd.select(frequencies=uvd.freq_array[0][freq_select])
     print('fmax=%e'%uv.freq_array.max())
     print('fmin=%e'%uv.freq_array.min())
+    if onlyautoflags:
+        uv.select(bls = [(a,a) for a in np.unique(uv.ant_1_array)])
+        uvd.select(bls = [(a,a) for a in np.unique(uv.ant_1_array)])
+
     # first round of flagging
     uvf_m, uvf_f = xrfi.xrfi_pipe(uv)
     #print(uvf_f.flag_array.shape)
@@ -117,9 +123,12 @@ for cnum,chunk,chunk_d in zip(range(chunks),file_chunks,file_chunks_diff):
     uvf_final = xrfi.flag(uvf_temp, nsig_p=1.0, nsig_f=freq_threshold, nsig_t=time_threshold)
     xrfi.flag_apply(uvf_final,uv,force_pol=True)
     xrfi.flag_apply(uvf_final,uvd,force_pol=True)
-    print(float(len(uv.flag_array[uv.flag_array]))/len(uv.flag_array.flatten()))
-    uv.select(bls = [(a,a) for a in np.unique(uv.ant_1_array)])
-    uvd.select(bls = [(a,a) for a in np.unique(uv.ant_1_array)])
+
+    if not onlyautoflags:
+        uv.select(bls = [(a,a) for a in np.unique(uv.ant_1_array)])
+        uvd.select(bls = [(a,a) for a in np.unique(uv.ant_1_array)])
+
+
     chunk_files.append(tempdir+'/%s.%d.HH.temp.uvh5'%(output,cnum))
     chunk_files_diff.append(tempdir+'/%s.diff.%d.HH.temp.uvh5'%(output,cnum))
     uv.write_uvh5(str(chunk_files[-1]),clobber=True)
