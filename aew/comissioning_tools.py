@@ -357,7 +357,7 @@ def down_select_data(data,fmin=45e6,fmax=85e6,lst_min=None,lst_max=None):
     return data
 
 def get_corr_data(data,corrkey, f_threshold = None, t_threshold = None,return_xy = False,
-percentile_flags = False, flag_percentiles = [2,98], f_int = [None,None], lst_int=[None,None] ):
+percentile_flags = False, flagp_min=2, flagp_max = 98, fmin=None,fmax=None,lstmin=None,lstmax=None):
     '''
     retrieve data and flags from uv data for a single polarization
     and antenna pair.
@@ -386,19 +386,22 @@ percentile_flags = False, flag_percentiles = [2,98], f_int = [None,None], lst_in
     else:
         raise ValueError("Correlation between antennas %d x %d not present in data.")
 
-
+    f_int = [fmin,fmax]
+    lst_int = [lstmin,lstmax]
     darray = data.data_array[selection,:,:,pol].squeeze()
     wghts = data.flag_array[selection,:,:,pol].squeeze()
 
-    if f_int[0] is None:
+    if f_int[0] is None or f_int[0] <= data.freq_array.min() or f_int[0] >= data.freq_array.max():
         f_int[0] = data.freq_array.min()
-    if f_int[1] is None:
+    if f_int[1] is None or f_int[1] >= data.freq_array.max() or f_int[1] <= data.freq_array.min():
         f_int[1] = data.freq_array.max()
-    if lst_int[0] is None:
+    if lst_int[0] is None or lst_int[0] <= data.lst_array.min() or lst_int[0] >= data.lst_array.max():
         lst_int[0] = data.lst_array.min()
-    if lst_int[1] is None:
+    if lst_int[1] is None or lst_int[1] >= data.lst_array.max() or lst_int[1] <= data.lst_array.min():
         lst_int[1] = data.lst_array.max()
 
+    #print('after selection shape')
+    #print(darray.shape)
     lsts = np.unique(data.lst_array)
     fqs = data.freq_array.squeeze()
 
@@ -406,8 +409,14 @@ percentile_flags = False, flag_percentiles = [2,98], f_int = [None,None], lst_in
     fqs_select = np.logical_and(fqs>=f_int[0], fqs<= f_int[1])
     lsts = lsts[lst_select]
     fqs = fqs[fqs_select]
+    #print(len(lsts))
+    #print(len(fqs))
     wghts, darray = wghts[:,fqs_select][lst_select,:], darray[:,fqs_select][lst_select,:]
-    print(len(lsts))
+
+    #print('after further selection')
+    #print(darray.shape)
+
+    #print(len(lsts))
     if not t_threshold is None:
         for tnum in range(len(lsts)):
             if float(len(wghts[tnum,wghts[tnum, :]]))/len(wghts[tnum, :]) >= t_threshold:
@@ -419,11 +428,16 @@ percentile_flags = False, flag_percentiles = [2,98], f_int = [None,None], lst_in
                 wghts[:, cnum] = True #flag entire channel
 
 #perform percentile flagging.
+    flag_percentiles = [flagp_min, flagp_max]
     if percentile_flags:
         percentiles = np.percentile(np.abs(darray)[np.invert(wghts)],flag_percentiles)
         wghts[np.logical_or(np.abs(darray)<=percentiles[0],np.abs(darray)>=percentiles[1])] = True
 
 
+    del f_int
+    del f_threshold
+    del lst_int
+    del t_threshold
 
     if not return_xy:
         return wghts,darray
@@ -498,7 +512,11 @@ def filter_data_clean(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, manua
 
     data = down_select_data(data,fmin,fmax,lst_min,lst_max)
     data_d = down_select_data(data_d,fmin,fmax,lst_min,lst_max)
-
+    #print('data_d shape = %s'%str(data_d.data_array.shape))
+    #print('data_d shape')
+    #print('data shape')
+    #print(data_d.data_array.shape)
+    #print(data.data_array.shape)
     if tol == 0:
         raise ValueError("Invalid Tolerance of 0. Provided!")
 
@@ -509,8 +527,14 @@ def filter_data_clean(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, manua
     times = 3600.*24.*np.unique(data.time_array)
     fringe_rates = fft.fftshift(fft.fftfreq(len(times),times[1]-times[0]))
 
+    #print('ntimes = %d'%len(times))
+    #print('from nblts and nbls = %d'%int(data.data_array.shape[0]/data.Nbls))
+
     wghts,darray = get_corr_data(data, corrkey)
     _, darray_d = get_corr_data(data_d, corrkey)
+
+    #print(darray.shape[0])
+
 
     if manual_override_flags:
         wghts[:] = False
@@ -519,9 +543,9 @@ def filter_data_clean(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, manua
         for fnum in range(len(freqs)):
             wghts[:,fnum] = np.any(wghts[:,fnum])
 
-    print(times.shape)
-    print(wghts.shape)
-    print(wghts.shape)
+    #print(times.shape)
+    #print(wghts.shape)
+    #print(wghts.shape)
 
     for tnum in range(len(times)):
         if float(len(wghts[tnum,wghts[tnum, :]]))/len(wghts[tnum, :]) >= t_threshold:
@@ -984,8 +1008,8 @@ def integrate_LST(corrkey, data, data_d = None, fmin = 45e6, fmax=85e6, fringe_r
 def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6, fringe_rate_max = .2e-3, delay_max = 300e-9, delay_center = 0.,
                            lst_min = None, lst_max = None, taper = 'boxcar', freq_domain = 'delay', zero_flags = True, normalize_average = False,
                            tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear', negative_vals = False,manual_flags = [],
-                           manual_override_flags = False, add_clean_components = True, show_legend = True, avg_coherent = True,
-                           sq_units = True, cache = WMAT_CACHE, norm_zero_delay = False, t_threshold = 0.1, f_threshold = 0.1,
+                           manual_override_flags = False, add_clean_components = True, show_legend = True, avg_coherent = True, return_y = False,
+                           sq_units = True, cache = WMAT_CACHE, norm_zero_delay = False, t_threshold = 0.1, f_threshold = 0.1, npts_avg = None,
                            fourier_taper = None, extra_chan_flags = [], positive_delay_only = False, bad_wghts = False, bad_resid=False):
     '''
     delay filter data and compute average.
@@ -1068,27 +1092,51 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
             raise ValueError("Failed to specify a valid filtering method. Valid options are 'clean' and 'linear'")
         #split data into even and odd sets.
 
+        if npts_avg is None:
+            npts_avg = darray.shape[0]
+
         darray_even = (darray + darray_d) / 2.
         darray_odd = (darray - darray_d) / 2.
         darray_d_even =  darray_d[::2]
         darray_d_odd = darray_d[1::2]
 
+        #print(np.any(np.isnan(darray_even)))
+        #print(np.any(np.isnan(darray_even)))
+
+        output_even = np.zeros((int(darray_even.shape[0]/npts_avg),darray_even.shape[1]) ,dtype = complex)
+        output_odd =  np.zeros_like(output_even)
+        output_d_even = np.zeros_like(darray_d_even)
+        output_d_odd = np.zeros_like(output_d_even)
+
         if avg_coherent:
-            darray_even = np.mean(darray_even, axis = 0)
-            darray_odd = np.mean(darray_odd, axis = 0)
 
-            darray_d_even = np.mean(darray_d_even, axis = 0)
-            darray_d_odd = np.mean(darray_d_odd, axis = 0)
 
-        darray_d = darray_d_even * np.conj(darray_d_odd ) / 4.
-        darray = darray_even * np.conj(darray_odd)
+            for m in range(output_even.shape[0]):
+                output_even[m] = np.mean(darray_even[m*npts_avg:(m+1)*npts_avg], axis = 0)
+                output_odd[m] = np.mean(darray_odd[m*npts_avg:(m+1)*npts_avg], axis = 0)
+            for m in range(output_d_even.shape[0]):
+                output_d_even[m] = np.mean(darray_d_even[m*npts_avg:(m+1)*npts_avg], axis = 0)
+                output_d_odd[m] = np.mean(darray_d_odd[m*npts_avg:(m+1)*npts_avg], axis = 0)
+
+            #darray_d_even = np.mean(darray_d_even, axis = 0)
+            #darray_d_odd = np.mean(darray_d_odd, axis = 0)
+
+            output_d = output_d_even * np.conj(output_d_odd ) / 4.
+            output = output_even * np.conj(output_odd)
 
         if not avg_coherent:
-            darray = np.mean(darray, axis = 0)
-            darray_d = np.mean(darray_d, axis = 0) * np.sqrt(2.)
+            darray = darray_even * np.conj(darray_odd)
+            darray_d = darray_even * np.conj(darray_odd)
 
-    darray_list.append(darray)
-    darray_d_list.append(darray_d)
+            for m in range(output.shape[0]):
+                output[m] = np.mean(darray[m*npts_avg:(m+1)*npts_avg], axis = 0)
+            for m in range(output_d.shape[0]):
+                output_d[m] = np.mean(darray_d[m*npts_avg:(m+1)*npts_avg], axis = 0) * np.sqrt(2.)
+
+            #output_d = np.mean(output_d, axis = 0) * np.sqrt(2.)
+
+    darray_list.append(output)
+    darray_d_list.append(output_d)
 
     darray = np.mean(np.asarray(darray_list),axis=0)
     darray_d = np.mean(np.asarray(darray_d_list),axis=0)
@@ -1096,14 +1144,199 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
     if not sq_units:
         darray = sqrt_abs(darray,negatives = negative_vals)
         darray_d = sqrt_abs(darray_d, negatives = negative_vals)
+    if not return_y:
+        return xg[0,:], darray, darray_d
+    else:
+        return xg[0,:], yg[::npts_avg,0], darray, darray_d
 
-    return xg[0,:], darray, darray_d
+def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (None,None), show_k = False, delay_step = None, npts_avg = 1,
+                   xlim = (None,None), logscale = True, label_font_size = 14, tick_font_size = 14, title = None, freq_units = 'MHz', title_y = 1.,
+                   positive_delay_only = False, time_domain = 'time', lstmin = None, lstmax = None, negative_vals = True, title_font_size = 20):
+           '''
+           DATA, a pyuvdata object containing primary data.
+           DATA_DIFF, a pyuvdata object containing diffed data.
+           CORRKEY (ant0, ant1, pol)
+           LINESTYLE, linestyle to use
+           COLOR, color of line
+           NORMALIZE_AVERAGE, if True, divide data (and diff data) by data average.
+           LINEWIDTH, width of line
+           FMIN, minimum frequency
+           FMAX, maximum frequency
+           DELAY_CENTERS, float delay center or list of delay centers (for multiple windows)
+           DELAY_WIDTHS, float delay width or list of delay widths
+           FRINGE_RATE_FILTER, boolean. If True, apply fringe rate filter
+           FRINGE_RATE_MAX, float, specifies the maximum fringe-rate to filter out.
+           AVG_COHERENT, boolean, specifies whether a coherent or incoherent average should be taken.
+           ADD_CLEAN_MODEL, boolean, specifies whether a clean model should be added.
+           LST_MIN, minimum LST to include in data averaging. can be None
+           LST_MAX, maximum LST to include in data averagine. can be None
+           FILTER_METHOD, string specifying "clean" or "linear" filtering
+           ZERO_FLAGS: boolena, specifying whether flagged channels should be zeroed out
+           CACHE, optional argument that lets user input cache of weighting matrices.
+                  a cache for linear filtering matrices.
+           FLAG_ACROSS_TIME, boolean, if True, each frequency flag is set by the union of all
+                            flags at that frequency.
+           LABEL, string, a label for the line.
+           SHOW_HORIZON, if True, show verticale lines at baseline horizon
+           SHOW_FILTER, if True, show vertical lines at filter edges.
+           TOL, tolerance to clean/filter too.
+           TAPER, string giving taper for FT.
+           MANUAL_OVERRIDE_FLAGS,flags in manual_flags override pre-existing flags.
+           MANUAL_FLAGS,list of 2-tuples with centers and widths of flagging windows.
+           NORMALIZE_ZERO_DELAY, if true, normalize each time separately to zero delay value.
+           T_THRESHOLD, if fraction of flagged channels at single time is a above this, flag entire time.
+           F_THRESHOLD, if fraction of flagged channels at a single freq is above this, flag entire freq at all times.
+           FOURIER_TAPER, taper unfiltered boxcars in fourier domain (to get rid of residual side-lobes).
+                          WARNING: This will help get rid of side-lobes of high domain contamination but
+                          will mask low-delay structures!
+           BAD_RESID: use aipy residual (which I think is bad -- subjective nomenclature)
+           BAD_WGHTS: use clean kernel that includes tapering function.
+           '''
+           xlim = [xlim[0],xlim[1]]
+           ylim = [ylim[0],ylim[1]]
+           xlim_in = copy.copy(xlim)
+           ylim_in = copy.copy(ylim)
 
-def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', ylim = [None, None],show_k=False,delay_step=None,
-                                xlim = [None,None],logscale = True, legend_font_size = 14, show_signal = True, show_diff = True,
+           xlim = copy.copy(xlim)
+           ylim = copy.copy(ylim)
+
+           if ylim_in[1] is None:
+               ylim[1] = -9e99
+           if ylim_in[0] is None:
+               ylim[0] = 9e99
+
+           if xlim_in[1] is None:
+               xlim[1] = -9e99
+           if xlim_in[0] is None:
+               xlim[0] = 9e99
+
+
+           pd = plot_dict
+           if lstmin is None:
+                lstmin = pd['LST_MIN']
+           if lstmax is None:
+                lstmax = pd['LST_MAX']
+           x0, x1, y, yd = filter_and_average_abs(data = pd['DATA'], data_d = pd['DATA_DIFF'],
+                                   corrkey = pd['CORRKEY'], fmin = pd['FMIN'],
+                                   fmax = pd['FMAX'], fringe_rate_max = pd['FRINGE_RATE_MAX'],
+                                   delay_max=pd['DELAY_WIDTHS'], delay_center = pd['DELAY_CENTERS'],
+                                   lst_min = lstmin, lst_max = lstmax,
+                                   taper = pd['TAPER'], freq_domain = freq_domain,
+                                   zero_flags = pd['ZERO_FLAGS'], tol = pd['TOL'],
+                                   flag_across_time = pd['FLAG_ACROSS_TIME'], bad_wghts = pd['BAD_WGHTS'], bad_resid = pd['BAD_RESID'],
+                                   fringe_rate_filter = pd['FRINGE_RATE_FILTER'], manual_flags = pd['MANUAL_FLAGS'],
+                                   filter_method = pd['FILTER_METHOD'], norm_zero_delay = pd['NORMALIZE_ZERO_DELAY'],
+                                   add_clean_components = pd['ADD_CLEAN_MODEL'], manual_override_flags = pd['MANUAL_OVERRIDE_FLAGS'],
+                                   avg_coherent = pd['AVG_COHERENT'], positive_delay_only = positive_delay_only,
+                                   f_threshold = pd['F_THRESHOLD'], fourier_taper = pd['FOURIER_TAPER'],
+                                   t_threshold = pd['T_THRESHOLD'], extra_chan_flags = pd['CHANNEL_FLAGS'],
+                                   normalize_average = pd['NORMALIZE_AVERAGE'],npts_avg = npts_avg, return_y = True,
+                                   sq_units = sq_units, cache = pd['CACHE'], negative_vals = negative_vals)
+           if freq_domain == 'delay':
+               x0 *= 1e9
+           elif freq_domain == 'frequency':
+               x0 *= 1e-6
+           if str(freq_units).lower() == 'channel':
+                x0 =(x0 - x0[0])/(x0[1]-x0[0])
+           elif str(freq_units).lower() == 'ghz':
+                x0 = x0*1e-3
+           elif str(freq_units).lower() == 'hz':
+                x0 = x0*1e6
+
+           if negative_vals:
+                y = np.real(y)
+                yd = np.real(yd)
+           else:
+                y = np.abs(y)
+                yd = np.abs(yd)
+
+           cklist = pd['CORRKEY']
+           if not isinstance(cklist,list):
+                cklist = [cklist]
+
+           if pd['SHOW_HORIZON'] and freq_domain == 'delay':
+                for ckey in cklist:
+                    hzn = get_horizon(pd['DATA'],(ckey[0],ckey[1]))
+                    plt.axvline(hzn*1e9, ls = pd['LINESTYLE'], color = [.5,.5,.5])
+                    plt.axvline(-hzn*1e9, ls = pd['LINESTYLE'], color = [.5,.5,.5])
+
+           if ylim_in[0] is None:
+               if np.abs(y).max() > ylim[1]:
+                   ylim[1] = np.abs(y).max()
+                   ylim[1] = 10.**np.ceil(np.log10(ylim[1])) * 10.
+
+           if ylim_in[1] is None:
+               if np.abs(yd).mean() < ylim[0]:
+                   ylim[0] = np.abs(yd).mean()
+                   ylim[0] = 10.**np.floor(np.log10(ylim[0])) / 10.
+
+
+           if xlim_in[1] is None:
+               if x.max() > xlim[1]:
+                   xlim[1] = x.max()
+           if xlim_in[0] is None:
+               if x.min() < xlim[0]:
+                   xlim[0] = x.min()
+
+           x0g, x1g = np.meshgrid(x0, x1)
+
+
+           if logscale:
+            yd = np.log10(yd)
+            y = np.log10(y)
+            ylim[0] = np.log10(ylim[0])
+            ylim[1] = np.log10(ylim[1])
+
+           plt.pcolor(x0g, x1g, y, vmin = ylim[0], vmax = ylim[1])
+
+           if freq_domain == 'delay':
+               ax1=plt.gca()
+               if show_k and not no_labels:
+                   #plot k-parallel axis above plot if we are in the delay domain.
+                   f0 = (pd['FMIN'] + pd['FMAX'])/2.
+                   z0 = 1420.41e6/f0 - -1.
+                   y0 = 3e5/100. * (1.+z0)**2. / np.sqrt(.7 + .3 * (1.+z0)**3.) / 1420.41e6
+                   #delay_step = pd['DELAY_STEP']
+                   if not (delay_step is None):
+                       ax1.set_xticks(np.arange(xlim[0],xlim[1]+delay_step,delay_step))
+
+                   ax2 = plt.gca().twiny()
+                   ax2.set_xlim(ax1.get_xlim())
+                   ax2.set_xticks(ax1.get_xticks())
+                   ax2ticks = []
+                   for tick in ax1.get_xticks():
+                       kpara = tick * 2. * np.pi / y0 /1e9
+                       ktick = '%.2f'%(kpara)
+                       ax2ticks.append(ktick)
+                   ax2.set_xticklabels(ax2ticks)
+                   ax2.set_xlabel('$k_\\parallel$ ($h$Mpc$^{-1}$)', fontsize = label_font_size)
+                   plt.sca(ax1)
+               ax1.set_xlabel('$\\tau_d$ (ns)', fontsize = label_font_size)
+               if sq_units:
+                   plt.ylabel('|$\\widetilde{V}(\\tau)|^2$', fontsize = label_font_size)
+               else:
+                   plt.ylabel('|$\\widetilde{V}(\\tau)|$', fontsize = label_font_size)
+
+           else:
+               plt.xlabel('$\\nu$ (MHz)', fontsize = label_font_size)
+               #if sq_units:
+               #   plt.ylabel('|$V(\\nu)|^2$', fontsize = label_font_size)
+               #else:
+               #   plt.ylabel('|$V(\\nu)|$', fontsize = label_font_size)
+               plt.ylabel('LST (Hours)', fontsize = label_font_size)
+           plt.tick_params(labelsize = tick_font_size)
+           if not title is None:
+               plt.title(title,fontsize = title_font_size, y = title_y)
+
+
+
+
+
+def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', ylim = (None, None),show_k=False,delay_step=None,
+                                xlim = (None,None),logscale = True, legend_font_size = 14, show_signal = True, show_diff = True,
                                 label_font_size = 14, tick_font_size = 14, legend_loc = 'lower center', title = None,alpha=1.,alpha_diff = .25,
                                 title_font_size = 18, title_y = 1.1, no_labels = False, freq_units = 'MHz', positive_delay_only = False,
-                                legend_ncol = None, legend_bbox = [0.5, 0.], show_legend = True, negative_vals = False,lw_override=None):
+                                legend_ncol = None, legend_bbox = (0.5, 0.), show_legend = True, negative_vals = False,lw_override=None):
     '''
     plot_dict_list: a list of dictionaries specifying the plotting parameters of each line.
     each dictionary must have the following:
@@ -1164,6 +1397,8 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
     Returns:
         lines, labels, figure handle, axis handle.
     '''
+    xlim = [xlim[0],xlim[1]]
+    ylim = [ylim[0],ylim[1]]
     xlim_in = copy.copy(xlim)
     ylim_in = copy.copy(ylim)
 
