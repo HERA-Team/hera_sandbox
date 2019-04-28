@@ -1145,9 +1145,9 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
         darray = sqrt_abs(darray,negatives = negative_vals)
         darray_d = sqrt_abs(darray_d, negatives = negative_vals)
     if not return_y:
-        return xg[0,:], darray, darray_d
+        return xg[0,:].squeeze(), darray.squeeze(), darray_d.squeeze()
     else:
-        return xg[0,:], yg[::npts_avg,0], darray, darray_d
+        return xg[0,:].squeeze(), yg[::npts_avg,0].squeeze(), darray.squeeze(), darray_d.squeeze()
 
 def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (None,None), show_k = False, delay_step = None, npts_avg = 1,
                    xlim = (None,None), logscale = True, label_font_size = 14, tick_font_size = 14, title = None, freq_units = 'MHz', title_y = 1.,
