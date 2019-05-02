@@ -1009,7 +1009,7 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
                            lst_min = None, lst_max = None, taper = 'boxcar', freq_domain = 'delay', zero_flags = True, normalize_average = False,
                            tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear', negative_vals = False,manual_flags = [],
                            manual_override_flags = False, add_clean_components = True, show_legend = True, avg_coherent = True, return_y = False,
-                           sq_units = True, cache = WMAT_CACHE, norm_zero_delay = False, t_threshold = 0.1, f_threshold = 0.1, npts_avg = None,
+                           sq_units = True, cache = WMAT_CACHE, norm_zero_delay = False, t_threshold = 0.1, f_threshold = 0.1, npts_avg = None, normalize_std = False,
                            fourier_taper = None, extra_chan_flags = [], positive_delay_only = False, bad_wghts = False, bad_resid=False):
     '''
     delay filter data and compute average.
@@ -1050,6 +1050,7 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
     norm_zero_delay, if true, normalize each delay by zero delay.
     bad_resid, if True use aipy resid style
     bad_wghts, if True, add blackmanharris to cleaning kernel.
+    normalize_std, normalize each channel by STD of diff file.
     '''
     if not isinstance(corrkey, list):
         corrkey = [corrkey]
@@ -1144,12 +1145,19 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
     if not sq_units:
         darray = sqrt_abs(darray,negatives = negative_vals)
         darray_d = sqrt_abs(darray_d, negatives = negative_vals)
+    nan_std = ~np.isnan(darray_d)
+    if normalize_std:
+        for cnum in range(darray.shape[0]):
+            nfactor = np.sqrt(np.mean(np.abs(darray_d[nan_std[:,cnum],cnum])**2.))
+            darray[:,cnum] /= nfactor
+            darray_d[:,cnum] /= nfactor
+
     if not return_y:
         return xg[0,:].squeeze(), darray.squeeze(), darray_d.squeeze()
     else:
         return xg[0,:].squeeze(), yg[::npts_avg,0].squeeze(), darray.squeeze(), darray_d.squeeze()
 
-def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (None,None), show_k = False, delay_step = None, npts_avg = 1,
+def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (None,None), show_k = False, delay_step = None, npts_avg = 1, normalize_std=False,
                    xlim = (None,None), logscale = True, label_font_size = 14, tick_font_size = 14, title = None, freq_units = 'MHz', title_y = 1.,
                    positive_delay_only = False, time_domain = 'time', lstmin = None, lstmax = None, negative_vals = True, title_font_size = 20):
            '''
@@ -1191,6 +1199,7 @@ def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (No
                           will mask low-delay structures!
            BAD_RESID: use aipy residual (which I think is bad -- subjective nomenclature)
            BAD_WGHTS: use clean kernel that includes tapering function.
+           normalize_std: nomralize by std of diff files.
            '''
            xlim = [xlim[0],xlim[1]]
            ylim = [ylim[0],ylim[1]]
@@ -1220,7 +1229,7 @@ def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (No
                                    corrkey = pd['CORRKEY'], fmin = pd['FMIN'],
                                    fmax = pd['FMAX'], fringe_rate_max = pd['FRINGE_RATE_MAX'],
                                    delay_max=pd['DELAY_WIDTHS'], delay_center = pd['DELAY_CENTERS'],
-                                   lst_min = lstmin, lst_max = lstmax,
+                                   lst_min = lstmin, lst_max = lstmax,normalize_std = normalize_std,
                                    taper = pd['TAPER'], freq_domain = freq_domain,
                                    zero_flags = pd['ZERO_FLAGS'], tol = pd['TOL'],
                                    flag_across_time = pd['FLAG_ACROSS_TIME'], bad_wghts = pd['BAD_WGHTS'], bad_resid = pd['BAD_RESID'],
@@ -1287,7 +1296,7 @@ def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (No
             ylim[0] = np.log10(ylim[0])
             ylim[1] = np.log10(ylim[1])
 
-           plt.pcolor(x0g, x1g, y, vmin = ylim[0], vmax = ylim[1])
+           pc= plt.pcolor(x0g, x1g, y, vmin = ylim[0], vmax = ylim[1])
 
            if freq_domain == 'delay':
                ax1=plt.gca()
@@ -1327,7 +1336,7 @@ def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (No
            plt.tick_params(labelsize = tick_font_size)
            if not title is None:
                plt.title(title,fontsize = title_font_size, y = title_y)
-
+           return pc
 
 
 
