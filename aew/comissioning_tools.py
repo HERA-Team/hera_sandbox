@@ -470,7 +470,7 @@ def get_horizon(data, corrkey):
 
 def filter_data_clean(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, manual_flags = [], manual_override_flags = False,
                      fringe_rate_max = .2e-3, area_centers = [0.], area_widths = [600e-9], normalize_average = False,
-                     lst_min = None,lst_max=None,taper='boxcar',filt2d_mode='rect',
+                     lst_min = None,lst_max=None,taper='boxcar',filt2d_mode='rect', lst_norm_min = None, lst_norm_max = None, 
                      add_clean_components=True,freq_domain = 'delay', extra_chan_flags = [],
                      time_domain = 'time',tol=1e-7,bad_wghts=False, f_threshold = 0.1,
                      flag_across_time = True,bad_resid=False, t_threshold = .1, norm_zero_delay = False,
@@ -510,6 +510,12 @@ def filter_data_clean(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, manua
     if data_d is None:
         data, data_d = generate_sum_diff(data)
 
+    if lst_norm_min is None:
+        lst_norm_min = lst_min
+    if lst_norm_max is None:
+        lst_norm_max = lst_max
+
+    data_norm = down_select_data(data,fmin,fmax,lst_norm_min,lst_norm_max)
     data = down_select_data(data,fmin,fmax,lst_min,lst_max)
     data_d = down_select_data(data_d,fmin,fmax,lst_min,lst_max)
     #print('data_d shape = %s'%str(data_d.data_array.shape))
@@ -523,48 +529,61 @@ def filter_data_clean(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, manua
 
     freqs = data.freq_array.squeeze()
     delays = fft.fftshift(fft.fftfreq(len(freqs),freqs[1]-freqs[0]))
-
+    lsts = np.unique(data.lst_array)*12/np.pi
     times = 3600.*24.*np.unique(data.time_array)
     fringe_rates = fft.fftshift(fft.fftfreq(len(times),times[1]-times[0]))
-
+    times_norm = 3600.*24.*np.unique(data_norm.time_array)
     #print('ntimes = %d'%len(times))
     #print('from nblts and nbls = %d'%int(data.data_array.shape[0]/data.Nbls))
 
     wghts,darray = get_corr_data(data, corrkey)
     _, darray_d = get_corr_data(data_d, corrkey)
-
+    wghts_norm, darray_norm = get_corr_data(data_norm,corrkey)
     #print(darray.shape[0])
 
 
     if manual_override_flags:
         wghts[:] = False
+        wghts_norm[:] = False
+    wghts_c = copy.copy(wghts)
+    wghts_nc = copy.copy(wghts_norm)
 
     if flag_across_time:
         for fnum in range(len(freqs)):
             wghts[:,fnum] = np.any(wghts[:,fnum])
-
+            wghts_norm[:,fnum] = np.any(wghts_norm[:,fnum])
     #print(times.shape)
     #print(wghts.shape)
     #print(wghts.shape)
-
     for tnum in range(len(times)):
-        if float(len(wghts[tnum,wghts[tnum, :]]))/len(wghts[tnum, :]) >= t_threshold:
+        if float(len(wghts_c[tnum,wghts_c[tnum, :]]))/len(wghts_c[tnum, :]) >= t_threshold:
             wghts[tnum,:] = True #flag entire time
 
+    for tnum in range(len(times_norm)):
+        if float(len(wghts_nc[tnum,wghts_nc[tnum, :]]))/len(wghts_nc[tnum, :]) >= t_threshold:
+            wghts_norm[tnum,:] = True #flag entire time
+
+
     for cnum in range(len(freqs)):
-        if float(len(wghts[wghts[:, cnum],cnum]))/len(wghts[:, cnum]) >= f_threshold:
+        if float(len(wghts_c[wghts[:, cnum],cnum]))/len(wghts_c[:, cnum]) >= f_threshold:
             wghts[:, cnum] = True #flag entire channel
+    for cnum in range(len(freqs)):
+        if float(len(wghts_nc[wghts_nc[:, cnum],cnum]))/len(wghts_nc[:, cnum]) >= f_threshold:
+            wghts_norm[:, cnum] = True #flag entire channel
+
 
     for cnum in extra_chan_flags:
         wghts[:, cnum] = True
+        wghts_norm[:,cnum] = True
 
     for fc,fw in manual_flags:
         flag_temp = np.abs(freqs-fc) <= fw
         wghts[:,flag_temp] = True
+        wghts_norm[:,flag_temp] = True
 
     if normalize_average:
         #factor of 2 because data array is even + odd
-        norm_factor = 2. / np.mean(np.abs(darray[np.invert(wghts)]))
+        norm_factor = 2. / np.mean(np.abs(darray_norm[np.invert(wghts_norm)]))
         darray = darray * norm_factor
         darray_d = darray_d * norm_factor
 
@@ -725,7 +744,7 @@ def filter_data_linear(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, norm
                      fringe_rate_max = .2e-3, delay_max = 600e-9, delay_center = 0.,
                      lst_min = None,lst_max=None,taper='boxcar', extra_chan_flags = [],
                      freq_domain = 'delay', zero_flags = True, f_threshold = 0.1, manual_flags = [],
-                     manual_override_flags = False,
+                     manual_override_flags = False, lst_norm_min = None, lst_norm_max = None,
                      time_domain = 'time',tol=1e-7, t_threshold = 0.1, fourier_taper = None,
                      flag_across_time = True, normalize_average = False, positive_delay_only = False,
                      fringe_rate_filter = False, cache = WMAT_CACHE):
@@ -766,46 +785,67 @@ def filter_data_linear(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, norm
     if data_d is None:
         data, data_d = generate_sum_diff(data)
 
+        
+    if lst_norm_min is None:
+        lst_norm_min = lst_min
+    if lst_norm_max is None:
+        lst_norm_max = lst_max
+
+    data_norm = down_select_data(data, fmin, fmax, lst_norm_min, lst_norm_max)
     data = down_select_data(data,fmin,fmax,lst_min,lst_max)
     data_d = down_select_data(data_d,fmin,fmax,lst_min,lst_max)
+
 
     freqs = data.freq_array.squeeze()
     delays = fft.fftshift(fft.fftfreq(len(freqs),freqs[1]-freqs[0]))
 
+    lsts = 12/np.pi * np.unique(data.lst_array)
     times = 3600.*24.*np.unique(data.time_array)
+    times_norm = 3600.*24.*np.unique(data_norm.time_array)
     fringe_rates = fft.fftshift(fft.fftfreq(len(times),times[1]-times[0]))
     ntimes = len(times)
     nfreq = len(freqs)
 
     wghts,darray = get_corr_data(data, corrkey)
     _, darray_d = get_corr_data(data_d, corrkey)
-
+    wghts_norm, darray_norm = get_corr_data(data_norm, corrkey)
     if manual_override_flags:
         wghts[:] = False
+        wghts_norm[:]=False
+
+    wghts_c = copy.copy(wghts)
+    wghts_nc = copy.copy(wghts_norm)
 
     if flag_across_time:
         for fnum in range(len(freqs)):
             wghts[:,fnum] = np.any(wghts[:,fnum])
-
+            wghts_norm[:,fnum] = np.any(wghts_norm[:,fnum])
     for tnum in range(len(times)):
-        if float(len(wghts[tnum,wghts[tnum, :]]))/len(wghts[tnum, :]) >= t_threshold:
+        if float(len(wghts_c[tnum,wghts_c[tnum, :]]))/len(wghts_c[tnum, :]) >= t_threshold:
             wghts[tnum,:] = True #flag entire time
 
+    for tnum in range(len(times_norm)):
+        if float(len(wghts_nc[tnum,wghts_nc[tnum, :]]))/len(wghts_nc[tnum, :]) >= t_threshold:
+            wghts_norm[tnum,:] = True #flag entire time
     for cnum in range(len(freqs)):
-        if float(len(wghts[wghts[:, cnum],cnum]))/len(wghts[:, cnum]) >= f_threshold:
-            wghts[:, cnum] = True
+        if float(len(wghts_c[wghts[:, cnum],cnum]))/len(wghts_c[:, cnum]) >= f_threshold:
+            wghts[:, cnum] = True #flag entire channel
+    for cnum in range(len(freqs)):
+        if float(len(wghts_nc[wghts_nc[:, cnum],cnum]))/len(wghts_nc[:, cnum]) >= f_threshold:
+            wghts_norm[:, cnum] = True #flag entire channel
+        
 
     for cnum in extra_chan_flags:
         wghts[:, cnum] = True
-
+        wghts_norm[:,cnum] = True
     for fc,fw in manual_flags:
         flag_temp = np.abs(freqs-fc) <= fw
         wghts[:,flag_temp] = True
-
+        wghts_norm[:,flag_temp] = True
 
     if normalize_average:
         #factor of 2 because data array is even + odd
-        norm_factor = 2. / np.mean(np.abs(darray[np.invert(wghts)]))
+        norm_factor = 2. / np.mean(np.abs(darray_norm[np.invert(wghts_norm)]))
         darray = darray * norm_factor
         darray_d = darray_d * norm_factor
 
@@ -1006,7 +1046,8 @@ def integrate_LST(corrkey, data, data_d = None, fmin = 45e6, fmax=85e6, fringe_r
     return t, x, trace, trace_d
 
 def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6, fringe_rate_max = .2e-3, delay_max = 300e-9, delay_center = 0.,
-                           lst_min = None, lst_max = None, taper = 'boxcar', freq_domain = 'delay', zero_flags = True, normalize_average = False,
+                           lst_min = None, lst_max = None, taper = 'boxcar', freq_domain = 'delay', zero_flags = True, normalize_average = False, lst_norm_max = None,
+                           lst_norm_min = None, 
                            tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear', negative_vals = False,manual_flags = [],
                            manual_override_flags = False, add_clean_components = True, show_legend = True, avg_coherent = True, return_y = False,
                            sq_units = True, cache = WMAT_CACHE, norm_zero_delay = False, t_threshold = 0.1, f_threshold = 0.1, npts_avg = None, normalize_std = False,
@@ -1072,7 +1113,8 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
 
         if filter_method == 'linear':
             xg, yg, darray, darray_d = filter_data_linear(data = data ,data_d = data_d,corrkey = ckey, fmin = fmin, fmax = fmax,
-                                 fringe_rate_max = fringe_rate_max, delay_max = dm, delay_center = dc,
+                                 fringe_rate_max = fringe_rate_max, delay_max = dm, delay_center = dc, 
+                                 lst_norm_min = lst_norm_min, lst_norm_max = lst_norm_max, 
                                  lst_min = lst_min, lst_max=lst_max, taper=taper, normalize_average = normalize_average,
                                  manual_override_flags = manual_override_flags, manual_flags = manual_flags,
                                  freq_domain = freq_domain, zero_flags = zero_flags, fourier_taper = fourier_taper,
@@ -1083,7 +1125,8 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
         elif filter_method == 'clean':
             xg, yg, darray, darray_d = filter_data_clean(data = data,data_d = data_d,corrkey = ckey,fmin = fmin, fmax = fmax,
                                  fringe_rate_max = fringe_rate_max, area_widths = dm, area_centers = dc, norm_zero_delay = norm_zero_delay,
-                                 lst_min = lst_min,lst_max=lst_max,taper=taper,filt2d_mode='rect', extra_chan_flags = extra_chan_flags,
+                                 lst_min = lst_min,lst_max=lst_max,taper=taper,filt2d_mode='rect', extra_chan_flags = extra_chan_flags, 
+                                 lst_norm_min = lst_norm_min, lst_norm_max = lst_norm_max,
                                  add_clean_components=add_clean_components,freq_domain = freq_domain,
                                  manual_override_flags = manual_override_flags, manual_flags = manual_flags,
                                  time_domain = "time",tol=tol,bad_wghts=bad_wghts,normalize_average = normalize_average,
@@ -1106,18 +1149,16 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
 
         output_even = np.zeros((int(darray_even.shape[0]/npts_avg),darray_even.shape[1]) ,dtype = complex)
         output_odd =  np.zeros_like(output_even)
-        output_d_even = np.zeros_like(darray_d_even)
+        output_d_even = np.zeros_like(output_even)
         output_d_odd = np.zeros_like(output_d_even)
-
+        npts_avg_d = npts_avg // 2
         if avg_coherent:
-
-
             for m in range(output_even.shape[0]):
                 output_even[m] = np.mean(darray_even[m*npts_avg:(m+1)*npts_avg], axis = 0)
                 output_odd[m] = np.mean(darray_odd[m*npts_avg:(m+1)*npts_avg], axis = 0)
             for m in range(output_d_even.shape[0]):
-                output_d_even[m] = np.mean(darray_d_even[m*npts_avg:(m+1)*npts_avg], axis = 0)
-                output_d_odd[m] = np.mean(darray_d_odd[m*npts_avg:(m+1)*npts_avg], axis = 0)
+                output_d_even[m] = np.mean(darray_d_even[m*npts_avg_d:(m+1)*npts_avg_d], axis = 0)
+                output_d_odd[m] = np.mean(darray_d_odd[m*npts_avg_d:(m+1)*npts_avg_d], axis = 0)
 
             #darray_d_even = np.mean(darray_d_even, axis = 0)
             #darray_d_odd = np.mean(darray_d_odd, axis = 0)
@@ -1135,7 +1176,10 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
                 output_d[m] = np.mean(darray_d[m*npts_avg:(m+1)*npts_avg], axis = 0) * np.sqrt(2.)
 
             #output_d = np.mean(output_d, axis = 0) * np.sqrt(2.)
-
+    #print('output shape =')
+    #print(output.shape)
+    #print('output_d shape = ')
+    #print(output_d.shape)
     darray_list.append(output)
     darray_d_list.append(output_d)
 
@@ -1158,8 +1202,8 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
         return xg[0,:].squeeze(), yg[::npts_avg,0].squeeze(), darray.squeeze(), darray_d.squeeze()
 
 def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (None,None), show_k = False, delay_step = None, npts_avg = 1, normalize_std=False,
-                   xlim = (None,None), logscale = True, label_font_size = 14, tick_font_size = 14, title = None, freq_units = 'MHz', title_y = 1.,
-                   positive_delay_only = False, time_domain = 'time', lstmin = None, lstmax = None, negative_vals = True, title_font_size = 20):
+                   xlim = (None,None), logscale = True, label_font_size = 14, tick_font_size = 14, title = None, freq_units = 'MHz', title_y = 1.,lst_norm_min = None,
+                   positive_delay_only = False, time_domain = 'time', lstmin = None, lstmax = None, negative_vals = True, title_font_size = 20,lst_norm_max = None):
            '''
            DATA, a pyuvdata object containing primary data.
            DATA_DIFF, a pyuvdata object containing diffed data.
@@ -1226,7 +1270,7 @@ def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (No
            if lstmax is None:
                 lstmax = pd['LST_MAX']
            x0, x1, y, yd = filter_and_average_abs(data = pd['DATA'], data_d = pd['DATA_DIFF'],
-                                   corrkey = pd['CORRKEY'], fmin = pd['FMIN'],
+                                   corrkey = pd['CORRKEY'], fmin = pd['FMIN'],lst_norm_min = lst_norm_min, lst_norm_max = lst_norm_max,
                                    fmax = pd['FMAX'], fringe_rate_max = pd['FRINGE_RATE_MAX'],
                                    delay_max=pd['DELAY_WIDTHS'], delay_center = pd['DELAY_CENTERS'],
                                    lst_min = lstmin, lst_max = lstmax,normalize_std = normalize_std,
@@ -1342,11 +1386,11 @@ def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (No
 
 
 
-def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', ylim = (None, None),show_k=False,delay_step=None,
+def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', ylim = (None, None),show_k=False,delay_step=None,lst_norm_min = None, lst_norm_max = None,
                                 xlim = (None,None),logscale = True, legend_font_size = 14, show_signal = True, show_diff = True, lstmin=None, lstmax=None,
                                 label_font_size = 14, tick_font_size = 14, legend_loc = 'lower center', title = None,alpha=1.,alpha_diff = .25,
                                 title_font_size = 18, title_y = 1.1, no_labels = False, freq_units = 'MHz', positive_delay_only = False,
-                                legend_ncol = None, legend_bbox = (0.5, 0.), show_legend = True, negative_vals = False,lw_override=None):
+                                legend_ncol = None, legend_bbox = (0.5, 0.), show_legend = True, negative_vals = False,lw_override=None, ls_override = None):
     '''
     plot_dict_list: a list of dictionaries specifying the plotting parameters of each line.
     each dictionary must have the following:
@@ -1428,17 +1472,18 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
     lines = []
     labels = []
 
-    if lstmin is None:
-        lstmin = pd['LST_MIN']
-    if lstmax is None:
-        lstmax = pd['LST_MAX']
 
     for pd in plot_dict_list:
+        if lstmin is None:
+            lstmin = pd['LST_MIN']
+        if lstmax is None:
+            lstmax = pd['LST_MAX']
+
         x, y, yd = filter_and_average_abs(data = pd['DATA'], data_d = pd['DATA_DIFF'],
                                 corrkey = pd['CORRKEY'], fmin = pd['FMIN'],
                                 fmax = pd['FMAX'], fringe_rate_max = pd['FRINGE_RATE_MAX'],
                                 delay_max=pd['DELAY_WIDTHS'], delay_center = pd['DELAY_CENTERS'],
-                                lst_min = lstmin, lst_max = lstmax,
+                                lst_min = lstmin, lst_max = lstmax, lst_norm_min = lst_norm_min, lst_norm_max = lst_norm_max,
                                 taper = pd['TAPER'], freq_domain = freq_domain,
                                 zero_flags = pd['ZERO_FLAGS'], tol = pd['TOL'],
                                 flag_across_time = pd['FLAG_ACROSS_TIME'], bad_wghts = pd['BAD_WGHTS'], bad_resid = pd['BAD_RESID'],
@@ -1450,6 +1495,10 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
                                 t_threshold = pd['T_THRESHOLD'], extra_chan_flags = pd['CHANNEL_FLAGS'],
                                 normalize_average = pd['NORMALIZE_AVERAGE'],
                                 sq_units = sq_units, cache = pd['CACHE'], negative_vals = negative_vals)
+        
+        #print(yd.shape)
+        #print(y.shape)
+        #print(x.shape)
 
         if freq_domain == 'delay':
             x *= 1e9
@@ -1471,6 +1520,10 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
             y = np.abs(y)
             yd = np.abs(yd)
 
+        if ls_override is None:
+            ls = pd['LINESTYLE']
+        else:
+            ls = ls_override
 
         if lw_override is None:
             lw = pd['LINEWIDTH']
@@ -1480,9 +1533,9 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
         if show_signal:
             lines.append(plt.plot(x,y,lw=lw,
                               color=pd['COLOR'],
-                              ls=pd['LINESTYLE'],alpha=alpha)[0])
+                              ls=ls,alpha=alpha)[0])
             if show_diff:
-                plt.plot(x,yd,lw=1,ls=pd['LINESTYLE'],
+                plt.plot(x,yd,lw=1,ls=ls,
                      color=pd['COLOR'],alpha=alpha_diff)
 
 
