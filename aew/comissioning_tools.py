@@ -1342,7 +1342,7 @@ def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (No
 
 
 def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', ylim = (None, None),show_k=False,delay_step=None,
-                                xlim = (None,None),logscale = True, legend_font_size = 14, show_signal = True, show_diff = True,
+                                xlim = (None,None),logscale = True, legend_font_size = 14, show_signal = True, show_diff = True, lstmin=None, lstmax=None,
                                 label_font_size = 14, tick_font_size = 14, legend_loc = 'lower center', title = None,alpha=1.,alpha_diff = .25,
                                 title_font_size = 18, title_y = 1.1, no_labels = False, freq_units = 'MHz', positive_delay_only = False,
                                 legend_ncol = None, legend_bbox = (0.5, 0.), show_legend = True, negative_vals = False,lw_override=None):
@@ -1427,12 +1427,17 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
     lines = []
     labels = []
 
+    if lstmin is None:
+        lstmin = pd['LST_MIN']
+    if lstmax is None:
+        lstmax = pd['LST_MAX']
+
     for pd in plot_dict_list:
         x, y, yd = filter_and_average_abs(data = pd['DATA'], data_d = pd['DATA_DIFF'],
                                 corrkey = pd['CORRKEY'], fmin = pd['FMIN'],
                                 fmax = pd['FMAX'], fringe_rate_max = pd['FRINGE_RATE_MAX'],
                                 delay_max=pd['DELAY_WIDTHS'], delay_center = pd['DELAY_CENTERS'],
-                                lst_min = pd['LST_MIN'], lst_max = pd['LST_MAX'],
+                                lst_min = lstmin, lst_max = lstmax,
                                 taper = pd['TAPER'], freq_domain = freq_domain,
                                 zero_flags = pd['ZERO_FLAGS'], tol = pd['TOL'],
                                 flag_across_time = pd['FLAG_ACROSS_TIME'], bad_wghts = pd['BAD_WGHTS'], bad_resid = pd['BAD_RESID'],
