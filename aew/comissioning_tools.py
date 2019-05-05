@@ -1241,6 +1241,7 @@ def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (No
                                    t_threshold = pd['T_THRESHOLD'], extra_chan_flags = pd['CHANNEL_FLAGS'],
                                    normalize_average = pd['NORMALIZE_AVERAGE'],npts_avg = npts_avg, return_y = True,
                                    sq_units = sq_units, cache = pd['CACHE'], negative_vals = negative_vals)
+           print(yd.shape)
            if freq_domain == 'delay':
                x0 *= 1e9
            elif freq_domain == 'frequency':
