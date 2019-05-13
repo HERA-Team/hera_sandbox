@@ -873,15 +873,21 @@ def filter_data_linear(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, norm
     if not PARALLELIZED:
         for tnum in range(ntimes):
             if not np.all(wghts[tnum,:]):
-                resid[tnum,:] = linear_filter(freqs,darray[tnum,:],wghts[tnum,:],patch_c = delay_center,
-                                             patch_w = delay_max, filter_factor = tol, weights = 'WTL',
-                                             renormalize = False, zero_flags = zero_flags,
-                                             taper = taper, fourier_taper = fourier_taper)
+                try:
+                
+                    resid[tnum,:] = linear_filter(freqs,darray[tnum,:],wghts[tnum,:],patch_c = delay_center,
+                                                  patch_w = delay_max, filter_factor = tol, weights = 'WTL',
+                                                  renormalize = False, zero_flags = zero_flags,
+                                                  taper = taper, fourier_taper = fourier_taper)
 
-                resid_d[tnum,:] = linear_filter(freqs,darray_d[tnum,:],wghts[tnum,:],patch_c = delay_center,
-                                             patch_w = delay_max, filter_factor = tol, weights = 'WTL',
-                                             renormalize = False, zero_flags = zero_flags,
-                                             taper = taper, fourier_taper = fourier_taper)
+                    resid_d[tnum,:] = linear_filter(freqs,darray_d[tnum,:],wghts[tnum,:],patch_c = delay_center,
+                                                    patch_w = delay_max, filter_factor = tol, weights = 'WTL',
+                                                    renormalize = False, zero_flags = zero_flags,
+                                                    taper = taper, fourier_taper = fourier_taper)
+                except np.linalg.LinAlgError:
+                    print('warning: svd not converged.')
+                    resid[tnum,:] = np.zeros(darray.shape[1],dtype=complex)
+                    wghts[tnum,:] = True
     else:
         print('Parallelized!')
         resid = np.asarray(Parallel(n_jobs = NCPU)(delayed(linear_filter)(freqs,darray[tnum,:],wghts[tnum,:],patch_c = delay_center,
