@@ -26,6 +26,8 @@ from scipy.signal import windows
 from warnings import warn
 from scipy.optimize import leastsq, lsq_linear
 import multiprocessing
+from astropy.time import Time, TimezoneInfo
+import astropy.units as units
 NCPU = multiprocessing.cpu_count()
 from aipy.deconv import clean
 try:
@@ -758,7 +760,7 @@ def filter_data_linear(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, norm
                      manual_override_flags = False, lst_norm_min = None, lst_norm_max = None,
                      time_domain = 'time',tol=1e-7, t_threshold = 0.1, fourier_taper = None,
                      flag_across_time = True, normalize_average = False, positive_delay_only = False,
-                     fringe_rate_filter = False, cache = WMAT_CACHE):
+                       fringe_rate_filter = False, cache = WMAT_CACHE, time_units = 'lst'):
     '''
     data, pyuvdata object storing summed measurement
     data_d, pyuvdata object storing differential measurement, if None, generate diffed data and summed data automatically
@@ -770,6 +772,7 @@ def filter_data_linear(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, norm
     lst_min, minimum lst to run waterfall from -- !!BREAKS IF DATA CROSSES 0 LST!!
     lst_max, maximum lst to run waterfall from -- !!BREAKS IF DATA CROSSES 0 LST!!
     taper, string, Fourier window function.
+    time_units, string, specify 'lst' or 'jd'. 
     freq_domain, specify if the output should be in the "frequency" or "delay" domain
                 string
     time_domain, specify if the output should be in the "time" or "fringe-rate" domain
@@ -946,8 +949,10 @@ def filter_data_linear(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, norm
         taper = np.array([taper for m in range(nfreq)]).T
         output = fft.fftshift(fft.ifft(fft.fftshift(taper * output,axes=[0]),axis=0),axes=[0])
         output_d = fft.fftshift(fft.ifft(fft.fftshift(taper * output_d,axes=[0]),axis=0),axes=[0])
-    else:
+    if time_units == 'lst':
         y = np.unique(data.lst_array) * 24. / 2. / np.pi
+    else:
+        y = np.unique(data.time_array) 
     if freq_domain == 'delay':
         x = delays
         taper = signal.windows.get_window(taper, nfreq)
@@ -1067,7 +1072,7 @@ def integrate_LST(corrkey, data, data_d = None, fmin = 45e6, fmax=85e6, fringe_r
 
 def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6, fringe_rate_max = .2e-3, delay_max = 300e-9, delay_center = 0.,
                            lst_min = None, lst_max = None, taper = 'boxcar', freq_domain = 'delay', zero_flags = True, normalize_average = False, lst_norm_max = None,
-                           lst_norm_min = None,
+                           lst_norm_min = None, time_units = 'lst',
                            tol = 1e-7, flag_across_time = True, fringe_rate_filter = False, filter_method = 'linear', negative_vals = False,manual_flags = [],
                            manual_override_flags = False, add_clean_components = True, show_legend = True, avg_coherent = True, return_y = False,
                            sq_units = True, cache = WMAT_CACHE, norm_zero_delay = False, t_threshold = 0.1, f_threshold = 0.1, npts_avg = None, normalize_std = False,
@@ -1137,7 +1142,7 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
         if filter_method == 'linear':
             xg, yg, darray, darray_d = filter_data_linear(data = data ,data_d = data_d,corrkey = ckey, fmin = fmin, fmax = fmax,
                                  fringe_rate_max = fringe_rate_max, delay_max = dm, delay_center = dc,
-                                 lst_norm_min = lst_norm_min, lst_norm_max = lst_norm_max,
+                                 lst_norm_min = lst_norm_min, lst_norm_max = lst_norm_max, time_units = time_units, 
                                  lst_min = lst_min, lst_max=lst_max, taper=taper, normalize_average = normalize_average,
                                  manual_override_flags = manual_override_flags, manual_flags = manual_flags,
                                  freq_domain = freq_domain, zero_flags = zero_flags, fourier_taper = fourier_taper,
@@ -1227,7 +1232,7 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
 
 def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (None,None), show_k = False, delay_step = None, npts_avg = 1, normalize_std=False,
                    xlim = (None,None), logscale = True, label_font_size = 14, tick_font_size = 14, title = None, freq_units = 'MHz', title_y = 1.,lst_norm_min = None,
-                   positive_delay_only = False, time_domain = 'time', lstmin = None, lstmax = None, negative_vals = True, title_font_size = 20,lst_norm_max = None):
+                   positive_delay_only = False, time_domain = 'time', lstmin = None, lstmax = None, negative_vals = True, title_font_size = 20, time_units = 'lst', lst_norm_max = None):
            '''
            DATA, a pyuvdata object containing primary data.
            DATA_DIFF, a pyuvdata object containing diffed data.
@@ -1299,7 +1304,7 @@ def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (No
                                    delay_max=pd['DELAY_WIDTHS'], delay_center = pd['DELAY_CENTERS'],
                                    lst_min = lstmin, lst_max = lstmax,normalize_std = normalize_std,
                                    taper = pd['TAPER'], freq_domain = freq_domain,
-                                   zero_flags = pd['ZERO_FLAGS'], tol = pd['TOL'],
+                                   zero_flags = pd['ZERO_FLAGS'], tol = pd['TOL'], time_units = time_units, 
                                    flag_across_time = pd['FLAG_ACROSS_TIME'], bad_wghts = pd['BAD_WGHTS'], bad_resid = pd['BAD_RESID'],
                                    fringe_rate_filter = pd['FRINGE_RATE_FILTER'], manual_flags = pd['MANUAL_FLAGS'],
                                    filter_method = pd['FILTER_METHOD'], norm_zero_delay = pd['NORMALIZE_ZERO_DELAY'],
@@ -1366,6 +1371,10 @@ def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (No
             ylim[1] = np.log10(ylim[1])
 
            pc= plt.pcolor(x0g, x1g, y, vmin = ylim[0], vmax = ylim[1])
+           nyticks = 10
+           yticks = np.linspace(x1g.min(), x1g.max(), nyticks)
+           tz = TimezoneInfo(utc_offset = 2. * units.hour)
+           
 
            if freq_domain == 'delay':
                ax1=plt.gca()
@@ -1401,10 +1410,31 @@ def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (No
                #   plt.ylabel('|$V(\\nu)|^2$', fontsize = label_font_size)
                #else:
                #   plt.ylabel('|$V(\\nu)|$', fontsize = label_font_size)
-               plt.ylabel('LST (Hours)', fontsize = label_font_size)
+               if time_units == 'lst':
+                   plt.ylabel('LST (Hours)', fontsize = label_font_size)
+               elif time_units == 'sast':
+                   plt.ylabel('SAST', fontsize = label_font_size)
+               elif time_units == 'jd':
+                   plt.ylabel('JD', fontsize = label_font_size)
            plt.tick_params(labelsize = tick_font_size)
            if not title is None:
                plt.title(title,fontsize = title_font_size, y = title_y)
+           #if time_units == 'jd':
+           #    print(plt.gca().get_yticks())
+
+           if time_units == 'sast':
+               tick_labels = []
+               for tick in yticks:
+                   #print(tick)
+                   tjd = Time(float(tick), format='jd')
+                   tdt = tjd.to_datetime(timezone = tz)
+                   tlabel = '%d %02d-%02d %02d:%02d'%(tdt.year, tdt.month, tdt.day, tdt.hour, tdt.minute)
+                   #print(tlabel)
+                   tick_labels.append(tlabel)
+               plt.gca().set_yticks(yticks)
+               plt.gca().set_yticklabels(tick_labels)
+                   
+
            return pc
 
 
