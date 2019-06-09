@@ -339,11 +339,20 @@ def down_select_data(data,fmin=45e6,fmax=85e6,lst_min=None,lst_max=None):
     '''
     This LST selection will break if the data crosses midnight.
     '''
-    lst_select = np.logical_and(np.unique(data.lst_array) >=  lst_min * 2. * np.pi / 24.,
-                                np.unique(data.lst_array) <= lst_max * 2. * np.pi / 24.)
+    #print('max lst provided is %f'%(lst_max))
+    #print('min lst provided is %f'%(lst_min))
+    lst_inds = np.unique(data.lst_array, return_index=True)[1]
+    #print(lst_inds.shape)
+    #print(lst_inds)
+    lst_unique = np.asarray([data.lst_array[index] for index in sorted(lst_inds)])
+    
+    lst_select = np.logical_and(lst_unique >=  lst_min * 2. * np.pi / 24.,
+                                lst_unique <= lst_max * 2. * np.pi / 24.)
     times_select = np.unique(data.time_array)[lst_select]
+    #print('max lst select is %f'%(lst_unique[lst_select].max()*12/np.pi))
+    #print('min lst select is %f'%(lst_unique[lst_select].min()*12/np.pi))
     ntimes = len(times_select)
-
+    #print('ntimes init = %d'%ntimes)
     if np.mod(ntimes,2)==1 and ntimes>1:
         ntimes -=1
         times_select = times_select[:-1]
@@ -354,6 +363,8 @@ def down_select_data(data,fmin=45e6,fmax=85e6,lst_min=None,lst_max=None):
     if np.mod(len(freqs[select_channels]),2)==1:
         select_channels=select_channels[:-1]
     data = data.select(freq_chans=select_channels,times = times_select,inplace=False)
+    #print('ntimes after = %d'%ntimes)
+    #print('max time resulting = %f'%(data.lst_array.max()*12/np.pi))
     return data
 
 def get_corr_data(data,corrkey, f_threshold = None, t_threshold = None,return_xy = False,
@@ -790,7 +801,10 @@ def filter_data_linear(corrkey,data,data_d = None,fmin = 45e6, fmax = 85e6, norm
         lst_norm_min = lst_min
     if lst_norm_max is None:
         lst_norm_max = lst_max
-
+    if not lst_min is None:
+        print('minimum lst = %f'%lst_min)
+    if not lst_max is None:
+        print('maximum lst = %f'%lst_max)
     data_norm = down_select_data(data, fmin, fmax, lst_norm_min, lst_norm_max)
     data = down_select_data(data,fmin,fmax,lst_min,lst_max)
     data_d = down_select_data(data_d,fmin,fmax,lst_min,lst_max)
@@ -1112,7 +1126,10 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
         delay_max = [delay_max]
     darray_list = []
     darray_d_list = []
-
+    if not lst_min is None:
+        print('lst_min=%f'%lst_min)
+    if not lst_max is None:
+        print('lst_max=%f'%lst_max)
     for ckey,dc,dm in zip(corrkey,delay_center,delay_max):
         if data_d is None:
             data, data_d = generate_sum_diff(data)
@@ -1141,7 +1158,8 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
         else:
             raise ValueError("Failed to specify a valid filtering method. Valid options are 'clean' and 'linear'")
         #split data into even and odd sets.
-
+        print('maximum time=%f'%yg.squeeze().max())
+        print('maximum freq=%f'%xg.squeeze().max())
         if npts_avg is None:
             npts_avg = darray.shape[0]
 
