@@ -1181,6 +1181,8 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
         output_d_even = np.zeros_like(output_even)
         output_d_odd = np.zeros_like(output_d_even)
         npts_avg_d = npts_avg // 2
+        output = np.zeros_like(output_even)
+        output_d = np.zeros_like(output_d_even)
         if avg_coherent:
             for m in range(output_even.shape[0]):
                 output_even[m] = np.mean(darray_even[m*npts_avg:(m+1)*npts_avg], axis = 0)
@@ -1197,7 +1199,7 @@ def filter_and_average_abs(data, corrkey, data_d = None, fmin=45e6, fmax = 85e6,
 
         if not avg_coherent:
             darray = darray_even * np.conj(darray_odd)
-            darray_d = darray_even * np.conj(darray_odd)
+            darray_d = darray_d_even * np.conj(darray_d_odd)
 
             for m in range(output.shape[0]):
                 output[m] = np.mean(darray[m*npts_avg:(m+1)*npts_avg], axis = 0)
@@ -1369,11 +1371,15 @@ def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (No
             y = np.log10(y)
             ylim[0] = np.log10(ylim[0])
             ylim[1] = np.log10(ylim[1])
-
+           
            pc= plt.pcolor(x0g, x1g, y, vmin = ylim[0], vmax = ylim[1])
            nyticks = 10
            yticks = np.linspace(x1g.min(), x1g.max(), nyticks)
-           tz = TimezoneInfo(utc_offset = 2. * units.hour)
+           if time_units == 'sast':
+               utc_offset = 2.
+           else:
+               utc_offset = 0.
+           tz = TimezoneInfo(utc_offset = utc_offset * units.hour)
            
 
            if freq_domain == 'delay':
@@ -1414,6 +1420,8 @@ def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (No
                    plt.ylabel('LST (Hours)', fontsize = label_font_size)
                elif time_units == 'sast':
                    plt.ylabel('SAST', fontsize = label_font_size)
+               elif time_units =='utc':
+                   plt.ylabel('UTC', fontsize = label_font_size)
                elif time_units == 'jd':
                    plt.ylabel('JD', fontsize = label_font_size)
            plt.tick_params(labelsize = tick_font_size)
@@ -1422,7 +1430,7 @@ def waterfall_plot(plot_dict, sq_units = True, freq_domain = 'delay', ylim = (No
            #if time_units == 'jd':
            #    print(plt.gca().get_yticks())
 
-           if time_units == 'sast':
+           if time_units == 'sast' or time_units == 'utc':
                tick_labels = []
                for tick in yticks:
                    #print(tick)
