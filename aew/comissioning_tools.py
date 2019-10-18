@@ -1534,7 +1534,8 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
 
     lines = []
     labels = []
-
+    
+    values = []
 
     for pd in plot_dict_list:
         if lstmin is None:
@@ -1561,6 +1562,8 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
         #print(yd.shape)
         #print(y.shape)
         #print(x.shape)
+        
+        values.append([x,y,yd])
 
         if freq_domain == 'delay':
             x *= 1e9
@@ -1719,7 +1722,7 @@ def avg_comparison_plot(plot_dict_list, sq_units = True,freq_domain = 'delay', y
     #    plt.gca().set_xlabel('')
     #    plt.gca().set_ylabel('')
     plt.grid()
-    return lines, labels, plt.gcf(), plt.gca()
+    return lines, labels, plt.gcf(), plt.gca(), values
 
 
 
