@@ -30,16 +30,21 @@ uvd = UVData()
 uvd.read(file_glob, ant_str='auto', polarizations=use_pols)
 
 # just do everything in this script; first isolate the rfi
-rfi_data = np.zeros_like(uvd.data_array, dtype=uvd.data_array.dtype)
+rfi_data = np.zeros_like(uvd.data_array, dtype=np.float)
+normalized_rfi_data = np.zeros_like(rfi_data, dtype=np.float)
+rfi_flags = np.zeros_like(rfi_data, dtype=np.bool)
 
 for antpairpol in uvd.get_antpairpols():
     # get indices for properly slicing through data array
     blt_inds, conj_blt_inds, pol_inds = uvd._key2inds(antpairpol)
+    this_slice = slice(blt_inds, 0, None, pol_inds[0])
 
     # approximately remove all non-rfi signal
-    this_data = uvd.get_data(antpairpol)
+    this_data = uvd.get_data(antpairpol).real
     filt_data = xrfi.medminfilt(this_data)
     this_rfi = this_data - filt_data
+    this_rfi[this_rfi <= 0] = 1
+    this_ratio = this_data / filt_data
 
     # detrend the original data to find where the stations are
     detrended_data = xrfi.detrend_medfilt(data)
@@ -51,19 +56,30 @@ for antpairpol in uvd.get_antpairpols():
     station_flags = xrfi._ws_flag_waterfall(
         detrended_data, station_flags, nsig=20
     )
+    rfi_flags[this_slice] = station_flags
 
     # update the rfi data to only keep rfi from narrowband transmitters
     # using 1 as the zero value so that it's log-friendly
     this_rfi = np.where(station_flags, this_rfi, 1)
 
     # update the rfi_data array appropriately
-    rfi_data[blt_inds, 0, :, pol_inds[0]] = this_rfi
+    rfi_data[this_slice] = this_rfi
+    normalized_rfi_data[this_slice] = this_ratio
 
 # TODO: update the clobber part to be reasonable
 clobber = True
+
+# write the rfi station file
 save_filename = os.path.join(
     dirname, "zen.{jd}.rfi_stations.uvh5".format(jd=jd)
 )
 uvd.data_array = rfi_data
+uvd.flag_array = rfi_flags
 uvd.write_uvh5(save_filename, clobber=clobber)
 
+# write the normalized version
+save_filename = save_filename.replace(
+    ".rfi_stations.", ".normalized_rfi_stations."
+)
+uvd.data_array = normalized_rfi_data
+uvd.write_uvh5(save_filename, clobber=clobber)
