@@ -1,85 +1,63 @@
 # -*- mode: python; coding: utf-8 -*-
 # Copyright 2018 the HERA Collaboration
 # Licensed under the 2-clause BSD license.
-import glob
 import os
 import re
 import sys
 
+import numpy as np
 from hera_qm import xrfi
 from pyuvdata import UVData
-from pyuvdata.utils import polstr2num
 
-# figure out which directory the data lives in
-filename = sys.argv[1]
-dirname, file_basename = os.path.split(filename)
-jd_pattern = re.compile("[0-9]{7}")
-jd = jd_pattern.findall(file_basename)[0]
-file_glob = sorted(
-    glob.glob(os.path.join(dirname, "zen.{jd}.*.uvh5".format(jd=jd)))
-)
-file_glob = list([fname for fname in file_glob if "diff" not in fname])
-if len(file_glob) == 0:
-    raise FileNotFoundError(
-        "Something went wrong--no files were found."
-    )
-
-# load in the data, downselect to autos and linear pols
-use_pols = [polstr2num(pol) for pol in ('xx', 'yy')]
+# Some file setup stuff.
+auto_file = sys.argv[1]
+save_dir = sys.argv[2]
+pattern = re.compile("[0-9]{7}")
+jd = pattern.findall(auto_file)[0]
 uvd = UVData()
-uvd.read(file_glob, ant_str='auto', polarizations=use_pols)
+uvd.read(auto_file)
 
-# just do everything in this script; first isolate the rfi
-rfi_data = np.zeros_like(uvd.data_array, dtype=np.float)
-normalized_rfi_data = np.zeros_like(rfi_data, dtype=np.float)
-rfi_flags = np.zeros_like(rfi_data, dtype=np.bool)
+# Do the detrending and flagging.
+data_shape = uvd.data_array.shape
+detrended_rfi_data = np.zeros(data_shape, dtype=np.float)
+rfi_flags = np.zeros(data_shape, dtype=np.bool)
+medfilt_nsig = 40
+ws_nsig = 5
 
 for antpairpol in uvd.get_antpairpols():
     # get indices for properly slicing through data array
     blt_inds, conj_blt_inds, pol_inds = uvd._key2inds(antpairpol)
-    this_slice = slice(blt_inds, 0, None, pol_inds[0])
-
-    # approximately remove all non-rfi signal
-    this_data = uvd.get_data(antpairpol).real
-    filt_data = xrfi.medminfilt(this_data)
-    this_rfi = this_data - filt_data
-    this_rfi[this_rfi <= 0] = 1
-    this_ratio = this_data / filt_data
+    if len(blt_inds) > 0:
+        this_slice = (blt_inds, 0, slice(None), pol_inds[0])
+    else:
+        this_slice = (conj_blt_inds, 0, slice(None), pol_inds[1])
 
     # detrend the original data to find where the stations are
-    detrended_data = xrfi.detrend_medfilt(data)
+    this_data = uvd.get_data(antpairpol).real
+    detrended_data = xrfi.detrend_medfilt(this_data)
     station_flags = np.where(
-        detrended_data > 100, True, False
+        detrended_data > medfilt_nsig, True, False
     )
 
     # update flags with watershed algorithm
     station_flags = xrfi._ws_flag_waterfall(
-        detrended_data, station_flags, nsig=20
+        detrended_data, station_flags, nsig=ws_nsig
     )
     rfi_flags[this_slice] = station_flags
-
-    # update the rfi data to only keep rfi from narrowband transmitters
-    # using 1 as the zero value so that it's log-friendly
-    this_rfi = np.where(station_flags, this_rfi, 1)
-
-    # update the rfi_data array appropriately
-    rfi_data[this_slice] = this_rfi
-    normalized_rfi_data[this_slice] = this_ratio
+    detrended_rfi_data[this_slice] = detrended_data
 
 # TODO: update the clobber part to be reasonable
 clobber = True
+history = "\nFlagged narrowband RFI using median filter detrending and "
+history += f"a watershed algorithm. Median filter cut is {medfilt_nsig} " 
+history += f"sigma; watershed algorithm cut is {ws_nsig}."
+uvd.history += history
 
-# write the rfi station file
+# Just write the detrended data to disk with the flags.
 save_filename = os.path.join(
-    dirname, "zen.{jd}.rfi_stations.uvh5".format(jd=jd)
+    save_dir, f"zen.{jd}.detrended.flagged.uvh5"
 )
-uvd.data_array = rfi_data
 uvd.flag_array = rfi_flags
+uvd.data_array = detrended_rfi_data
 uvd.write_uvh5(save_filename, clobber=clobber)
 
-# write the normalized version
-save_filename = save_filename.replace(
-    ".rfi_stations.", ".normalized_rfi_stations."
-)
-uvd.data_array = normalized_rfi_data
-uvd.write_uvh5(save_filename, clobber=clobber)
