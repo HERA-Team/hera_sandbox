@@ -19,7 +19,7 @@ declare visfiles=$(ls)
 declare saveto=/lustre/aoc/projects/hera/rpascua/rfi/narrowband_data
 
 cd /users/rpascua/hera_packages/hera_sandbox/rfp/scripts  
-for visfile in visfiles; do
+for visfile in $visfiles; do
     # Only perform detrending and flagging on sum files.
     if [[ "$visfile" == *"autos.sum"* ]]; then
         # Check if the detrending has already been done.
