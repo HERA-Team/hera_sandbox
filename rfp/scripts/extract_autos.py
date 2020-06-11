@@ -28,9 +28,9 @@ if len(file_glob) == 0:
 # Load in the autos for the sum/diff files and write to disk.
 for file_glob, file_type in zip([sum_file_glob, diff_file_glob], ('sum', 'diff')):
     uvd = UVData()
-    uvd.read(sum_file_glob, axis='blt', ant_str='auto')
+    uvd.read(file_glob, axis='blt', ant_str='auto')
     save_filename = os.path.join(
         save_dir, f"zen.{jd}.autos.{file_type}.uvh5"
     )
-    uvd.write_uvh5(save_filename, clobber=clobber)
+    uvd.write_uvh5(save_filename, clobber=True)
 
