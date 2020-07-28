@@ -1,0 +1,50 @@
+setup:
+    vis_dtype: complex64
+    array_layout:
+        array_type: golomb
+        Nants: 20
+        base_sep: 14.6  # meters
+        angle: 0  # angle in en-plane, ccw from east; radians
+    freq:
+        Nfreqs: 1024
+        fmin: 0.1  # GHz
+        fmax: 0.2  # GHz
+        dtype: float32
+    sky:
+        ndim: 1
+        Npix: 500
+        xmin: -1
+        xmax: 1
+        dtype: float32
+sky:
+    pntsrc_foreground:
+        label: F
+        mfreq: 0.150
+        Nsrcs: 1000
+        intensity_bounds:
+            - !!float 1e-3
+            - 10
+        intensity_slope: -2
+        spectral_index_mean: -1
+        spectral_index_std: 0.5
+        seed: !!null
+        dtype: float32
+    noiselike_eor:
+        label: E
+        amp: !!float 1e-5
+        seed: !!null
+        dtype: float32
+beams:
+    S:
+        type: sinc
+        mfreq: 0.150
+        width: 0.2
+        chromaticity: -1
+        dtype: float32
+filing:
+    outdir: .
+    vis_filename: test_sim_vis
+    beam_filename: test_sim_beam
+    intensities_filename: test_sim_intensities
+    metadata_filename: test_sim_meta
+    log_filename: test_fg_sub.log
