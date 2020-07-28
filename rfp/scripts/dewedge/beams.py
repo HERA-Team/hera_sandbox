@@ -6,9 +6,8 @@ class Beam1d:
     """Base class for constructing a 1-dimensional beam."""
     def __init__(
         self,
-        thetas,
+        xs,
         freqs=0.15,
-        ref_theta=0,
         width=0.2,
         mfreq=0.15,
         chromaticity=0,
@@ -31,15 +30,12 @@ class Beam1d:
         
         Parameters
         ----------
-        thetas: array-like of float
-            Angular positions on the sky, in radians, with zero representing
-            zenith.
+        xs: array-like of float
+            Angular positions projected onto the plane of the sky, with zenith
+            as the reference. Should be bounded below by -1 and above by 1.
         freqs: array-like of float, optional
             Frequencies at which to evaluate the beam, in GHz; only required
             for simulating chromatic beams.
-        ref_theta: float, optional
-            Direction the beam is pointed, in radians. Default is to assume
-            a drift-scan telescope, with the peak response at zenith.
         width: float or array-like of float, optional
             ``Width'' of the beam in radians. For a Gaussian beam, this
             represents the standard deviation of the beam. Custom beam
@@ -58,18 +54,16 @@ class Beam1d:
             use 32-bit floats.
         """
         # Output will have shape Nthetas x Nfreqs
-        self.thetas = np.atleast_2d(thetas).T
+        self.xs = np.atleast_2d(xs).T
         self.freqs = np.atleast_2d(freqs)
         self.width = np.atleast_1d(width)
         self.horizon = np.pi / 2
-        self.ref_theta = ref_theta
         self.mfreq = mfreq
         self.chromaticity = chromaticity
         self.dtype = dtype
 
     def gaussian(
         self,
-        ref_theta=None,
         width=None,
         mfreq=None,
         chromaticity=None,
@@ -80,9 +74,6 @@ class Beam1d:
 
         Parameters
         ----------
-        ref_theta: float, optional
-            Direction the beam is pointed, in radians. Default is to assume
-            a drift-scan telescope, with the peak response at zenith.
         width: float or array-like of float, optional
             ``Width'' of the beam in radians. For a Gaussian beam, this
             represents the standard deviation of the beam. Custom beam
@@ -110,18 +101,14 @@ class Beam1d:
             frequencies provided at class initialization. Has shape
             ``(self.thetas.size, self.freqs.size)``.
         """
-        thetas, widths, dtype = self._process_args(
-            ref_theta, width, mfreq, chromaticity, dtype
-        )
-        response = np.exp(-0.5 * (np.sin(thetas) / np.sin(widths)) ** 2)
-        response = np.where(np.abs(self.thetas) <= self.horizon, response, 0)
+        widths, dtype = self._process_args(width, mfreq, chromaticity, dtype)
+        response = np.exp(-0.5 * (self.xs / np.sin(widths)) ** 2)
         if power:
             response = response ** 2
         return response.astype(dtype)
 
     def sinc(
         self,
-        ref_theta=None,
         width=None,
         mfreq=None,
         chromaticity=None,
@@ -132,9 +119,6 @@ class Beam1d:
 
         Parameters
         ----------
-        ref_theta: float, optional
-            Direction the beam is pointed, in radians. Default is to assume
-            a drift-scan telescope, with the peak response at zenith.
         width: float or array-like of float, optional
             ``Width'' of the beam in radians. For a Gaussian beam, this
             represents the standard deviation of the beam. Custom beam
@@ -162,26 +146,25 @@ class Beam1d:
             frequencies provided at class initialization. Has shape
             ``(self.thetas.size, self.freqs.size)``.
         """
-        thetas, widths, dtype = self._process_args(
-            ref_theta, width, mfreq, chromaticity, dtype
-        )
-        response = np.sinc(0.5 * np.sin(thetas) / np.sin(widths))
-        response = np.where(np.abs(self.thetas) <= self.horizon, response, 0)
+        widths, dtype = self._process_args(width, mfreq, chromaticity, dtype)
+        response = np.sinc(0.5 * self.xs / np.sin(widths))
         if power:
             response = response ** 2
         return response.astype(dtype)
         
-    def _process_args(self, ref_theta, width, mfreq, chromaticity, dtype):
+    def _process_args(self, width, mfreq, chromaticity, dtype):
         """Helper function for modifying arguments."""
-        if ref_theta is None:
-            ref_theta = self.ref_theta
         if chromaticity is None:
             chromaticity = self.chromaticity
-        thetas = self.thetas - ref_theta
         width = np.atleast_1d(width) or self.width
         mfreq = mfreq or self.mfreq
         dtype = dtype or self.dtype
         if width.size == 1:
             width = width * (self.freqs / mfreq) ** chromaticity
 
-        return thetas, width, dtype
+        return width, dtype
+
+
+class Beam2d:
+    def __init__(self, pix, freqs=0.150):
+        raise NotImplementedError("Only 1d beams are currently supported.")

@@ -40,15 +40,15 @@ def golomb_ruler(order):
     """Retrieve the markings on a Golomb ruler of a given order."""
     return np.array(GOLOMB_RULERS[order])
 
-def golomb_array(order=20, base_sep=14.6, angle=0):
+def golomb_array(Nants=20, base_sep=14.6, angle=0):
     """
     Construct a linear array with spacings based on a Golomb ruler.
 
     Parameters
     ----------
-    order: int, optional
-        Order of the Golomb ruler to use (i.e. number of antennas).
-        Default is to make an array with 20 antennas.
+    Nants: int, optional
+        Number of antennas to use when constructing the array. Default is
+        to make an array with 20 antennas.
     base_sep: float, optional
         Length of the shortest baseline, in meters. Default is 14.6 meters.
     axis: float, optional
@@ -61,7 +61,7 @@ def golomb_array(order=20, base_sep=14.6, angle=0):
         Dictionary mapping antenna numbers to ENU positions.
     """
     rot_mat = planar_rotation(angle, direction="u")
-    ruler = base_sep * golomb_ruler(order)
+    ruler = base_sep * golomb_ruler(order=Nants)
     return {ant: rot_mat @ [pos, 0, 0] for ant, pos in enumerate(ruler)}
 
 
@@ -104,4 +104,4 @@ def planar_rotation(angle, direction=2):
     
     rotvec = np.where(np.arange(3) == direction, 1, 0)
     rotation = Rotation.from_rotvec(angle * rotvec)
-    return rotation.to_dcm()
+    return rotation.as_dcm()

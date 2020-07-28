@@ -1,8 +1,10 @@
 """Helpful functions for de-wedging research."""
 
 import itertools
-import numpy as np
+import logging
+import os
 
+import numpy as np
 from astropy import constants
 
 def get_coverage(antpos, freqs, bin_edges=None, mode="u"):
@@ -35,6 +37,13 @@ def get_coverage(antpos, freqs, bin_edges=None, mode="u"):
         for each mode.
     bin_edges: dict
         Dictionary mapping mode to bin edges used for that mode.
+
+    Notes
+    -----
+    This function counts the number of baselines that sample particular modes
+    in the uvw-coordinate system in a way that treats u, v, and w independently.
+    A more careful treatment is needed to count the number of times a given uvw
+    mode is sampled (i.e. using something like np.histogramdd).
     """
     # Make sure bin edges are broadcastable to modes for which to get coverage.
     uvw_to_ind = dict(zip('uvw', range(3)))
@@ -105,5 +114,18 @@ def get_baselines(antpos, autos=False):
         combinations = itertools.combinations
     return {
         pair: np.array(antpos[pair[1]]) - np.array(antpos[pair[0]])
-        for pair in combinations(antpos.keys())
+        for pair in combinations(antpos.keys(), 2)
     }
+
+
+def save_file(filename, clobber):
+    """Determine whether to save a file."""
+    if not os.path.exists(filename):
+        return True
+    else:
+        if clobber:
+            logging.info("File exists; clobbering.")
+            return True
+        else:
+            logging.info("File exists; skipping.")
+            return False
