@@ -4,7 +4,7 @@ import json
 import numpy as np
 from astropy import constants, coordinates, units
 from astropy.time import Time
-from astropy.coordinates import SkyCoord, EarthLocation, FK5, Angle
+from astropy.coordinates import SkyCoord, EarthLocation, FK5
 
 from pyuvdata import utils as uvutils
 from hera_mc import geo_handling
