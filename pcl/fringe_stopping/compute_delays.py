@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import os
 import json
 import numpy as np
 from astropy import constants, coordinates, units
@@ -21,9 +22,16 @@ cofa_enu = uvutils.ENU_from_ECEF(cofa_xyz, cofa_lat, cofa_lon, cofa_alt)
 
 # get antennas
 telescope_location = EarthLocation.from_geocentric(*cofa_xyz, unit=units.m)
-time0 = Time.now()
-time0.location = telescope_location
+jd = int(Time.now().jd)
+if True:
+    time0 = Time.now()
+    time0.location = telescope_location
+else:
+    time0 = Time(jd, format="jd", location=telescope_location)
+print("time0: ", time0.jd)
 ants = handling.get_active_stations(time0, "all")
+# sort the list by antenna name
+ants = sorted(ants, key=lambda x: int(x.station_name[2:]))
 
 # convert from lat/lon/alt to xyz
 N_ants = len(ants)
@@ -93,10 +101,20 @@ for i in range(N_times):
     )
     delay_values[:, i] = frame_ant_uvw[:, 2] / constants.c.to("m/s").value
 
+dtaus = delay_values[:, -1] - delay_values[:, 0]
+assert len(dtaus) == N_ants
+print("max delay: ", np.amax(np.abs(dtaus)))
+
 # convert to a dictionary
+channel_width = 250e6 / 8192
 delay_dict = {}
 for i, ant_name in enumerate(ant_names):
-    delay_dict[ant_name] = delay_values[i, :].tolist()
+    # convert to form required by FPGA block
+    fringe_phase = 2 * np.pi * delay_values[i, :] * channel_width * (180.0 / np.pi)
+    # make sure angle is between -pi and pi
+    np.where(fringe_phase > 180, fringe_phase - 360, fringe_phase)
+    np.where(fringe_phase < -180, fringe_phase + 360, fringe_phase)
+    delay_dict[ant_name] = fringe_phase.tolist()
 
 # dump using json
 with open("bda_phases.json", "w") as fp:
